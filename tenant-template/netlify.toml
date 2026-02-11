@@ -1,6 +1,3 @@
-# Netlify configuration for tenant-template
-# Runtime site for real tenants (NOT demo)
-
 [build]
   command = ""
   publish = "public"
