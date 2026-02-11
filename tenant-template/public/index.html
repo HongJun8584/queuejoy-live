@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Queue Joy - Digital Queue System</title>
+
+  <!-- Tailwind (dev) + font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root { --card-radius: 1rem; }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+    .fade-in { animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+    .db-image { max-height: 180px; object-fit: cover; }
+  </style>
+
+  <!-- NOTE:
+     This template intentionally DOES NOT embed any backend credentials.
+     It expects runtime helpers injected by src/js/bootstrap.js:
+       - window.__TENANT__
+       - window.tenantRef(path)
+       - window.runTxWithRetries(ref, updater)
+     If those are not present, the page will run in a local demo fallback using localStorage.
+  -->
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-rose-50 flex flex-col items-center p-6 pb-20">
+
+  <!-- Header -->
+  <header class="w-full max-w-3xl mb-6">
+    <div class="bg-white rounded-2xl shadow-md p-4 flex items-center gap-4">
+      <img id="siteLogo" src="" alt="Site logo" class="w-12 h-12 rounded-full hidden object-cover border" />
+      <div class="flex-1 text-left">
+        <h1 id="siteTitle" class="text-lg font-bold text-gray-800">Queue Joy</h1>
+        <p id="smallTopText" class="text-xs text-gray-500">Digital Queue System</p>
+      </div>
+      <div class="text-right text-xs text-gray-400">Powered by Queue Joy</div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="w-full max-w-3xl flex flex-col items-center gap-8">
+    <section class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-6 text-center fade-in relative">
+      <div class="mx-auto">
+        <img id="centerLogo" class="w-20 h-20 rounded-full object-cover hidden mx-auto shadow-sm border" alt="center logo"/>
+        <div id="centerIcon" class="w-20 h-20 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
+          <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path>
+          </svg>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <h2 id="mainHeading" class="text-2xl font-bold text-gray-800">Get your queue number</h2>
+        <p id="introText" class="text-gray-600">Real-time queueing system. Mobile-friendly. No app needed.</p>
+      </div>
+
+      <button id="getNumberBtn" class="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-400 text-white font-semibold rounded-2xl shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+        <span id="btnText">🎫 Get your queue number</span>
+        <span id="btnSpinner" class="hidden inline-flex items-center ml-2">
+          <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          Getting your number...
+        </span>
+      </button>
+
+      <div id="errorMessage" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg"><p class="text-red-600 text-sm"></p></div>
+      <div id="successMessage" class="hidden p-3 bg-green-50 border border-green-200 rounded-lg"><p class="text-green-600 text-sm"></p></div>
+    </section>
+
+    <!-- Advertisement card -->
+    <aside class="w-full max-w-md bg-white rounded-xl shadow-lg p-3">
+      <p class="text-xs text-gray-500 text-center mb-2">Advertisement</p>
+      <a id="adLink" href="#" class="block relative">
+        <div id="adContainer" class="w-full rounded-lg shadow-md overflow-hidden">
+          <!-- ad content (img/video) will be injected here dynamically -->
+        </div>
+      </a>
+      <div id="noAd" class="text-center text-gray-400 text-sm py-6">No advertisement available</div>
+      <div id="adText" class="text-xs text-gray-600 text-center mt-2 hidden"></div>
+    </aside>
+  </main>
+
+  <!-- Template script: depends on runtime bootstrap (see note above).
+       If runtime helpers are not present, this file provides a localStorage demo fallback.
+  -->
+  <script>
+    // --- Utility & fallback implementations (only used if runtime bootstrap doesn't provide real functions)
+    (function () {
+      // get tenant slug from path or query
+      function getSlugFromPath() {
+        const path = window.location.pathname || '/';
+        const parts = path.split('/').filter(Boolean);
+        if (parts.length > 0) {
+          const p0 = parts[0];
+          if (/^[a-z0-9\-]+$/.test(p0)) return p0;
+        }
+        try {
+          const qp = new URLSearchParams(window.location.search);
+          if (qp.has('slug')) return qp.get('slug');
+        } catch (e) {}
+        return 'template-demo';
+      }
+
+      const TENANT_SLUG = getSlugFromPath();
+
+      // If bootstrap provides tenantRef / runTxWithRetries, use them. Otherwise use localStorage mock.
+      const hasTenantRef = typeof window.tenantRef === 'function';
+      const hasRunTx = typeof window.runTxWithRetries === 'function';
+      const hasTenantConfig = !!window.__TENANT__;
+
+      // DEMO storage namespace
+      const LS_NS = `qj_demo__${TENANT_SLUG}__`;
+
+      // localStorage helper for demo
+      function lsKey(k){ return LS_NS + k; }
+      function lsGet(k){ try { return JSON.parse(localStorage.getItem(lsKey(k))); } catch(e){ return null; } }
+      function lsSet(k,v){ localStorage.setItem(lsKey(k), JSON.stringify(v)); }
+
+      // fallback tenantRef: mimics simple tree under keys 'settings','counters','queue'
+      function demoTenantRef(path) {
+        path = (path||'').replace(/^\/+/,'');
+        return {
+          // read once
+          async get() {
+            if (!path) return lsGet('root') || {};
+            return lsGet(path) || null;
+          },
+          async set(val) { lsSet(path, val); return true; },
+          async push(val) {
+            // create a simple keyed object
+            const list = lsGet(path) || {};
+            const key = 'id_' + Date.now() + '_' + Math.floor(Math.random()*9000);
+            list[key] = val;
+            lsSet(path, list);
+            return { key, val };
+          },
+          async update(pairs) {
+            const cur = lsGet(path) || {};
+            Object.assign(cur, pairs);
+            lsSet(path, cur);
+            return true;
+          },
+          // enumerate
+          async onceValue() {
+            return { exists: () => !!lsGet(path), val: () => lsGet(path) };
+          }
+        };
+      }
+
+      // fallback runTxWithRetries: only supports numeric counters stored at path
+      async function demoRunTx(path, updater) {
+        for (let i=0;i<6;i++){
+          const cur = lsGet(path) || 0;
+          const next = updater(cur);
+          lsSet(path, next);
+          return { committed:true, snapshot:{ val: () => next } };
+        }
+        throw new Error('demo tx failed');
+      }
+
+      // helpers used by the UI below; prefer injected helpers if available
+      const tenantRef = (p) => {
+        if (hasTenantRef) return window.tenantRef(p);
+        return demoTenantRef(p);
+      };
+      const runTxWithRetries = (refOrPath, updater, maxRetries = 6) => {
+        if (hasRunTx) return window.runTxWithRetries(refOrPath, updater, maxRetries);
+        // allow passing path string as convenience
+        const path = typeof refOrPath === 'string' ? refOrPath : (refOrPath && refOrPath._demoPath) || 'settings/lastCounterIndex';
+        return demoRunTx(path, updater);
+      };
+
+      // small DOM helpers
+      function $(id){ return document.getElementById(id); }
+      const siteTitleEl = $('siteTitle');
+      const siteLogoEl = $('siteLogo');
+      const centerLogoImg = $('centerLogo');
+      const centerIcon = $('centerIcon');
+      const mainHeading = $('mainHeading');
+      const introText = $('introText');
+      const getNumberBtn = $('getNumberBtn');
+      const btnText = $('btnText');
+      const btnSpinner = $('btnSpinner');
+      const errorMessage = $('errorMessage');
+      const successMessage = $('successMessage');
+      const adLinkEl = $('adLink');
+      const adTextEl = $('adText');
+      const noAd = $('noAd');
+      const adContainer = $('adContainer');
+      const smallTopTextEl = $('smallTopText');
+
+      function showError(msg) {
+        console.warn(msg);
+        errorMessage.querySelector('p').textContent = msg;
+        errorMessage.classList.remove('hidden');
+        successMessage.classList.add('hidden');
+        setTimeout(()=>errorMessage.classList.add('hidden'),6000);
+      }
+      function showSuccess(msg) {
+        successMessage.querySelector('p').textContent = msg;
+        successMessage.classList.remove('hidden');
+        errorMessage.classList.add('hidden');
+        setTimeout(()=>successMessage.classList.add('hidden'),6000);
+      }
+      function setLoading(flag) {
+        getNumberBtn.disabled = flag;
+        btnText.classList.toggle('hidden', flag);
+        btnSpinner.classList.toggle('hidden', !flag);
+        getNumberBtn.setAttribute('aria-busy', String(flag));
+      }
+
+      // load settings (either from injected tenantRef or demo)
+      async function watchSettings() {
+        try {
+          const sRef = tenantRef('settings');
+          // try to read once and then poll/watch every 3s in demo mode
+          if (hasTenantRef && window.__TENANT__ && window.__TENANT__._supportsRealtime) {
+            // assume injected tenantRef provides onValue; fallback to periodic fetch below
+          }
+          const load = async () => {
+            const snap = await sRef.get ? await sRef.get() : (await sRef.onceValue()).val();
+            const s = snap || {};
+            const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
+
+            if (s.logo) { siteLogoEl.src = s.logo; siteLogoEl.classList.remove('hidden'); }
+            else { siteLogoEl.src=''; siteLogoEl.classList.add('hidden'); }
+
+            const topTitle = pick(s.mainTitle) || pick(s.name) || 'Queue Joy';
+            siteTitleEl.textContent = topTitle;
+            document.title = topTitle + ' - Digital Queue System';
+
+            if (smallTopTextEl) smallTopTextEl.textContent = pick(s.smallTextOnTop) || pick(s.smallTopText) || 'Digital Queue System';
+
+            if (s.logoUrl) {
+              centerLogoImg.src = s.logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
+            } else if (s.logo) {
+              centerLogoImg.src = s.logo; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
+            } else {
+              centerLogoImg.src = ''; centerLogoImg.classList.add('hidden'); centerIcon.classList.remove('hidden');
+            }
+
+            mainHeading.textContent = pick(s.titleinmiddle) || pick(s.ctaTitle) || 'Get your queue number';
+            introText.textContent = pick(s.introText) || pick(s.smallTextOnTop) || 'Real-time queueing system. Mobile-friendly. No app needed.';
+            btnText.textContent = '🎫 ' + (pick(s.ctaText) || 'Get your queue number');
+
+            // AD handling
+            adContainer.innerHTML = '';
+            if (s.adImage) {
+              const url = String(s.adImage).trim();
+              const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith('data:video/');
+              if (isVideo) {
+                const videoEl = document.createElement('video');
+                videoEl.setAttribute('playsinline',''); videoEl.setAttribute('autoplay',''); videoEl.setAttribute('loop',''); videoEl.setAttribute('muted','');
+                videoEl.className = 'w-full object-cover db-image';
+                videoEl.src = url; adContainer.appendChild(videoEl);
+                videoEl.play().catch(()=>videoEl.setAttribute('controls',''));
+              } else {
+                const imgEl = document.createElement('img');
+                imgEl.src = url; imgEl.alt = 'Advertisement'; imgEl.className = 'w-full object-cover db-image';
+                adContainer.appendChild(imgEl);
+              }
+              adContainer.classList.remove('hidden'); noAd.classList.add('hidden');
+            } else {
+              adContainer.innerHTML = ''; adContainer.classList.add('hidden'); noAd.classList.remove('hidden');
+            }
+            adTextEl.textContent = pick(s.adText) || '';
+            adTextEl.classList.toggle('hidden', !adTextEl.textContent);
+
+            // sanitize adLink: allow only same-origin or relative
+            const rawAdLink = (s.adLink || '').toString();
+            try {
+              const u = new URL(rawAdLink, window.location.href);
+              if (u.origin === window.location.origin) {
+                adLinkEl.href = u.href; adLinkEl.removeAttribute('target'); adLinkEl.setAttribute('rel','noopener');
+              } else {
+                adLinkEl.href = '#';
+              }
+            } catch(e){ adLinkEl.href = '#'; }
+
+          };
+
+          await load();
+          // fallback poll in demo mode (and when no realtime)
+          if (!(hasTenantRef && window.__TENANT__ && window.__TENANT__._supportsRealtime)) {
+            setInterval(load, 3000);
+          }
+        } catch (e) {
+          console.warn('watchSettings failed', e);
+        }
+      }
+
+      // fetch active counters
+      async function fetchActiveCounters() {
+        const snap = await tenantRef('counters').get ? await tenantRef('counters').get() : (await tenantRef('counters').onceValue()).val();
+        const obj = snap || {};
+        const raw = [];
+        Object.keys(obj).forEach(k => {
+          const val = obj[k];
+          const activeRaw = val && val.active;
+          const active =
+            activeRaw === undefined ||
+            activeRaw === null ||
+            activeRaw === true ||
+            activeRaw === 'true' ||
+            activeRaw === 1 ||
+            activeRaw === '1' ||
+            String(activeRaw).toLowerCase() === 'yes';
+          raw.push({ id: k, ...val, _active: !!active });
+        });
+        const activeList = raw.filter(c => c && c._active);
+        activeList.sort((a,b)=>{
+          const ao = (a.order !== undefined && a.order !== '' && a.order !== null) ? Number(a.order) : Number.POSITIVE_INFINITY;
+          const bo = (b.order !== undefined && b.order !== '' && b.order !== null) ? Number(b.order) : Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          if (!isNaN(Number(a.id)) && !isNaN(Number(b.id))) return Number(a.id) - Number(b.id);
+          return String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' });
+        });
+        return activeList;
+      }
+
+      // robust round-robin & issue number flow using transaction helper
+      async function getQueueNumber() {
+        setLoading(true);
+        try {
+          const activeCounters = await fetchActiveCounters();
+          if (!activeCounters || activeCounters.length === 0) {
+            showError('No active counters available right now.');
+            return;
+          }
+
+          // round-robin index (atomic)
+          const rrPath = 'settings/lastCounterIndex';
+          const rrResult = await runTxWithRetries(rrPath, cur => {
+            const ncur = Number(cur) || 0;
+            return ncur + 1;
+          }, 8);
+
+          if (!rrResult || rrResult.committed !== true) {
+            throw new Error('Round-robin transaction failed to commit.');
+          }
+          const rrVal = rrResult.snapshot && (typeof rrResult.snapshot.val === 'function' ? rrResult.snapshot.val() : rrResult.snapshot);
+          const globalCounter = Number(rrVal);
+          if (!Number.isFinite(globalCounter)) throw new Error('Invalid round-robin counter value returned.');
+
+          const n = activeCounters.length;
+          const index = ((globalCounter - 1) % n + n) % n;
+          let chosen = activeCounters[index];
+          if (!chosen) chosen = activeCounters[0];
+
+          // increment per-counter lastIssued
+          const lastIssuedPath = `counters/${chosen.id}/lastIssued`;
+          const lastIssuedTx = await runTxWithRetries(lastIssuedPath, cur => (Number(cur) || 0) + 1, 8);
+          if (!lastIssuedTx || lastIssuedTx.committed !== true) throw new Error('Failed to increment counter issued number.');
+
+          const nextNumber = Number(lastIssuedTx.snapshot && (typeof lastIssuedTx.snapshot.val === 'function' ? lastIssuedTx.snapshot.val() : lastIssuedTx.snapshot));
+          const prefix = (chosen.prefix && String(chosen.prefix)) || 'Q';
+          const queueId = `${prefix}${String(nextNumber).padStart(3,'0')}`;
+
+          // push queue entry
+          const newNode = await tenantRef('queue').push ? await tenantRef('queue').push({
+            counterId: chosen.id,
+            queueId,
+            timestamp: Date.now(),
+            status: 'waiting'
+          }) : await (async ()=> {
+            const r = await tenantRef('queue').push({ counterId: chosen.id, queueId, timestamp: Date.now(), status: 'waiting' });
+            return r;
+          })();
+
+          // newNode may be object { key, val } in demo fallback
+          const newKey = newNode && (newNode.key || (newNode.name || null));
+          try { if (newKey) sessionStorage.setItem('lastQueueId', newKey); } catch(e) {}
+
+          showSuccess(`You're number ${queueId}`);
+          setTimeout(()=> {
+            const target = `status.html?queueId=${encodeURIComponent(newKey || '')}`;
+            window.location.href = target;
+          }, 750);
+
+        } catch (err) {
+          console.error('getQueueNumber error', err);
+          showError(err && err.message ? err.message : 'Failed to get queue number. Try again.');
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Auto-redirect if lastQueueId waiting -> local status page
+      (async function autoRedirect() {
+        try {
+          const lastQueueId = sessionStorage.getItem('lastQueueId');
+          if (!lastQueueId) return;
+          // attempt to read queue entry and redirect if status waiting
+          const qRef = tenantRef(`queue/${lastQueueId}`);
+          const snap = qRef.get ? await qRef.get() : (await qRef.onceValue()).val();
+          const exists = !!snap;
+          const status = exists && (snap.status || (typeof snap.val === 'function' ? snap.val().status : null));
+          if (status === 'waiting') {
+            const target = `status.html?queueId=${encodeURIComponent(lastQueueId)}`;
+            window.location.href = target;
+          }
+        } catch (e) { console.warn('autoRedirect check failed', e); }
+      })();
+
+      // wire events
+      (function wire() {
+        watchSettings().catch(()=>{});
+        document.getElementById('getNumberBtn').addEventListener('click', e => { e.preventDefault(); getQueueNumber(); });
+
+        // ad link safety
+        adLinkEl.addEventListener('click', (ev) => {
+          const href = adLinkEl.getAttribute('href') || '';
+          if (!href || href === '#') { ev.preventDefault(); return; }
+          try {
+            const u = new URL(href, window.location.href);
+            if (u.origin !== window.location.origin) { ev.preventDefault(); console.warn('Blocked external navigation to', href); }
+          } catch (e) { ev.preventDefault(); }
+        });
+      })();
+
+    })();
+  </script>
+</body>
+</html>
