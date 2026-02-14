@@ -9,14 +9,19 @@ exports.handler = async function(event, context) {
 
   try {
     const qs = event.queryStringParameters || {};
-    const incomingKey = (qs.master_key || qs.masterKey || (event.headers && event.headers['x-master-key']) ) || null;
+    const incomingKey = (qs.master_key || qs.masterKey || (event.headers && (event.headers['x-master-key'] || event.headers['X-Master-Key'])) ) || null;
     const MASTER_KEY = process.env.MASTER_API_KEY || process.env.MASTER_KEY || null;
-    if (!MASTER_KEY || incomingKey !== MASTER_KEY) {
+    if (MASTER_KEY && incomingKey !== MASTER_KEY) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'invalid or missing master key' }) };
     }
     const slug = qs.slug;
     if (!slug) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'missing slug param' }) };
+    }
+
+    // If Firebase not configured, return a clear, non-crashing JSON message (demo-friendly)
+    if (!admin.__initialized) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'firebase_not_configured', message: 'Firebase service account not set in environment (FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_SERVICE_ACCOUNT). This tenant is running in demo mode.' }) };
     }
 
     const db = admin.database();

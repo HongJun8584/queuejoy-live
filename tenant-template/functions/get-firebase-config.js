@@ -1,6 +1,10 @@
 /*
 Return firebase config for front-end consumption.
-Prefer process.env.FIREBASE_CONFIG, otherwise return minimal hint derived from envs.
+
+Behavior:
+- If MASTER_API_KEY is set in env, this endpoint will require it (x-master-key or master_key).
+- If MASTER_API_KEY is NOT set, return a safe fallback so public demo (template) works.
+- If MASTER_API_KEY is set but the key is wrong, return a limited fallback with "unauthorized": true
 */
 exports.handler = async function(event) {
   const headers = {
@@ -9,12 +13,23 @@ exports.handler = async function(event) {
     'Content-Type': 'application/json'
   };
   try {
-    // auth optional for read-only; use master_key if set to protect endpoint
     const qs = event.queryStringParameters || {};
-    const incomingKey = qs.master_key || (event.headers && event.headers['x-master-key']) || null;
+    const incomingKey = qs.master_key || (event.headers && (event.headers['x-master-key'] || event.headers['X-Master-Key'])) || null;
     const MASTER_KEY = process.env.MASTER_API_KEY || process.env.MASTER_KEY || null;
-    if (MASTER_KEY && incomingKey !== MASTER_KEY) {
-      return { statusCode: 401, headers, body: JSON.stringify({ error: 'invalid or missing master key' }) };
+
+    if (MASTER_KEY) {
+      if (incomingKey !== MASTER_KEY) {
+        // Instead of 401, return limited fallback so demo pages can render without full access.
+        const fallback = {
+          apiKey: null,
+          authDomain: null,
+          databaseURL: null,
+          projectId: null,
+          unauthorized: true,
+          message: 'master key invalid; requesting client is unauthorized to receive full firebase config'
+        };
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: false, config: fallback }) };
+      }
     }
 
     if (process.env.FIREBASE_CONFIG) {
@@ -25,12 +40,12 @@ exports.handler = async function(event) {
         // continue
       }
     }
-    // fallback
     const fallback = {
       apiKey: process.env.FIREBASE_API_KEY || null,
       authDomain: process.env.FIREBASE_AUTH_DOMAIN || null,
       databaseURL: process.env.FIREBASE_DB_URL || process.env.FIREBASE_DATABASE_URL || null,
-      projectId: process.env.FIREBASE_PROJECT_ID || null
+      projectId: process.env.FIREBASE_PROJECT_ID || null,
+      note: 'This is a limited fallback, set FIREBASE_CONFIG or FIREBASE_SERVICE_ACCOUNT envs for full functionality'
     };
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, config: fallback }) };
   } catch (err) {
