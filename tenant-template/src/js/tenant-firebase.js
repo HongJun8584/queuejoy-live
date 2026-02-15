@@ -8,6 +8,7 @@ export async function initFirebaseForTenant(slug) {
   }
   const config = await res.json();
 
+  // Client-side init placeholder (replace with real Firebase initialization)
   if (!window.firebaseApp) {
     window.firebaseApp = { __fakeInit: true, config };
     console.log('Initialized fake firebase app for', slug, config);

@@ -8,16 +8,19 @@ export function getTenantFromLocation(location = window.location) {
     if (qp.get('debug_tenant')) return qp.get('debug_tenant');
   } catch (e) {}
 
+  // 1) /tenants/<slug>/...
   let m = path.match(/^\/tenants\/([^\/]+)(\/|$)/);
   if (m) return m[1];
 
+  // 2) root-style /<slug>/ (avoid known pages)
   m = path.match(/^\/([^\/]+)(\/|$)/);
   if (m) {
     const candidate = m[1].toLowerCase();
-    const blacklist = ['index.html', 'admin', 'game', 'counter', 'status', '404', 'assets', 'css', 'js'];
+    const blacklist = ['index.html','admin','game','counter','status','404','assets','css','js','tenant-template'];
     if (!blacklist.includes(candidate)) return candidate;
   }
 
+  // 3) subdomain style
   const hostParts = host.split('.');
   if (hostParts.length >= 3) {
     return hostParts[0];
