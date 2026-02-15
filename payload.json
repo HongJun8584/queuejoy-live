@@ -1,0 +1,37 @@
+{
+  "slug": "demo-nailshop-abc",
+  "meta": {
+    "slug": "demo-nailshop-abc",
+    "name": "Demo Nail Shop ABC",
+    "owner": { "name": "Alice", "email": "alice@example.com", "phone": "+60-12-3456789" },
+    "domain": "",
+    "createdAt": 1718256000000,
+    "status": "active"
+  },
+  "firebaseConfig": {
+    "databaseURL": "https://queuejoy-live.firebaseio.com",
+    "projectId": "queuejoy-live"
+  },
+  "settings": {
+    "mainTitle": "DEMO NAIL SHOP ABC",
+    "introText": "Tap to get a queue number",
+    "smallTextOnTop": "#SpecialOffer",
+    "titleinmiddle": "JOIN TELEGRAM FOR PROMO",
+    "lastCounterIndex": 0,
+    "logoUrl": "",
+    "adImage": "https://placehold.co/600x200?text=Ad+Panel",
+    "features": { "queue": true, "game": false, "smsNotify": false, "telegramNotify": true },
+    "ui": { "theme": "classic", "primaryColor": "#2266ff" }
+  },
+  "counters": {
+    "counter1": { "name": "Front Desk", "prefix": "FD", "active": true, "busy": false, "lastIssued": 0, "nowServing": 0 },
+    "counter2": { "name": "Nail Bar", "prefix": "NB", "active": true, "busy": false, "lastIssued": 0, "nowServing": 0 }
+  },
+  "adPanel": {
+    "enabled": true,
+    "imageUrl": "https://placehold.co/600x200?text=Promo",
+    "linkUrl": ""
+  },
+  "tokens": {},
+  "announcement": {}
+}

@@ -1,0 +1,149 @@
+{
+  "meta": {
+    "slug": "nailshop-abc",
+    "name": "Nail Shop ABC",
+    "owner": {
+      "name": "Alice",
+      "email": "alice@example.com",
+      "phone": "+60-12-3456789"
+    },
+    "domain": "nailshop.example.com",
+    "createdAt": 1718256000000,
+    "status": "active"
+  },
+  "firebaseConfig": {
+    "databaseURL": "https://queuejoy-live.firebaseio.com",
+    "projectId": "queuejoy-live"
+  },
+  "settings": {
+    "mainTitle": "NAIL SHOP ABC",
+    "introText": "Tap to get a queue number",
+    "smallTextOnTop": "#SpecialOffer",
+    "titleinmiddle": "JOIN TELEGRAM FOR PROMO",
+    "lastCounterIndex": 12,
+    "logoUrl": "",
+    "adImage": "",
+    "features": {
+      "queue": true,
+      "game": false,
+      "smsNotify": false,
+      "telegramNotify": true
+    },
+    "ui": {
+      "theme": "classic",
+      "primaryColor": "#2266ff"
+    }
+  },
+  "counters": {
+    "counter1": {
+      "name": "Front Desk",
+      "prefix": "FD",
+      "active": true,
+      "busy": false,
+      "lastIssued": 24,
+      "nowServing": 24,
+      "lastAdvanceAt": 1718260000000
+    },
+    "counter2": {
+      "name": "Nail Bar",
+      "prefix": "NB",
+      "active": true,
+      "busy": false,
+      "lastIssued": 10,
+      "nowServing": 9,
+      "lastAdvanceAt": 1718259800000
+    }
+  },
+  "lastAssignedCounter": "counter2",
+  "queue": {
+    "ticket_1": {
+      "queueId": "NB011",
+      "counterId": "counter2",
+      "status": "waiting",
+      "timestamp": 1718261000000,
+      "customer": {
+        "id": "c_541d82bd",
+        "name": "Bob",
+        "phone": "+60-12-0000000"
+      },
+      "meta": "",
+      "ip": "203.0.113.5",
+      "userAgent": "Mozilla/5.0"
+    },
+    "ticket_2": {
+      "queueId": "FD025",
+      "counterId": "counter1",
+      "status": "served",
+      "timestamp": 1718260000000,
+      "servedAt": 1718260300000,
+      "customer": {
+        "id": "c_1234",
+        "name": "Cathy"
+      }
+    }
+  },
+  "queueSubscriptions": {
+    "sub_1": "541d82bd-b3f2-44b4-9b46-8f34b61390cc",
+    "sub_2": "3603ed11-3b2e-4615-9cde-3d87f2ac98db"
+  },
+  "subscribers": {
+    "541d82bd-b3f2-44b4-9b46-8f34b61390cc": {
+      "queueKey": "ticket_1",
+      "subscribedAt": 1718259000000,
+      "contact": {
+        "type": "telegram",
+        "chatId": 1519672078
+      }
+    }
+  },
+  "analytics": {
+    "serviceEvents": {
+      "evt_0001": {
+        "counter": "Front Desk",
+        "series": "FD",
+        "requestedAt": 1718260000000,
+        "servedAt": 1718260300000,
+        "serviceMs": 300000,
+        "ticketId": "ticket_2"
+      }
+    },
+    "aggregates": {
+      "daily": {
+        "2026-02-12": {
+          "served": 120,
+          "avgServiceMs": 45000
+        }
+      }
+    }
+  },
+  "announcement": {
+    "botToken": "",
+    "chatIds": {
+      "1519672078": true
+    }
+  },
+  "tokens": {
+    "localtoken": {
+      "chatId": 999999,
+      "telegramConnected": true,
+      "connectedAt": "2026-02-10T16:18:39.773Z"
+    }
+  },
+  "audit": {
+    "2026-02-12T08:00:00Z": {
+      "event": "createBusiness",
+      "actor": "alice@example.com",
+      "slug": "nailshop-abc",
+      "status": "ok",
+      "details": {
+        "siteUrl": "https://nailshop-abc.netlify.app"
+      }
+    }
+  },
+  "metaExtras": {
+    "templates": {
+      "headHtml": "",
+      "partials": {}
+    }
+  }
+}

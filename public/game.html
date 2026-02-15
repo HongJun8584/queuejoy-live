@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Queue Joy - Snake Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
+    canvas { border-radius: 8px; display:block; touch-action: none; }
+    /* when locked, prevent scroll on mobile & desktop */
+    .no-scroll { overflow: hidden !important; height: 100% !important; touch-action: none !important; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex flex-col items-center justify-center p-4 pb-32">
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4 fade-in">
+    <div class="text-center space-y-2">
+      <div class="w-12 h-12 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M15 14h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+      <h1 class="text-xl font-bold text-indigo-800">Snake Game</h1>
+      <p class="text-xs text-gray-500 italic">Play while you wait — we’ll call you when your number is up.</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 text-center">
+      <div class="bg-gray-50 rounded-lg p-2">
+        <p class="text-xs text-gray-600">Score</p>
+        <p id="score" class="text-sm font-bold text-gray-800">0</p>
+      </div>
+      <div class="bg-gray-50 rounded-lg p-2">
+        <p class="text-xs text-gray-600">High Score</p>
+        <p id="highScore" class="text-sm font-bold text-gray-800">0</p>
+      </div>
+    </div>
+
+    <div id="gameBoard" class="relative w-full" style="padding-top:100%; position:relative;">
+      <canvas id="gameCanvas" style="position:absolute; left:0; top:0; width:100%; height:100%"></canvas>
+    </div>
+
+    <div id="gameOver" class="hidden bg-red-50 border-2 border-red-200 rounded-xl p-3 text-center">
+      <div class="text-2xl mb-1">😢</div>
+      <p class="text-red-800 font-bold">Game Over!</p>
+      <div id="finalStats" class="text-red-700 text-xs"></div>
+    </div>
+
+    <div class="space-y-2">
+      <button id="newGameBtn" class="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-500 text-white font-semibold rounded-xl shadow hover:scale-105 transition-all duration-300">🎮 New Game</button>
+      <button id="backBtn" class="w-full py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">← Back to Status</button>
+      <div id="inlineError" class="hidden text-red-600 text-sm text-center bg-red-50 border border-red-200 rounded-lg p-2"></div>
+    </div>
+  </div>
+
+  <div class="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-sm px-4">
+    <div class="bg-white rounded-xl shadow-lg p-3">
+      <p class="text-xs text-gray-500 text-center mb-2">Advertisement</p>
+      <img id="adPanel" src="" alt="Advertisement" class="w-full rounded-lg shadow-md hidden max-h-24 object-cover">
+      <div id="noAd" class="text-center text-gray-400 text-sm py-4">No advertisement available</div>
+    </div>
+  </div>
+
+  <script type="module">
+    // --- Game UI + logic (unchanged behaviour) ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    // We'll import database functions dynamically after we decide firebase config.
+
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const gameOverEl = document.getElementById('gameOver');
+    const finalStatsEl = document.getElementById('finalStats');
+    const newGameBtn = document.getElementById('newGameBtn');
+    const backBtn = document.getElementById('backBtn');
+    const adPanel = document.getElementById('adPanel');
+    const noAd = document.getElementById('noAd');
+    const inlineError = document.getElementById('inlineError');
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const grid = 16;
+    let tileCount = 20;
+    let score = 0;
+    let highScore = 0;
+    let loopId = null;
+    let count = 0;
+
+    let snake = { x: 160, y:160, dx: grid, dy:0, cells: [], maxCells: 4 };
+    let apple = { x: 256, y: 256 };
+
+    // Tenant / DB scoped variables (populated later)
+    let TENANT_SLUG = null;
+    let DB = null;
+    let dbRef = null; // function to create refs under tenant: dbRef(path)
+    let dbOnValue = null;
+    let dbOff = null;
+    let dbSet = null;
+
+    // DB listeners refs
+    let adRef = null;
+    let queueRef = null;
+    let counterRef = null;
+    let highScoreRef = null;
+
+    let hasNavigated = false;
+    let currentQueueKey = null;
+    let currentQueueData = null;
+
+    // util helpers (UI)
+    function showError(msg) {
+      inlineError.textContent = msg;
+      inlineError.classList.remove('hidden');
+      setTimeout(()=> inlineError.classList.add('hidden'), 5000);
+    }
+    function randInt(min, max){ return Math.floor(Math.random() * (max - min)) + min; }
+
+    function resizeCanvasToContainer() {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(240, Math.min(480, Math.round(rect.width)));
+      canvas.width = w;
+      canvas.height = w;
+      tileCount = Math.max(6, Math.floor(w / grid));
+    }
+    window.addEventListener('resize', resizeCanvasToContainer);
+
+    let _preventTouchMove = (e) => { e.preventDefault(); };
+    function preventWheel(e){ e.preventDefault(); }
+    function lockScroll() {
+      document.documentElement.classList.add('no-scroll');
+      document.body.classList.add('no-scroll');
+      window.addEventListener('wheel', preventWheel, { passive: false });
+      window.addEventListener('touchmove', _preventTouchMove, { passive: false });
+    }
+    function unlockScroll() {
+      document.documentElement.classList.remove('no-scroll');
+      document.body.classList.remove('no-scroll');
+      window.removeEventListener('wheel', preventWheel, { passive: false });
+      window.removeEventListener('touchmove', _preventTouchMove, { passive: false });
+    }
+
+    function resetGameState() {
+      unlockScroll();
+      resizeCanvasToContainer();
+      const mid = Math.floor(canvas.width / 2 / grid) * grid;
+      snake = { x: mid, y: mid, dx: grid, dy: 0, cells: [], maxCells: 4 };
+      apple = { x: (randInt(0, tileCount) * grid), y: (randInt(0, tileCount) * grid) };
+      score = 0;
+      count = 0;
+      scoreEl.textContent = score;
+      gameOverEl.classList.add('hidden');
+      if (loopId) cancelAnimationFrame(loopId);
+      loopId = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      if (loopId) cancelAnimationFrame(loopId);
+      loopId = null;
+      finalStatsEl.innerText = `Final Score: ${score}`;
+      gameOverEl.classList.remove('hidden');
+      lockScroll();
+      // persist per-tenant high score if available
+      try {
+        if (dbSet && highScoreRef && score > highScore) {
+          highScore = score;
+          highScoreEl.textContent = highScore;
+          dbSet(highScoreRef, highScore).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function gameLoop() {
+      loopId = requestAnimationFrame(gameLoop);
+      if (++count < 4) return;
+      count = 0;
+
+      ctx.fillStyle = '#F3F4F6';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      snake.x += snake.dx;
+      snake.y += snake.dy;
+
+      if (snake.x < 0 || snake.x >= canvas.width || snake.y < 0 || snake.y >= canvas.height) {
+        endGame(); return;
+      }
+
+      snake.cells.unshift({ x: snake.x, y: snake.y });
+      if (snake.cells.length > snake.maxCells) snake.cells.pop();
+
+      ctx.fillStyle = 'red';
+      ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
+
+      ctx.fillStyle = 'green';
+      for (let i=0;i<snake.cells.length;i++){
+        const cell = snake.cells[i];
+        ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1);
+
+        if (cell.x === apple.x && cell.y === apple.y){
+          score += 10;
+          snake.maxCells++;
+          scoreEl.textContent = score;
+          if (score > highScore){
+            highScore = score;
+            highScoreEl.textContent = highScore;
+            // persist if db available (will be handled in endGame too)
+            try { if (dbSet && highScoreRef) dbSet(highScoreRef, highScore).catch(()=>{}); } catch(e){}
+          }
+          apple.x = randInt(0, tileCount) * grid;
+          apple.y = randInt(0, tileCount) * grid;
+        }
+
+        for (let j=i+1;j<snake.cells.length;j++){
+          if (cell.x === snake.cells[j].x && cell.y === snake.cells[j].y) { endGame(); return; }
+        }
+      }
+    }
+
+    canvas.addEventListener('click', (e) => {
+      if (!loopId) return;
+      const rect = canvas.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const headX = snake.x + grid/2;
+      const headY = snake.y + grid/2;
+      const dx = cx - headX;
+      const dy = cy - headY;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0 && snake.dx === 0) { snake.dx = grid; snake.dy = 0; }
+        else if (dx < 0 && snake.dx === 0) { snake.dx = -grid; snake.dy = 0; }
+      } else {
+        if (dy > 0 && snake.dy === 0) { snake.dx = 0; snake.dy = grid; }
+        else if (dy < 0 && snake.dy === 0) { snake.dx = 0; snake.dy = -grid; }
+      }
+    });
+
+    // ---------------------------
+    // TENANT + FIREBASE BOOTSTRAP
+    // ---------------------------
+    function inferTenantSlug() {
+      try {
+        if (window.__TENANT__ && window.__TENANT__.slug) return String(window.__TENANT__.slug);
+      } catch(e){}
+      // first path segment
+      try {
+        const parts = (location.pathname || '/').split('/').filter(Boolean);
+        if (parts.length && /^[A-Za-z0-9\-_]+$/.test(parts[0])) return parts[0].toLowerCase();
+      } catch(e){}
+      try {
+        const qp = new URLSearchParams(location.search);
+        if (qp.get('tenantId')) return qp.get('tenantId');
+        if (qp.get('slug')) return qp.get('slug');
+        if (qp.get('tenant')) return qp.get('tenant');
+      } catch(e){}
+      return 'template';
+    }
+
+    // default (demo) firebase config — kept as fallback so page works locally
+    const DEFAULT_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+      authDomain: "queue-joy-aa21b.firebaseapp.com",
+      databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "queue-joy-aa21b",
+      storageBucket: "queue-joy-aa21b.firebasestorage.app",
+      messagingSenderId: "950240394209",
+      appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+    };
+
+    async function tryFetchTenantFirebaseConfig(slug) {
+      try {
+        const res = await fetch(`/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(slug)}`);
+        if (!res.ok) return null;
+        const json = await res.json();
+        if (json && typeof json === 'object') return json;
+      } catch (e) { /* ignore */ }
+      return null;
+    }
+
+    function safeOff(refToOff) {
+      try { if (dbOff && refToOff) dbOff(refToOff); } catch(e){}
+    }
+
+    // clean-up helper (tenant-scoped listeners)
+    function cleanupTenantListeners() {
+      try {
+        safeOff(adRef); adRef = null;
+        safeOff(queueRef); queueRef = null;
+        safeOff(counterRef); counterRef = null;
+        safeOff(highScoreRef); highScoreRef = null;
+      } catch(e){ console.warn('cleanup error', e); }
+    }
+
+    // helper used when redirecting to your_turn page
+    function performRedirectToYourTurn(dbKey) {
+      try {
+        if (loopId) cancelAnimationFrame(loopId);
+        cleanupTenantListeners();
+      } catch (e){}
+      setTimeout(() => {
+        const redirectUrl = `/your_turn.html?queueId=${encodeURIComponent(dbKey)}${TENANT_SLUG ? `&tenantId=${encodeURIComponent(TENANT_SLUG)}` : ''}`;
+        window.location.assign(redirectUrl);
+      }, 150);
+    }
+
+    // Attach tenant-scoped queue + counter listeners
+    function initQueueAndCounterListenersTenant(dbKey) {
+      if (!dbKey) return;
+      cleanupTenantListeners();
+
+      try {
+        queueRef = dbRef(`queue/${dbKey}`);
+        dbOnValue(queueRef, (snap) => {
+          if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
+          const val = (typeof snap.val === 'function') ? snap.val() : snap;
+          if (!val) return;
+          currentQueueData = val;
+          const identifiers = [];
+          function pushIf(v){
+            if (v === undefined || v === null) return;
+            const s = String(v).trim();
+            if (s.length) identifiers.push(s);
+          }
+          pushIf(val.ticketNumber);
+          pushIf(val.number);
+          pushIf(val.queueId);
+          pushIf(val.id);
+          pushIf(val.ticket);
+          pushIf(val.code);
+
+          const numericIds = identifiers.map(s => {
+            const n = Number(String(s).replace(/\D+/g,'')); return Number.isFinite(n) ? n : NaN;
+          });
+
+          const status = (val.status || '').toString().toLowerCase();
+          if ((status === 'called' || status === 'serving' || status === 'called_by_staff') && !hasNavigated) {
+            hasNavigated = true;
+            performRedirectToYourTurn(dbKey);
+            return;
+          }
+
+          const counterId = val.counterId || val.counter || val.counter_id;
+          if (counterId) {
+            if (counterRef) safeOff(counterRef);
+            counterRef = dbRef(`counters/${counterId}/nowServing`);
+            dbOnValue(counterRef, (nowSnap) => {
+              if (!nowSnap || (typeof nowSnap.exists === 'function' && !nowSnap.exists())) return;
+              let nowRaw = (typeof nowSnap.val === 'function') ? nowSnap.val() : nowSnap;
+              if (typeof nowRaw === 'object' && nowRaw !== null) {
+                nowRaw = nowRaw.value || nowRaw.nowServing || nowRaw.current || nowRaw;
+              }
+              nowRaw = String(nowRaw || '').trim();
+              if (!nowRaw) return;
+
+              if (!hasNavigated && identifiers.some(id => id === nowRaw)) {
+                hasNavigated = true; performRedirectToYourTurn(dbKey); return;
+              }
+
+              const nowNum = Number(nowRaw.replace(/\D+/g,'')) || NaN;
+              if (!hasNavigated && Number.isFinite(nowNum)) {
+                for (const idNum of numericIds) {
+                  if (Number.isFinite(idNum) && idNum === nowNum) {
+                    hasNavigated = true; performRedirectToYourTurn(dbKey); return;
+                  }
+                }
+              }
+
+              if (!hasNavigated && nowRaw === String(dbKey)) {
+                hasNavigated = true; performRedirectToYourTurn(dbKey); return;
+              }
+            });
+          }
+        });
+      } catch (err) {
+        console.warn('initQueueAndCounterListenersTenant error', err);
+      }
+    }
+
+    // load per-tenant ad image
+    function initAdTenant() {
+      try {
+        adRef = dbRef('settings/adImage');
+        dbOnValue(adRef, (snap) => {
+          const v = (snap && snap.exists && snap.exists()) ? snap.val() : (snap && (typeof snap === 'string') ? snap : '');
+          if (v) { adPanel.src = v; adPanel.classList.remove('hidden'); noAd.classList.add('hidden'); }
+          else { adPanel.classList.add('hidden'); noAd.classList.remove('hidden'); }
+        });
+      } catch (e) {
+        console.warn('ad init error', e);
+      }
+    }
+
+    // load & watch per-tenant highScore (optional)
+    function initHighScoreTenant() {
+      try {
+        highScoreRef = dbRef('highScore');
+        dbOnValue(highScoreRef, (snap) => {
+          const v = (snap && snap.exists && snap.exists()) ? snap.val() : (snap && typeof snap === 'number' ? snap : null);
+          if (v !== null && v !== undefined) {
+            highScore = Number(v) || 0;
+            highScoreEl.textContent = highScore;
+          }
+        });
+      } catch (e) { console.warn('highscore init error', e); }
+    }
+
+    // Main DOM ready init
+    document.addEventListener('DOMContentLoaded', async () => {
+      resizeCanvasToContainer();
+      resetGameState();
+
+      // determine tenant slug and queueId
+      TENANT_SLUG = inferTenantSlug();
+      const params = new URLSearchParams(window.location.search);
+      const dbKey = params.get('queueId') || params.get('qid') || params.get('id') || null;
+      currentQueueKey = dbKey || null;
+
+      // Attempt to resolve firebase config:
+      let firebaseConfig = null;
+      try {
+        if (window.__TENANT__ && window.__TENANT__.firebaseConfig) {
+          firebaseConfig = window.__TENANT__.firebaseConfig;
+          console.info('[snake] using injected tenant firebaseConfig');
+        } else {
+          const fetched = await tryFetchTenantFirebaseConfig(TENANT_SLUG);
+          if (fetched) {
+            firebaseConfig = fetched;
+            console.info('[snake] fetched tenant firebaseConfig');
+          } else {
+            // fallback to default (keeps local testing working)
+            firebaseConfig = DEFAULT_FIREBASE_CONFIG;
+            console.warn('[snake] tenant firebase config not found; using default demo config (read-only/sandbox may apply)');
+          }
+        }
+      } catch (e) {
+        firebaseConfig = DEFAULT_FIREBASE_CONFIG;
+        console.warn('[snake] error obtaining firebase config, using default', e);
+      }
+
+      // Initialize DB functions if config exists
+      let firebaseInitialized = false;
+      try {
+        if (firebaseConfig) {
+          // dynamic import for database functions
+          const modApp = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js');
+          const modDB = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js');
+          const app = modApp.initializeApp(firebaseConfig);
+          DB = modDB.getDatabase(app);
+
+          // helper to create tenant-scoped refs easily
+          dbRef = (rel='') => {
+            rel = String(rel || '').replace(/^\/+/, '');
+            if (!rel) return modDB.ref(DB, `tenants/${TENANT_SLUG}`);
+            return modDB.ref(DB, `tenants/${TENANT_SLUG}/${rel}`);
+          };
+          dbOnValue = modDB.onValue;
+          dbOff = modDB.off;
+          dbSet = modDB.set;
+
+          // Mark as initialized
+          firebaseInitialized = true;
+          console.info('[snake] Firebase initialized for tenant:', TENANT_SLUG);
+        }
+      } catch (err) {
+        console.warn('[snake] firebase init failed', err);
+        firebaseInitialized = false;
+      }
+
+      if (firebaseInitialized) {
+        initAdTenant();
+        initHighScoreTenant();
+        if (currentQueueKey) initQueueAndCounterListenersTenant(currentQueueKey);
+      } else {
+        // No firebase — run safely in demo/read-only mode
+        console.warn('[snake] running without Firebase (demo/read-only)');
+        // leave ad panel hidden (noAd visible)
+        adPanel.classList.add('hidden');
+        noAd.classList.remove('hidden');
+      }
+
+      // Back button behaviour (keeps same query param when redirecting)
+      backBtn.addEventListener('click', () => {
+        try { if (loopId) cancelAnimationFrame(loopId); } catch(e){}
+        cleanupTenantListeners();
+        unlockScroll();
+        if (currentQueueKey) {
+          const redirect = `status.html?queueId=${encodeURIComponent(currentQueueKey)}${TENANT_SLUG ? `&tenantId=${encodeURIComponent(TENANT_SLUG)}` : ''}`;
+          window.location.assign(redirect);
+        } else {
+          window.location.assign('index.html');
+        }
+      });
+
+      newGameBtn.addEventListener('click', () => {
+        resetGameState();
+      });
+    });
+
+    // cleanup on unload
+    window.addEventListener('beforeunload', () => {
+      try {
+        if (loopId) cancelAnimationFrame(loopId);
+        cleanupTenantListeners();
+        unlockScroll();
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>
