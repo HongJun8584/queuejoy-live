@@ -1,3 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "tenant-template/public"
+  functions = "tenant-template/functions"
+
+[dev]
+  command = "npm run dev"
 
 [[redirects]]
   from = "/*"
