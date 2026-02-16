@@ -1,54 +1,55 @@
-/*
-Return firebase config for front-end consumption.
+/* get-firebase-config.js - netlify function with simple in-memory cache + logs */
+/* Expects tenant client config at Firestore path: tenants/<slug>/public/config */
+const admin = require('./lib/firebaseAdmin');
+const headers = { 'Content-Type': 'application/json' };
 
-Behavior:
-- If MASTER_API_KEY is set in env, this endpoint will require it (x-master-key or master_key).
-- If MASTER_API_KEY is NOT set, return a safe fallback so public demo (template) works.
-- If MASTER_API_KEY is set but the key is wrong, return a limited fallback with "unauthorized": true
-*/
+// In-memory module-scope cache (will live during function container lifetime)
+const CACHE = {
+  data: {},        // slug -> { config, expiresAt }
+  ttlMs: 60 * 1000 // default 60s; adjust if needed
+};
+
 exports.handler = async function(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,x-master-key',
-    'Content-Type': 'application/json'
-  };
   try {
-    const qs = event.queryStringParameters || {};
-    const incomingKey = qs.master_key || (event.headers && (event.headers['x-master-key'] || event.headers['X-Master-Key'])) || null;
-    const MASTER_KEY = process.env.MASTER_API_KEY || process.env.MASTER_KEY || null;
-
-    if (MASTER_KEY) {
-      if (incomingKey !== MASTER_KEY) {
-        // Instead of 401, return limited fallback so demo pages can render without full access.
-        const fallback = {
-          apiKey: null,
-          authDomain: null,
-          databaseURL: null,
-          projectId: null,
-          unauthorized: true,
-          message: 'master key invalid; requesting client is unauthorized to receive full firebase config'
-        };
-        return { statusCode: 200, headers, body: JSON.stringify({ ok: false, config: fallback }) };
-      }
+    const slug = (event.queryStringParameters && event.queryStringParameters.slug) || null;
+    if (!slug) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'missing slug' }) };
     }
 
-    if (process.env.FIREBASE_CONFIG) {
-      try {
-        const cfg = JSON.parse(process.env.FIREBASE_CONFIG);
-        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, config: cfg }) };
-      } catch (_) {
-        // continue
-      }
+    // serve from cache if present & fresh
+    const cached = CACHE.data[slug];
+    if (cached && cached.expiresAt > Date.now()) {
+      console.log(`get-firebase-config: cache hit for ${slug}`);
+      return { statusCode: 200, headers, body: JSON.stringify(cached.config) };
     }
-    const fallback = {
-      apiKey: process.env.FIREBASE_API_KEY || null,
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN || null,
-      databaseURL: process.env.FIREBASE_DB_URL || process.env.FIREBASE_DATABASE_URL || null,
-      projectId: process.env.FIREBASE_PROJECT_ID || null,
-      note: 'This is a limited fallback, set FIREBASE_CONFIG or FIREBASE_SERVICE_ACCOUNT envs for full functionality'
-    };
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, config: fallback }) };
+
+    console.log(`get-firebase-config: fetching config for ${slug}`);
+    // Make sure admin is initialized (lib should handle missing env gracefully)
+    const db = admin.firestore ? admin.firestore() : null;
+    if (!db) {
+      console.error('get-firebase-config: firebase admin not initialized');
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'internal' }) };
+    }
+
+    const docRef = db.doc(`tenants/${slug}/public/config`);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      console.warn(`get-firebase-config: tenant not found ${slug}`);
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'tenant not found' }) };
+    }
+
+    const cfg = doc.data() || {};
+    // remove sensitive keys if present
+    delete cfg.serviceAccount;
+    delete cfg.adminKey;
+
+    // cache result
+    CACHE.data[slug] = { config: cfg, expiresAt: Date.now() + CACHE.ttlMs };
+    console.log(`get-firebase-config: cached config for ${slug} (ttl ${CACHE.ttlMs}ms)`);
+
+    return { statusCode: 200, headers, body: JSON.stringify(cfg) };
   } catch (err) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message || 'internal error' }) };
+    console.error('get-firebase-config error', err && (err.stack || err));
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'internal' }) };
   }
 };
