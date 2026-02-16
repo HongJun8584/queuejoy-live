@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>QueueJoy — Your Status</title>
+  <meta name="description" content="Track your queue position in real-time" />
+  <meta name="theme-color" content="#8b5cf6" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    /* (styles unchanged from your design) */
+    :root { --primary:#8b5cf6; --primary-dark:#7c3aed; --primary-light:#a78bfa; --bg-start:#f6f5ff; --bg-end:#ede9fe; --success:#10b981; --warning-bg:#fef3c7; --warning-border:#fcd34d; --warning-text:#92400e; --success-bg:#d1fae5; --success-border:#6ee7b7; --success-text:#065f46; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{font-family:Inter,system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,var(--bg-start),var(--bg-end));min-height:100vh;min-height:100dvh;color:#1f2937;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+    body{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;padding-bottom:160px}
+    .page-wrapper{width:100%;max-width:420px;display:flex;flex-direction:column;gap:16px}
+    .alert-banner{background:linear-gradient(135deg,var(--warning-bg),#fde68a);border:1px solid var(--warning-border);color:var(--warning-text);padding:16px;border-radius:14px;font-size:13px;font-weight:600;text-align:center;line-height:1.5}
+    .alert-banner strong{font-weight:800}
+    .alert-banner.success{background:linear-gradient(135deg,var(--success-bg),#a7f3d0);border:1px solid var(--success-border);color:var(--success-text)}
+    .card{background:rgba(255,255,255,0.97);border-radius:24px;padding:24px 20px;box-shadow:0 20px 60px rgba(139,92,246,0.15);position:relative}
+    .logo-box{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:28px;box-shadow:0 12px 30px rgba(139,92,246,0.3);overflow:hidden;flex-shrink:0}
+    .logo-box img{width:100%;height:100%;object-fit:cover}
+    .header{display:flex;gap:16px;align-items:center;margin-bottom:24px;padding-right:80px}
+    .header-text h1{font-size:22px;font-weight:800;color:#111827;line-height:1.2}
+    .header-text p{color:#6b7280;margin-top:6px;font-size:14px;line-height:1.4}
+    .top-buttons{position:absolute;right:16px;top:20px;display:flex;gap:10px;z-index:10}
+    .circle-btn{width:44px;height:44px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 12px rgba(0,0,0,0.1);cursor:pointer;transition:transform .15s,box-shadow .15s}
+    .circle-btn:active{transform:scale(.95)}
+    .progress-section{margin-bottom:20px}
+    .progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .progress-label{font-size:14px;font-weight:600;color:#374151}
+    .progress-status{font-size:14px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:6px}
+    .progress-track{height:28px;border-radius:999px;background:#f3f4f6;position:relative;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,0.05)}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--primary-dark),var(--primary));display:flex;align-items:center;justify-content:flex-end;padding-right:12px;color:#fff;font-weight:800;font-size:13px;transition:width .6s cubic-bezier(.22,.9,.22,1);box-shadow:0 4px 16px rgba(139,92,246,0.4);min-width:50px}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+    .glass-card{background:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(250,248,255,0.9));border-radius:16px;padding:18px 16px;border:1px solid rgba(139,92,246,0.08);box-shadow:0 4px 12px rgba(0,0,0,0.03)}
+    .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;font-weight:600}
+    .stat-value{font-weight:900;font-size:32px;margin-top:8px;line-height:1;word-break:break-word;color:var(--primary)}
+    .stat-value.dark{color:#111827}
+    .stat-value-sm{font-weight:800;font-size:26px;margin-top:8px;line-height:1;color:#374151}
+    .stat-value-sm.highlight{color:var(--primary)}
+    .connection-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(250,248,255,0.9));border-radius:16px;padding:16px;border:1px solid rgba(139,92,246,0.08)}
+    .connection-icon{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--primary-dark),var(--primary));display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;flex-shrink:0}
+    .connection-text{flex:1;min-width:0}
+    .connection-title{font-weight:700;font-size:14px;color:#111827;line-height:1.3}
+    .connection-sub{color:#6b7280;font-size:12px;margin-top:4px;line-height:1.3}
+    .btn-primary{background:linear-gradient(135deg,var(--primary-dark),var(--primary));color:#fff;padding:14px 20px;border-radius:12px;font-weight:700;border:none;box-shadow:0 8px 20px rgba(139,92,246,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;transition:transform .15s,box-shadow .15s,opacity .15s;min-height:48px;white-space:nowrap}
+    .btn-primary:active{transform:scale(.98)}.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}.btn-connected{background:linear-gradient(135deg,#059669,var(--success))}
+    .error-banner{padding:14px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:600;font-size:13px;text-align:center;display:none}
+    .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:999;padding:20px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;visibility:hidden;transition:opacity .25s,visibility .25s}
+    .modal-overlay.show{opacity:1;visibility:visible}
+    .modal-card{width:100%;max-width:380px;background:#fff;border-radius:24px;padding:28px 24px;box-shadow:0 24px 60px rgba(15,23,42,.4);transform:translateY(20px) scale(.96);transition:transform .3s cubic-bezier(.22,.9,.22,1)}
+    .modal-overlay.show .modal-card{transform:translateY(0) scale(1)}
+    .modal-icon{width:100px;height:100px;margin:0 auto;border-radius:24px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:flex;align-items:center;justify-content:center;font-size:44px;color:#fff;box-shadow:0 16px 40px rgba(139,92,246,.3)}
+    .modal-icon.success{background:linear-gradient(135deg,var(--success),#059669);box-shadow:0 16px 40px rgba(16,185,129,.3)}
+    .modal-title{margin-top:24px;font-size:22px;font-weight:800;color:#111827;text-align:center}
+    .modal-desc{color:#6b7280;margin-top:12px;font-size:15px;line-height:1.6;text-align:center}
+    .step-dots{display:flex;gap:8px;justify-content:center;margin:20px 0}
+    .step-dot{width:8px;height:8px;border-radius:999px;background:#e5e7eb;transition:all .25s}
+    .step-dot.active{width:28px;background:linear-gradient(90deg,var(--primary-dark),var(--primary));box-shadow:0 4px 10px rgba(139,92,246,.35)}
+    .btn-outline{border:2px solid rgba(139,92,246,.2);padding:14px 16px;border-radius:12px;background:#fff;font-weight:600;cursor:pointer;font-size:14px;color:#374151;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s;width:100%}
+    .btn-outline:active{background:#f9fafb}.btn-full{width:100%}.slide{display:none}.slide.active{display:block}
+    .spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    .pulse{animation:pulse 2s ease-in-out infinite}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+    .ad-panel{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;width:calc(100% - 32px);max-width:400px;background:#fff;border-radius:16px;box-shadow:0 16px 40px rgba(15,23,42,.2);padding:12px;z-index:100;display:none}
+    .ad-label{font-size:9px;color:#9ca3af;text-align:center;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+    .ad-media{width:100%;height:100px;object-fit:cover;border-radius:12px}
+  </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- Alert Banner - Now at TOP -->
+  <div id="stayAlert" class="alert-banner" style="display:none">⚠️ <strong>Stay on this page</strong> — Only Telegram can notify you when the app is closed.</div>
+
+  <!-- Connected Banner - Shows when Telegram is connected -->
+  <div id="connectedAlert" class="alert-banner success" style="display:none">✅ <strong>You're all set!</strong> We'll notify you on Telegram when it's your turn.</div>
+
+  <!-- Onboarding Modal -->
+  <div id="onboardingModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div class="slide active" data-slide="0">
+        <div class="modal-icon">✉️</div>
+        <h3 class="modal-title">Get Telegram Notifications</h3>
+        <p class="modal-desc">Only Telegram can notify you when the app is closed. Receive instant alerts on your phone when it's your turn.</p>
+        <div class="step-dots"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+        <button id="obNext" class="btn-primary btn-full">Continue →</button>
+        <button id="obSkip" class="btn-outline" style="margin-top:12px">Skip for now</button>
+      </div>
+
+      <div class="slide" data-slide="1">
+        <div class="modal-icon">▶️</div>
+        <h3 class="modal-title">Tap "Start" in Telegram</h3>
+        <p class="modal-desc">We'll open our bot. Tap <strong>Start</strong> to activate notifications.</p>
+        <div class="step-dots"><div class="step-dot"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
+        <button id="obNext2" class="btn-primary btn-full">Next →</button>
+        <button id="obBack1" class="btn-outline" style="margin-top:12px">← Back</button>
+      </div>
+
+      <div class="slide" data-slide="2">
+        <div class="modal-icon">✅</div>
+        <h3 class="modal-title">Ready to Connect</h3>
+        <p id="obStatusText" class="modal-desc">Generating your secure link...</p>
+        <div class="step-dots"><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot active"></div></div>
+        <button id="obFinish" class="btn-primary btn-full" disabled><span id="obFinishContent"><span class="spinner"></span><span>Generating...</span></span></button>
+        <button id="obBack2" class="btn-outline" style="margin-top:12px">← Back</button>
+      </div>
+
+      <div class="slide" data-slide="connected">
+        <div class="modal-icon success">✅</div>
+        <h3 class="modal-title">You're Connected!</h3>
+        <p class="modal-desc">You'll get a Telegram notification when it's your turn.</p>
+        <button id="obDone" class="btn-primary btn-full" style="margin-top:24px">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Card -->
+  <main class="card">
+    <div class="top-buttons">
+      <button id="miniGame" class="circle-btn" title="Play game">🎮</button>
+      <button id="miniConnect" class="circle-btn pulse" title="Connect Telegram">✉️</button>
+    </div>
+
+    <div class="header">
+      <div class="logo-box" id="logoBox"><span id="logoText">QJ</span><img id="logoImg" style="display:none" alt="Logo" /></div>
+      <div class="header-text"><h1>You're in the queue</h1><p>We're tracking your spot in real-time.</p></div>
+    </div>
+
+    <section class="progress-section">
+      <div class="progress-header"><span class="progress-label">Queue Progress</span><span id="progressCaption" class="progress-status">Loading...</span></div>
+      <div class="progress-track"><div id="progressFill" class="progress-fill" style="width:8%"><span id="progressLabel">8%</span></div></div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="glass-card"><div class="stat-label">Your Ticket</div><div id="yourNumber" class="stat-value">—</div></div>
+      <div class="glass-card"><div class="stat-label">Now Serving</div><div id="nowServing" class="stat-value dark">—</div></div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="glass-card"><div class="stat-label">People Ahead</div><div id="peopleAhead" class="stat-value-sm">—</div></div>
+      <div class="glass-card"><div class="stat-label">Estimated Wait</div><div id="estimatedWait" class="stat-value-sm highlight">—</div></div>
+    </section>
+
+    <section id="connectionBanner" class="connection-banner">
+      <div class="connection-icon">🔔</div>
+      <div class="connection-text"><div id="connectionTitle" class="connection-title">Get Telegram notifications</div><div id="connectionSub" class="connection-sub">Only Telegram can notify you when the app is closed.</div></div>
+      <button id="connectMain" class="btn-primary" style="padding:12px 16px;font-size:13px">Connect</button>
+    </section>
+
+    <div id="error" class="error-banner"></div>
+  </main>
+
+</div>
+
+<div id="adPanel" class="ad-panel"><div class="ad-label">Advertisement</div><div id="adContainer"></div></div>
+
+<script type="module">
+/*
+ Tenant-aware status.html template.
+
+ Modes (in priority):
+ 1) Runtime-injected realtime helpers:
+    - window.__TENANT__ (public config)
+    - window.tenantRef(path) -> returns an object with .onValue(callback)/.off()/.get()/.update()/.push()
+    - window.runTxWithRetries(pathOrRef, updater)
+    If these exist the page uses realtime listeners.
+
+ 2) Firebase auto-init mode:
+    - If tenant.publicConfig.realtime === 'firebase', the page will request:
+      /.netlify/functions/get-firebase-config?slug=TENANT_SLUG
+      -> returns { apiKey, authDomain, databaseURL, projectId, storageBucket, messagingSenderId, appId }
+    - The page will initialize Firebase (client SDK) and use realtime DB.
+
+ 3) Polling/demo mode:
+    - If neither exists, the page will poll your serverless endpoints:
+      /.netlify/functions/get-queue-entry?slug=...&queueKey=...
+      /.netlify/functions/get-counter?slug=...&counterId=...
+      /.netlify/functions/get-settings?slug=...
+      /.netlify/functions/get-analytics?slug=...
+    - Also includes localStorage demo fallback.
+
+ NOTE: implement the serverless endpoints and/or inject runtime helpers in your bootstrap for production.
+*/
+
+const CREATE_LINK_ENDPOINT = '/.netlify/functions/createTelegramLink';
+const MARK_TOKEN_USED = '/.netlify/functions/markTokenUsed';
+const TELEGRAM_BOT_URL = 'https://t.me/QueueJoyBot';
+const MAX_AHEAD = 20;
+const POLL_INTERVAL_MS = 3000; // for polling fallback
+
+// UI elements
+const obModal = document.getElementById('onboardingModal');
+const slides = document.querySelectorAll('.slide');
+const stepDots = document.querySelectorAll('.step-dot');
+const obNext = document.getElementById('obNext');
+const obNext2 = document.getElementById('obNext2');
+const obBack1 = document.getElementById('obBack1');
+const obBack2 = document.getElementById('obBack2');
+const obSkip = document.getElementById('obSkip');
+const obFinish = document.getElementById('obFinish');
+const obFinishContent = document.getElementById('obFinishContent');
+const obStatusText = document.getElementById('obStatusText');
+const obDone = document.getElementById('obDone');
+
+const logoBox = document.getElementById('logoBox');
+const logoText = document.getElementById('logoText');
+const logoImg = document.getElementById('logoImg');
+const yourNumberEl = document.getElementById('yourNumber');
+const nowServingEl = document.getElementById('nowServing');
+const peopleAheadEl = document.getElementById('peopleAhead');
+const estimatedWaitEl = document.getElementById('estimatedWait');
+const progressFill = document.getElementById('progressFill');
+const progressLabel = document.getElementById('progressLabel');
+const progressCaption = document.getElementById('progressCaption');
+const connectMainBtn = document.getElementById('connectMain');
+const connectMiniBtn = document.getElementById('miniConnect');
+const connectionTitle = document.getElementById('connectionTitle');
+const connectionSub = document.getElementById('connectionSub');
+const stayAlert = document.getElementById('stayAlert');
+const connectedAlert = document.getElementById('connectedAlert');
+const adPanel = document.getElementById('adPanel');
+const adContainer = document.getElementById('adContainer');
+const errorBox = document.getElementById('error');
+
+let currentQueueKey = null;
+let currentQueueData = null;
+let currentCounterId = null;
+let latestConnectLink = null;
+let linkGenerating = false;
+let isTelegramConnected = false;
+let redirecting = false;
+let avgServiceTime = 3;
+let realtimeAvailable = false;
+let realtimeRefs = { qRef:null, counterRef:null, adRef:null, analyticsRef:null };
+let pollTimers = [];
+
+// UTILITIES
+function log(...args){ console.debug('[STATUS-TEMPLATE]', ...args); }
+function showError(msg){
+  if(!errorBox) return;
+  errorBox.style.display = 'block';
+  errorBox.textContent = msg;
+  setTimeout(()=> errorBox.style.display='none', 7000);
+}
+function extractNumber(str){
+  if (str===null||str===undefined) return null;
+  const s = String(str).trim();
+  const m = s.match(/(\d+)$/);
+  if (m) return parseInt(m[1],10);
+  if (/^\d+$/.test(s)) return parseInt(s,10);
+  return null;
+}
+function formatMinutes(m){
+  const mm = Math.max(0, Math.round(m));
+  if (mm===0) return 'Now';
+  if (mm<60) return `${mm} min`;
+  const h = Math.floor(mm/60), r = mm%60;
+  return r===0? `${h}h` : `${h}h ${r}m`;
+}
+function setTelegramUI(connected){
+  isTelegramConnected = connected;
+  if(connected){
+    connectionTitle.textContent = '✅ Connected to Telegram';
+    connectionSub.textContent = "We'll notify you when it's your turn.";
+    connectMainBtn.innerHTML = '✅';
+    connectMainBtn.disabled = true;
+    connectMainBtn.classList.add('btn-connected');
+    connectMiniBtn.classList.remove('pulse');
+    stayAlert.style.display='none';
+    connectedAlert.style.display='block';
+  } else {
+    connectionTitle.textContent = 'Get Telegram notifications';
+    connectionSub.textContent = 'Only Telegram can notify you when the app is closed.';
+    connectMainBtn.innerHTML = 'Connect';
+    connectMainBtn.disabled = false;
+    connectMainBtn.classList.remove('btn-connected');
+    connectMiniBtn.classList.add('pulse');
+    stayAlert.style.display='block';
+    connectedAlert.style.display='none';
+  }
+}
+function updateProgress(pct, ahead, status){
+  const p = Math.max(4, Math.min(100, Math.round(pct)));
+  progressFill.style.width = p + '%';
+  progressLabel.textContent = p + '%';
+  const st = String(status||'').toLowerCase();
+  if (st === 'called' || st === 'serving' || st === 'your_turn') {
+    progressCaption.textContent = "🎉 It's your turn!";
+    progressCaption.style.color = 'var(--success)';
+  } else if (ahead === 0) {
+    progressCaption.textContent = "🎯 You're next!";
+    progressCaption.style.color = 'var(--primary)';
+  } else if (ahead === 1) {
+    progressCaption.textContent = "1 person ahead";
+    progressCaption.style.color = 'var(--primary)';
+  } else if (ahead > 1) {
+    progressCaption.textContent = `${ahead} people ahead`;
+    progressCaption.style.color = '#6b7280';
+  } else {
+    progressCaption.textContent = 'Loading...';
+    progressCaption.style.color = '#6b7280';
+  }
+}
+function redirectToTurn(){
+  if(redirecting) return;
+  redirecting = true;
+  log('[STATUS] Redirecting to your_turn with queueKey', currentQueueKey);
+  updateProgress(100, 0, 'serving');
+  setTimeout(()=> {
+    window.location.href = `your_turn.html?queueId=${encodeURIComponent(currentQueueKey)}`;
+  }, 600);
+}
+
+// Tenant helpers
+function getSlugFromPath(){
+  // try runtime injection first
+  if (window.__TENANT__ && window.__TENANT__.slug) return window.__TENANT__.slug;
+  const path = window.location.pathname || '/';
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length>0 && /^[a-z0-9\-]+$/.test(parts[0])) return parts[0];
+  try { const qp=new URLSearchParams(window.location.search); if (qp.has('slug')) return qp.get('slug'); } catch(e){}
+  return 'template';
+}
+const TENANT_SLUG = getSlugFromPath();
+let TENANT_CONFIG = window.__TENANT__ || null;
+
+// --- Data Access Abstraction ---
+// The template uses an abstraction layer: either realtime (tenantRef/onValue) OR serverless polling endpoints OR demo localStorage.
+// Implement serverless endpoints or inject tenantRef for best UX.
+
+async function fetchTenantPublicConfig(slug){
+  // server endpoint should return JSON with public fields:
+  // { tenantId, slug, queueId, features: {...}, realtime: "firebase"|"none", branding: {...} }
+  try {
+    const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`);
+    if (!res.ok) throw new Error('no tenant');
+    const j = await res.json();
+    return j;
+  } catch (e){
+    log('fetchTenantPublicConfig failed', e);
+    return null;
+  }
+}
+
+// runtime-provided tenantRef (preferred)
+function hasInjectedRealtime(){
+  return typeof window.tenantRef === 'function' && typeof window.runTxWithRetries === 'function';
+}
+
+// Firebase auto-init path: will request public Firebase config from serverless endpoint
+async function initFirebaseRealtimeIfNeeded(config){
+  if (!config || config.realtime !== 'firebase') return false;
+  try {
+    const res = await fetch(`/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(TENANT_SLUG)}`);
+    if (!res.ok) throw new Error('no firebase config');
+    const fb = await res.json();
+    // dynamic import of firebase client libs
+    const modApp = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const modDB = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const app = modApp.initializeApp(fb);
+    const db = modDB.getDatabase(app);
+    // expose tenantRef and helpers using tenant-specific path if desired
+    window._qj_firebase_db = db;
+    window.tenantRef = (relPath='') => {
+      relPath = String(relPath||'').replace(/^\/+/,'');
+      if (!relPath) return modDB.ref(db, `tenants/${TENANT_SLUG}`);
+      return modDB.ref(db, `tenants/${TENANT_SLUG}/${relPath}`);
+    };
+    window.runTxWithRetries = async (refOrPath, updater, maxRetries=6) => {
+      // simple wrapper for firebase runTransaction
+      const path = (typeof refOrPath === 'string') ? `tenants/${TENANT_SLUG}/${refOrPath}` : null;
+      const refObj = path ? modDB.ref(db, path) : refOrPath;
+      // naive attempt - retry loop
+      for (let attempt=1; attempt<=maxRetries; attempt++){
+        try {
+          const res = await modDB.runTransaction(refObj, updater, { applyLocally: false });
+          if (res && res.committed) return res;
+        } catch (err){
+          console.warn('[tx] attempt',attempt,'failed',err);
+        }
+        await new Promise(r=>setTimeout(r, 100 * Math.pow(2, attempt-1) + Math.floor(Math.random()*120)));
+      }
+      throw new Error('Transaction failed after retries');
+    };
+    log('Firebase realtime initialized for tenant', TENANT_SLUG);
+    return true;
+  } catch (e){
+    log('initFirebaseRealtimeIfNeeded failed', e);
+    return false;
+  }
+}
+
+// Serverless polling endpoints as fallback (must implement these serverless functions)
+async function fetchQueueEntryViaApi(queueKey){
+  try {
+    const res = await fetch(`/.netlify/functions/get-queue-entry?slug=${encodeURIComponent(TENANT_SLUG)}&queueKey=${encodeURIComponent(queueKey)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e){ return null; }
+}
+async function fetchCounterViaApi(counterId){
+  try {
+    const res = await fetch(`/.netlify/functions/get-counter?slug=${encodeURIComponent(TENANT_SLUG)}&counterId=${encodeURIComponent(counterId)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e){ return null; }
+}
+async function fetchSettingsViaApi(){
+  try {
+    const res = await fetch(`/.netlify/functions/get-settings?slug=${encodeURIComponent(TENANT_SLUG)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e){ return null; }
+}
+async function fetchAnalyticsViaApi(){
+  try {
+    const res = await fetch(`/.netlify/functions/get-analytics?slug=${encodeURIComponent(TENANT_SLUG)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e){ return null; }
+}
+
+// Demo localStorage helpers (fallback)
+const DEMO_NS = `qj_demo__${TENANT_SLUG}__`;
+function demoLoad(key){ try { return JSON.parse(localStorage.getItem(DEMO_NS + key) || 'null'); } catch(e){ return null; } }
+function demoSave(key,val){ localStorage.setItem(DEMO_NS + key, JSON.stringify(val)); }
+
+// --- UI / Data wiring ---
+function showSlide(idx){
+  slides.forEach(s=>s.classList.remove('active'));
+  stepDots.forEach(d=>d.classList.remove('active'));
+  const slide = document.querySelector(`[data-slide="${idx}"]`);
+  if (slide) slide.classList.add('active');
+  if (typeof idx === 'number' && stepDots[idx]) stepDots[idx].classList.add('active');
+  if (idx === 2) generateLink();
+}
+function openModal(){ obModal.classList.add('show'); if (isTelegramConnected) showSlide('connected'); else showSlide(0); }
+function closeModal(){ obModal.classList.remove('show'); }
+
+obNext.onclick = () => showSlide(1);
+obNext2.onclick = () => showSlide(2);
+obBack1.onclick = () => showSlide(0);
+obBack2.onclick = () => showSlide(1);
+obSkip.onclick = () => { localStorage.setItem('qj_modal_skipped_' + currentQueueKey, 'true'); closeModal(); };
+obDone.onclick = closeModal;
+obModal.onclick = (e) => { if (e.target === obModal) closeModal(); };
+
+async function generateLink(){
+  if (linkGenerating || latestConnectLink) return;
+  linkGenerating = true;
+  obFinish.disabled = true;
+  obFinishContent.innerHTML = '<span class="spinner"></span><span>Generating...</span>';
+  obStatusText.textContent = 'Creating secure link...';
+  try {
+    const res = await fetch(CREATE_LINK_ENDPOINT, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ slug: TENANT_SLUG, queueKey: currentQueueKey })
+    });
+    const j = await res.json();
+    let link = j.link || null;
+    if (!link && j.token) link = `${TELEGRAM_BOT_URL}?start=${j.token}`;
+    latestConnectLink = link || `${TELEGRAM_BOT_URL}?start=${currentQueueKey}`;
+    obStatusText.textContent = 'Ready! Tap below to open Telegram.';
+    obFinish.disabled = false;
+    obFinishContent.innerHTML = '🚀 Open Telegram';
+  } catch (e){
+    console.error('Link generation failed', e);
+    latestConnectLink = `${TELEGRAM_BOT_URL}?start=${currentQueueKey}`;
+    obStatusText.textContent = 'Using fallback link.';
+    obFinish.disabled = false;
+    obFinishContent.innerHTML = '🚀 Open Telegram';
+  } finally { linkGenerating = false; }
+}
+
+async function openTelegram(){
+  if (linkGenerating) return;
+  obFinish.disabled = true;
+  obFinishContent.innerHTML = '<span class="spinner"></span><span>Opening...</span>';
+  const url = latestConnectLink || `${TELEGRAM_BOT_URL}?start=${currentQueueKey}`;
+  const newTab = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!newTab){
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel='noopener noreferrer'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  try {
+    const token = url.split('start=')[1];
+    if (token){
+      await fetch(MARK_TOKEN_USED, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ slug: TENANT_SLUG, queueKey: currentQueueKey, token }) });
+    }
+  } catch(e){}
+  setTimeout(()=>{ obFinish.disabled=false; obFinishContent.innerHTML='✅ Opened!'; setTimeout(closeModal,1500); },500);
+}
+obFinish.onclick = openTelegram;
+connectMainBtn.onclick = openModal;
+connectMiniBtn.onclick = openModal;
+document.getElementById('miniGame').onclick = ()=> {
+  const q = currentQueueKey ? `?queueId=${encodeURIComponent(currentQueueKey)}` : '';
+  window.location.assign(`game.html${q}`);
+};
+
+// showAd utility (robust)
+function showAd(url){
+  adContainer.innerHTML = '';
+  if (!url){ adPanel.style.display='none'; return; }
+  const u = String(url).trim();
+  if (!u){ adPanel.style.display='none'; return; }
+  adPanel.style.display='none';
+  const isDataVideo = /^data:video\//i.test(u);
+  const isBlob = /^blob:/i.test(u);
+  const isDirectVideo = /\.(mp4|webm|ogg|mov)(?:[?#].*)?$/i.test(u);
+  const isYouTubeOrVimeo = /youtube\.com|youtu\.be|vimeo\.com/i.test(u);
+
+  if (isYouTubeOrVimeo){
+    let embedSrc = u;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(u) || /youtube\.com\/shorts\//.test(u)) {
+        const urlObj = new URL(u);
+        const vid = urlObj.searchParams.get('v') || (u.match(/\/shorts\/([^?#]+)/)||[])[1];
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1`;
+      } else if (/youtu\.be\//.test(u)) {
+        const id = u.split('youtu.be/')[1].split(/[?#]/)[0];
+        if (id) embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
+      } else if (/vimeo\.com/.test(u)) {
+        const id = u.split('/').pop().split(/[?#]/)[0];
+        if (id) embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
+      }
+    } catch(e){ embedSrc = u; }
+    adContainer.innerHTML = `<div style="position:relative;padding-top:56.25%;"><iframe src="${embedSrc}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px;overflow:hidden"></iframe></div>`;
+    adPanel.style.display='block'; return;
+  }
+
+  if (isDataVideo || isBlob || isDirectVideo){
+    const video = document.createElement('video');
+    video.src = u; video.className='ad-media'; video.autoplay=true; video.muted=true; video.loop=true; video.playsInline=true; video.setAttribute('playsinline','');
+    video.controls = false; video.style.borderRadius='12px';
+    let loaded=false;
+    video.addEventListener('loadedmetadata', ()=>{ loaded=true; adPanel.style.display='block'; });
+    video.addEventListener('error', (ev)=>{ if(!loaded) adPanel.style.display='none'; console.warn('Ad video failed',ev); });
+    adContainer.appendChild(video);
+    video.play().catch(()=>{});
+    return;
+  }
+
+  const img = document.createElement('img'); img.src = u; img.className='ad-media'; img.alt='Ad';
+  img.onload = ()=>{ adPanel.style.display='block'; }; img.onerror = (e)=>{ adPanel.style.display='none'; console.warn('Ad image failed', e); };
+  adContainer.appendChild(img);
+}
+
+// Estimate computation (same logic as your original but using abstraction functions)
+async function computeEstimates(){
+  if (!currentQueueData || redirecting) return;
+  const myTicket = currentQueueData.queueId || currentQueueData.ticketNumber || currentQueueData.ticket || currentQueueData.number;
+  const myNum = extractNumber(myTicket);
+  const myStatus = String(currentQueueData.status || '').toLowerCase();
+
+  if (myStatus === 'called' || myStatus === 'serving' || myStatus === 'your_turn' || currentQueueData.called === true || currentQueueData.calledAt || currentQueueData.notifiedAt){
+    redirectToTurn();
+    return;
+  }
+
+  let servingNum = null;
+  let counterData = null;
+  const counterId = currentQueueData.counterId || currentQueueData.counter || currentQueueData.counterAssigned;
+
+  if (realtimeAvailable && typeof window.tenantRef === 'function'){
+    // read counter via realtime tenantRef
+    try {
+      const cRef = window.tenantRef(`counters/${counterId}`);
+      if (cRef && cRef.get){
+        const snap = await cRef.get();
+        counterData = snap || (snap && snap.val && snap.val());
+        servingNum = extractNumber((counterData && (counterData.nowServing || counterData.nowServingNumber)) || null);
+      } else if (cRef && cRef.onceValue){
+        const snap = await cRef.onceValue();
+        counterData = snap && snap.val ? snap.val() : null;
+        servingNum = extractNumber(counterData && counterData.nowServing);
+      }
+    } catch(e){ log('realtime counter read failed', e); }
+  } else {
+    // polling / api fallback
+    try {
+      const c = await fetchCounterViaApi(counterId);
+      if (c) { counterData = c; servingNum = extractNumber(c.nowServing || c.nowServingNumber); }
+    } catch(e){ log('poll counter failed', e); }
+  }
+
+  // compute peopleAhead
+  let peopleAhead = 0;
+  if (myNum !== null && servingNum !== null){
+    peopleAhead = myNum - servingNum;
+    peopleAhead = Math.max(0, peopleAhead);
+    if (servingNum === myNum){ redirectToTurn(); return; }
+    if (servingNum > myNum){ peopleAhead = 0; /* missed turn */ }
+  } else if (myNum === null){
+    peopleAhead = 0;
+  } else {
+    // fallback: count waiting entries via realtime or api
+    try {
+      if (realtimeAvailable && typeof window.tenantRef === 'function'){
+        const qSnap = await window.tenantRef('queue').get();
+        const all = qSnap || (qSnap && qSnap.val && qSnap.val());
+        let count = 0;
+        if (all) {
+          for (const k in all){
+            const t = all[k];
+            if (!t || String(t.status||'').toLowerCase()!=='waiting') continue;
+            if (counterId && String(t.counterId||t.counter||'') !== String(counterId)) continue;
+            if (Number(t.timestamp) < Number(currentQueueData.timestamp || 0)) count++;
+          }
+        }
+        peopleAhead = count;
+      } else {
+        const all = await (async ()=>{ try { return await (await fetch(`/.netlify/functions/get-queue?slug=${encodeURIComponent(TENANT_SLUG)}`)).json(); } catch(e){ return null; } })();
+        let count = 0;
+        if (all) {
+          for (const k in all){
+            const t = all[k];
+            if (!t || String(t.status||'').toLowerCase()!=='waiting') continue;
+            if (counterId && String(t.counterId||t.counter||'') !== String(counterId)) continue;
+            if (Number(t.timestamp) < Number(currentQueueData.timestamp || 0)) count++;
+          }
+        }
+        peopleAhead = count;
+      }
+    } catch(e){ log('fallback count failed', e); peopleAhead = 0; }
+  }
+
+  peopleAheadEl.textContent = peopleAhead;
+  const estMin = peopleAhead * avgServiceTime;
+  estimatedWaitEl.textContent = formatMinutes(estMin);
+
+  let progressPct;
+  if (peopleAhead <= 0) progressPct = 100;
+  else if (peopleAhead >= MAX_AHEAD) progressPct = 5;
+  else progressPct = Math.round(100 - (peopleAhead / MAX_AHEAD) * 95);
+
+  updateProgress(progressPct, peopleAhead, myStatus);
+}
+
+// WATCHERS / POLLING orchestration
+function clearPollers(){ pollTimers.forEach(t=>clearInterval(t)); pollTimers = []; }
+function startPollingQueue(queueKey){
+  clearPollers();
+  const tick = async () => {
+    try {
+      const entry = await fetchQueueEntryViaApi(queueKey);
+      if (entry){ currentQueueData = entry; renderQueueEntry(entry); computeEstimates(); }
+    } catch(e){ log('poll queue failed', e); }
+  };
+  tick();
+  pollTimers.push(setInterval(tick, POLL_INTERVAL_MS));
+}
+function startPollingSettings(){
+  const tick = async () => {
+    try {
+      const s = await fetchSettingsViaApi();
+      if (s) applySettings(s);
+    } catch(e){ /* ignore */ }
+  };
+  tick();
+  pollTimers.push(setInterval(tick, POLL_INTERVAL_MS * 3));
+}
+function startPollingAnalytics(){
+  const tick = async () => {
+    try {
+      const a = await fetchAnalyticsViaApi();
+      if (a) {
+        // compute avg service time
+        const times = [];
+        for (const k in a){
+          const e = a[k];
+          if (e.serviceMs && e.serviceMs>0){
+            const min = e.serviceMs / 60000;
+            if (min <= 120) times.push(min);
+          }
+        }
+        if (times.length>0) { const sum = times.reduce((a,b)=>a+b,0); avgServiceTime = Math.max(1, Math.round(sum / times.length)); }
+      }
+    } catch(e){}
+  };
+  tick();
+  pollTimers.push(setInterval(tick, POLL_INTERVAL_MS * 5));
+}
+
+// Render functions
+function renderQueueEntry(entry){
+  const ticket = entry.queueId || entry.ticketNumber || entry.ticket || entry.number || '—';
+  yourNumberEl.textContent = ticket;
+  const connected = Boolean(entry.telegramConnected || entry.tgConnected || entry.telegramChatId);
+  setTelegramUI(connected);
+  const cid = entry.counterId || entry.counter || entry.counterAssigned;
+  if (cid && cid !== currentCounterId){
+    // when realtime is available, attach counter listener; otherwise rely on polling
+    currentCounterId = cid;
+    if (realtimeAvailable && typeof window.tenantRef === 'function'){
+      // detach previous
+      if (realtimeRefs.counterRef && realtimeRefs.counterRef.off) realtimeRefs.counterRef.off();
+      realtimeRefs.counterRef = window.tenantRef(`counters/${cid}`);
+      if (realtimeRefs.counterRef && realtimeRefs.counterRef.onValue){
+        realtimeRefs.counterRef.onValue(()=> computeEstimates());
+      }
+    }
+  }
+}
+
+// Apply settings (branding & ad)
+function applySettings(s){
+  try {
+    if (!s) return;
+    if (s.logoUrl){
+      logoImg.src = s.logoUrl;
+      logoImg.onload = ()=>{ logoText.style.display='none'; logoImg.style.display='block'; };
+    } else if (s.logo){
+      logoImg.src = s.logo; logoImg.onload = ()=>{ logoText.style.display='none'; logoImg.style.display='block'; };
+    }
+    // ad
+    if (s.adImage) showAd(s.adImage);
+    else showAd(null);
+  } catch(e){ log('applySettings failed', e); }
+}
+
+// Initialization sequence
+async function init(){
+  // queueKey from query or sessionStorage
+  const params = new URLSearchParams(window.location.search);
+  const queueKey = params.get('queueId') || params.get('queueid') || params.get('qid') || params.get('id');
+  if (!queueKey) { showError('Queue ID missing — redirecting'); setTimeout(()=>window.location.href='index.html', 1400); return; }
+  currentQueueKey = queueKey;
+
+  // load tenant public config if not injected
+  if (!TENANT_CONFIG){
+    TENANT_CONFIG = await fetchTenantPublicConfig(TENANT_SLUG);
+    if (TENANT_CONFIG) window.__TENANT__ = TENANT_CONFIG;
+  }
+
+  // attempt to enable realtime:
+  if (hasInjectedRealtime()){
+    realtimeAvailable = true;
+    log('Using injected realtime helpers');
+  } else {
+    const fbInit = await initFirebaseRealtimeIfNeeded(TENANT_CONFIG);
+    if (fbInit){
+      realtimeAvailable = true;
+    } else {
+      realtimeAvailable = false;
+    }
+  }
+
+  // Now attach watchers based on mode
+  if (realtimeAvailable && typeof window.tenantRef === 'function'){
+    // realtime listeners
+    try {
+      // queue entry
+      if (realtimeRefs.qRef && realtimeRefs.qRef.off) realtimeRefs.qRef.off();
+      realtimeRefs.qRef = window.tenantRef(`queue/${currentQueueKey}`);
+      if (realtimeRefs.qRef && realtimeRefs.qRef.onValue){
+        realtimeRefs.qRef.onValue((snap)=>{
+          const data = snap && (snap.val ? snap.val() : snap) || null;
+          if (!data){ showError('Queue not found — redirecting'); setTimeout(()=>window.location.href='index.html',1400); return; }
+          currentQueueData = data;
+          renderQueueEntry(data);
+          computeEstimates();
+        });
+      } else if (realtimeRefs.qRef && realtimeRefs.qRef.get){
+        // fallback to one-off then poll
+        const s = await realtimeRefs.qRef.get();
+        currentQueueData = s && (s.val ? s.val() : s) || null;
+        renderQueueEntry(currentQueueData);
+        computeEstimates();
+        startPollingQueue(currentQueueKey);
+      }
+      // settings
+      if (realtimeRefs.adRef && realtimeRefs.adRef.off) realtimeRefs.adRef.off();
+      realtimeRefs.adRef = window.tenantRef('settings/adImage');
+      if (realtimeRefs.adRef && realtimeRefs.adRef.onValue){
+        realtimeRefs.adRef.onValue((s)=> showAd(s && (s.val? s.val() : s)));
+      }
+      // analytics
+      realtimeRefs.analyticsRef = window.tenantRef('analytics/serviceEvents');
+      if (realtimeRefs.analyticsRef && realtimeRefs.analyticsRef.onValue){
+        realtimeRefs.analyticsRef.onValue(async ()=>{ // recompute avg
+          // try reading analytics snapshot
+          try {
+            const s = await window.tenantRef('analytics/serviceEvents').get();
+            const all = s && (s.val ? s.val() : s) || {};
+            const times=[];
+            for (const k in all){ const e = all[k]; if (e.serviceMs && e.serviceMs>0){ const min = e.serviceMs / 60000; if (min<=120) times.push(min); } }
+            if (times.length>0){ const sum=times.reduce((a,b)=>a+b,0); avgServiceTime = Math.max(1, Math.round(sum/times.length)); }
+            computeEstimates();
+          } catch(e){}
+        });
+      }
+    } catch (e){ log('realtime wiring failed', e); startPollingQueue(currentQueueKey); startPollingSettings(); startPollingAnalytics(); }
+  } else {
+    // Polling / API or demo fallback
+    startPollingQueue(currentQueueKey);
+    startPollingSettings();
+    startPollingAnalytics();
+  }
+
+  // initial settings fetch for branding if not realtime
+  if (!realtimeAvailable){
+    const s = await fetchSettingsViaApi();
+    applySettings(s);
+    // initial queue fetch handled by startPollingQueue
+  }
+
+  // show onboarding modal if not connected
+  setTimeout(()=>{
+    if (currentQueueData){
+      const connected = Boolean(currentQueueData.telegramConnected || currentQueueData.tgConnected || currentQueueData.telegramChatId);
+      setTelegramUI(connected);
+      if (!connected && !localStorage.getItem('qj_modal_skipped_' + currentQueueKey)){
+        openModal();
+      }
+    }
+  }, 800);
+}
+
+// renderQueueEntry will be called by watchers; computeEstimates will update UI
+function safeCleanup(){
+  if (realtimeRefs.qRef && realtimeRefs.qRef.off) realtimeRefs.qRef.off();
+  if (realtimeRefs.counterRef && realtimeRefs.counterRef.off) realtimeRefs.counterRef.off();
+  if (realtimeRefs.adRef && realtimeRefs.adRef.off) realtimeRefs.adRef.off();
+  clearPollers();
+}
+
+window.addEventListener('beforeunload', safeCleanup);
+
+// init on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  init().catch(e => { console.error('init failed', e); showError('Initialization failed.'); });
+});
+</script>
+
+</body>
+</html>

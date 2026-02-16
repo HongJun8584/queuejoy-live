@@ -90,6 +90,6 @@
   <!-- ... (kept as in your template if needed) ... -->
 
   <!-- Bootstrap loader (tenant runtime) -->
-  <script type="module" src="/js/bootstrap.js"></script>
+  <script type="module" src="/tenant-template/src/js/bootstrap.js"></script>
 </body>
 </html>
