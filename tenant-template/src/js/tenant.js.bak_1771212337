@@ -3,17 +3,16 @@ export function getTenantFromLocation(location = window.location) {
   const host = location.hostname;
   const path = decodeURIComponent(location.pathname || '/');
 
-  // debug override via query param
   try {
     const qp = new URL(location.href).searchParams;
     if (qp.get('debug_tenant')) return qp.get('debug_tenant');
   } catch (e) {}
 
-  // /tenants/<slug>
+  // 1) /tenants/<slug>/...
   let m = path.match(/^\/tenants\/([^\/]+)(\/|$)/);
   if (m) return m[1];
 
-  // root-style /<slug>
+  // 2) root-style /<slug>/ (avoid known pages)
   m = path.match(/^\/([^\/]+)(\/|$)/);
   if (m) {
     const candidate = m[1].toLowerCase();
@@ -21,9 +20,11 @@ export function getTenantFromLocation(location = window.location) {
     if (!blacklist.includes(candidate)) return candidate;
   }
 
-  // subdomain <slug>.example.netlify.app
+  // 3) subdomain style
   const hostParts = host.split('.');
-  if (hostParts.length >= 3) return hostParts[0];
+  if (hostParts.length >= 3) {
+    return hostParts[0];
+  }
 
   return null;
 }

@@ -2,11 +2,9 @@
 import { getTenantFromLocation } from './tenant.js';
 import { initFirebaseForTenant } from './tenant-firebase.js';
 
-function renderStatusPage({slug, firebaseApp}) {
-  document.getElementById('app-root').innerHTML = `<div style="padding:20px;font-family:system-ui"><h1>Status for ${slug}</h1><pre id="status-debug">connected</pre></div>`;
-}
-function renderTenantHome({slug, firebaseApp}) {
-  document.getElementById('app-root').innerHTML = `<div style="padding:20px;font-family:system-ui"><h1>Home for ${slug}</h1></div>`;
+function setDebugPath(path) {
+  const debugEl = document.getElementById('tenant-debug');
+  if (debugEl) debugEl.dataset.path = path;
 }
 
 (async function main() {
@@ -14,27 +12,23 @@ function renderTenantHome({slug, firebaseApp}) {
   const slug = getTenantFromLocation();
   console.log('PARSED TENANT SLUG:', slug);
 
+  setDebugPath(window.location.pathname);
+
   if (!slug) {
     document.documentElement.classList.add('no-tenant');
-    document.getElementById('app-root').innerHTML = `
-      <div style="padding:24px;font-family:system-ui">
-        <h2>Tenant not found</h2>
-        <p>This site requires a tenant slug in the URL (e.g. <code>/acme-coffee/</code>).</p>
-      </div>`;
+    document.getElementById('app-root').innerHTML = '<h2>Tenant not found</h2>';
     return;
   }
 
   window.__TENANT__ = slug;
 
   try {
-    const firebaseApp = await initFirebaseForTenant(slug);
-    if (/\/status(\/|$)/.test(window.location.pathname)) {
-      renderStatusPage({slug, firebaseApp});
-    } else {
-      renderTenantHome({slug, firebaseApp});
-    }
+    const cfg = await initFirebaseForTenant(slug);
+    console.log('Tenant firebase config loaded for', slug, !!(cfg && cfg.apiKey));
+    // TODO: call your render functions here (e.g. renderStatusPage / renderTenantHome)
+    document.getElementById('app-root').innerHTML = `<div style="padding:16px;font-family:system-ui"><h1>Tenant: ${slug}</h1><pre>${JSON.stringify(cfg,null,2)}</pre></div>`;
   } catch (err) {
-    console.error('Bootstrap error:', err);
-    document.getElementById('app-root').innerHTML = `<pre style="color:red;padding:24px">${String(err)}</pre>`;
+    console.error('init firebase error', err && (err.stack || err));
+    document.getElementById('app-root').innerHTML = `<pre style="color:red">${String(err)}</pre>`;
   }
 })();

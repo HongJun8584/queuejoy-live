@@ -5,16 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Tenant site</title>
   <meta name="description" content="Tenant-aware SPA" />
+  <meta name="theme-color" content="#8b5cf6" />
 </head>
 <body>
   <!-- DEBUG: tenant will be injected into window.__TENANT__ -->
-  <div id="tenant-debug" data-path=""></div>
+  <div id="tenant-debug" data-tenant=""></div>
 
   <div id="app-root">
     <noscript>Please enable JavaScript to view this site.</noscript>
   </div>
 
-  <script>console.log('PATH debug:', location.pathname);</script>
+  <script>
+    // quick page marker for curl / smoke tests
+    console.log('PATHNAME (debug):', window.location.pathname);
+    try { document.getElementById('tenant-debug').innerText = window.location.pathname; } catch(e) {}
+  </script>
+
   <script type="module" src="/tenant-template/src/js/bootstrap.js"></script>
 </body>
 </html>
