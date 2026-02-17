@@ -1,3 +1,6 @@
 node_modules/
 tenant-template/node_modules/
 *.bak
+node_modules/
+tenant-template/node_modules/
+*.bak
