@@ -1,358 +1,279 @@
-// netlify/functions/createBusiness.js
-// Node 18+ runtime expected (global fetch available)
+// tenant-template/functions/createBusiness.js
+'use strict';
 
-const admin = require('firebase-admin');
+/*
+  createBusiness for Realtime Database (Netlify function style)
 
-function jsonResponse(status, body) {
+  Behavior:
+  - Accepts POST JSON { businessName, email?, desiredSlug?, plan? }
+  - Optional header: Idempotency-Key to make retries safe
+  - Generates slug (slugify) and reserves it via RTDB transaction on /slugs/<slug>
+  - Generates tenantId via push().key and writes tenant data + config + queues/meta + idempotency mapping in one multi-path update
+  - Creates Firebase custom token for admin user (tenant_admin:<tenantId>)
+  - Cleans up reserved slug if final multi-path update fails (best-effort)
+  - Returns JSON with tenantId, slug, adminToken
+*/
+
+const crypto = require('crypto');
+
+// Use your project's firebaseAdmin helper - this file should export initialized admin (or lazy init)
+let admin;
+try {
+  admin = require('./lib/firebaseAdmin'); // expected to export admin instance
+} catch (e) {
+  // fallback to requiring firebase-admin directly (if lib not present)
+  try {
+    admin = require('firebase-admin');
+  } catch (e2) {
+    admin = null;
+  }
+}
+
+const headers = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*', // adjust in prod to specific domain(s)
+  'Access-Control-Allow-Headers': 'Content-Type,Idempotency-Key'
+};
+
+function resp(statusCode, payload) {
   return {
-    statusCode: status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,x-master-key,authorization',
-      'Access-Control-Allow-Methods': 'POST,OPTIONS'
-    },
-    body: JSON.stringify(body)
+    statusCode,
+    headers,
+    body: JSON.stringify(payload)
   };
 }
 
-function tryParseJson(s) {
-  try { return JSON.parse(s); } catch { return null; }
-}
-
-function parseServiceAccountFromEnv() {
-  const candidates = [
-    'FIREBASE_SERVICE_ACCOUNT',
-    'FIREBASE_SERVICE_ACCOUNT_BASE64',
-    'FIREBASE_SA',
-    'FIREBASE_SA_BASE64'
-  ];
-  for (const name of candidates) {
-    const raw = process.env[name];
-    if (!raw) continue;
-    const trimmed = raw.trim();
-    if (trimmed[0] === '{') {
-      const parsed = tryParseJson(raw);
-      if (parsed) return parsed;
-    } else {
-      try {
-        const dec = Buffer.from(raw, 'base64').toString('utf8');
-        const parsed = tryParseJson(dec);
-        if (parsed) return parsed;
-      } catch {}
-    }
-  }
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (projectId && clientEmail && privateKey) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-    return { type: 'service_account', project_id: projectId, client_email: clientEmail, private_key: privateKey };
-  }
-  return null;
-}
-
-/* ---------- Firebase lazy init ---------- */
-let initialized = false;
-let initError = null;
-async function ensureFirebase() {
-  if (initialized && admin.apps && admin.apps.length) return { admin, db: admin.database() };
-  if (initError) throw initError;
-  try {
-    const dbUrl = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || process.env.FIREBASE_RTDB_URL;
-    if (!dbUrl) throw new Error('FIREBASE_DB_URL is not set.');
-    const serviceAccount = parseServiceAccountFromEnv();
-    if (!serviceAccount) throw new Error('Firebase service account not found.');
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: dbUrl
-      });
-    }
-    initialized = true;
-    return { admin, db: admin.database() };
-  } catch (e) {
-    initError = e instanceof Error ? e : new Error(String(e));
-    throw initError;
-  }
-}
-
-function normalizeSlug(raw = '') {
-  return (raw || '')
-    .toString()
-    .trim()
+// slugify: normalize name -> ascii lowercase slug
+function slugify(name) {
+  if (!name || typeof name !== 'string') return '';
+  const n = name.normalize ? name.normalize('NFKD') : name;
+  const stripped = n.replace(/[\u0300-\u036f]/g, '');
+  const slug = stripped
     .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
     .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\-]/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+    .slice(0, 40);
+  return slug || '';
 }
-function sanitizeName(n) { return (n || '').toString().trim(); }
-
-/* ---------- GitHub helper (copy template tree into target folder) ---------- */
-async function githubApiFetch(path, method = 'GET', body = null, token) {
-  const url = `https://api.github.com${path}`;
-  const opts = { method, headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'queuejoy-createbusiness' } };
-  if (token) opts.headers['Authorization'] = `token ${token}`;
-  if (body) { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
-  const res = await fetch(url, opts);
-  const text = await res.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = { text }; }
-  return { ok: res.ok, status: res.status, body: json };
+function shortId(len = 4) {
+  return crypto.randomBytes(Math.ceil(len / 2)).toString('hex').slice(0, len);
 }
 
-// list files recursively then fetch content
-async function listRepoFilesRecursive(owner, repo, path, branch, token) {
-  const out = [];
-  async function walk(p) {
-    const apiPath = `/repos/${owner}/${repo}/contents/${encodeURIComponent(p)}?ref=${encodeURIComponent(branch)}`;
-    const r = await githubApiFetch(apiPath, 'GET', null, token);
-    if (!r.ok) return;
-    const items = r.body;
-    if (!Array.isArray(items)) {
-      if (items && items.type === 'file') {
-        out.push({ path: items.path, sha: items.sha });
-      }
-      return;
-    }
-    for (const it of items) {
-      if (it.type === 'file') out.push({ path: it.path, sha: it.sha });
-      else if (it.type === 'dir') await walk(it.path);
-    }
-  }
-  await walk(path);
-  for (const f of out) {
-    const r = await githubApiFetch(`/repos/${owner}/${repo}/contents/${encodeURIComponent(f.path)}?ref=${encodeURIComponent(branch)}`, 'GET', null, token);
-    if (r.ok && r.body && r.body.content) { f.content = r.body.content; f.encoding = r.body.encoding; } else { f.content = null; f.encoding = null; }
-  }
-  return out;
-}
+const DEFAULT_CONFIG = {
+  theme: { color: '#8b5cf6', logo: null },
+  features: {},
+  timezone: 'UTC'
+};
 
-async function deployTenantToRepo(slug, options = {}) {
-  const {
-    GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH = 'main',
-    TEMPLATE_PATH_IN_REPO = 'template', TARGET_BASE_PATH = slug, COMMITTER = null
-  } = options;
-  if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) {
-    throw new Error('Missing GitHub deployment env (GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO)');
-  }
-  const templatePath = TEMPLATE_PATH_IN_REPO.replace(/^\/+|\/+$/g, '') || 'template';
-  const files = await listRepoFilesRecursive(GITHUB_OWNER, GITHUB_REPO, templatePath, GITHUB_BRANCH, GITHUB_TOKEN);
-  if (!files || files.length === 0) throw new Error(`Template path "${templatePath}" is empty or not found in repo`);
-  const created = [];
-  for (const f of files) {
-    if (!f.path || !f.content) continue;
-    let rel = f.path.replace(new RegExp(`^${templatePath.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}/?`), '');
-    if (rel.startsWith('/')) rel = rel.slice(1);
-    const targetPath = `${TARGET_BASE_PATH}/${rel}`;
-    const message = `Create tenant ${slug} - add ${targetPath}`;
-    const payload = { message, content: f.content.replace(/\n/g,''), branch: GITHUB_BRANCH };
-    if (COMMITTER && COMMITTER.name && COMMITTER.email) payload.committer = { name: COMMITTER.name, email: COMMITTER.email };
-    const apiPathCreate = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(targetPath)}`;
-    let r = await githubApiFetch(apiPathCreate, 'PUT', payload, GITHUB_TOKEN);
-    if (!r.ok && (r.status === 422 || (r.body && r.body.message && /exists/i.test(r.body.message)))) {
-      const getRes = await githubApiFetch(`${apiPathCreate}?ref=${encodeURIComponent(GITHUB_BRANCH)}`, 'GET', null, GITHUB_TOKEN);
-      if (getRes.ok && getRes.body && getRes.body.sha) {
-        payload.sha = getRes.body.sha;
-        r = await githubApiFetch(apiPathCreate, 'PUT', payload, GITHUB_TOKEN);
-      }
-    }
-    if (!r.ok) { created.push({ path: targetPath, ok: false, status: r.status, body: r.body }); }
-    else { created.push({ path: targetPath, ok: true, url: (r.body && r.body.content && r.body.content.html_url) || null }); }
-  }
-  return created;
-}
-
-/* ---------- Netlify helper (create site from repo) ---------- */
-async function createNetlifySiteFromRepo({ NETLIFY_AUTH_TOKEN, GITHUB_OWNER, GITHUB_REPO, branch = 'main', siteName }) {
-  if (!NETLIFY_AUTH_TOKEN) throw new Error('NETLIFY_AUTH_TOKEN missing');
-  // Netlify API: create site with repo object
-  const url = 'https://api.netlify.com/api/v1/sites';
-  const body = {
-    name: siteName,
-    // instruct Netlify to link to the GitHub repo
-    repo: {
-      provider: 'github',
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
-      branch
-    }
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${NETLIFY_AUTH_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-  const j = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(j));
-  return j; // contains site.url, id, build_settings...
-}
-
-/* ---------- Notifications (Telegram and optional SendGrid email) ---------- */
-async function notifyTelegram(token, chatId, text) {
-  if (!token || !chatId) return { skipped: true, reason: 'missing token/chatId' };
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true })
-  });
-  const j = await res.json();
-  return j;
-}
-
-async function sendEmailViaSendGrid(sendGridKey, to, subject, text) {
-  if (!sendGridKey || !to) return { skipped: true };
-  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${sendGridKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: process.env.ADMIN_EMAIL || 'no-reply@yourdomain.com' },
-      subject, content: [{ type: 'text/plain', value: text }]
-    })
-  });
-  const jtext = await res.text();
-  return { status: res.status, body: jtext };
-}
-
-/* ---------- Handler ---------- */
-exports.handler = async function handler(event) {
+exports.handler = async function(event, context) {
   try {
+    // Allow OPTIONS preflight
     if (event.httpMethod === 'OPTIONS') {
-      return { statusCode: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,x-master-key,authorization', 'Access-Control-Allow-Methods': 'POST,OPTIONS' } };
+      return {
+        statusCode: 204,
+        headers: {
+          ...headers,
+          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        },
+        body: ''
+      };
     }
-    if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'method_not_allowed', message: 'Only POST allowed' });
 
-    // auth: master key
-    const lowHeaders = {};
-    for (const k of Object.keys(event.headers || {})) lowHeaders[k.toLowerCase()] = event.headers[k];
-    const master = process.env.MASTER_API_KEY || process.env.MASTER_KEY || '';
-    if (!master) return jsonResponse(500, { error: 'server_misconfigured', message: 'MASTER_API_KEY not configured on server' });
-    let got = (lowHeaders['x-master-key'] || lowHeaders['x-api-key'] || lowHeaders['authorization'] || '').toString();
-    if (!got) return jsonResponse(403, { error: 'unauthorized', message: 'missing master key' });
-    if (got.startsWith('Bearer ')) got = got.slice(7);
-    if (got !== master) return jsonResponse(403, { error: 'unauthorized', message: 'invalid master key' });
+    if (event.httpMethod !== 'POST') {
+      return resp(405, { error: 'method_not_allowed', message: 'Use POST' });
+    }
 
     // parse body
     let body = {};
-    try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return jsonResponse(400, { error: 'invalid_json', message: 'Request body must be valid JSON' }); }
-
-    const slug = normalizeSlug(body.slug || body.name || '');
-    if (!slug) return jsonResponse(400, { error: 'invalid_slug', message: 'slug/name is required' });
-    const name = sanitizeName(body.name || slug);
-    const createdBy = body.createdBy || 'landing-page';
-    const nowIso = new Date().toISOString();
-
-    // Step A: Copy template into GitHub under folder <slug>/...
-    const repoDeployEnabled = String(process.env.ENABLE_REPO_DEPLOY || 'false').toLowerCase() === 'true';
-    let repoResult = null;
-    if (repoDeployEnabled) {
-      try {
-        const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-        const GITHUB_OWNER = process.env.GITHUB_OWNER;
-        const GITHUB_REPO = process.env.GITHUB_REPO;
-        const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
-        const TEMPLATE_PATH_IN_REPO = (process.env.TEMPLATE_PATH_IN_REPO || body.templatePath || 'template').replace(/^\/+|\/+$/g, '');
-        const TARGET_BASE_PATH = slug;
-        const COMMITTER = (process.env.GITHUB_COMMITTERNAME && process.env.GITHUB_COMMITTEREMAIL) ? { name: process.env.GITHUB_COMMITTERNAME, email: process.env.GITHUB_COMMITTEREMAIL } : null;
-        repoResult = await deployTenantToRepo(slug, { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH, TEMPLATE_PATH_IN_REPO, TARGET_BASE_PATH, COMMITTER });
-      } catch (e) {
-        console.error('repo deploy failed', e && (e.stack || e.message || e));
-        repoResult = { error: true, message: e && e.message ? e.message : String(e) };
-      }
-    }
-
-    // Step B: Create Netlify site that uses this repo path (optional)
-    const netlifyEnabled = String(process.env.ENABLE_NETLIFY_CREATE || 'false').toLowerCase() === 'true';
-    let netlifyResult = null;
-    if (netlifyEnabled) {
-      try {
-        const NETLIFY_AUTH_TOKEN = process.env.NETLIFY_AUTH_TOKEN;
-        const GITHUB_OWNER = process.env.GITHUB_OWNER;
-        const GITHUB_REPO = process.env.GITHUB_REPO;
-        const branch = process.env.GITHUB_BRANCH || 'main';
-        const siteName = `${slug}-${Math.random().toString(36).slice(2,8)}`; // ensure uniqueness
-        netlifyResult = await createNetlifySiteFromRepo({ NETLIFY_AUTH_TOKEN, GITHUB_OWNER, GITHUB_REPO, branch, siteName });
-      } catch (e) {
-        console.error('netlify create failed', e && (e.stack || e.message || e));
-        netlifyResult = { error: true, message: e && e.message ? e.message : String(e) };
-      }
-    }
-
-    // Step C: Persist tenant config into Firebase (this step intended to always run)
-    let db;
     try {
-      const fb = await ensureFirebase();
-      db = fb.db;
-    } catch (initErr) {
-      console.error('firebase init failed', initErr && (initErr.stack || initErr.message || initErr));
-      // we continue but return error later
+      body = event.body ? JSON.parse(event.body) : {};
+    } catch (e) {
+      return resp(400, { error: 'invalid_json' });
     }
 
-    let firebaseWriteResult = null;
-    if (db) {
+    const ip = (event.headers && (event.headers['x-forwarded-for'] || event.headers['X-Forwarded-For'])) || 'unknown';
+    const ua = (event.headers && (event.headers['user-agent'] || event.headers['User-Agent'])) || '';
+
+    const businessName = (body.businessName || '').trim();
+    const email = (body.email || '').trim() || null;
+    const desiredSlug = (body.desiredSlug || '').trim() || null;
+    const plan = (body.plan || 'free').trim();
+
+    if (!businessName) return resp(400, { error: 'businessName_required' });
+    if (businessName.length > 200) return resp(400, { error: 'businessName_too_long' });
+
+    // Idempotency key (header)
+    const idempotencyKey = (event.headers && (event.headers['Idempotency-Key'] || event.headers['idempotency-key'])) || null;
+
+    // initialize admin
+    if (!admin) {
+      console.error('firebase-admin not available or lib/firebaseAdmin failed to load.');
+      return resp(500, { error: 'server_misconfiguration', message: 'firebase admin not available' });
+    }
+    // If your lib exports an object that has database() etc, use it. If lib exports {admin}, adapt accordingly.
+    const sdk = (admin.database && admin.ref) ? admin : (admin.admin && admin.admin.database ? admin.admin : admin);
+    // above line tries to be tolerant; ideally lib/firebaseAdmin exports admin instance.
+    if (!sdk || typeof sdk.database !== 'function') {
+      return resp(500, { error: 'firebase_admin_init_failed', message: 'admin.database() unavailable' });
+    }
+    const db = sdk.database();
+
+    // If idempotencyKey provided, try returning existing mapping (best-effort)
+    if (idempotencyKey) {
       try {
-        const siteBase = (process.env.SITE_BASE || '').replace(/\/$/, '');
-        const tenant = {
-          slug, name, createdBy, createdAt: nowIso,
-          links: { home: `${siteBase}/${slug}`, counter: `${siteBase}/${slug}/counter.html`, admin: `${siteBase}/${slug}/admin.html` },
-          repo: { deployed: !!repoResult, details: repoResult },
-          netlify: netlifyResult,
-          settings: body.settings || body.defaults || {},
-        };
-        await db.ref(`tenants/${slug}`).set(tenant);
-        firebaseWriteResult = { ok: true };
+        const idempSnap = await db.ref(`/idempotency/${idempotencyKey}`).once('value');
+        if (idempSnap && idempSnap.exists()) {
+          const existing = idempSnap.val();
+          // If mapping found and contains tenantId+slug, return it. adminToken may be present.
+          return resp(200, { tenantId: existing.tenantId, slug: existing.slug, adminToken: existing.adminToken || null, from: 'idempotency' });
+        }
       } catch (e) {
-        console.error('firebase write failed', e && (e.stack || e.message || e));
-        firebaseWriteResult = { error: true, message: e && e.message ? e.message : String(e) };
+        // log and continue - idempotency check failed but not fatal
+        console.warn('idempotency check failed', e && e.message);
       }
     }
 
-    // Step D: Notify user via Telegram and (optionally) email
-    const notifyText = (() => {
-      const base = process.env.SITE_BASE ? process.env.SITE_BASE.replace(/\/$/, '') : '';
-      const siteUrl = base ? `${base}/${slug}` : (netlifyResult && netlifyResult.url ? netlifyResult.url : null);
-      let t = `Your QueueJoy site is ready!\n\nName: ${name}\nSlug: ${slug}\n`;
-      if (siteUrl) t += `Site: ${siteUrl}\n`;
-      t += `CreatedAt: ${nowIso}\n\nVisit the admin: ${base ? `${base}/${slug}/admin.html` : '(use Netlify admin or your dashboard)'}`;
-      return t;
-    })();
+    // slug base
+    let baseSlug = desiredSlug ? slugify(desiredSlug) : slugify(businessName);
+    if (!baseSlug) baseSlug = `biz-${shortId(5)}`;
 
-    // Telegram: send to chat id provided in body.notifyChatId or global CHAT_ID
-    const telegramToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
-    const chatId = body.notifyChatId || process.env.CHAT_ID;
-    let telegramResult = null;
-    if (telegramToken && chatId) {
-      try { telegramResult = await notifyTelegram(telegramToken, chatId, notifyText); } catch (e) { console.error('telegram notify failed', e && e.message); telegramResult = { error: true, message: String(e) }; }
-    } else {
-      telegramResult = { skipped: true };
+    // constants / path base
+    const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
+    const slugsPathPrefix = '/slugs'; // we keep slug->tenantId mapping here
+    const slugsRefRoot = db.ref(slugsPathPrefix); // e.g. /slugs
+
+    // Try to reserve a slug via RTDB transaction on /slugs/<slug>.
+    // We'll attempt up to N tries, appending shortId suffix on collisions.
+    let reservedSlug = null;
+    let tries = 0;
+    const maxTries = 10;
+    while (!reservedSlug && tries < maxTries) {
+      const slugAttempt = tries === 0 ? baseSlug : `${baseSlug}-${shortId(3)}`;
+      const slugRef = db.ref(`${slugsPathPrefix}/${slugAttempt}`);
+
+      // Use transaction to set if null; transaction runs only on this path (atomic for that key)
+      const txResult = await slugRef.transaction(current => {
+        if (current === null) {
+          // reserve with placeholder; actual tenantId will be set after we create tenant
+          return { reserved: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() };
+        }
+        // already taken
+        return; // abort transaction (no change)
+      }, { applyLocally: false });
+
+      if (txResult.committed) {
+        // success reserved
+        reservedSlug = slugAttempt;
+        break;
+      } else {
+        tries++;
+        continue;
+      }
     }
 
-    // Optional SendGrid email
-    let emailResult = null;
-    if (process.env.SENDGRID_API_KEY && body.notifyEmail) {
-      try { emailResult = await sendEmailViaSendGrid(process.env.SENDGRID_API_KEY, body.notifyEmail, 'Your QueueJoy site is ready', notifyText); } catch (e) { console.error('sendgrid failed', e && e.message); emailResult = { error: true, message: String(e) }; }
-    } else {
-      emailResult = { skipped: true };
+    if (!reservedSlug) {
+      return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
     }
 
-    const summary = {
-      ok: true, slug, name, createdAt: nowIso,
-      repoDeploy: repoResult,
-      netlify: netlifyResult,
-      firebase: firebaseWriteResult,
-      telegram: telegramResult,
-      email: emailResult
+    // generate tenantId (push key) without writing yet
+    const tenantRef = db.ref(`${basePath}`).push();
+    const tenantId = tenantRef.key;
+    const now = Date.now();
+    const serverTs = admin.database.ServerValue.TIMESTAMP;
+
+    // prepare multi-path update for tenant creation
+    const updates = {};
+
+    // tenant root
+    updates[`/${basePath}/${tenantId}`] = {
+      name: businessName,
+      ownerEmail: email,
+      plan,
+      slug: reservedSlug,
+      createdAt: serverTs
     };
 
-    return jsonResponse(200, summary);
+    // tenant public config
+    updates[`/${basePath}/${tenantId}/public/config`] = {
+      ...DEFAULT_CONFIG,
+      ownerEmail: email || null,
+      createdAt: serverTs
+    };
+
+    // queues meta
+    updates[`/${basePath}/${tenantId}/queues/meta`] = {
+      nextTicket: 1,
+      totalWaiting: 0,
+      createdAt: serverTs
+    };
+
+    // slug mapping -> set real tenantId & createdAt (overwrite the placeholder set by transaction)
+    updates[`/slugs/${reservedSlug}`] = {
+      tenantId,
+      createdAt: serverTs
+    };
+
+    // audit log entry (use push id)
+    const auditRef = db.ref('/audit').push();
+    updates[`/audit/${auditRef.key}`] = {
+      action: 'tenant_create',
+      tenantId,
+      tenantSlug: reservedSlug,
+      ip,
+      ua,
+      by: email || 'unknown',
+      createdAt: serverTs
+    };
+
+    // idempotency mapping if provided
+    if (idempotencyKey) {
+      updates[`/idempotency/${idempotencyKey}`] = {
+        tenantId,
+        slug: reservedSlug,
+        createdAt: serverTs
+        // adminToken will be merged later (best-effort)
+      };
+    }
+
+    // Attempt the multi-path update atomically
+    try {
+      await db.ref().update(updates);
+    } catch (updateErr) {
+      // If update fails, rollback slug reservation (best-effort)
+      try {
+        await db.ref(`/slugs/${reservedSlug}`).remove();
+      } catch (remErr) {
+        console.error('Failed to rollback reserved slug after update failure', remErr && remErr.stack || remErr);
+      }
+      console.error('Failed to write tenant data', updateErr && updateErr.stack || updateErr);
+      return resp(500, { error: 'write_failed', message: 'Failed to persist tenant data' });
+    }
+
+    // Generate admin custom token for the tenant admin
+    let adminToken = null;
+    try {
+      const adminUid = `tenant_admin:${tenantId}`;
+      adminToken = await sdk.auth().createCustomToken(adminUid, { role: 'admin', tenantId });
+      // best-effort: store adminToken in idempotency mapping (if exists)
+      if (idempotencyKey) {
+        try {
+          await db.ref(`/idempotency/${idempotencyKey}/adminToken`).set(adminToken);
+        } catch (e) {
+          console.warn('Failed to persist adminToken to idempotency', e && e.message);
+        }
+      }
+    } catch (e) {
+      console.warn('createCustomToken failed', e && (e.message || e));
+      // not fatal: we still return tenant and slug; front-end can request token via admin flow
+    }
+
+    // Success
+    return resp(201, { tenantId, slug: reservedSlug, adminToken });
+
   } catch (err) {
-    console.error('unhandled error', err && (err.stack || err.message || err));
-    return jsonResponse(500, { error: 'server_error', message: err && err.message ? err.message : String(err) });
+    console.error('createBusiness error', err && (err.stack || err));
+    return resp(500, { error: 'internal_error', message: String(err && err.message) });
   }
 };
