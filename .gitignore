@@ -1,0 +1,3 @@
+node_modules/
+tenant-template/node_modules/
+*.bak
