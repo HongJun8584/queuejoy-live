@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Queue Joy — Your Turn</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .hidden{display:none}
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+
+  <div class="w-full max-w-md bg-white rounded-xl shadow p-6 text-center">
+    <h1 class="text-2xl font-bold text-gray-800 mb-3">It’s Your Turn</h1>
+
+    <div class="mb-6">
+      <div class="text-sm text-gray-500">Your Queue Number</div>
+      <div id="yourNumber" class="mt-2 text-6xl font-extrabold text-indigo-700">—</div>
+      <div id="tgBadge" class="mt-2 text-xs text-green-600 hidden">Connected via Telegram</div>
+    </div>
+
+    <div>
+      <div class="text-sm text-gray-500">Proceed To</div>
+      <div id="counterName" class="mt-2 text-3xl font-bold text-purple-700">—</div>
+    </div>
+
+    <div class="mt-6 text-xs text-gray-400" id="fbStatus">Initializing…</div>
+  </div>
+
+<script type="module">
+/*
+ tenant-template version of your_turn.html
+ - No embedded secrets.
+ - Modes (priority): injected runtime -> firebase-auto-init (via serverless) -> polling/demo fallback
+ - Required serverless endpoints for fallback:
+   GET /.netlify/functions/get-tenant?slug=...
+   GET /.netlify/functions/get-firebase-config?slug=...
+   GET /.netlify/functions/get-queue-entry?slug=...&queueKey=...
+   (optional) POST /.netlify/functions/markTokenUsed
+*/
+
+const fbStatusEl = document.getElementById('fbStatus');
+const yourNumberEl = document.getElementById('yourNumber');
+const counterNameEl = document.getElementById('counterName');
+const tgBadge = document.getElementById('tgBadge');
+
+const TENANT_SLUG = (function(){
+  if (window.__TENANT__ && window.__TENANT__.slug) return window.__TENANT__.slug;
+  const parts = (location.pathname||'/').split('/').filter(Boolean);
+  if (parts.length && /^[a-z0-9\-]+$/.test(parts[0])) return parts[0];
+  try { const qp = new URLSearchParams(location.search); if (qp.has('slug')) return qp.get('slug'); } catch(e){}
+  return 'template';
+})();
+
+let TENANT_CONFIG = window.__TENANT__ || null;
+let db = null;
+let mode = 'unknown'; // 'injected'|'firebase'|'poll'|'demo'
+let qRef = null;
+
+// helpers
+function log(...a){ console.debug('[your_turn]', ...a); }
+function showStatus(txt){ if (fbStatusEl) fbStatusEl.textContent = txt; }
+function getQueueKey(){
+  const usp = new URLSearchParams(location.search);
+  return usp.get('queueId') || usp.get('queueid') || usp.get('qid') || usp.get('id') || null;
+}
+
+// play soft chime
+function playSoftChime(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.0002;
+    o.connect(g); g.connect(ctx.destination);
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0002, now);
+    g.gain.exponentialRampToValueAtTime(0.06, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0002, now + 0.85);
+    o.start(now); o.stop(now + 0.9);
+    setTimeout(()=>{ try{ ctx.close(); } catch(_){} }, 1200);
+  }catch(e){ console.warn('chime failed', e); }
+}
+
+function alertUser(ticket, counterName){
+  try{
+    if (ticket) yourNumberEl.textContent = ticket;
+    if (counterName) counterNameEl.textContent = counterName;
+    playSoftChime();
+    if (navigator.vibrate) try{ navigator.vibrate([200,80,200]); } catch(e){}
+    const orig = document.title;
+    document.title = `▶ Your Turn — ${ticket||''}`;
+    setTimeout(()=> document.title = orig, 2500);
+  }catch(e){}
+}
+
+// parse numeric suffix helper
+function extractNumber(str){
+  if (!str && str !== 0) return null;
+  const s = String(str).trim();
+  const m = s.match(/(\d+)$/);
+  if (m) return Number(m[1]);
+  if (/^\d+$/.test(s)) return Number(s);
+  return null;
+}
+
+// --- Data access abstractions ---
+
+// 1) injected runtime check
+function hasInjectedRuntime(){
+  return typeof window.tenantRef === 'function' && typeof window.runTxWithRetries === 'function';
+}
+
+// 2) fetch tenant public config
+async function fetchTenantConfig(slug){
+  try{
+    const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; }
+}
+
+// 3) init firebase if tenant config requests it
+async function initFirebaseIfNeeded(config){
+  if (!config || config.realtime !== 'firebase') return false;
+  try{
+    const res = await fetch(`/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(TENANT_SLUG)}`);
+    if (!res.ok) throw new Error('no firebase config');
+    const fb = await res.json();
+    // dynamic import
+    const modApp = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const modDB = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const app = modApp.initializeApp(fb);
+    db = modDB.getDatabase(app);
+    // expose tenantRef & runTx wrappers scoped to tenant
+    window.tenantRef = (rel='') => {
+      rel = String(rel||'').replace(/^\/+/, '');
+      if (!rel) return modDB.ref(db, `tenants/${TENANT_SLUG}`);
+      return modDB.ref(db, `tenants/${TENANT_SLUG}/${rel}`);
+    };
+    window.runTxWithRetries = async (refOrPath, updater, maxRetries=6) => {
+      const path = (typeof refOrPath === 'string') ? `tenants/${TENANT_SLUG}/${refOrPath}` : null;
+      const r = path ? modDB.ref(db, path) : refOrPath;
+      for (let i=1;i<=maxRetries;i++){
+        try{
+          const tx = await modDB.runTransaction(r, updater, { applyLocally:false });
+          if (tx && tx.committed) return tx;
+        }catch(err){ console.warn('[tx] attempt', i, 'failed', err); }
+        await new Promise(s=>setTimeout(s, 100 * Math.pow(2,i-1) + Math.floor(Math.random()*120)));
+      }
+      throw new Error('Transaction failed');
+    };
+    return true;
+  }catch(e){ log('initFirebaseIfNeeded failed', e); return false; }
+}
+
+// 4) API fallbacks
+async function fetchQueueEntryApi(queueKey){
+  try{
+    const res = await fetch(`/.netlify/functions/get-queue-entry?slug=${encodeURIComponent(TENANT_SLUG)}&queueKey=${encodeURIComponent(queueKey)}`, { cache:'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; }
+}
+
+// demo localStorage fallback
+const DEMO_NS = `qj_demo__${TENANT_SLUG}__`;
+function demoLoad(key){ try{ return JSON.parse(localStorage.getItem(DEMO_NS+key)||'null'); }catch(e){return null} }
+function demoSave(key,val){ localStorage.setItem(DEMO_NS+key, JSON.stringify(val)); }
+
+// --- core logic: attach listeners depending on mode ---
+
+async function attachListeners(queueKey){
+  if (hasInjectedRuntime()){
+    mode = 'injected';
+    showStatus('Realtime (injected) ready');
+    // tenantRef exposes tenant-scoped refs
+    const qRef = window.tenantRef(`queue/${queueKey}`);
+    try {
+      if (qRef.onValue){
+        qRef.onValue((snap)=> {
+          const data = snap && (snap.val ? snap.val() : snap) || null;
+          handleQueueUpdate(data, queueKey);
+        });
+      } else if (qRef.get){
+        const snap = await qRef.get();
+        const data = snap && (snap.val ? snap.val() : snap) || null;
+        handleQueueUpdate(data, queueKey);
+        // fallback poll
+        setInterval(async ()=> {
+          const s = await qRef.get(); handleQueueUpdate(s && s.val ? s.val() : s, queueKey);
+        }, 3000);
+      }
+    }catch(e){ log('injected attach error', e); showStatus('Realtime read error'); }
+    return;
+  }
+
+  // try firebase init via serverless
+  const fbOk = await initFirebaseIfNeeded(TENANT_CONFIG);
+  if (fbOk){
+    mode = 'firebase';
+    showStatus('Realtime (firebase) ready');
+    const qRef2 = window.tenantRef(`queue/${queueKey}`);
+    try{
+      if (qRef2.onValue){
+        qRef2.onValue((snap)=>{ const data = snap && (snap.val ? snap.val() : snap) || null; handleQueueUpdate(data, queueKey); });
+      } else if (qRef2.get){
+        const s = await qRef2.get(); const data = s && (s.val ? s.val() : s) || null; handleQueueUpdate(data, queueKey);
+        setInterval(async ()=> { const ss = await qRef2.get(); handleQueueUpdate(ss && ss.val ? ss.val() : ss, queueKey); }, 3000);
+      }
+    }catch(e){ log('firebase attach error', e); showStatus('Realtime read error'); }
+    return;
+  }
+
+  // fallback: polling via serverless endpoints
+  mode = 'poll';
+  showStatus('Polling mode');
+  // immediate fetch + poll loop
+  const tick = async ()=> {
+    const entry = await fetchQueueEntryApi(queueKey);
+    if (entry) handleQueueUpdate(entry, queueKey);
+  };
+  await tick();
+  setInterval(tick, 3000);
+}
+
+// process queue updates
+function handleQueueUpdate(q, queueKey){
+  if (!q){
+    showStatus('Queue not found');
+    yourNumberEl.textContent = '--'; counterNameEl.textContent = '--';
+    return;
+  }
+  // ticket resolution
+  const ticket = q.queueId || q.ticketNumber || q.ticket || q.number || q.id || '--';
+  // Telegram badge
+  if (q.telegramChatId || q.tgConnected) tgBadge.classList.remove('hidden'); else tgBadge.classList.add('hidden');
+
+  // server marked called?
+  if (q.called === true || q.notifiedAt || q.calledAt){
+    alertUser(ticket, q.counterAssignedName || q.counterName || q.counterAssigned || null);
+    return;
+  }
+
+  // else watch counter (depending on mode)
+  const counterId = q.counterId || q.counterAssigned || q.counter || null;
+  if (!counterId){
+    yourNumberEl.textContent = ticket;
+    return;
+  }
+
+  // read counter nowServing (try tenantRef if available, else call API)
+  (async ()=>{
+    let nowServingVal = null;
+    let counterName = null;
+    try{
+      if ((mode === 'injected' || mode === 'firebase') && typeof window.tenantRef === 'function'){
+        const cRef = window.tenantRef(`counters/${counterId}`);
+        if (cRef.get){
+          const snap = await cRef.get();
+          const data = snap && (snap.val ? snap.val() : snap) || null;
+          counterName = data && (data.name || null);
+          nowServingVal = (data && (data.nowServing || data.nowServingNumber)) || null;
+        } else {
+          // try reading single field
+          const nsRef = window.tenantRef(`counters/${counterId}/nowServing`);
+          const s2 = await nsRef.get(); nowServingVal = s2 && (s2.val ? s2.val() : s2) || null;
+        }
+      } else {
+        // polling API path - attempt to fetch counter
+        const res = await fetch(`/.netlify/functions/get-counter?slug=${encodeURIComponent(TENANT_SLUG)}&counterId=${encodeURIComponent(counterId)}`);
+        if (res.ok){
+          const cd = await res.json();
+          counterName = cd && cd.name || null;
+          nowServingVal = cd && (cd.nowServing || cd.nowServingNumber) || null;
+        }
+      }
+    }catch(e){ log('counter fetch failed', e); }
+
+    // render ticket and compute
+    yourNumberEl.textContent = ticket;
+    if (counterName) counterNameEl.textContent = counterName;
+
+    // compute whether to alert
+    const ticketNum = extractNumber(ticket);
+    const servingNum = extractNumber(nowServingVal);
+    if (ticketNum !== null && servingNum !== null && !isNaN(ticketNum) && !isNaN(servingNum)){
+      if (servingNum >= ticketNum){
+        alertUser(ticket, counterName);
+        return;
+      }
+    } else { // fallback string match
+      if (String(nowServingVal) === String(ticket)) { alertUser(ticket, counterName); return; }
+    }
+  })();
+}
+
+// --- bootstrap sequence ---
+(async function bootstrap(){
+  showStatus('Bootstrapping…');
+  const queueKey = getQueueKey();
+  if (!queueKey){
+    showStatus('Missing queueId');
+    yourNumberEl.textContent = '--';
+    counterNameEl.textContent = '--';
+    return;
+  }
+
+  // if runtime injected already has tenant config, use it
+  if (!TENANT_CONFIG) {
+    TENANT_CONFIG = await fetchTenantConfig(TENANT_SLUG);
+    if (TENANT_CONFIG) window.__TENANT__ = TENANT_CONFIG;
+  }
+
+  // attach listeners according to available features
+  try {
+    await attachListeners(queueKey);
+  } catch(e){
+    log('attachListeners failed', e);
+    // last-resort demo: seed demo data and use localStorage
+    showStatus('Falling back to demo mode');
+    mode = 'demo';
+    seedDemoIfEmpty();
+    // read demo queue entry and render
+    const demoEntry = demoLoad('queue') && demoLoad('queue')[queueKey];
+    handleQueueUpdate(demoEntry || null, queueKey);
+    // poll demo queue
+    setInterval(()=> {
+      const de = demoLoad('queue') && demoLoad('queue')[queueKey];
+      handleQueueUpdate(de || null, queueKey);
+    }, 2500);
+  }
+})();
+
+// helper: get queueKey
+function getQueueKey(){
+  const usp = new URLSearchParams(location.search);
+  return usp.get('queueId') || usp.get('queueid') || usp.get('qid') || usp.get('id') || null;
+}
+
+// demo seeder
+function seedDemoIfEmpty(){
+  try{
+    if (!demoLoad('queue')){
+      const q = {
+        'demo-1': { queueId: 'A001', timestamp: Date.now() - 60000, status: 'waiting', counterId: 'counter1' }
+      };
+      demoSave('queue', q);
+    }
+    if (!demoLoad('counters')){
+      demoSave('counters', { counter1: { name: 'Demo Counter', nowServing: 0, lastIssued: 0, prefix: 'A' } });
+    }
+  }catch(e){}
+}
+
+// tidy up on unload
+window.addEventListener('beforeunload', ()=> {
+  try{
+    if (mode === 'injected' || mode === 'firebase'){
+      // off listeners if available
+      // Note: tenantRef objects may expose .off; can't assume available API across all shims
+    }
+  }catch(e){}
+});
+</script>
+</body>
+</html>

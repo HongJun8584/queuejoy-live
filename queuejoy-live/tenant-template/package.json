@@ -1,0 +1,23 @@
+{
+  "name": "queuejoy-tenant-template",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tenant template for QueueJoy — functions & public site",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "netlify dev --dir=tenant-template/public --functions=tenant-template/functions",
+    "start": "npm run dev",
+    "install:functions": "npm --prefix tenant-template install",
+    "test": "echo \"no tests\" && exit 0"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.1",
+    "form-data": "^4.0.5",
+    "google-auth-library": "^10.5.0",
+    "ioredis": "^5.3.2",
+    "nanoid": "^4.0.0",
+    "node-fetch": "^2.6.7"
+  }
+}

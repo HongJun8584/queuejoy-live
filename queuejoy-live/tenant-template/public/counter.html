@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Counter Management - Queue Joy</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.0/build/qrcode.min.js"></script>
+
+  <style>
+    /* (kept your styles) */
+    body { font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin:0; background: linear-gradient(180deg,#eef2ff 0%, #fff0f6 100%); }
+    .fade-in { animation: fadeIn .35s ease; } @keyframes fadeIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+    .pulse-ring { animation: pulseRing 1.2s cubic-bezier(.4,0,.6,1) infinite; } @keyframes pulseRing { 0%,100%{ transform:scale(1); opacity:1 } 50%{ transform:scale(1.04); opacity:0.65 } }
+    .modal { display:none; position:fixed; inset:0; z-index:60; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
+    .modal.show { display:flex; }
+    .card { background: white; border-radius:14px; box-shadow: 0 20px 60px rgba(2,6,23,0.08); }
+    .muted { color: #6b7280; }
+    .qr-preview { width: 320px; height: auto; border-radius:12px; overflow:hidden; }
+    .btn-primary { background: linear-gradient(135deg,#667eea,#764ba2); color:white; }
+    .btn-success { background: linear-gradient(135deg,#10b981,#14b8a6); color:white; }
+    canvas { max-width: 100%; height: auto; display: block; }
+    .called-flash { animation: calledFlash .9s ease; } @keyframes calledFlash { 0% { box-shadow: 0 10px 30px rgba(16,185,129,0.12); transform: translateY(-2px) } 100% { box-shadow: none; transform: translateY(0) } }
+  </style>
+</head>
+<body>
+
+  <!-- Header & UI (same as your original) -->
+  <header class="bg-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Counter Management</h1>
+          <p class="text-sm muted" id="tenantHint">Queue Joy System — Admin</p>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button id="addCounterBtn" class="btn-primary px-5 py-3 rounded-xl font-semibold flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Add Counter
+        </button>
+        <button id="generateTicketBtn" class="btn-success px-5 py-3 rounded-xl font-semibold flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Generate Ticket
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div id="countersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    <div id="emptyState" class="text-center py-20 hidden"> ... </div>
+  </main>
+
+  <!-- Modals (kept same structure) -->
+  <div id="counterModal" class="modal" aria-hidden="true"> ... (same markup as original) ... </div>
+  <div id="ticketModal" class="modal" aria-hidden="true"> ... </div>
+  <div id="deleteModal" class="modal" aria-hidden="true"> ... </div>
+
+<script type="module">
+/*
+ Tenant-aware counter.html template.
+ Modes (priority):
+ 1) Injected helpers: window.__TENANT__, window.tenantRef(path), window.runTxWithRetries(pathOrRef, updater)
+ 2) Firebase auto-init: serverless /.netlify/functions/get-firebase-config?slug=... returns public firebase config
+ 3) Polling / API fallback: serverless endpoints get-counters, get-queue, notifyCounter
+ 4) Demo fallback using localStorage
+*/
+
+const NOTIFY_ENDPOINT = '/.netlify/functions/notifyCounter';
+const SITE_URL = ''; // optional override
+
+/* ---------- Tenant & runtime helpers ---------- */
+function getSlugFromPath(){
+  if (window.__TENANT__ && window.__TENANT__.slug) return window.__TENANT__.slug;
+  const parts = (location.pathname||'/').split('/').filter(Boolean);
+  if (parts.length && /^[a-z0-9\-]+$/.test(parts[0])) return parts[0];
+  try { const qp = new URLSearchParams(location.search); if (qp.has('slug')) return qp.get('slug'); } catch(e){}
+  return 'template';
+}
+const TENANT_SLUG = getSlugFromPath();
+let TENANT_CONFIG = window.__TENANT__ || null;
+
+// Check for injected runtime (recommended)
+function hasInjectedRealtime(){ return typeof window.tenantRef === 'function' && typeof window.runTxWithRetries === 'function'; }
+
+// Fetch public tenant config if not injected
+async function fetchTenantPublicConfig(slug){
+  try {
+    const r = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e){ return null; }
+}
+
+// Try init firebase if TENANT_CONFIG.realtime === 'firebase'
+async function initFirebaseIfNeeded(config){
+  if (!config || config.realtime !== 'firebase') return false;
+  try {
+    const res = await fetch(`/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(TENANT_SLUG)}`);
+    if (!res.ok) throw new Error('no firebase config');
+    const fb = await res.json();
+    const modApp = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const modDB = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const app = modApp.initializeApp(fb);
+    const db = modDB.getDatabase(app);
+    window._qj_firebase_db = db;
+    window.tenantRef = (rel='') => {
+      rel = String(rel||'').replace(/^\/+/,'');
+      if (!rel) return modDB.ref(db, `tenants/${TENANT_SLUG}`);
+      return modDB.ref(db, `tenants/${TENANT_SLUG}/${rel}`);
+    };
+    window.runTxWithRetries = async (refOrPath, updater, maxRetries=6) => {
+      const path = (typeof refOrPath === 'string') ? `tenants/${TENANT_SLUG}/${refOrPath}` : null;
+      const r = path ? modDB.ref(db, path) : refOrPath;
+      for (let i=1;i<=maxRetries;i++){
+        try {
+          const res = await modDB.runTransaction(r, updater, { applyLocally:false });
+          if (res && res.committed) return res;
+        } catch(err){ console.warn('[tx] attempt', i, 'failed', err); }
+        await new Promise(s=>setTimeout(s, 100 * Math.pow(2,i-1) + Math.floor(Math.random()*120)));
+      }
+      throw new Error('tx failed');
+    };
+    return true;
+  } catch(e){ console.warn('initFirebaseIfNeeded failed', e); return false; }
+}
+
+/* ---------- API fallbacks (polling) ---------- */
+async function getCountersViaApi(){ try{ const r = await fetch(`/.netlify/functions/get-counters?slug=${encodeURIComponent(TENANT_SLUG)}`); if(!r.ok) return null; return await r.json(); }catch(e){ return null; } }
+async function getQueueViaApi(){ try{ const r = await fetch(`/.netlify/functions/get-queue?slug=${encodeURIComponent(TENANT_SLUG)}`); if(!r.ok) return null; return await r.json(); }catch(e){ return null; } }
+
+/* ---------- Demo fallback (localStorage) ---------- */
+const DEMO_NS = `qj_demo__${TENANT_SLUG}__`;
+function demoLoad(key){ try{ return JSON.parse(localStorage.getItem(DEMO_NS + key) || 'null'); }catch(e){return null} }
+function demoSave(key,val){ localStorage.setItem(DEMO_NS + key, JSON.stringify(val)); }
+
+/* ---------- DOM refs ---------- */
+const countersGrid = document.getElementById('countersGrid');
+const emptyState = document.getElementById('emptyState');
+const tenantHint = document.getElementById('tenantHint');
+
+const addCounterBtn = document.getElementById('addCounterBtn');
+const addCounterBtnEmpty = document.getElementById('addCounterBtnEmpty');
+const counterModal = document.getElementById('counterModal');
+const counterForm = document.getElementById('counterForm');
+const counterIdInput = document.getElementById('counterIdInput');
+const counterNameInput = document.getElementById('counterNameInput');
+const counterPrefixInput = document.getElementById('counterPrefixInput');
+const counterModalTitle = document.getElementById('counterModalTitle');
+const closeCounterModalBtn = document.getElementById('closeCounterModalBtn');
+
+const ticketModal = document.getElementById('ticketModal');
+const ticketForm = document.getElementById('ticketForm');
+const ticketQRCode = document.getElementById('ticketQRCode');
+const generateBtn = document.getElementById('generateBtn');
+const closeTicketModalBtn = document.getElementById('closeTicketModalBtn');
+const openStatusBtn = document.getElementById('openStatusBtn');
+const downloadQRBtn = document.getElementById('downloadQRBtn');
+
+const deleteModal = document.getElementById('deleteModal');
+const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+/* ---------- State ---------- */
+let countersData = {};
+let liveMode = 'demo'; // 'realtime'|'poll'|'demo'
+let deleteTargetId = null;
+
+/* ---------- Utility functions ---------- */
+function escapeHtml(s){ if (s==null) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function playBeep(){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.12; o.connect(g); g.connect(ctx.destination); o.start(); setTimeout(()=>{ o.stop(); try{ ctx.close(); }catch(_){} }, 160);}catch(e){} }
+
+/* ---------- Rendering ---------- */
+function renderCounters(){
+  const ids = Object.keys(countersData||{});
+  if (!ids.length){ countersGrid.classList.add('hidden'); emptyState.classList.remove('hidden'); return; }
+  emptyState.classList.add('hidden'); countersGrid.classList.remove('hidden'); countersGrid.innerHTML='';
+  ids.forEach(counterId => {
+    const c = countersData[counterId] || {};
+    const card = document.createElement('div');
+    card.className = 'card p-6 fade-in';
+    card.dataset.counterId = counterId;
+    const nowServing = Number(c.nowServing||0);
+    const lastIssued = Number(c.lastIssued||0);
+    const prefix = c.prefix || '';
+    const isActive = c.active !== false;
+    const nowServingFormatted = `${prefix}${String(nowServing).padStart(3,'0')}`;
+    const nextNumFormatted = `${prefix}${String((lastIssued||0)+1).padStart(3,'0')}`;
+    card.innerHTML = `
+      <div class="flex items-start justify-between mb-4">
+        <div><h3 class="text-xl font-bold text-gray-900">${escapeHtml(c.name||counterId)}</h3><p class="text-sm muted">${escapeHtml(prefix)} Series</p></div>
+        <div class="flex gap-2">
+          <button class="editBtn w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center" title="Edit">✎</button>
+          <button class="deleteBtn w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Delete">🗑</button>
+        </div>
+      </div>
+      <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 mb-4">
+        <p class="text-sm muted mb-1">Now Serving</p>
+        <p class="text-4xl font-bold text-indigo-900">${escapeHtml(nowServingFormatted)}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs muted mb-1">Last Issued</p><p class="text-xl font-bold text-gray-900">${escapeHtml(prefix)}${String(lastIssued).padStart(3,'0')}</p></div>
+        <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs muted mb-1">Next Number</p><p class="text-xl font-bold text-gray-900">${escapeHtml(nextNumFormatted)}</p></div>
+      </div>
+      <div class="flex gap-2">
+        <button class="callBtn flex-1 py-3 rounded-xl font-semibold text-white ${isActive ? '' : 'opacity-50 cursor-not-allowed'}" ${isActive ? '' : 'disabled'} style="background: linear-gradient(90deg,#10b981,#14b8a6);">Call Next</button>
+        <button class="resetBtn px-4 py-3 bg-orange-500 text-white font-semibold rounded-xl">Reset</button>
+      </div>
+    `;
+    card.querySelector('.editBtn').addEventListener('click',()=> openEditCounter(counterId));
+    card.querySelector('.deleteBtn').addEventListener('click',()=> openDeleteCounter(counterId));
+    card.querySelector('.callBtn').addEventListener('click',()=> {
+      card.classList.add('called-flash'); setTimeout(()=>card.classList.remove('called-flash'),900);
+      callNext(counterId);
+    });
+    card.querySelector('.resetBtn').addEventListener('click',()=> resetCounter(counterId));
+    countersGrid.appendChild(card);
+  });
+}
+
+/* ---------- CRUD helpers that respect runtime mode ---------- */
+
+async function readCountersRealtime(){
+  // uses tenantRef to subscribe; but here we provide one-off snapshot
+  const ref = window.tenantRef ? window.tenantRef('counters') : null;
+  if (!ref) return null;
+  try {
+    if (ref.get) {
+      const snap = await ref.get();
+      return snap && (snap.val ? snap.val() : snap) || null;
+    } else if (ref.onceValue) {
+      const s = await ref.onceValue();
+      return s && s.val ? s.val() : null;
+    }
+  } catch(e){ console.warn('readCountersRealtime failed', e); return null; }
+}
+
+async function writeCounter(counterId, payload, isNew=false){
+  if (liveMode === 'realtime' && window.runTxWithRetries && !isNew){
+    // update via update() if available
+    const r = window.tenantRef(`counters/${counterId}`);
+    if (r && r.update) {
+      return await r.update(payload);
+    } else if (r && r.set) {
+      const cur = (await r.get()) || {};
+      return await r.set(Object.assign({}, cur, payload));
+    }
+  }
+  if (liveMode === 'realtime' && isNew && window.runTxWithRetries){
+    // create new id by transaction on lastAssignedCounter
+    const lastRef = window.tenantRef('lastAssignedCounter');
+    const tx = await window.runTxWithRetries(lastRef, cur => (Number(cur)||0) + 1);
+    const newNum = tx.snapshot && tx.snapshot.val ? tx.snapshot.val() : tx.snapshot;
+    const newId = `counter${newNum}`;
+    const r2 = window.tenantRef(`counters/${newId}`);
+    await (r2.set ? r2.set(Object.assign({ nowServing:0, lastIssued:0, active:true }, payload)) : null);
+    return newId;
+  }
+
+  // Polling / Demo path
+  if (liveMode === 'poll' || liveMode === 'demo') {
+    const cur = demoLoad('counters') || {};
+    if (isNew) {
+      // new id
+      const newid = `counter${Date.now()}`;
+      cur[newid] = Object.assign({ nowServing:0,lastIssued:0,active:true }, payload);
+      demoSave('counters', cur);
+      return newid;
+    } else {
+      cur[counterId] = Object.assign(cur[counterId]||{}, payload);
+      demoSave('counters', cur);
+      return counterId;
+    }
+  }
+
+  throw new Error('No write path available');
+}
+
+async function removeCounter(counterId){
+  if (liveMode === 'realtime' && window.tenantRef){
+    const r = window.tenantRef(`counters/${counterId}`);
+    if (r && r.remove) return await r.remove();
+    if (r && r.set) return await r.set(null);
+  }
+  // demo/poll fallback
+  const cur = demoLoad('counters') || {};
+  delete cur[counterId];
+  demoSave('counters', cur);
+  return true;
+}
+
+async function resetCounterData(counterId){
+  if (liveMode === 'realtime' && window.tenantRef){
+    const r = window.tenantRef(`counters/${counterId}`);
+    if (r && r.update) await r.update({ nowServing:0, lastIssued:0, busy:false, lastAdvanceAt: Date.now() });
+    // clear queue through serverless if in production (not in template)
+    const removeQ = window.fetch ? await fetch(`/.netlify/functions/clear-queue?slug=${encodeURIComponent(TENANT_SLUG)}`, { method:'POST' }) : null;
+    return true;
+  }
+  // demo
+  const cur = demoLoad('counters')||{};
+  if (cur[counterId]) { cur[counterId].nowServing=0; cur[counterId].lastIssued=0; demoSave('counters',cur); }
+  demoSave('queue', {}); // clear demo queue
+  return true;
+}
+
+/* ---------- callNext implementation that respects atomicity ---------- */
+async function callNext(counterId){
+  try {
+    if (liveMode === 'realtime' && window.runTxWithRetries && window.tenantRef) {
+      const counterRef = window.tenantRef(`counters/${counterId}`);
+      const tx = await window.runTxWithRetries(counterRef, curr => {
+        if (!curr) return { nowServing:1, lastIssued:1, lastAdvanceAt:Date.now() };
+        const prevNow = Number(curr.nowServing || 0);
+        const prevLast = Number(curr.lastIssued || 0);
+        const nextNow = prevNow + 1;
+        const nextLast = Math.max(prevLast, nextNow);
+        return Object.assign({}, curr, { nowServing: nextNow, lastIssued: nextLast, lastAdvanceAt: Date.now() });
+      });
+
+      const updated = tx.snapshot && (tx.snapshot.val? tx.snapshot.val(): tx.snapshot) || {};
+      const nowServing = Number(updated.nowServing || 0);
+      const prefix = updated.prefix || '';
+      const calledFull = `${prefix}${String(nowServing).padStart(3,'0')}`;
+      playBeep();
+
+      // collect recipients with chatId via snapshot of queue (recommend server-side notify)
+      // Here we try to read queue and call serverless notify
+      try {
+        const qRef = window.tenantRef('queue');
+        const snap = await (qRef.get ? qRef.get() : (qRef.onceValue ? qRef.onceValue() : null));
+        const all = snap && (snap.val ? snap.val() : snap) || {};
+        const recipients = [];
+        for (const k in all) {
+          const e = all[k];
+          if (e && String(e.counterId||'') === String(counterId) && e.chatId) recipients.push({ chatId: e.chatId, theirNumber: e.queueId, ticketId: k });
+        }
+        if (recipients.length) {
+          try {
+            const site = (SITE_URL && SITE_URL.trim()) ? SITE_URL.trim() : window.location.origin;
+            await fetch(`${site}${NOTIFY_ENDPOINT}`, {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ calledFull, counterName: updated.name||counterId, recipients })
+            });
+          } catch(e){ console.warn('notify failed', e); }
+        }
+      } catch(e){ console.warn('collect recipients failed', e); }
+
+      return true;
+    }
+
+    // Polling / demo path (best-effort)
+    const cur = demoLoad('counters') || {};
+    const c = cur[counterId] || { nowServing:0, lastIssued:0, prefix:'' };
+    const nextNow = Number(c.nowServing || 0) + 1;
+    c.nowServing = nextNow;
+    c.lastIssued = Math.max(Number(c.lastIssued||0), nextNow);
+    cur[counterId] = c;
+    demoSave('counters', cur);
+    playBeep();
+    return true;
+  } catch (err) {
+    console.error('callNext error', err);
+    alert('Failed to call next (see console).');
+    return false;
+  }
+}
+
+/* ---------- UI event wiring & modals ---------- */
+
+function openAddCounter(){ counterModalTitle.textContent='Add Counter'; counterForm.reset(); counterIdInput.value=''; counterModal.classList.add('show'); }
+function openEditCounter(id){ const c = countersData[id]||{}; counterModalTitle.textContent='Edit Counter'; counterIdInput.value=id; counterNameInput.value = c.name||''; counterPrefixInput.value = c.prefix||''; counterModal.classList.add('show'); }
+function openDeleteCounter(id){ deleteTargetId = id; deleteModal.classList.add('show'); }
+
+addCounterBtn.addEventListener('click', openAddCounter);
+addCounterBtnEmpty?.addEventListener('click', openAddCounter);
+closeCounterModalBtn?.addEventListener('click', ()=>counterModal.classList.remove('show'));
+closeTicketModalBtn?.addEventListener('click', ()=>ticketModal.classList.remove('show'));
+confirmDeleteBtn?.addEventListener('click', async ()=>{ if(!deleteTargetId) return; await removeCounter(deleteTargetId); deleteModal.classList.remove('show'); loadCountersOnce(); });
+cancelDeleteBtn?.addEventListener('click', ()=>{ deleteModal.classList.remove('show'); deleteTargetId = null; });
+
+counterForm?.addEventListener('submit', async (e)=> {
+  e.preventDefault();
+  const name = (counterNameInput.value||'').trim();
+  const prefix = (counterPrefixInput.value||'').trim().toUpperCase().slice(0,7);
+  const editing = counterIdInput.value;
+  if (!name || !prefix) return alert('Provide name & prefix');
+  if (editing) {
+    await writeCounter(editing, { name, prefix }, false);
+  } else {
+    await writeCounter(null, { name, prefix }, true);
+  }
+  counterModal.classList.remove('show');
+  await loadCountersOnce();
+});
+
+generateBtn?.addEventListener('click', (e)=> { /* handled by submit */ });
+ticketForm?.addEventListener('submit', async (e)=> {
+  e.preventDefault();
+  const base = (SITE_URL && SITE_URL.trim()) ? SITE_URL.trim() : window.location.origin;
+  const url = base.replace(/\/$/,'') + '/index.html';
+  ticketQRCode.innerHTML = '';
+  const canvas = document.createElement('canvas');
+  try {
+    await new Promise((resolve,reject)=> {
+      QRCode.toCanvas(canvas, url, { width:420, margin:2 }, (err)=> err ? reject(err) : resolve());
+    });
+    ticketQRCode.appendChild(canvas);
+    const ts = Date.now();
+    // Auto-download for convenience
+    const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `ticket-${ts}.png`; a.click();
+  } catch(e){ console.error('QR gen fail', e); alert('QR generation failed'); }
+});
+
+document.addEventListener('click', (e)=> {
+  if (e.target === counterModal) counterModal.classList.remove('show');
+  if (e.target === ticketModal) ticketModal.classList.remove('show');
+  if (e.target === deleteModal) deleteModal.classList.remove('show');
+});
+
+/* ---------- Loading counters depending on mode ---------- */
+
+async function loadCountersOnce(){
+  // prefer realtime snapshot
+  if (liveMode === 'realtime' && window.tenantRef){
+    const snap = await window.tenantRef('counters').get();
+    const data = snap && (snap.val ? snap.val() : snap) || {};
+    countersData = data;
+    renderCounters();
+    return;
+  }
+  // polling API
+  if (liveMode === 'poll') {
+    const r = await getCountersViaApi();
+    countersData = r || {};
+    renderCounters();
+    return;
+  }
+  // demo fallback
+  countersData = demoLoad('counters') || {};
+  renderCounters();
+}
+
+async function determineModeAndStart(){
+  // load tenant public config if not injected
+  if (!TENANT_CONFIG) {
+    TENANT_CONFIG = await fetchTenantPublicConfig(TENANT_SLUG);
+    if (TENANT_CONFIG) window.__TENANT__ = TENANT_CONFIG;
+  }
+
+  // set tenant hint text
+  if (TENANT_CONFIG && TENANT_CONFIG.name) tenantHint.textContent = `${TENANT_CONFIG.name} — Admin`;
+
+  // detect runtime injection
+  if (hasInjectedRealtime()){
+    liveMode = 'realtime';
+    console.info('Using injected realtime helpers');
+  } else {
+    // try firebase auto-init if TENANT_CONFIG asks for it
+    const fbOk = await initFirebaseIfNeeded(TENANT_CONFIG);
+    if (fbOk) liveMode = 'realtime';
+    else {
+      // fallback to polling API if available (quick test)
+      try {
+        const test = await getCountersViaApi();
+        liveMode = test ? 'poll' : 'demo';
+      } catch(e) { liveMode = 'demo'; }
+    }
+  }
+
+  // if demo and no data, seed example counters for local testing
+  if (liveMode === 'demo') {
+    if (!demoLoad('counters')) {
+      const seed = {
+        counter1: { name: 'Main Counter', prefix: 'A', nowServing: 0, lastIssued: 0, active:true },
+        counter2: { name: 'Express', prefix: 'X', nowServing: 0, lastIssued: 0, active:true }
+      };
+      demoSave('counters', seed);
+      demoSave('queue', {}); // empty queue
+    }
+  }
+
+  // initial load and set interval for polling mode
+  await loadCountersOnce();
+  if (liveMode === 'poll') setInterval(loadCountersOnce, 3500);
+}
+
+/* ---------- Reset and delete helpers ---------- */
+async function resetCounter(counterId){
+  const ok = confirm('Reset this counter to 0 AND clear the entire /queue data? Proceed?');
+  if (!ok) return;
+  await resetCounterData(counterId);
+  await loadCountersOnce();
+}
+
+/* ---------- Boot ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  determineModeAndStart().catch(e => { console.error('init failed', e); });
+});
+</script>
+</body>
+</html>
