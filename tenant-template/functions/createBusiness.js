@@ -178,14 +178,16 @@ exports.handler = async function(event, context) {
     const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
     const slugsPrefix = '/slugs';
 
-    // Reserve slug via transaction (on single key)
+    // Reserve slug via transaction (on single key) — ENHANCED with logging + backoff
     let reservedSlug = null;
-    const maxTries = 10;
+    const maxTries = 20; // raised
+    const baseBackoffMs = 100; // initial backoff
     for (let attempt = 0; attempt < maxTries && !reservedSlug; attempt++) {
       const slugAttempt = attempt === 0 ? baseSlug : `${baseSlug}-${shortId(3)}`;
       const slugRef = db.ref(`${slugsPrefix}/${slugAttempt}`);
 
       try {
+        // transaction callback should be fast; we capture the result for logging
         const tx = await slugRef.transaction(current => {
           if (current === null) {
             return { reserved: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() };
@@ -193,16 +195,35 @@ exports.handler = async function(event, context) {
           return; // abort
         }, { applyLocally: false });
 
-        if (tx.committed) {
+        // debug logging for postmortem — shows why a transaction didn't commit
+        console.log(`slug tx attempt=${attempt} slug=${slugAttempt} committed=${tx && tx.committed} snapshotExists=${!!(tx && tx.snapshot)}`);
+
+        if (tx && tx.committed) {
           reservedSlug = slugAttempt;
           break;
+        } else {
+          // Not committed because key exists — log snapshot for investigation (may be null)
+          try {
+            const snap = await slugRef.once('value');
+            console.warn('slug tx not committed, existing value for', slugAttempt, snap && snap.val());
+          } catch (snErr) {
+            console.warn('slugRef.once failed during diagnostic read', snErr && (snErr.message || snErr));
+          }
         }
       } catch (e) {
-        console.warn('slug transaction attempt failed, retrying:', e && e.message);
-        // try next suffix
+        // If transaction throws, log the full error and continue with backoff
+        console.error(`slug transaction error on attempt=${attempt} slugAttempt=${slugAttempt}:`, (e && (e.stack || e.message || e)));
       }
+
+      // exponential backoff
+      const backoff = baseBackoffMs * Math.pow(2, Math.min(attempt, 8)); // cap exponent
+      await new Promise(r => setTimeout(r, backoff));
     }
 
+    if (!reservedSlug) {
+      console.error('slug_generation_failed: reached max tries; consider inspecting /slugs path and RTDB rules.');
+      return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
+    }
     if (!reservedSlug) return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
 
     // create tenant push id
