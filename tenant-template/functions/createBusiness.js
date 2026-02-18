@@ -1,13 +1,11 @@
-// tenant-template/functions/createBusiness.js
 'use strict';
 
 /*
-  createBusiness - Realtime Database (Netlify function)
-  - POST JSON { businessName, email?, desiredSlug?, plan? }
-  - Header Idempotency-Key optional
-  - Uses RTDB transaction to reserve /slugs/<slug>, multi-path update to write tenant data
-  - Generates Firebase custom token for admin (tenant_admin:<tenantId>)
-  - Ensures firebase-admin is initialized with databaseURL from env; will re-init if necessary
+  createBusiness - Realtime Database (Netlify function) — fixed & hardened
+  - Adds retry logic for multi-path update failures
+  - Falls back to sequential writes when multi-path update repeatedly fails
+  - Better logging and more informative error responses (controlled by DEBUG env)
+  - Improves rollback on partial failures
 */
 
 const crypto = require('crypto');
@@ -31,7 +29,7 @@ function resp(statusCode, payload) {
 function slugify(name) {
   if (!name || typeof name !== 'string') return '';
   const n = name.normalize ? name.normalize('NFKD') : name;
-  const stripped = n.replace(/[\u0300-\u036f]/g, '');
+  const stripped = n.replace(/[̀-\u036f]/g, '');
   const slug = stripped
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -76,11 +74,7 @@ async function ensureAdmin() {
       if (process.env.FIREBASE_DATABASE_EMULATOR_HOST || process.env.RTDB_EMULATOR_HOST) {
         return admin;
       }
-      try {
-        await app.delete();
-      } catch (delErr) {
-        console.warn('Warning: failed to delete existing firebase app before reinit:', delErr && delErr.message);
-      }
+      try { await app.delete(); } catch (delErr) { console.warn('Warning: failed to delete existing firebase app before reinit:', delErr && delErr.message); }
     } catch (e) {
       // continue to init
     }
@@ -117,6 +111,50 @@ function runTransactionPromise(ref, updateFunction, applyLocally = false) {
       reject(ex);
     }
   });
+}
+
+/* ---------- Safe update with retries and fallback ---------- */
+async function safeUpdate(db, updates, opts = {}) {
+  const maxAttempts = opts.maxAttempts || 3;
+  const baseBackoff = opts.baseBackoff || 150; // ms
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await db.ref().update(updates);
+      return { ok: true };
+    } catch (err) {
+      console.error(`safeUpdate attempt=${attempt} failed:`, err && (err.code || err.message || err));
+      if (attempt < maxAttempts) {
+        const backoff = baseBackoff * Math.pow(2, attempt - 1);
+        await new Promise(r => setTimeout(r, backoff));
+        continue;
+      }
+      // final failure -> fallback to sequential writes
+      break;
+    }
+  }
+
+  // Fallback: try sequential writes to reduce chance of multi-path related failures.
+  // We write keys one-by-one and track what was successfully written so we can rollback.
+  const writtenKeys = [];
+  try {
+    // Ensure deterministic ordering for predictable cleanup
+    const keys = Object.keys(updates).sort();
+    for (const path of keys) {
+      const trimmed = path.replace(/^\/+/, '');
+      const ref = db.ref(trimmed);
+      await ref.set(updates[path]);
+      writtenKeys.push(trimmed);
+    }
+    return { ok: true, sequential: true, writtenKeys };
+  } catch (seqErr) {
+    console.error('safeUpdate sequential fallback failed:', seqErr && (seqErr.code || seqErr.message || seqErr));
+    // attempt rollback of any partial writes
+    for (const k of writtenKeys) {
+      try { await db.ref(k).remove(); } catch (e) { console.warn('rollback remove failed for', k, e && e.message); }
+    }
+    return { ok: false, error: seqErr };
+  }
 }
 
 /* ---------- Main handler ---------- */
@@ -175,7 +213,7 @@ exports.handler = async function(event, context) {
     const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
     const slugsPrefix = '/slugs';
 
-    // Reserve slug via transaction (on single key) — correct Admin SDK callback style
+    // Reserve slug via transaction (on single key)
     let reservedSlug = null;
     const maxTries = 20;
     const baseBackoffMs = 100;
@@ -196,16 +234,9 @@ exports.handler = async function(event, context) {
           reservedSlug = slugAttempt;
           break;
         } else {
-          // read existing value for debugging
-          try {
-            const snap = await slugRef.once('value');
-            console.warn('slug tx not committed, existing value for', slugAttempt, snap && snap.val());
-          } catch (snErr) {
-            console.warn('slugRef.once failed during diagnostic read', snErr && (snErr.message || snErr));
-          }
+          try { const snap = await slugRef.once('value'); console.warn('slug tx not committed, existing value for', slugAttempt, snap && snap.val()); } catch (snErr) { console.warn('slugRef.once failed during diagnostic read', snErr && (snErr.message || snErr)); }
         }
       } catch (e) {
-        // transaction threw — log full err for Netlify logs
         console.error(`slug transaction error on attempt=${attempt} slugAttempt=${slugAttempt}:`, (e && (e.stack || e.message || e)));
       }
 
@@ -241,13 +272,19 @@ exports.handler = async function(event, context) {
       updates[`/idempotency/${idempotencyKey}`] = { tenantId, slug: reservedSlug, createdAt: serverTs };
     }
 
-    // perform update
+    // perform update (safe)
+    let updateResult;
     try {
-      await db.ref().update(updates);
+      updateResult = await safeUpdate(db, updates, { maxAttempts: 3, baseBackoff: 200 });
+      if (!updateResult.ok) {
+        console.error('safeUpdate ultimately failed', updateResult.error || 'unknown');
+        // best-effort rollback of reserved slug
+        try { await db.ref(`/slugs/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed after safeUpdate failure', e && e.message); }
+        return resp(500, { error: 'write_failed', message: 'Failed to persist tenant data' });
+      }
     } catch (updateErr) {
-      // rollback reserved slug (best-effort)
-      try { await db.ref(`/slugs/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed', e && e.message); }
       console.error('update failed', updateErr && (updateErr.stack || updateErr.message || updateErr));
+      try { await db.ref(`/slugs/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed', e && e.message); }
       return resp(500, { error: 'write_failed', message: 'Failed to persist tenant data' });
     }
 
