@@ -2,48 +2,35 @@
 'use strict';
 
 /*
-  createBusiness for Realtime Database (Netlify function style)
-
-  Behavior:
-  - Accepts POST JSON { businessName, email?, desiredSlug?, plan? }
-  - Optional header: Idempotency-Key to make retries safe
-  - Generates slug (slugify) and reserves it via RTDB transaction on /slugs/<slug>
-  - Generates tenantId via push().key and writes tenant data + config + queues/meta + idempotency mapping in one multi-path update
-  - Creates Firebase custom token for admin user (tenant_admin:<tenantId>)
-  - Cleans up reserved slug if final multi-path update fails (best-effort)
-  - Returns JSON with tenantId, slug, adminToken
+  createBusiness - Realtime Database (Netlify function)
+  - POST JSON { businessName, email?, desiredSlug?, plan? }
+  - Header Idempotency-Key optional
+  - Uses RTDB transaction to reserve /slugs/<slug>, multi-path update to write tenant data
+  - Generates Firebase custom token for admin (tenant_admin:<tenantId>)
+  - Ensures firebase-admin is initialized with databaseURL from env; will re-init if necessary
 */
 
 const crypto = require('crypto');
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
 
-// Use your project's firebaseAdmin helper - this file should export initialized admin (or lazy init)
-let admin;
-try {
-  admin = require('./lib/firebaseAdmin'); // expected to export admin instance
-} catch (e) {
-  // fallback to requiring firebase-admin directly (if lib not present)
-  try {
-    admin = require('firebase-admin');
-  } catch (e2) {
-    admin = null;
-  }
-}
+const DEFAULT_CONFIG = {
+  theme: { color: '#8b5cf6', logo: null },
+  features: {},
+  timezone: 'UTC'
+};
 
-const headers = {
+const HEADERS = {
   'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*', // adjust in prod to specific domain(s)
+  'Access-Control-Allow-Origin': '*', // tighten in prod
   'Access-Control-Allow-Headers': 'Content-Type,Idempotency-Key'
 };
 
 function resp(statusCode, payload) {
-  return {
-    statusCode,
-    headers,
-    body: JSON.stringify(payload)
-  };
+  return { statusCode, headers: HEADERS, body: JSON.stringify(payload) };
 }
 
-// slugify: normalize name -> ascii lowercase slug
 function slugify(name) {
   if (!name || typeof name !== 'string') return '';
   const n = name.normalize ? name.normalize('NFKD') : name;
@@ -61,37 +48,90 @@ function shortId(len = 4) {
   return crypto.randomBytes(Math.ceil(len / 2)).toString('hex').slice(0, len);
 }
 
-const DEFAULT_CONFIG = {
-  theme: { color: '#8b5cf6', logo: null },
-  features: {},
-  timezone: 'UTC'
-};
+/* ---------- Robust admin init ---------- */
+async function ensureAdmin() {
+  // try to require firebase-admin (most reliable)
+  let admin;
+  try { admin = require('firebase-admin'); } catch (e) { throw new Error('firebase-admin module missing'); }
 
+  // Helper to parse service account from env (base64 or raw JSON)
+  function parseServiceAccount() {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || null;
+    if (!raw) return null;
+    // try base64 decode then parse, else parse raw JSON
+    try {
+      const maybe = Buffer.from(raw, 'base64').toString('utf8');
+      return JSON.parse(maybe);
+    } catch (err) {
+      try { return JSON.parse(raw); } catch (err2) { return null; }
+    }
+  }
+
+  const desiredDbUrl = (process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || '').trim();
+  if (!desiredDbUrl && !process.env.FIREBASE_DATABASE_EMULATOR_HOST && !process.env.RTDB_EMULATOR_HOST) {
+    throw new Error('Missing FIREBASE_DATABASE_URL environment variable (or RTDB emulator env).');
+  }
+
+  // If admin already initialized, check databaseURL
+  if (admin.apps && admin.apps.length > 0) {
+    try {
+      const app = admin.app();
+      const currentDb = (app && app.options && (app.options.databaseURL || app.options.databaseUrl)) || null;
+      // If currentDb matches desiredDbUrl (or emulator present), return admin
+      if (currentDb && desiredDbUrl && currentDb === desiredDbUrl) {
+        return admin;
+      }
+      // If emulator env present, treat as valid
+      if (process.env.FIREBASE_DATABASE_EMULATOR_HOST || process.env.RTDB_EMULATOR_HOST) {
+        return admin;
+      }
+
+      // existing app but missing/incorrect databaseURL -> delete and re-init
+      try {
+        await app.delete();
+        // clear require cache for firebase-admin module to ensure clean state if needed
+      } catch (delErr) {
+        console.warn('Warning: failed to delete existing firebase app before reinit:', delErr && delErr.message);
+        // we'll still attempt to init below; if it fails we'll surface error
+      }
+    } catch (e) {
+      // proceed to init
+    }
+  }
+
+  // init admin with databaseURL and service account
+  const saObj = parseServiceAccount();
+  const dbUrl = desiredDbUrl || (process.env.FIREBASE_DATABASE_EMULATOR_HOST ? `http://${process.env.FIREBASE_DATABASE_EMULATOR_HOST}` : null);
+
+  if (saObj) {
+    // initialize with service account + databaseURL
+    admin.initializeApp({
+      credential: admin.credential.cert(saObj),
+      ...(dbUrl ? { databaseURL: dbUrl } : {})
+    });
+    return admin;
+  }
+
+  // If service account not provided, try default init (works with GOOGLE_APPLICATION_CREDENTIALS)
+  try {
+    admin.initializeApp({ ...(dbUrl ? { databaseURL: dbUrl } : {}) });
+    return admin;
+  } catch (e) {
+    throw new Error('Failed to initialize firebase-admin. Provide FIREBASE_SERVICE_ACCOUNT_BASE64 or set GOOGLE_APPLICATION_CREDENTIALS.');
+  }
+}
+
+/* ---------- Main handler ---------- */
 exports.handler = async function(event, context) {
   try {
-    // Allow OPTIONS preflight
     if (event.httpMethod === 'OPTIONS') {
-      return {
-        statusCode: 204,
-        headers: {
-          ...headers,
-          'Access-Control-Allow-Methods': 'POST, OPTIONS'
-        },
-        body: ''
-      };
+      return { statusCode: 204, headers: { ...HEADERS, 'Access-Control-Allow-Methods': 'POST, OPTIONS' }, body: '' };
     }
-
-    if (event.httpMethod !== 'POST') {
-      return resp(405, { error: 'method_not_allowed', message: 'Use POST' });
-    }
+    if (event.httpMethod !== 'POST') return resp(405, { error: 'method_not_allowed', message: 'Use POST' });
 
     // parse body
     let body = {};
-    try {
-      body = event.body ? JSON.parse(event.body) : {};
-    } catch (e) {
-      return resp(400, { error: 'invalid_json' });
-    }
+    try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return resp(400, { error: 'invalid_json' }); }
 
     const ip = (event.headers && (event.headers['x-forwarded-for'] || event.headers['X-Forwarded-For'])) || 'unknown';
     const ua = (event.headers && (event.headers['user-agent'] || event.headers['User-Agent'])) || '';
@@ -104,34 +144,30 @@ exports.handler = async function(event, context) {
     if (!businessName) return resp(400, { error: 'businessName_required' });
     if (businessName.length > 200) return resp(400, { error: 'businessName_too_long' });
 
-    // Idempotency key (header)
     const idempotencyKey = (event.headers && (event.headers['Idempotency-Key'] || event.headers['idempotency-key'])) || null;
 
-    // initialize admin
-    if (!admin) {
-      console.error('firebase-admin not available or lib/firebaseAdmin failed to load.');
-      return resp(500, { error: 'server_misconfiguration', message: 'firebase admin not available' });
+    // ensure admin is initialized properly
+    let admin;
+    try {
+      admin = await ensureAdmin();
+    } catch (e) {
+      console.error('admin init error:', e && (e.stack || e.message || e));
+      return resp(500, { error: 'firebase_admin_init_failed', message: String(e && e.message) });
     }
-    // If your lib exports an object that has database() etc, use it. If lib exports {admin}, adapt accordingly.
-    const sdk = (admin.database && admin.ref) ? admin : (admin.admin && admin.admin.database ? admin.admin : admin);
-    // above line tries to be tolerant; ideally lib/firebaseAdmin exports admin instance.
-    if (!sdk || typeof sdk.database !== 'function') {
-      return resp(500, { error: 'firebase_admin_init_failed', message: 'admin.database() unavailable' });
-    }
-    const db = sdk.database();
 
-    // If idempotencyKey provided, try returning existing mapping (best-effort)
+    // get RTDB handle
+    const db = admin.database();
+
+    // idempotency early check
     if (idempotencyKey) {
       try {
-        const idempSnap = await db.ref(`/idempotency/${idempotencyKey}`).once('value');
-        if (idempSnap && idempSnap.exists()) {
-          const existing = idempSnap.val();
-          // If mapping found and contains tenantId+slug, return it. adminToken may be present.
-          return resp(200, { tenantId: existing.tenantId, slug: existing.slug, adminToken: existing.adminToken || null, from: 'idempotency' });
+        const snap = await db.ref(`/idempotency/${idempotencyKey}`).once('value');
+        if (snap && snap.exists()) {
+          const v = snap.val();
+          return resp(200, { tenantId: v.tenantId, slug: v.slug, adminToken: v.adminToken || null, from: 'idempotency' });
         }
       } catch (e) {
-        // log and continue - idempotency check failed but not fatal
-        console.warn('idempotency check failed', e && e.message);
+        console.warn('idempotency read failed, continuing:', e && e.message);
       }
     }
 
@@ -139,54 +175,43 @@ exports.handler = async function(event, context) {
     let baseSlug = desiredSlug ? slugify(desiredSlug) : slugify(businessName);
     if (!baseSlug) baseSlug = `biz-${shortId(5)}`;
 
-    // constants / path base
     const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
-    const slugsPathPrefix = '/slugs'; // we keep slug->tenantId mapping here
-    const slugsRefRoot = db.ref(slugsPathPrefix); // e.g. /slugs
+    const slugsPrefix = '/slugs';
 
-    // Try to reserve a slug via RTDB transaction on /slugs/<slug>.
-    // We'll attempt up to N tries, appending shortId suffix on collisions.
+    // Reserve slug via transaction (on single key)
     let reservedSlug = null;
-    let tries = 0;
     const maxTries = 10;
-    while (!reservedSlug && tries < maxTries) {
-      const slugAttempt = tries === 0 ? baseSlug : `${baseSlug}-${shortId(3)}`;
-      const slugRef = db.ref(`${slugsPathPrefix}/${slugAttempt}`);
+    for (let attempt = 0; attempt < maxTries && !reservedSlug; attempt++) {
+      const slugAttempt = attempt === 0 ? baseSlug : `${baseSlug}-${shortId(3)}`;
+      const slugRef = db.ref(`${slugsPrefix}/${slugAttempt}`);
 
-      // Use transaction to set if null; transaction runs only on this path (atomic for that key)
-      const txResult = await slugRef.transaction(current => {
-        if (current === null) {
-          // reserve with placeholder; actual tenantId will be set after we create tenant
-          return { reserved: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() };
+      try {
+        const tx = await slugRef.transaction(current => {
+          if (current === null) {
+            return { reserved: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() };
+          }
+          return; // abort
+        }, { applyLocally: false });
+
+        if (tx.committed) {
+          reservedSlug = slugAttempt;
+          break;
         }
-        // already taken
-        return; // abort transaction (no change)
-      }, { applyLocally: false });
-
-      if (txResult.committed) {
-        // success reserved
-        reservedSlug = slugAttempt;
-        break;
-      } else {
-        tries++;
-        continue;
+      } catch (e) {
+        console.warn('slug transaction attempt failed, retrying:', e && e.message);
+        // try next suffix
       }
     }
 
-    if (!reservedSlug) {
-      return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
-    }
+    if (!reservedSlug) return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
 
-    // generate tenantId (push key) without writing yet
+    // create tenant push id
     const tenantRef = db.ref(`${basePath}`).push();
     const tenantId = tenantRef.key;
-    const now = Date.now();
     const serverTs = admin.database.ServerValue.TIMESTAMP;
 
-    // prepare multi-path update for tenant creation
+    // prepare multi-path update
     const updates = {};
-
-    // tenant root
     updates[`/${basePath}/${tenantId}`] = {
       name: businessName,
       ownerEmail: email,
@@ -194,86 +219,42 @@ exports.handler = async function(event, context) {
       slug: reservedSlug,
       createdAt: serverTs
     };
-
-    // tenant public config
-    updates[`/${basePath}/${tenantId}/public/config`] = {
-      ...DEFAULT_CONFIG,
-      ownerEmail: email || null,
-      createdAt: serverTs
-    };
-
-    // queues meta
-    updates[`/${basePath}/${tenantId}/queues/meta`] = {
-      nextTicket: 1,
-      totalWaiting: 0,
-      createdAt: serverTs
-    };
-
-    // slug mapping -> set real tenantId & createdAt (overwrite the placeholder set by transaction)
-    updates[`/slugs/${reservedSlug}`] = {
-      tenantId,
-      createdAt: serverTs
-    };
-
-    // audit log entry (use push id)
-    const auditRef = db.ref('/audit').push();
-    updates[`/audit/${auditRef.key}`] = {
-      action: 'tenant_create',
-      tenantId,
-      tenantSlug: reservedSlug,
-      ip,
-      ua,
-      by: email || 'unknown',
-      createdAt: serverTs
-    };
-
-    // idempotency mapping if provided
+    updates[`/${basePath}/${tenantId}/public/config`] = { ...DEFAULT_CONFIG, ownerEmail: email || null, createdAt: serverTs };
+    updates[`/${basePath}/${tenantId}/queues/meta`] = { nextTicket: 1, totalWaiting: 0, createdAt: serverTs };
+    updates[`/slugs/${reservedSlug}`] = { tenantId, createdAt: serverTs };
+    const auditKey = db.ref('/audit').push().key;
+    updates[`/audit/${auditKey}`] = { action: 'tenant_create', tenantId, tenantSlug: reservedSlug, ip, ua, by: email || 'unknown', createdAt: serverTs };
     if (idempotencyKey) {
-      updates[`/idempotency/${idempotencyKey}`] = {
-        tenantId,
-        slug: reservedSlug,
-        createdAt: serverTs
-        // adminToken will be merged later (best-effort)
-      };
+      updates[`/idempotency/${idempotencyKey}`] = { tenantId, slug: reservedSlug, createdAt: serverTs };
     }
 
-    // Attempt the multi-path update atomically
+    // perform update
     try {
       await db.ref().update(updates);
     } catch (updateErr) {
-      // If update fails, rollback slug reservation (best-effort)
-      try {
-        await db.ref(`/slugs/${reservedSlug}`).remove();
-      } catch (remErr) {
-        console.error('Failed to rollback reserved slug after update failure', remErr && remErr.stack || remErr);
-      }
-      console.error('Failed to write tenant data', updateErr && updateErr.stack || updateErr);
+      // rollback reserved slug (best-effort)
+      try { await db.ref(`/slugs/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed', e && e.message); }
+      console.error('update failed', updateErr && (updateErr.stack || updateErr.message || updateErr));
       return resp(500, { error: 'write_failed', message: 'Failed to persist tenant data' });
     }
 
-    // Generate admin custom token for the tenant admin
+    // generate admin custom token
     let adminToken = null;
     try {
       const adminUid = `tenant_admin:${tenantId}`;
-      adminToken = await sdk.auth().createCustomToken(adminUid, { role: 'admin', tenantId });
-      // best-effort: store adminToken in idempotency mapping (if exists)
+      adminToken = await admin.auth().createCustomToken(adminUid, { role: 'admin', tenantId });
       if (idempotencyKey) {
-        try {
-          await db.ref(`/idempotency/${idempotencyKey}/adminToken`).set(adminToken);
-        } catch (e) {
-          console.warn('Failed to persist adminToken to idempotency', e && e.message);
-        }
+        try { await db.ref(`/idempotency/${idempotencyKey}/adminToken`).set(adminToken); } catch (e) { console.warn('store adminToken fail', e && e.message); }
       }
     } catch (e) {
-      console.warn('createCustomToken failed', e && (e.message || e));
-      // not fatal: we still return tenant and slug; front-end can request token via admin flow
+      console.warn('createCustomToken failed (non-fatal):', e && e.message);
+      // continue, tenant exists
     }
 
-    // Success
     return resp(201, { tenantId, slug: reservedSlug, adminToken });
 
   } catch (err) {
-    console.error('createBusiness error', err && (err.stack || err));
+    console.error('createBusiness: unexpected', err && (err.stack || err));
     return resp(500, { error: 'internal_error', message: String(err && err.message) });
   }
 };
