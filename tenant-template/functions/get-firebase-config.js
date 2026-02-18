@@ -166,16 +166,16 @@ exports.handler = async function (event) {
     const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
     // for RTDB path: tenants/<slug>/public/config
     const rtdbPath = `${basePath}/${slug}/public/config`;
-    // for Firestore doc path: tenants/<slug>/public/config
-    const firestoreDocPath = `${basePath}/${slug}/public/config`;
+    // for Realtime Database doc path: tenants/<slug>/public/config
+    const databaseDocPath = `${basePath}/${slug}/public/config`;
 
-    // Try Firestore first if available
+    // Try Realtime Database first if available
     let config = null;
     try {
-      if (typeof SDKadmin.firestore === 'function') {
-        const db = SDKadmin.firestore();
-        // Firestore doc read
-        const docRef = db.doc(firestoreDocPath);
+      if (typeof SDKadmin.database === 'function') {
+        const db = SDKadmin.database();
+        // Realtime Database doc read
+        const docRef = db.doc(databaseDocPath);
         const doc = await docRef.get().catch(() => null);
         if (doc && doc.exists) {
           config = doc.data();
@@ -186,7 +186,7 @@ exports.handler = async function (event) {
       config = null;
     }
 
-    // If not found in Firestore, try Realtime Database (if available)
+    // If not found in Realtime Database, try Realtime Database (if available)
     if (config == null && typeof SDKadmin.database === 'function') {
       try {
         const db = SDKadmin.database();
@@ -213,7 +213,7 @@ exports.handler = async function (event) {
 
     // If still null => not found
     if (config == null) {
-      return resp(404, { error: 'tenant not found', pathTried: { firestoreDocPath, rtdbPath } });
+      return resp(404, { error: 'tenant not found', pathTried: { databaseDocPath, rtdbPath } });
     }
 
     // sanitize
