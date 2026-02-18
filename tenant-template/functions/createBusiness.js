@@ -11,9 +11,6 @@
 */
 
 const crypto = require('crypto');
-const os = require('os');
-const fs = require('fs');
-const path = require('path');
 
 const DEFAULT_CONFIG = {
   theme: { color: '#8b5cf6', logo: null },
@@ -50,15 +47,12 @@ function shortId(len = 4) {
 
 /* ---------- Robust admin init ---------- */
 async function ensureAdmin() {
-  // try to require firebase-admin (most reliable)
   let admin;
   try { admin = require('firebase-admin'); } catch (e) { throw new Error('firebase-admin module missing'); }
 
-  // Helper to parse service account from env (base64 or raw JSON)
   function parseServiceAccount() {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || null;
     if (!raw) return null;
-    // try base64 decode then parse, else parse raw JSON
     try {
       const maybe = Buffer.from(raw, 'base64').toString('utf8');
       return JSON.parse(maybe);
@@ -72,39 +66,30 @@ async function ensureAdmin() {
     throw new Error('Missing FIREBASE_DATABASE_URL environment variable (or RTDB emulator env).');
   }
 
-  // If admin already initialized, check databaseURL
   if (admin.apps && admin.apps.length > 0) {
     try {
       const app = admin.app();
       const currentDb = (app && app.options && (app.options.databaseURL || app.options.databaseUrl)) || null;
-      // If currentDb matches desiredDbUrl (or emulator present), return admin
       if (currentDb && desiredDbUrl && currentDb === desiredDbUrl) {
         return admin;
       }
-      // If emulator env present, treat as valid
       if (process.env.FIREBASE_DATABASE_EMULATOR_HOST || process.env.RTDB_EMULATOR_HOST) {
         return admin;
       }
-
-      // existing app but missing/incorrect databaseURL -> delete and re-init
       try {
         await app.delete();
-        // clear require cache for firebase-admin module to ensure clean state if needed
       } catch (delErr) {
         console.warn('Warning: failed to delete existing firebase app before reinit:', delErr && delErr.message);
-        // we'll still attempt to init below; if it fails we'll surface error
       }
     } catch (e) {
-      // proceed to init
+      // continue to init
     }
   }
 
-  // init admin with databaseURL and service account
   const saObj = parseServiceAccount();
   const dbUrl = desiredDbUrl || (process.env.FIREBASE_DATABASE_EMULATOR_HOST ? `http://${process.env.FIREBASE_DATABASE_EMULATOR_HOST}` : null);
 
   if (saObj) {
-    // initialize with service account + databaseURL
     admin.initializeApp({
       credential: admin.credential.cert(saObj),
       ...(dbUrl ? { databaseURL: dbUrl } : {})
@@ -112,13 +97,26 @@ async function ensureAdmin() {
     return admin;
   }
 
-  // If service account not provided, try default init (works with GOOGLE_APPLICATION_CREDENTIALS)
   try {
     admin.initializeApp({ ...(dbUrl ? { databaseURL: dbUrl } : {}) });
     return admin;
   } catch (e) {
     throw new Error('Failed to initialize firebase-admin. Provide FIREBASE_SERVICE_ACCOUNT_BASE64 or set GOOGLE_APPLICATION_CREDENTIALS.');
   }
+}
+
+/* ---------- Helper: Admin-transaction wrapper for Admin SDK ---------- */
+function runTransactionPromise(ref, updateFunction, applyLocally = false) {
+  return new Promise((resolve, reject) => {
+    try {
+      ref.transaction(updateFunction, (error, committed, snapshot) => {
+        if (error) return reject(error);
+        return resolve({ committed, snapshot });
+      }, applyLocally);
+    } catch (ex) {
+      reject(ex);
+    }
+  });
 }
 
 /* ---------- Main handler ---------- */
@@ -155,7 +153,6 @@ exports.handler = async function(event, context) {
       return resp(500, { error: 'firebase_admin_init_failed', message: String(e && e.message) });
     }
 
-    // get RTDB handle
     const db = admin.database();
 
     // idempotency early check
@@ -178,31 +175,28 @@ exports.handler = async function(event, context) {
     const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
     const slugsPrefix = '/slugs';
 
-    // Reserve slug via transaction (on single key) — ENHANCED with logging + backoff
+    // Reserve slug via transaction (on single key) — correct Admin SDK callback style
     let reservedSlug = null;
-    const maxTries = 20; // raised
-    const baseBackoffMs = 100; // initial backoff
+    const maxTries = 20;
+    const baseBackoffMs = 100;
     for (let attempt = 0; attempt < maxTries && !reservedSlug; attempt++) {
       const slugAttempt = attempt === 0 ? baseSlug : `${baseSlug}-${shortId(3)}`;
       const slugRef = db.ref(`${slugsPrefix}/${slugAttempt}`);
 
       try {
-        // transaction callback should be fast; we capture the result for logging
-        const tx = await slugRef.transaction(current => {
+        const tx = await runTransactionPromise(slugRef, current => {
           if (current === null) {
             return { reserved: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() };
           }
-          return; // abort
-        }, { applyLocally: false });
+          return; // abort - key exists
+        }, false);
 
-        // debug logging for postmortem — shows why a transaction didn't commit
-        console.log(`slug tx attempt=${attempt} slug=${slugAttempt} committed=${tx && tx.committed} snapshotExists=${!!(tx && tx.snapshot)}`);
-
+        console.log(`slug tx attempt=${attempt} slug=${slugAttempt} committed=${tx && tx.committed}`);
         if (tx && tx.committed) {
           reservedSlug = slugAttempt;
           break;
         } else {
-          // Not committed because key exists — log snapshot for investigation (may be null)
+          // read existing value for debugging
           try {
             const snap = await slugRef.once('value');
             console.warn('slug tx not committed, existing value for', slugAttempt, snap && snap.val());
@@ -211,20 +205,18 @@ exports.handler = async function(event, context) {
           }
         }
       } catch (e) {
-        // If transaction throws, log the full error and continue with backoff
+        // transaction threw — log full err for Netlify logs
         console.error(`slug transaction error on attempt=${attempt} slugAttempt=${slugAttempt}:`, (e && (e.stack || e.message || e)));
       }
 
-      // exponential backoff
-      const backoff = baseBackoffMs * Math.pow(2, Math.min(attempt, 8)); // cap exponent
+      const backoff = baseBackoffMs * Math.pow(2, Math.min(attempt, 8));
       await new Promise(r => setTimeout(r, backoff));
     }
 
     if (!reservedSlug) {
-      console.error('slug_generation_failed: reached max tries; consider inspecting /slugs path and RTDB rules.');
+      console.error('slug_generation_failed: reached max tries; inspect /slugs and RTDB rules.');
       return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
     }
-    if (!reservedSlug) return resp(500, { error: 'slug_generation_failed', message: 'Could not reserve unique slug' });
 
     // create tenant push id
     const tenantRef = db.ref(`${basePath}`).push();
