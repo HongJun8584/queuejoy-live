@@ -7,3 +7,6 @@ tenant-template/node_modules/
 node_modules/
 tenant-template/node_modules/
 *.bak
+
+# Local Netlify folder
+.netlify
