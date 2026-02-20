@@ -1,11 +1,19 @@
 'use strict';
 
 /*
-  createBusiness - Realtime Database (Netlify function) — fixed & hardened
-  - Adds retry logic for multi-path update failures
-  - Falls back to sequential writes when multi-path update repeatedly fails
-  - Better logging and more informative error responses (controlled by DEBUG env)
-  - Improves rollback on partial failures
+  createBusiness - Realtime Database (Netlify function)
+  - Writes to recommended production RTDB layout:
+      /slugs/<slug> -> { tenantId, reservedAt }
+      /tenants/<tenantId>/meta -> { name, slug, ownerEmail, plan, createdAt, updatedAt, billing... }
+      /tenants/<tenantId>/public/config -> client-safe config (no ownerEmail)
+      /tenants/<tenantId>/queueMeta -> { nextTicket, totalWaiting, createdAt }
+      /tenants/<tenantId>/counters  (empty)
+      /tenants/<tenantId>/queues    (empty)
+      /tenants/<tenantId>/analytics/serviceEvents (empty)
+      /tenants/<tenantId>/integrations/telegram/...
+      /idempotency/<key>
+      /audit/<auditId>
+  - Robust initialization, transaction-based slug reservation, safe multi-path update with retry
 */
 
 const crypto = require('crypto');
@@ -13,14 +21,17 @@ const crypto = require('crypto');
 const DEFAULT_CONFIG = {
   theme: { color: '#8b5cf6', logo: null },
   features: {},
-  timezone: 'UTC'
+  timezone: 'UTC',
+  displayName: null // will set to businessName for client display
 };
 
 const HEADERS = {
   'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*', // tighten in prod
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type,Idempotency-Key'
 };
+
+const DEBUG = !!(process.env.DEBUG && process.env.DEBUG !== 'false');
 
 function resp(statusCode, payload) {
   return { statusCode, headers: HEADERS, body: JSON.stringify(payload) };
@@ -121,7 +132,7 @@ async function safeUpdate(db, updates, opts = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await db.ref().update(updates);
-      return { ok: true };
+      return { ok: true, multi: true };
     } catch (err) {
       console.error(`safeUpdate attempt=${attempt} failed:`, err && (err.code || err.message || err));
       if (attempt < maxAttempts) {
@@ -135,10 +146,8 @@ async function safeUpdate(db, updates, opts = {}) {
   }
 
   // Fallback: try sequential writes to reduce chance of multi-path related failures.
-  // We write keys one-by-one and track what was successfully written so we can rollback.
   const writtenKeys = [];
   try {
-    // Ensure deterministic ordering for predictable cleanup
     const keys = Object.keys(updates).sort();
     for (const path of keys) {
       const trimmed = path.replace(/^\/+/, '');
@@ -176,13 +185,14 @@ exports.handler = async function(event, context) {
     const email = (body.email || '').trim() || null;
     const desiredSlug = (body.desiredSlug || '').trim() || null;
     const plan = (body.plan || 'free').trim();
+    const purchaseInfo = body.purchaseInfo && typeof body.purchaseInfo === 'object' ? body.purchaseInfo : null; // optional billing info
 
     if (!businessName) return resp(400, { error: 'businessName_required' });
     if (businessName.length > 200) return resp(400, { error: 'businessName_too_long' });
 
     const idempotencyKey = (event.headers && (event.headers['Idempotency-Key'] || event.headers['idempotency-key'])) || null;
 
-    // ensure admin is initialized properly
+    // init admin
     let admin;
     try {
       admin = await ensureAdmin();
@@ -197,7 +207,7 @@ exports.handler = async function(event, context) {
     if (idempotencyKey) {
       try {
         const snap = await db.ref(`/idempotency/${idempotencyKey}`).once('value');
-        if (snap && snap.exists()) {
+        if (snap && snap.exists && snap.val()) {
           const v = snap.val();
           return resp(200, { tenantId: v.tenantId, slug: v.slug, adminToken: v.adminToken || null, from: 'idempotency' });
         }
@@ -210,8 +220,9 @@ exports.handler = async function(event, context) {
     let baseSlug = desiredSlug ? slugify(desiredSlug) : slugify(businessName);
     if (!baseSlug) baseSlug = `biz-${shortId(5)}`;
 
-    const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || '/tenants').replace(/^\/+|\/+$/g, '');
-    const slugsPrefix = '/slugs';
+    const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || 'tenants').replace(/^\/+|\/+$/g, '');
+    const slugsPrefix = (process.env.SLUGS_PATH || process.env.SLUG_PATH || 'slugs').replace(/^\/+|\/+$/g, '');
+    const slugsRefPrefix = `/${slugsPrefix}`;
 
     // Reserve slug via transaction (on single key)
     let reservedSlug = null;
@@ -219,12 +230,12 @@ exports.handler = async function(event, context) {
     const baseBackoffMs = 100;
     for (let attempt = 0; attempt < maxTries && !reservedSlug; attempt++) {
       const slugAttempt = attempt === 0 ? baseSlug : `${baseSlug}-${shortId(3)}`;
-      const slugRef = db.ref(`${slugsPrefix}/${slugAttempt}`);
+      const slugRef = db.ref(`${slugsRefPrefix}/${slugAttempt}`);
 
       try {
         const tx = await runTransactionPromise(slugRef, current => {
           if (current === null) {
-            return { reserved: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() };
+            return { tenantId: true, reservedAt: admin.database.ServerValue.TIMESTAMP || Date.now() }; // placeholder; final value set in multi-path update
           }
           return; // abort - key exists
         }, false);
@@ -254,20 +265,63 @@ exports.handler = async function(event, context) {
     const tenantId = tenantRef.key;
     const serverTs = admin.database.ServerValue.TIMESTAMP;
 
-    // prepare multi-path update
+    // Prepare multi-path update according to final structure
     const updates = {};
-    updates[`/${basePath}/${tenantId}`] = {
+
+    // tenant meta
+    const metaPath = `/${basePath}/${tenantId}/meta`;
+    const metaObj = {
       name: businessName,
-      ownerEmail: email,
-      plan,
       slug: reservedSlug,
+      ownerEmail: email || null,
+      plan,
+      createdAt: serverTs,
+      updatedAt: serverTs
+    };
+    if (purchaseInfo && purchaseInfo.purchasedAt) {
+      metaObj.billing = {
+        purchasedAt: purchaseInfo.purchasedAt,
+        expiresAt: purchaseInfo.expiresAt || null,
+        price: purchaseInfo.price || null,
+        invoiceId: purchaseInfo.invoiceId || null
+      };
+    }
+
+    updates[metaPath] = metaObj;
+
+    // public config (client-safe: NO ownerEmail)
+    const publicConfigPath = `/${basePath}/${tenantId}/public/config`;
+    const configObj = Object.assign({}, DEFAULT_CONFIG, { displayName: businessName, createdAt: serverTs });
+    updates[publicConfigPath] = configObj;
+
+    // queueMeta (NOT under queues)
+    const queueMetaPath = `/${basePath}/${tenantId}/queueMeta`;
+    updates[queueMetaPath] = { nextTicket: 1, totalWaiting: 0, createdAt: serverTs };
+
+    // empty containers for future nodes (optional to create now)
+    updates[`/${basePath}/${tenantId}/counters`] = {}; // ready to accept counters
+    updates[`/${basePath}/${tenantId}/queues`] = {};   // ready to accept tickets
+    updates[`/${basePath}/${tenantId}/analytics/serviceEvents`] = {}; // events storage
+    updates[`/${basePath}/${tenantId}/integrations`] = {
+      telegram: { tokens: {}, connected: {} }
+    };
+
+    // set slug mapping to tenantId (overwrite placeholder from tx)
+    updates[`/${slugsPrefix}/${reservedSlug}`] = { tenantId, createdAt: serverTs };
+
+    // audit entry (global admin audit)
+    const auditKey = db.ref('/audit').push().key;
+    updates[`/audit/${auditKey}`] = {
+      action: 'tenant_create',
+      tenantId,
+      tenantSlug: reservedSlug,
+      ip,
+      ua,
+      by: email || 'unknown',
       createdAt: serverTs
     };
-    updates[`/${basePath}/${tenantId}/public/config`] = { ...DEFAULT_CONFIG, ownerEmail: email || null, createdAt: serverTs };
-    updates[`/${basePath}/${tenantId}/queues/meta`] = { nextTicket: 1, totalWaiting: 0, createdAt: serverTs };
-    updates[`/slugs/${reservedSlug}`] = { tenantId, createdAt: serverTs };
-    const auditKey = db.ref('/audit').push().key;
-    updates[`/audit/${auditKey}`] = { action: 'tenant_create', tenantId, tenantSlug: reservedSlug, ip, ua, by: email || 'unknown', createdAt: serverTs };
+
+    // idempotency record
     if (idempotencyKey) {
       updates[`/idempotency/${idempotencyKey}`] = { tenantId, slug: reservedSlug, createdAt: serverTs };
     }
@@ -278,17 +332,17 @@ exports.handler = async function(event, context) {
       updateResult = await safeUpdate(db, updates, { maxAttempts: 3, baseBackoff: 200 });
       if (!updateResult.ok) {
         console.error('safeUpdate ultimately failed', updateResult.error || 'unknown');
-        // best-effort rollback of reserved slug
-        try { await db.ref(`/slugs/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed after safeUpdate failure', e && e.message); }
+        // best-effort rollback - remove slug reservation if possible
+        try { await db.ref(`/${slugsPrefix}/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed after safeUpdate failure', e && e.message); }
         return resp(500, { error: 'write_failed', message: 'Failed to persist tenant data' });
       }
     } catch (updateErr) {
       console.error('update failed', updateErr && (updateErr.stack || updateErr.message || updateErr));
-      try { await db.ref(`/slugs/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed', e && e.message); }
+      try { await db.ref(`/${slugsPrefix}/${reservedSlug}`).remove(); } catch (e) { console.error('rollback slug failed', e && e.message); }
       return resp(500, { error: 'write_failed', message: 'Failed to persist tenant data' });
     }
 
-    // generate admin custom token
+    // generate admin custom token (best-effort, non-fatal)
     let adminToken = null;
     try {
       const adminUid = `tenant_admin:${tenantId}`;
@@ -298,13 +352,14 @@ exports.handler = async function(event, context) {
       }
     } catch (e) {
       console.warn('createCustomToken failed (non-fatal):', e && e.message);
-      // continue, tenant exists
     }
 
+    // success
     return resp(201, { tenantId, slug: reservedSlug, adminToken });
 
   } catch (err) {
     console.error('createBusiness: unexpected', err && (err.stack || err));
-    return resp(500, { error: 'internal_error', message: String(err && err.message) });
+    const safeMessage = DEBUG ? String(err && err.message) : 'internal_error';
+    return resp(500, { error: 'internal_error', message: safeMessage });
   }
 };
