@@ -1,4 +1,4 @@
-// get-tenant.js
+// get-tenant.js - tenant-aware public endpoint (returns safe public config by default)
 const admin = require('./lib/firebaseAdmin');
 
 const headers = {
@@ -18,7 +18,6 @@ function parseIncomingKey(event) {
 }
 
 function parseAdminToken(event) {
-  // 支持 x-admin-token 头和 Authorization: Bearer <token>
   const h = event.headers || {};
   return h['x-admin-token'] || h['X-Admin-Token'] || (h.authorization && h.authorization.replace(/^Bearer\s+/i, '')) || null;
 }
@@ -27,7 +26,6 @@ function tryParseTestPublicConfig() {
   const raw = process.env.TEST_PUBLIC_CONFIG || process.env.TEST_PUBLIC_CONFIG_BASE64 || null;
   if (!raw) return null;
   try {
-    // base64 decode if looks like base64
     if (/^[A-Za-z0-9+/=]+$/.test(raw) && raw.length % 4 === 0) {
       const decoded = Buffer.from(raw, 'base64').toString('utf8');
       return JSON.parse(decoded);
@@ -36,6 +34,33 @@ function tryParseTestPublicConfig() {
   } catch (e) {
     return null;
   }
+}
+
+// Build a safe public view from the full tenant object
+function buildSafePublic(tenantObj) {
+  const safe = {};
+
+  // prefer explicit public/config locations
+  if (tenantObj.public && typeof tenantObj.public === 'object') {
+    Object.assign(safe, tenantObj.public);
+    if (tenantObj.public.config && typeof tenantObj.public.config === 'object') {
+      Object.assign(safe, tenantObj.public.config);
+    }
+  }
+  // fallback to settings or public config areas
+  if (!Object.keys(safe).length && tenantObj.settings && typeof tenantObj.settings === 'object') {
+    Object.assign(safe, tenantObj.settings);
+  }
+  // include some meta fields safely
+  if (tenantObj.meta && typeof tenantObj.meta === 'object') {
+    safe.name = safe.name || tenantObj.meta.name || tenantObj.meta.displayName || null;
+    safe.slug = safe.slug || tenantObj.meta.slug || null;
+    // include non-sensitive plan/branding, but don't leak billing/admin tokens
+    if (tenantObj.meta.plan) safe.plan = tenantObj.meta.plan;
+    if (tenantObj.meta.branding) safe.branding = tenantObj.meta.branding;
+  }
+  // ensure safe is always an object
+  return safe;
 }
 
 exports.handler = async function(event, context) {
@@ -52,14 +77,19 @@ exports.handler = async function(event, context) {
     const adminToken = parseAdminToken(event);
     const TEST_ADMIN_TOKEN = process.env.TEST_ADMIN_TOKEN || null;
 
-    // If MASTER_KEY is set, require it OR allow TEST_ADMIN_TOKEN as alternate for dev
+    // If MASTER_KEY is configured, require it for admin-level access.
+    // However we allow public callers if MASTER_KEY is not set.
     if (MASTER_KEY && incomingKey !== MASTER_KEY && incomingKey !== TEST_ADMIN_TOKEN) {
-      return jsonResp(401, { error: 'invalid or missing master key' });
+      // do not immediately block demo adminToken: allow TEST_ADMIN_TOKEN path later for demo fallback
+      // return jsonResp(401, { error: 'invalid or missing master key' });
+      // Instead allow the request to continue but treat it as non-admin (we'll return only public data).
     }
 
-    // If firebase admin is not initialized, support a demo fallback if TEST_TENANT_* present
-    if (!admin.__initialized) {
-      // allow if slug matches TEST_TENANT_SLUG OR caller presents TEST_ADMIN_TOKEN
+    // Detect whether firebase-admin is initialized
+    const adminReady = !!(admin && admin.apps && admin.apps.length > 0 && admin.__initialized);
+
+    // Demo fallback when admin not initialized: allow if TEST_SLUG matches or caller has TEST_ADMIN_TOKEN
+    if (!adminReady) {
       const TEST_SLUG = process.env.TEST_TENANT_SLUG || null;
       const TEST_TENANT_ID = process.env.TEST_TENANT_ID || null;
       const allowDemo = (TEST_SLUG && TEST_SLUG === slug) || (adminToken && TEST_ADMIN_TOKEN && adminToken === TEST_ADMIN_TOKEN);
@@ -76,18 +106,27 @@ exports.handler = async function(event, context) {
         return jsonResp(200, demo);
       }
 
-      // explicit, clear error for dev debugging (non-crashing)
       return jsonResp(400, { error: 'firebase_not_configured', message: 'Firebase service account not set in environment. To run locally either set FIREBASE_SERVICE_ACCOUNT_* env or use TEST_TENANT_* variables.' });
     }
 
-    // Normal path: firebase-admin is available and configured
+    // Normal path: admin SDK available - fetch tenant under tenants/{slug}
     const db = admin.database();
-    const ref = db.ref(`/tenants/${slug}`);
+    const ref = db.ref(`tenants/${slug}`);
     const snap = await ref.once('value');
-    const tenant = snap.val();
+    const tenant = snap && snap.val ? snap.val() : null;
     if (!tenant) return jsonResp(404, { error: 'tenant not found' });
 
-    return jsonResp(200, tenant);
+    // If caller provided valid MASTER_KEY or TEST_ADMIN_TOKEN, allow returning full tenant object (admin view)
+    const isAdminCaller = (MASTER_KEY && incomingKey === MASTER_KEY) || (TEST_ADMIN_TOKEN && adminToken === TEST_ADMIN_TOKEN);
+
+    if (isAdminCaller) {
+      // return full tenant (admins expect full object)
+      return jsonResp(200, { tenantId: slug, slug, tenant });
+    }
+
+    // Otherwise return only safe public view
+    const safePublic = buildSafePublic(tenant);
+    return jsonResp(200, { tenantId: slug, slug, public: safePublic });
   } catch (err) {
     console.error('get-tenant error:', err && (err.stack || err.message || err));
     return jsonResp(500, { error: err && err.message ? err.message : 'internal error' });
