@@ -1,8 +1,8 @@
 [build]
+  publish = "tenant-template/public"
   functions = "tenant-template/functions"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
+[dev]
+  publish = "tenant-template/public"
+  functions = "tenant-template/functions"
+  port = 8888
