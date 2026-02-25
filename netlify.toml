@@ -1,17 +1,5 @@
 [build]
-  command = ""
-  publish = "public"
-  functions = "functions"
+  publish = "tenant-template/public"
 
 [functions]
-  directory = "functions"
-  node_bundler = "esbuild"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[dev]
-  functions = "tenant-template/functions"
-
+  directory = "tenant-template/functions"
