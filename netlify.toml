@@ -1,5 +1,0 @@
-[build]
-  publish = "tenant-template/public"
-
-[functions]
-  directory = "tenant-template/functions"
