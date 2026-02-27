@@ -1,98 +1,58 @@
-/*
- tenant-bootstrap.js
- - Automatically runs on every page.
- - Extracts slug from URL, fetches public tenant config, applies theme/title/logo,
-   and exposes window.TENANT_ID and window.TENANT_PUBLIC for other scripts.
- - Uses get-tenant function: /.netlify/functions/get-tenant?slug=<slug>
+/* tenant-bootstrap.js
+   Minimal visitor-side bootstrap:
+   - Detect slug from URL path or ?slug=
+   - Call get-tenant public endpoint: /.netlify/functions/get-tenant?slug=<slug>
+   - Expose window.TENANT_ID and window.TENANT_PUBLIC
+   - Dispatch event 'tenant.public.loaded'
+   Note: DO NOT PUT MASTER KEY HERE. Admin reads must use server-side keys.
 */
-
 (function () {
   'use strict';
-
   function getSlugFromUrl() {
-    // path like /slug or /slug/ or /slug/admin.html
     try {
-      var path = (window.location.pathname || '/').replace(/\/+$/, '');
+      var path = (location.pathname || '/').replace(/\/+$/,'');
       var parts = path.split('/').filter(Boolean);
       if (parts.length) return parts[0];
-      var params = new URLSearchParams(window.location.search);
-      return params.get('slug') || null;
-    } catch (e) {
-      return null;
-    }
+      var p = new URLSearchParams(location.search);
+      return p.get('slug') || null;
+    } catch (e) { return null; }
   }
-
-  async function fetchTenantPublic(slug) {
+  function safeParseJson(text) {
+    try { return JSON.parse(text); } catch (e) { return null; }
+  }
+  async function fetchPublic(slug) {
     var url = '/.netlify/functions/get-tenant?slug=' + encodeURIComponent(slug);
-    var resp = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
-    if (!resp.ok) {
-      // still try to parse JSON error
-      var txt = await resp.text();
-      try { return JSON.parse(txt); } catch(e) { throw new Error('fetch failed: ' + resp.status); }
-    }
-    return resp.json();
-  }
-
-  function applyPublicConfig(pub) {
     try {
-      if (!pub) return;
-      // set title
-      if (pub.displayName) {
-        document.title = pub.displayName;
-        var el = document.querySelector('meta[property="og:title"],meta[name="og:title"]');
-        if (el) el.setAttribute('content', pub.displayName);
-      }
-      // set theme color CSS variable
-      if (pub.theme && pub.theme.color) {
-        document.documentElement.style.setProperty('--tenant-theme-color', pub.theme.color);
-        var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', pub.theme.color);
-      }
-      // set logo if found (assumes an element with id="tenant-logo" exists in your template)
-      if (pub.logo) {
-        var logoEl = document.getElementById('tenant-logo');
-        if (logoEl) {
-          logoEl.src = pub.logo;
-        }
-      }
-    } catch (e) {
-      console.warn('applyPublicConfig error', e && e.message);
+      var r = await fetch(url, { method: 'GET', headers: { 'Content-Type':'application/json' } });
+      var txt = await r.text();
+      var data = safeParseJson(txt);
+      return { ok: r.ok, status: r.status, data: data };
+    } catch (err) {
+      return { ok: false, error: (err && err.message) || String(err) };
     }
   }
-
-  // bootstrap on DOMContentLoaded if necessary
   (async function bootstrap() {
     var slug = getSlugFromUrl();
-    if (!slug) {
-      // no slug in path; nothing to do
-      window.TENANT_ID = null;
-      window.TENANT_PUBLIC = null;
-      return;
-    }
-    try {
-      var data = await fetchTenantPublic(slug);
-      // expected shape: { tenantId, slug, public: {...} } or error
-      if (data && data.public) {
-        window.TENANT_ID = data.tenantId || slug;
-        window.TENANT_PUBLIC = data.public;
-        applyPublicConfig(data.public);
-        // dispatch event so other scripts can react
-        window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: window.TENANT_ID, public: window.TENANT_PUBLIC } }));
-      } else {
-        // if admin payload (no public), attempt to extract
-        if (data && data.tenant && typeof data.tenant === 'object') {
-          var pub = data.tenant.public || data.tenant.meta || {};
-          window.TENANT_ID = data.tenantId || slug;
-          window.TENANT_PUBLIC = pub;
-          applyPublicConfig(pub);
-          window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: window.TENANT_ID, public: window.TENANT_PUBLIC } }));
-        } else {
-          console.warn('get-tenant returned unexpected', data);
+    window.TENANT_ID = null;
+    window.TENANT_PUBLIC = null;
+    if (!slug) return;
+    var res = await fetchPublic(slug);
+    if (res.ok && res.data && res.data.public) {
+      window.TENANT_ID = res.data.tenantId || slug;
+      window.TENANT_PUBLIC = res.data.public;
+      window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: window.TENANT_ID, public: window.TENANT_PUBLIC } }));
+      // apply minimal theme: title and css var if present
+      try {
+        if (window.TENANT_PUBLIC.displayName) document.title = window.TENANT_PUBLIC.displayName;
+        if (window.TENANT_PUBLIC.theme && window.TENANT_PUBLIC.theme.color) {
+          document.documentElement.style.setProperty('--tenant-theme-color', window.TENANT_PUBLIC.theme.color);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', window.TENANT_PUBLIC.theme.color);
         }
-      }
-    } catch (err) {
-      console.warn('tenant-bootstrap failed to load tenant public config for slug=' + slug, err && (err.message || err));
+      } catch (e) { /* ignore */ }
+    } else {
+      // ignore errors; pages can still function with fallback
+      console.warn('tenant-bootstrap: failed to load public config', res);
     }
   })();
-
 })();

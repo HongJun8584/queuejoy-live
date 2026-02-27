@@ -1,0 +1,6 @@
+[build]
+  publish = "tenant-template/public"
+  functions = "tenant-template/functions"
+
+[functions]
+  node_bundler = "esbuild"
