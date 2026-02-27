@@ -1,212 +1,98 @@
 'use strict';
+const parseJSON = (s) => { try { return JSON.parse(s); } catch(e){ return null; } };
 
-/**
- * get-tenant.js
- * Robust Netlify function that returns safe public config for a tenant (or full tenant for admin callers).
- *
- * Expects:
- *  - MASTER_API_KEY or MASTER_KEY in env for admin-level reads.
- *  - FIREBASE_DATABASE_URL and either a service account (FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_SERVICE_ACCOUNT)
- *    or Application Default Credentials available in production environment.
- *
- * Behavior:
- *  - Lookup /slugs/{slug} to resolve tenantId, then read /tenants/{tenantId}.
- *  - If admin caller (x-master-key matches), return full tenant object.
- *  - Otherwise return a safe public view built from tenant.public / tenant.meta / tenant.settings.
- */
-
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,x-master-key,x-admin-token',
-  'Content-Type': 'application/json'
-};
-
-function jsonResp(code, body) {
-  return { statusCode: code, headers, body: JSON.stringify(body) };
-}
-
-function parseIncomingKey(event) {
-  const qs = event.queryStringParameters || {};
-  return qs.master_key || qs.masterKey || (event.headers && (event.headers['x-master-key'] || event.headers['X-Master-Key'])) || null;
-}
-
-function parseAdminToken(event) {
-  const h = event.headers || {};
-  return h['x-admin-token'] || h['X-Admin-Token'] || (h.authorization && h.authorization.replace(/^Bearer\s+/i, '')) || null;
-}
-
-function buildSafePublic(tenantObj) {
-  const safe = {};
-  try {
-    if (!tenantObj || typeof tenantObj !== 'object') return safe;
-
-    if (tenantObj.public && typeof tenantObj.public === 'object') {
-      Object.assign(safe, tenantObj.public);
-      if (tenantObj.public.config && typeof tenantObj.public.config === 'object') {
-        Object.assign(safe, tenantObj.public.config);
-      }
-    }
-
-    if (!Object.keys(safe).length && tenantObj.settings && typeof tenantObj.settings === 'object') {
-      Object.assign(safe, tenantObj.settings);
-    }
-
-    if (tenantObj.meta && typeof tenantObj.meta === 'object') {
-      safe.name = safe.name || tenantObj.meta.name || tenantObj.meta.displayName || null;
-      safe.slug = safe.slug || tenantObj.meta.slug || null;
-      if (tenantObj.meta.plan) safe.plan = tenantObj.meta.plan;
-      if (tenantObj.meta.branding) safe.branding = tenantObj.meta.branding;
-    }
-  } catch (e) {
-    // swallow - return whatever we built
-    console.warn('buildSafePublic warning:', e && e.message);
-  }
-  return safe;
-}
-
-/* ---------- Firebase admin init helper (robust) ---------- */
-async function ensureAdmin() {
-  // Try to load ./lib/firebaseAdmin first (if your project provides a wrapper)
-  let admin = null;
-  try {
-    const maybe = require('./lib/firebaseAdmin');
-    // lib may export the admin instance directly or a function that returns it
-    if (maybe && typeof maybe === 'object' && maybe.database) {
-      admin = maybe;
-    } else if (maybe && typeof maybe === 'function') {
-      try { admin = maybe(); } catch (e) { admin = maybe; }
-    } else {
-      // it exported something else; fall through to require('firebase-admin')
-      admin = null;
-    }
-  } catch (e) {
-    // no op - fallback
-    admin = null;
-  }
-
-  if (!admin) {
-    try {
-      admin = require('firebase-admin');
-    } catch (e) {
-      throw new Error('firebase-admin module not available. Add firebase-admin dependency or provide ./lib/firebaseAdmin.');
-    }
-  }
-
-  // If already initialized and has DB, return it
-  if (admin.apps && admin.apps.length && admin.database) {
-    return admin;
-  }
-
-  // Try to initialize using service account env or default credentials
-  const saRaw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || null;
-  const dbUrl = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || null;
-
-  const initOptions = {};
-  if (dbUrl) initOptions.databaseURL = dbUrl;
-
-  if (saRaw) {
-    // support both base64 and raw JSON
-    let saObj = null;
-    try {
-      if (/^[A-Za-z0-9+/=]+$/.test(saRaw) && saRaw.length % 4 === 0) {
-        saObj = JSON.parse(Buffer.from(saRaw, 'base64').toString('utf8'));
-      } else {
-        saObj = JSON.parse(saRaw);
-      }
-    } catch (e) {
-      throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT* env value. Must be JSON or base64-encoded JSON.');
-    }
-    try {
-      admin.initializeApp({ credential: admin.credential.cert(saObj), ...initOptions });
-    } catch (e) {
-      // if already inited by wrapper, ignore
-      if (!(admin.apps && admin.apps.length)) throw e;
-    }
-  } else {
-    // No service account provided: try default init (GCP default credentials or env)
-    try {
-      admin.initializeApp({ ...initOptions });
-    } catch (e) {
-      // if already inited upstream, okay; otherwise surface error
-      if (!(admin.apps && admin.apps.length)) {
-        throw new Error('Failed to initialize firebase-admin. Provide FIREBASE_SERVICE_ACCOUNT or set ADC in environment.');
-      }
-    }
-  }
-
-  return admin;
-}
-
-/* ---------- Handler ---------- */
 exports.handler = async function(event, context) {
+  const query = (event.queryStringParameters) || {};
+  const slug = query.slug || null;
+  if (!slug) return { statusCode: 400, body: JSON.stringify({ ok:false, error:'missing slug' }) };
+
+  const providedMaster = (event.headers && (event.headers['x-master-key'] || event.headers['X-Master-Key'])) || null;
+  const MASTER_API_KEY = process.env.MASTER_API_KEY || '';
+
+  const publicShape = {
+    ok: true,
+    slug,
+    public: {
+      displayName: `Demo Tenant - ${slug}`,
+      theme: {},
+      features: { queue: true }
+    }
+  };
+
+  const fbBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || null;
+  if (!fbBase64) {
+    if (providedMaster && providedMaster === MASTER_API_KEY) {
+      return { statusCode: 200, body: JSON.stringify(Object.assign({}, publicShape, { admin: { demo:true, note:'no firebase creds' } })) };
+    }
+    return { statusCode: 200, body: JSON.stringify(publicShape) };
+  }
+
   try {
-    const qs = event.queryStringParameters || {};
-    const slug = qs.slug || (event.pathParameters && event.pathParameters.slug) || null;
-    if (!slug) return jsonResp(400, { error: 'missing slug param' });
-
-    const incomingKey = parseIncomingKey(event);
-    const MASTER_KEY = process.env.MASTER_API_KEY || process.env.MASTER_KEY || null;
-    const adminToken = parseAdminToken(event);
-
-    const isAdminCaller = (MASTER_KEY && incomingKey === MASTER_KEY) || (process.env.TEST_ADMIN_TOKEN && adminToken && adminToken === process.env.TEST_ADMIN_TOKEN);
-
-    // initialize admin
-    let admin;
-    try {
-      admin = await ensureAdmin();
-    } catch (e) {
-      console.error('firebase init failed:', e && e.message);
-      // If we have a TEST_TENANT_SLUG env and it matches, return demo fallback
-      const TEST_SLUG = process.env.TEST_TENANT_SLUG || null;
-      if (TEST_SLUG && TEST_SLUG === slug) {
-        const demoPublic = (() => {
-          try {
-            const raw = process.env.TEST_PUBLIC_CONFIG_BASE64 || process.env.TEST_PUBLIC_CONFIG || null;
-            if (!raw) return { displayName: process.env.TEST_TENANT_DISPLAYNAME || 'Temp Tenant' };
-            if (/^[A-Za-z0-9+/=]+$/.test(raw) && raw.length % 4 === 0) {
-              return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
-            }
-            return JSON.parse(raw);
-          } catch (err) {
-            return { displayName: process.env.TEST_TENANT_DISPLAYNAME || 'Temp Tenant' };
-          }
-        })();
-        return jsonResp(200, { tenantId: slug, slug, public: demoPublic, demo: true, message: 'demo fallback (firebase not configured)' });
+    const admin = require('firebase-admin');
+    if (!admin.apps || admin.apps.length === 0) {
+      let serviceAccount = null;
+      try {
+        const buff = Buffer.from(fbBase64, 'base64');
+        const txt = buff.toString('utf8');
+        const parsed = parseJSON(txt);
+        if (parsed) serviceAccount = parsed;
+        else {
+          const rawParsed = parseJSON(fbBase64);
+          if (rawParsed) serviceAccount = rawParsed;
+        }
+      } catch(e) {
+        const rawParsed = parseJSON(fbBase64);
+        if (rawParsed) serviceAccount = rawParsed;
       }
-
-      return jsonResp(500, { error: 'firebase_not_configured', message: e && e.message ? e.message : 'firebase initialization failed' });
+      if (!serviceAccount) {
+        if (providedMaster && providedMaster === MASTER_API_KEY) {
+          return { statusCode:200, body:JSON.stringify(Object.assign({}, publicShape, { admin:{ demo:true, note:'invalid firebase creds' } })) };
+        }
+        return { statusCode:200, body:JSON.stringify(publicShape) };
+      }
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: process.env.FIREBASE_DATABASE_URL || undefined
+      });
     }
 
-    // perform lookup: /slugs/{slug} -> tenantId
-    const db = admin.database();
-    const slugRef = db.ref(`/slugs/${slug}`);
-    const slugSnap = await slugRef.once('value');
-    if (!slugSnap.exists()) {
-      return jsonResp(404, { error: 'tenant_not_found', message: `no slug record for ${slug}` });
-    }
-    const slugVal = slugSnap.val() || {};
-    const tenantId = slugVal.tenantId || slugVal.id || slug; // fallback if slug maps directly
+    const db = admin.database ? admin.database() : null;
+    const firestore = admin.firestore ? admin.firestore() : null;
 
-    if (!tenantId) {
-      return jsonResp(500, { error: 'no_tenant_id', message: 'slug record did not contain tenantId' });
-    }
-
-    const tenantRef = db.ref(`/tenants/${tenantId}`);
-    const tenantSnap = await tenantRef.once('value');
-    if (!tenantSnap.exists()) {
-      return jsonResp(404, { error: 'tenant_not_found', message: `no tenant node for id ${tenantId}` });
-    }
-    const tenant = tenantSnap.val();
-
-    if (isAdminCaller) {
-      return jsonResp(200, { tenantId, slug, tenant });
+    if (providedMaster && providedMaster === MASTER_API_KEY) {
+      if (db) {
+        const ref = db.ref(`/tenants/${slug}`);
+        const snap = await ref.once('value');
+        const tenant = snap.exists() ? snap.val() : null;
+        return { statusCode:200, body:JSON.stringify({ ok:true, slug, tenant, source:'rtdb' }) };
+      }
+      if (firestore) {
+        const doc = await firestore.collection('tenants').doc(slug).get();
+        const tenant = doc.exists ? doc.data() : null;
+        return { statusCode:200, body:JSON.stringify({ ok:true, slug, tenant, source:'firestore' }) };
+      }
+      return { statusCode:200, body:JSON.stringify(Object.assign({}, publicShape, { admin:{ note:'firebase initialized but no db' } })) };
     }
 
-    const safePublic = buildSafePublic(tenant);
-    return jsonResp(200, { tenantId, slug, public: safePublic });
+    if (db) {
+      const ref = db.ref(`/tenants/${slug}/public`);
+      const snap = await ref.once('value');
+      const pub = snap.exists() ? snap.val() : null;
+      if (pub) return { statusCode:200, body:JSON.stringify({ ok:true, slug, public:pub, source:'rtdb' }) };
+    }
+    if (firestore) {
+      const doc = await firestore.collection('tenants').doc(slug).get().catch(()=>null);
+      if (doc && doc.exists) {
+        const data = doc.data();
+        if (data && data.public) return { statusCode:200, body:JSON.stringify({ ok:true, slug, public:data.public, source:'firestore-direct' }) };
+      }
+    }
 
+    return { statusCode:200, body:JSON.stringify({ ok:true, slug, public:{ displayName:`Tenant ${slug}` }, note:'no public config found' }) };
   } catch (err) {
-    console.error('get-tenant error:', err && (err.stack || err.message || err));
-    return jsonResp(500, { error: 'internal_error', message: err && err.message ? err.message : 'internal error' });
+    if (providedMaster && providedMaster === MASTER_API_KEY) {
+      return { statusCode:200, body:JSON.stringify(Object.assign({}, { ok:true, slug, public:{ displayName:`Demo ${slug}` } }, { admin:{ error:String(err) } } )) };
+    }
+    return { statusCode:200, body:JSON.stringify({ ok:true, slug, public:{ displayName:`Demo ${slug}` }, note:'firebase unavailable' }) };
   }
 };
