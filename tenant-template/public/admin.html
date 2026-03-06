@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -15,80 +15,50 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
-    /* Core styles (kept your visual design but cleaned up class names) */
+    /* Keep your styles (trimmed slightly) */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      color: #111827;
+      min-height: 100vh; -webkit-font-smoothing: antialiased; color: #111827;
     }
-    .glass-card {
-      background: rgba(255,255,255,0.95);
-      backdrop-filter: blur(18px);
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.35);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.12);
-    }
-    .sidebar {
-      position: fixed; left: 0; top: 0; height: 100vh; width: 280px;
-      background: linear-gradient(180deg, rgba(102,126,234,0.98), rgba(118,75,162,0.98));
-      backdrop-filter: blur(10px); z-index: 100;
-      box-shadow: 4px 0 30px rgba(0,0,0,0.2);
-      transition: transform .28s ease;
-    }
+    .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(18px); border-radius: 20px; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
+    .sidebar { position: fixed; left: 0; top: 0; height: 100vh; width: 280px; background: linear-gradient(180deg, rgba(102,126,234,0.98), rgba(118,75,162,0.98)); backdrop-filter: blur(10px); z-index: 100; box-shadow: 4px 0 30px rgba(0,0,0,0.2); transition: transform .28s ease; }
     .sidebar-item { display:flex; gap:12px; align-items:center; padding:14px 20px; margin:8px 14px; border-radius:12px; color:white; font-weight:600; cursor:pointer; transition:all .18s ease; }
     .sidebar-item:hover { transform: translateX(4px); background: rgba(255,255,255,0.06); }
     .sidebar-item.active { background: rgba(255,255,255,0.12); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
-
     .main-content { margin-left: 280px; padding: 32px; transition:margin-left .28s ease; }
-    @media (max-width: 1024px) {
-      .sidebar { transform: translateX(-100%); }
-      .sidebar.open { transform: translateX(0); }
-      .main-content { margin-left: 0; padding: 20px; }
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg,#667eea,#764ba2);
-      color: white; padding: 12px 20px; border-radius: 12px; font-weight:700; border: none; cursor:pointer;
-      box-shadow: 0 8px 30px rgba(102,126,234,0.25);
-    }
-    .btn-primary:disabled { opacity:.6; cursor:not-allowed; transform:none; }
-
+    @media (max-width: 1024px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .main-content { margin-left: 0; padding: 20px; } }
+    .btn-primary { background: linear-gradient(135deg,#667eea,#764ba2); color: white; padding: 12px 20px; border-radius: 12px; font-weight:700; border: none; cursor:pointer; box-shadow: 0 8px 30px rgba(102,126,234,0.25); }
     .input-field { width:100%; padding:10px 14px; border-radius:10px; border:2px solid #e5e7eb; font-size:14px; }
-    .input-field:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 6px rgba(102,126,234,0.06); }
-
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:999; align-items:center; justify-content:center; padding:20px; }
     .modal.active { display:flex; }
-    .modal-content { background:white; border-radius:16px; padding:24px; max-width:760px; width:100%; max-height:90vh; overflow:auto; box-shadow:0 30px 80px rgba(0,0,0,0.25); }
-
     .toast { position: fixed; top: 20px; right: 20px; padding: 12px 18px; border-radius: 10px; font-weight:700; z-index:99999; box-shadow:0 14px 40px rgba(0,0,0,0.14); animation: slideIn .28s ease; }
     .toast.success { background:#10b981; color:white; } .toast.error { background:#ef4444; color:white; }
     @keyframes slideIn { from { transform: translateX(200px); opacity:0 } to { transform: translateX(0); opacity:1 } }
-
     .spinner { width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); border-top-color:white; animation:spin .6s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
     @keyframes spin { to { transform: rotate(360deg) } }
-
     .preview-image, .preview-video { max-width:140px; max-height:120px; object-fit:cover; border-radius:10px; border:2px solid #e5e7eb; margin-top:8px; }
     .file-input-label { padding:8px 14px; background:#f3f4f6; color:#667eea; border-radius:8px; cursor:pointer; font-weight:700; display:inline-block; }
-
     .metric-badge { display:inline-block; padding:8px 12px; border-radius:10px; font-weight:700; color:white; margin:6px; }
-    .chart-container { height:320px; position:relative; }
-
-    /* small helpers */
     .muted { color:#6b7280; font-weight:600; font-size:13px; }
+    /* QA badge */
+    #tenant-slug-badge{position:fixed;right:12px;bottom:12px;background:#111827;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;z-index:99999;opacity:.95}
+    #tenant-slug-badge small{opacity:.9;font-weight:600}
   </style>
 </head>
 <body>
+  <!-- QA badge placeholder (filled by script) -->
+  <div id="tenant-slug-badge" style="display:none"><small>slug</small> <span id="tenant-slug-value" style="font-weight:700;margin-left:6px"></span> <span id="tenant-id-value" style="margin-left:8px;font-size:11px;opacity:.9"></span></div>
+
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div style="padding:20px 28px; border-bottom: 1px solid rgba(255,255,255,0.12);">
       <div style="display:flex;align-items:center;gap:12px">
         <div style="width:48px;height:48px;background:rgba(255,255,255,0.14);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;color:white">🎫</div>
         <div>
-          <h1 style="color:white;font-size:20px;font-weight:800;margin-bottom:2px">QueueJoy</h1>
-          <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px">Admin Panel</div>
+          <h1 style="color:white;font-size:20px;font-weight:800;margin-bottom:2px" id="brandTitle">QueueJoy</h1>
+          <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px" id="brandSubtitle">Admin Panel</div>
         </div>
       </div>
     </div>
@@ -161,7 +131,7 @@
             <label class="file-input-label">📎 Choose File
               <input type="file" id="announcementMedia" accept="image/*,video/*,audio/*" style="position:absolute;left:-9999px">
             </label>
-            <p class="muted" style="margin-top:8px;font-size:12px">Supports images, videos, GIFs, audio. Max ~5MB (Due to Server Resource Management).</p>
+            <p class="muted" style="margin-top:8px;font-size:12px">Supports images, videos, GIFs, audio. Max ~50MB (client-side enforced).</p>
             <div id="announcementPreview"></div>
           </div>
 
@@ -205,7 +175,6 @@
           </div>
         </div>
 
-        <!-- Breakdown -->
         <div class="glass-card" style="padding:20px;margin-bottom:16px">
           <h4 style="font-weight:800;margin-bottom:12px">Queue Status Breakdown</h4>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
@@ -228,7 +197,6 @@
           </div>
         </div>
 
-        <!-- Wait analytics + busiest hours -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">
           <div class="glass-card" style="padding:18px">
             <h4 style="font-weight:800;margin-bottom:12px">⏱️ Wait Time Analytics</h4>
@@ -258,16 +226,15 @@
           </div>
         </div>
 
-        <!-- Charts -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px">
           <div class="glass-card" style="padding:18px">
             <h4 style="font-weight:800;margin-bottom:12px">Queue Trend (Last 7 Days)</h4>
-            <div class="chart-container"><canvas id="queueTrendChart"></canvas></div>
+            <div class="chart-container" style="height:320px;position:relative"><canvas id="queueTrendChart"></canvas></div>
           </div>
 
           <div class="glass-card" style="padding:18px">
             <h4 style="font-weight:800;margin-bottom:12px">Counter Performance (Served)</h4>
-            <div class="chart-container"><canvas id="counterPerfChart"></canvas></div>
+            <div class="chart-container" style="height:320px;position:relative"><canvas id="counterPerfChart"></canvas></div>
           </div>
         </div>
       </div>
@@ -340,7 +307,7 @@
           <h4 style="font-weight:800;margin-bottom:8px">⚙️ Settings</h4>
           <ul style="margin-left:18px;color:#374151">
             <li>Change titles, upload logos and banners (images/GIFs/videos)</li>
-            <li>All settings save to Firebase in real-time</li>
+            <li>All settings save to Firebase scoped to this tenant</li>
           </ul>
         </div>
       </div>
@@ -349,738 +316,718 @@
     </div>
   </div>
 
-  <script type="module">
-    // tenant-aware bootstrap + original logic (keeps UI unchanged)
-    (async function(){
-      // ---------- UTIL: UI helpers ----------
-      function showToast(message, type = 'success', ms = 3000) {
-        const t = document.createElement('div');
-        t.className = `toast ${type}`;
-        t.textContent = message;
-        document.body.appendChild(t);
-        setTimeout(() => t.remove(), ms);
+<script type="module">
+  // ---------- Firebase (modular) ----------
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+  import { getDatabase, ref, onValue, get, set, update, child } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+  import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+
+  // ---------- Site-wide Firebase client config (shared project) ----------
+  // Keep in sync with your Netlify functions/other pages.
+  const siteFirebaseConfig = {
+    apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+    authDomain: "queue-joy-aa21b.firebaseapp.com",
+    databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "queue-joy-aa21b",
+    storageBucket: "queue-joy-aa21b.appspot.com",
+    messagingSenderId: "950240394209",
+    appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+  };
+
+  // ---------- Small UI helpers ----------
+  function showToast(message, type = 'success', ms = 3000) {
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), ms);
+  }
+  function showFatal(msg) {
+    console.error(msg);
+    const overlay = document.createElement('div');
+    overlay.style = 'position:fixed;inset:0;background:#fff;z-index:999999;padding:20px;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `<div style="max-width:720px"><h2 style="color:#b91c1c;margin-bottom:12px">Fatal: ${String(msg)}</h2><p style="color:#374151">Open this page with <code>?slug=your-tenant-slug</code> or fix get-tenant function. Check console for details.</p></div>`;
+    document.body.appendChild(overlay);
+  }
+
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // ---------- DOM refs ----------
+  const sidebar = document.getElementById('sidebar');
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const sidebarItems = document.querySelectorAll('.sidebar-item[data-view]');
+  const howToUseBtn = document.getElementById('howToUseBtn');
+  const howToUseModal = document.getElementById('howToUseModal');
+  const closeHowToUse = document.getElementById('closeHowToUse');
+  const closeHowToUseBtn = document.getElementById('closeHowToUseBtn');
+
+  function updateMobileButtonVisibility(){
+    if (window.innerWidth <= 1024) mobileMenuBtn.style.display = 'block';
+    else { mobileMenuBtn.style.display = 'none'; sidebar.classList.remove('open'); }
+  }
+  updateMobileButtonVisibility();
+  window.addEventListener('resize', updateMobileButtonVisibility);
+  mobileMenuBtn.addEventListener('click', ()=> sidebar.classList.toggle('open'));
+
+  sidebarItems.forEach(item => item.addEventListener('click', () => {
+    sidebarItems.forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+
+    const view = item.dataset.view;
+    document.getElementById('dashboardView').style.display = view === 'dashboard' ? 'block' : 'none';
+    document.getElementById('analyticsView').style.display = view === 'analytics' ? 'block' : 'none';
+    document.getElementById('settingsView').style.display = view === 'settings' ? 'block' : 'none';
+
+    if (view === 'analytics') initializeCharts();
+    if (window.innerWidth <= 1024) sidebar.classList.remove('open');
+  }));
+
+  howToUseBtn.addEventListener('click', () => howToUseModal.classList.add('active'));
+  closeHowToUse.addEventListener('click', () => howToUseModal.classList.remove('active'));
+  closeHowToUseBtn.addEventListener('click', () => howToUseModal.classList.remove('active'));
+
+  // ---------- Tenant bootstrap ----------
+  // Resolve slug: ?slug= OR first path segment after site origin (e.g. /debug-tenant-2/admin.html)
+  function getSlugFromQueryOrPath() {
+    try {
+      const qp = new URLSearchParams(window.location.search);
+      const s = qp.get('slug') || qp.get('tenant') || qp.get('tenantSlug');
+      if (s && String(s).trim()) return String(s).trim();
+    } catch(e){}
+    // first path segment
+    try {
+      const p = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
+      if (p && p.length && p[0] && !p[0].includes('.') ) return p[0];
+    } catch(e){}
+    return null;
+  }
+
+  async function resolveTenant(slug) {
+    try {
+      const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+      if (!res.ok) {
+        const txt = await res.text().catch(()=>null);
+        throw new Error(`Tenant lookup failed (${res.status}): ${txt || res.statusText}`);
       }
-      const fileToBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const j = await res.json();
+      // function returns { tenantId, config, ... } in our implementation
+      return j;
+    } catch (e) {
+      throw e;
+    }
+  }
 
-      // ---------- TENANT RESOLUTION ----------
-      // priority:
-      // 1) window.__TENANT__ injected (recommended)
-      // 2) first path segment if matches slug pattern
-      // 3) ?slug=... query param
-      const inferTenantSlug = () => {
-        if (window.__TENANT__ && window.__TENANT__.slug) return window.__TENANT__.slug;
-        const parts = (location.pathname || '/').split('/').filter(Boolean);
-        if (parts.length && /^[a-z0-9\-]+$/.test(parts[0])) return parts[0];
-        try { const qp = new URLSearchParams(location.search); if (qp.has('slug')) return qp.get('slug'); } catch(e){}
-        return null;
-      };
-      const TENANT_SLUG = inferTenantSlug() || 'template';
+  // tenantRef factory like other pages — resolves to tenants/{tenantId}/...
+  function tenantRefFactory(dbInstance) {
+    return function tenantRef(relPath = '') {
+      relPath = String(relPath || '').replace(/^\/+/, '');
+      const tenantId = window.__TENANT_ID || null;
+      const slug = window.__TENANT_SLUG || null;
+      if (!tenantId && !slug) {
+        // return top-level ref
+        return ref(dbInstance, relPath || '/');
+      }
+      const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
+      if (!relPath) return ref(dbInstance, base);
+      return ref(dbInstance, `${base}/${relPath}`);
+    };
+  }
 
-      // If this is accidentally opened without tenant context, we still allow "template" but warn.
-      if (!TENANT_SLUG) {
-        showToast('Missing tenant slug — admin cannot start.', 'error', 5000);
-        console.error('Missing tenant slug. Provide window.__TENANT__ or /<slug>/ path or ?slug=');
+  // ---------- Initialize Firebase client after tenant resolved ----------
+  async function boot() {
+    const slug = getSlugFromQueryOrPath();
+    if (!slug) { showFatal('Missing slug — open with ?slug=your-tenant-slug or put slug as first path segment.'); return; }
+    window.__TENANT_SLUG = slug;
+
+    // show QA badge
+    (function insertBadge() {
+      const badge = document.getElementById('tenant-slug-badge');
+      badge.style.display = 'block';
+      document.getElementById('tenant-slug-value').textContent = slug;
+    })();
+
+    let tenantId = null;
+    let tenantPublicConfig = null;
+    try {
+      const info = await resolveTenant(slug);
+      tenantId = info.tenantId || null;
+      // older get-tenant returned config under config or firebaseClientConfig — accept both
+      tenantPublicConfig = info.config || info.public || info.firebaseClientConfig || info.tenant || null;
+      // sometimes config may include tenantId
+      if (!tenantId && tenantPublicConfig && tenantPublicConfig.tenantId) tenantId = tenantPublicConfig.tenantId;
+      if (!tenantId) tenantId = slug; // fallback: allow slug==tenantId legacy
+      window.__TENANT_ID = tenantId;
+      window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
+      document.getElementById('tenant-id-value').textContent = `id:${tenantId}`;
+    } catch (err) {
+      showFatal('Failed to resolve tenant: ' + String(err && err.message ? err.message : err));
+      return;
+    }
+
+    // init firebase
+    let app;
+    try {
+      app = initializeApp(siteFirebaseConfig);
+    } catch (e) {
+      showFatal('Failed to initialize Firebase client: ' + String(e && e.message ? e.message : e));
+      return;
+    }
+    const db = getDatabase(app);
+    const storage = getStorage(app);
+    window._db = db; // debug hook
+    const tenantRef = tenantRefFactory(db);
+
+    // Apply public config to UI if available
+    try {
+      const cfg = window.__TENANT_PUBLIC_CONFIG || {};
+      if (cfg.theme && cfg.theme.color) document.documentElement.style.setProperty('--primary', cfg.theme.color);
+      const title = (cfg.displayName) ? String(cfg.displayName) : (cfg.name || cfg.displayName);
+      if (title) {
+        document.getElementById('brandTitle').textContent = title;
+        document.title = `${title} — Admin`;
+      }
+      if (cfg.smallTextOnTop) document.getElementById('brandSubtitle').textContent = cfg.smallTextOnTop;
+    } catch(e){ /* non-fatal */ }
+
+    // ---- helpers that prefer tenant path but fallback to legacy root path ----
+    async function getTenantFirst(path) {
+      // path is relative under tenant node, e.g. 'settings', 'queue', 'analytics/serviceEvents'
+      try {
+        const snap = await get(tenantRef(path));
+        if (snap && snap.exists && typeof snap.val === 'function') return snap.val();
+      } catch (e) { console.warn('tenant read failed', path, e); }
+      // fallback to global path (legacy)
+      try {
+        const snap2 = await get(ref(db, path));
+        if (snap2 && snap2.exists && typeof snap2.val === 'function') return snap2.val();
+      } catch (e) {}
+      return null;
+    }
+
+    async function setTenantBoth(path, value) {
+      // Save to tenant/path. Also save to legacy path 'settings' for older clients (best-effort).
+      try {
+        await set(tenantRef(path), value);
+      } catch (e) { console.warn('set tenantRef failed', path, e); throw e; }
+    }
+
+    // ---------- Core listeners & logic (tenant-scoped) ----------
+    // Queue listener
+    onValue(tenantRef('queue'), async (snapshot) => {
+      if (!snapshot.exists()) {
+        // reset UI counts
+        ['totalQueues','activeQueues','todayQueues','analystTotalServed','analystCompleted','analystWaiting','analystServing','analystCancelled','analystAvgWait','analystMedianWait','waitAverage','waitMedian','wait90th','waitLongest'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = '0';
+        });
+        updateCharts([], []);
         return;
       }
 
-      // ---------- DYNAMIC FIREBASE INIT ----------
-      // Try to use injected firebase config (window.__TENANT__.firebaseConfig)
-      // Otherwise call serverless /.netlify/functions/get-firebase-config?slug=...
-      let firebaseConfig = null;
-      if (window.__TENANT__ && window.__TENANT__.firebaseConfig) {
-        firebaseConfig = window.__TENANT__.firebaseConfig;
-      } else {
+      const rawObj = snapshot.val() || {};
+      const raw = Object.values(rawObj);
+      const now = Date.now();
+
+      const queues = raw.map(q => {
         try {
-          const res = await fetch(`/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(TENANT_SLUG)}`);
-          if (res.ok) {
-            const json = await res.json();
-            if (json && typeof json === 'object') firebaseConfig = json;
-          }
-        } catch (e) {
-          console.warn('get-firebase-config failed', e);
-        }
-      }
+          const ts = (q && q.timestamp) ? Number(q.timestamp) : null;
+          const parsed = (ts && !Number.isNaN(ts)) ? ts : (q && q.timestamp ? Date.parse(q.timestamp) : null);
+          const t = (parsed && !Number.isNaN(parsed)) ? parsed : null;
+          if (!t) return null;
+          if (t > now + 24*60*60*1000) return null;
+          return { ...q, timestamp: t, status: (q.status||'waiting').toString().toLowerCase() };
+        } catch (e) { return null; }
+      }).filter(Boolean);
 
-      if (!firebaseConfig) {
-        showToast('Firebase config unavailable for tenant — admin is in read-only/demo mode', 'error', 5000);
-        console.warn('No firebase config for tenant', TENANT_SLUG);
-        // we continue but do not attach live listeners to real Firebase to avoid accidental writes.
-      }
+      const waiting = queues.filter(q => q.status === 'waiting').length;
+      const serving = queues.filter(q => q.status === 'serving').length;
+      const cancelled = queues.filter(q => q.status === 'cancelled').length;
 
-      // dynamic imports only when we have config
-      let db = null;
-      let storage = null;
-      let fbRefs = {}; // will hold helpers: ref, onValue, get, set, push
-      let tenantRef = null;
+      document.getElementById('totalQueues').textContent = queues.length;
+      document.getElementById('activeQueues').textContent = waiting;
+      document.getElementById('analystWaiting').textContent = waiting;
+      document.getElementById('analystServing').textContent = serving;
+      document.getElementById('analystCancelled').textContent = cancelled;
 
-      if (firebaseConfig) {
-        try {
-          const modApp = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js');
-          const modDB = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js');
-          const modStorage = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js');
-          const app = modApp.initializeApp(firebaseConfig);
-          db = modDB.getDatabase(app);
-          storage = modStorage.getStorage(app);
-
-          // helper to scope refs under tenants/{slug}
-          tenantRef = (rel='') => {
-            rel = String(rel || '').replace(/^\/+/, '');
-            if (!rel) return modDB.ref(db, `tenants/${TENANT_SLUG}`);
-            return modDB.ref(db, `tenants/${TENANT_SLUG}/${rel}`);
-          };
-
-          // expose shorthand names used by original code
-          fbRefs.ref = modDB.ref;
-          fbRefs.onValue = modDB.onValue;
-          fbRefs.get = modDB.get;
-          fbRefs.set = modDB.set;
-          fbRefs.push = modDB.push;
-          fbRefs.update = modDB.update;
-          fbRefs.remove = modDB.remove;
-          // storage helpers
-          fbRefs.sRef = modStorage.ref;
-          fbRefs.uploadBytes = modStorage.uploadBytes;
-          fbRefs.getDownloadURL = modStorage.getDownloadURL;
-
-          console.info('[admin] Firebase initialized (tenant)', TENANT_SLUG);
-        } catch (err) {
-          console.error('Firebase dynamic import/init failed', err);
-          showToast('Failed to initialize Firebase — admin disabled', 'error', 6000);
-          firebaseConfig = null;
-        }
-      }
-
-      // ---------- SAFE ACCESSORS ----------
-      // If firebase is not available, we create safe no-op placeholders to avoid runtime errors.
-      if (!tenantRef) {
-        // no real firebase - create dummy stubs that throw on writes and return empty for reads
-        tenantRef = (rel='') => {
-          const path = `tenants/${TENANT_SLUG}/${String(rel||'')}`;
-          return {
-            _noFirebase: true,
-            _path: path,
-            get: async () => ({ exists: () => false }),
-            // a simple poll style "onValue" is not supported in demo stub
-            onValue: () => { console.warn('no firebase: onValue ignored for', path); },
-            off: () => {},
-          };
-        };
-        fbRefs.get = async () => ({ exists: () => false });
-        fbRefs.onValue = () => { /* noop */ };
-        fbRefs.set = async () => { throw new Error('No firebase'); };
-        fbRefs.push = async () => { throw new Error('No firebase'); };
-        fbRefs.update = async () => { throw new Error('No firebase'); };
-        fbRefs.remove = async () => { throw new Error('No firebase'); };
-      }
-
-      // ---------- Now run the original admin logic but using tenantRef & fbRefs ----------
-      // For readability we keep original function names but route them to fbRefs
-      const refFn = (p) => tenantRef(p);
-      const onValueFn = (r, cb, errCb) => {
-        // r is a ref returned by tenantRef or fbRefs.ref(db, ...). We'll rely on fbRefs.onValue
-        try {
-          if (fbRefs.onValue) return fbRefs.onValue(r, cb, errCb);
-        } catch (e) { console.warn('onValue wrapper failed', e); }
-      };
-      const getFn = async (r) => {
-        try {
-          if (typeof r === 'string') r = tenantRef(r);
-          return await fbRefs.get(r);
-        } catch (e) { return { exists: () => false }; }
-      };
-      const setFn = async (r, v) => {
-        if (!fbRefs.set) throw new Error('No firebase set available');
-        return await fbRefs.set(r, v);
-      };
-
-      // --- re-use the UI wiring from original file without changes ---
+      // analytics/serviceEvents (authoritative)
+      let serviceEventsArr = [];
       try {
-        // DOM helpers originally declared in the file
-        const sidebar = document.getElementById('sidebar');
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        const sidebarItems = document.querySelectorAll('.sidebar-item[data-view]');
-        const howToUseBtn = document.getElementById('howToUseBtn');
-        const howToUseModal = document.getElementById('howToUseModal');
-        const closeHowToUse = document.getElementById('closeHowToUse');
-        const closeHowToUseBtn = document.getElementById('closeHowToUseBtn');
-
-        function updateMobileButtonVisibility(){
-          if (window.innerWidth <= 1024) mobileMenuBtn.style.display = 'block';
-          else { mobileMenuBtn.style.display = 'none'; sidebar.classList.remove('open'); }
-        }
-        updateMobileButtonVisibility();
-        window.addEventListener('resize', updateMobileButtonVisibility);
-        mobileMenuBtn.addEventListener('click', ()=> sidebar.classList.toggle('open'));
-
-        sidebarItems.forEach(item => item.addEventListener('click', () => {
-          sidebarItems.forEach(i => i.classList.remove('active'));
-          item.classList.add('active');
-
-          // toggle views
-          const view = item.dataset.view;
-          document.getElementById('dashboardView').style.display = view === 'dashboard' ? 'block' : 'none';
-          document.getElementById('analyticsView').style.display = view === 'analytics' ? 'block' : 'none';
-          document.getElementById('settingsView').style.display = view === 'settings' ? 'block' : 'none';
-
-          if (view === 'analytics') initializeCharts();
-          if (window.innerWidth <= 1024) sidebar.classList.remove('open');
-        }));
-
-        howToUseBtn.addEventListener('click', () => howToUseModal.classList.add('active'));
-        closeHowToUse.addEventListener('click', () => howToUseModal.classList.remove('active'));
-        closeHowToUseBtn.addEventListener('click', () => howToUseModal.classList.remove('active'));
-        document.getElementById('closeHowToUseBtn').addEventListener('click', () => howToUseModal.classList.remove('active'));
-
-        // reused utility functions (timestamp parsing, analytics) kept unchanged (copy-paste from original)
-        function parseTimestamp(ts) {
-          if (ts === undefined || ts === null) return null;
-          let n = (typeof ts === 'number') ? ts : Number(ts);
-          if (Number.isNaN(n)) {
-            const d = Date.parse(ts);
-            if (Number.isNaN(d)) return null;
-            n = d;
-          }
-          const now = Date.now();
-          const min = 1230768000000;
-          const oneYearFuture = now + (365*24*60*60*1000);
-          if (n < min || n > oneYearFuture) return null;
-          return n;
-        }
-        function isToday(ts) {
-          const p = parseTimestamp(ts);
-          if (!p) return false;
-          const d = new Date(p);
-          const today = new Date();
-          return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-        }
-        function computeStats(arr) {
-          if (!arr || arr.length === 0) return { average:0, median:0, p90:0, longest:0 };
-          const xs = arr.slice().sort((a,b)=>a-b);
-          const sum = xs.reduce((a,b)=>a+b,0);
-          const avg = Math.round(sum / xs.length);
-          const median = (xs.length % 2 === 0) ? Math.round((xs[xs.length/2 -1] + xs[xs.length/2]) / 2) : xs[Math.floor(xs.length/2)];
-          const p90 = Math.round(xs[Math.floor(xs.length * 0.9)]);
-          const longest = xs[xs.length-1];
-          return { average: avg, median, p90, longest };
-        }
-        function calculateWaitTimesCombined(queues, serviceEvents) {
-          const now = Date.now();
-          const waits = [];
-          if (serviceEvents && Array.isArray(serviceEvents)) {
-            for (const e of serviceEvents) {
-              const req = parseTimestamp(e.requestedAt ?? e.requestedAt);
-              const served = parseTimestamp(e.servedAt ?? e.servedAt);
-              if (!req || !served) continue;
-              const mins = Math.round((served - req) / 60000);
-              if (mins >= 0 && mins <= 30*24*60) waits.push(mins);
-            }
-          }
-          const waitingQs = queues.filter(q => q.status === 'waiting');
-          for (const q of waitingQs) {
-            const ts = parseTimestamp(q.timestamp);
-            if (!ts) continue;
-            const mins = Math.max(0, Math.round((now - ts) / 60000));
-            if (mins >= 0 && mins <= 30*24*60) waits.push(mins);
-          }
-          return computeStats(waits);
-        }
-        function calculateSevenDaySummary(queues, serviceEvents) {
-          const days = [];
-          const today = new Date();
-          today.setHours(0,0,0,0);
-          for (let i=6;i>=0;i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            const start = d.getTime();
-            const end = start + 24*60*60*1000;
-            const dayQs = queues.filter(q => {
-              const ts = parseTimestamp(q.timestamp);
-              return ts && ts >= start && ts < end;
-            });
-            const total = dayQs.length;
-            let completed = 0;
-            if (serviceEvents && Array.isArray(serviceEvents)) {
-              completed = serviceEvents.filter(e => {
-                const s = parseTimestamp(e.servedAt);
-                return s && s >= start && s < end;
-              }).length;
-            }
-            const cancelled = dayQs.filter(q => q.status === 'cancelled').length;
-            const waitTimes = [];
-            if (serviceEvents && Array.isArray(serviceEvents)) {
-              for (const e of serviceEvents) {
-                const req = parseTimestamp(e.requestedAt);
-                const served = parseTimestamp(e.servedAt);
-                if (!req || !served) continue;
-                if (req >= start && req < end) {
-                  const mins = Math.round((served - req) / 60000);
-                  if (mins >= 0 && mins <= 30*24*60) waitTimes.push(mins);
-                }
-              }
-            }
-            for (const q of dayQs) {
-              if (q.status === 'waiting') {
-                const ts = parseTimestamp(q.timestamp);
-                if (!ts) continue;
-                const mins = Math.round((Date.now() - ts) / 60000);
-                if (mins >= 0 && mins <= 30*24*60) waitTimes.push(mins);
-              }
-            }
-            const avgWait = waitTimes.length ? Math.round(waitTimes.reduce((a,b)=>a+b,0) / waitTimes.length) : 0;
-            const hourCounts = new Array(24).fill(0);
-            for (const q of dayQs) {
-              const ts = parseTimestamp(q.timestamp);
-              if (ts) hourCounts[new Date(ts).getHours()]++;
-            }
-            if (serviceEvents && Array.isArray(serviceEvents)) {
-              for (const e of serviceEvents) {
-                const s = parseTimestamp(e.servedAt);
-                if (s && s >= start && s < end) hourCounts[new Date(s).getHours()]++;
-              }
-            }
-            const maxCount = Math.max(...hourCounts);
-            const busiestHour = maxCount > 0 ? hourCounts.indexOf(maxCount) : null;
-            days.push({ date: d.toISOString().split('T')[0], total, completed, cancelled, avgWait, busiestHour });
-          }
-          return { days };
-        }
-        function calculateBusiestHoursCombined(queues, serviceEvents) {
-          const now = Date.now();
-          const last7 = now - 7*24*60*60*1000;
-          const hourCounts = new Array(24).fill(0);
-          for (const q of queues) {
-            const ts = parseTimestamp(q.timestamp);
-            if (!ts) continue;
-            if (ts >= last7) hourCounts[new Date(ts).getHours()]++;
-          }
-          if (serviceEvents && Array.isArray(serviceEvents)) {
-            for (const e of serviceEvents) {
-              const s = parseTimestamp(e.servedAt);
-              if (!s) continue;
-              if (s >= last7) hourCounts[new Date(s).getHours()]++;
-            }
-          }
-          const arr = hourCounts.map((count,h) => ({ hour:h, count })).filter(x => x.count>0).sort((a,b)=>b.count-a.count);
-          return arr.slice(0,5);
-        }
-
-        // UI update logic (kept same)
-        function updateUIFromQueues(queues, serviceEvents) {
-          const total = queues.length;
-          const waiting = queues.filter(q => q.status === 'waiting').length;
-          const serving = queues.filter(q => q.status === 'serving').length;
-          const cancelled = queues.filter(q => q.status === 'cancelled').length;
-
-          document.getElementById('totalQueues').textContent = total;
-          document.getElementById('activeQueues').textContent = waiting;
-          document.getElementById('todayQueues').textContent = queues.filter(q => isToday(q.timestamp)).length;
-
-          document.getElementById('analystWaiting').textContent = waiting;
-          document.getElementById('analystServing').textContent = serving;
-          document.getElementById('analystCancelled').textContent = cancelled;
-
-          let servedCount = null;
-          if (serviceEvents && Array.isArray(serviceEvents)) {
-            servedCount = serviceEvents.length;
-          }
-          if (servedCount !== null && !Number.isNaN(servedCount)) {
-            document.getElementById('analystTotalServed').textContent = servedCount;
-            document.getElementById('analystCompleted').textContent = servedCount;
-          }
-
-          const waitStats = calculateWaitTimesCombined(queues, serviceEvents);
-          document.getElementById('analystAvgWait').textContent = waitStats.average;
-          document.getElementById('analystMedianWait').textContent = waitStats.median;
-          document.getElementById('waitAverage').textContent = waitStats.average + ' min';
-          document.getElementById('waitMedian').textContent = waitStats.median + ' min';
-          document.getElementById('wait90th').textContent = waitStats.p90 + ' min';
-          document.getElementById('waitLongest').textContent = waitStats.longest + ' min';
-
-          const busiest = calculateBusiestHoursCombined(queues, serviceEvents);
-          const container = document.getElementById('busiestHoursContainer');
-          container.innerHTML = '';
-          if (busiest.length === 0) {
-            container.innerHTML = '<div class="muted">No data available</div>';
-          } else {
-            const colors = ['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981'];
-            busiest.forEach((h,i) => {
-              const badge = document.createElement('div');
-              badge.className = 'metric-badge';
-              badge.style.background = colors[i % colors.length];
-              badge.textContent = `${formatHourLabel(h.hour)}: ${h.count} queues`;
-              container.appendChild(badge);
-            });
-          }
-          updateCharts(queues, serviceEvents);
-        }
-
-        function formatHourLabel(hour) {
-          if (hour === null || hour === undefined) return '-';
-          if (hour === 0) return '12 AM';
-          if (hour < 12) return `${hour} AM`;
-          if (hour === 12) return '12 PM';
-          return `${hour-12} PM`;
-        }
-
-        // ---------- Firebase listeners (tenant-scoped) ----------
-        if (firebaseConfig) {
-          // queues listener
-          onValueFn(refFn('queue'), async (snapshot) => {
-            if (!snapshot.exists || (typeof snapshot.exists === 'function' && !snapshot.exists())) {
-              // clear UI
-              ['totalQueues','activeQueues','todayQueues','analystTotalServed','analystCompleted','analystWaiting','analystServing','analystCancelled','analystAvgWait','analystMedianWait','waitAverage','waitMedian','wait90th','waitLongest'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = '0';
-              });
-              updateCharts([], []);
-              return;
-            }
-
-            const rawObj = (typeof snapshot.val === 'function') ? snapshot.val() : snapshot;
-            const raw = Object.values(rawObj || {});
-            const now = Date.now();
-
-            const queues = raw.map(q => {
-              try {
-                const ts = parseTimestamp(q.timestamp);
-                if (!ts) return null;
-                if (ts > now + 24*60*60*1000) return null;
-                return { ...q, timestamp: ts, status: (q.status||'waiting').toString().toLowerCase() };
-              } catch (e) { return null; }
-            }).filter(Boolean);
-
-            const waiting = queues.filter(q => q.status === 'waiting').length;
-            const serving = queues.filter(q => q.status === 'serving').length;
-            const cancelled = queues.filter(q => q.status === 'cancelled').length;
-
-            document.getElementById('totalQueues').textContent = queues.length;
-            document.getElementById('activeQueues').textContent = waiting;
-            document.getElementById('analystWaiting').textContent = waiting;
-            document.getElementById('analystServing').textContent = serving;
-            document.getElementById('analystCancelled').textContent = cancelled;
-
-            let serviceEventsArr = [];
-            try {
-              const seSnap = await getFn('analytics/serviceEvents');
-              if (seSnap && seSnap.exists && seSnap.exists()) {
-                const seObj = seSnap.val ? seSnap.val() : seSnap;
-                serviceEventsArr = Object.values(seObj || {}).map(x => x);
-              } else {
-                const servedSnap = await getFn('analytics/servedCount');
-                const served = (servedSnap && servedSnap.exists && servedSnap.exists()) ? Number(servedSnap.val ? servedSnap.val() : servedSnap) : null;
-                if (served !== null && !Number.isNaN(served)) {
-                  document.getElementById('analystTotalServed').textContent = served;
-                  document.getElementById('analystCompleted').textContent = served;
-                }
-              }
-            } catch (e) { console.warn('analytics/serviceEvents read error', e); }
-
-            if (serviceEventsArr.length > 0) {
-              document.getElementById('analystTotalServed').textContent = serviceEventsArr.length;
-              document.getElementById('analystCompleted').textContent = serviceEventsArr.length;
-            } else {
-              const completedFromQueue = queues.filter(q => q.status === 'done' || q.status === 'served').length;
-              document.getElementById('analystCompleted').textContent = completedFromQueue;
-              if (!document.getElementById('analystTotalServed').textContent || document.getElementById('analystTotalServed').textContent === '0') {
-                document.getElementById('analystTotalServed').textContent = completedFromQueue;
-              }
-            }
-
-            const waitStats = calculateWaitTimesCombined(queues, serviceEventsArr);
-            document.getElementById('analystAvgWait').textContent = waitStats.average;
-            document.getElementById('analystMedianWait').textContent = waitStats.median;
-            document.getElementById('wait90th').textContent = waitStats.p90 + ' min';
-            document.getElementById('waitLongest').textContent = waitStats.longest + ' min';
-
-            updateUIFromQueues(queues, serviceEventsArr);
-          }, (err) => { console.error('queue listener error', err); });
-
-          // counters listener
-          onValueFn(refFn('counters'), (snapshot) => {
-            if (!snapshot || (typeof snapshot.exists === 'function' && !snapshot.exists())) {
-              document.getElementById('activeCounters').textContent = '0';
-              document.getElementById('analystActiveCounters').textContent = '0';
-              return;
-            }
-            const countersObj = (typeof snapshot.val === 'function') ? snapshot.val() : snapshot;
-            const counters = Object.values(countersObj || {});
-            const active = counters.filter(c => c && c.active === true).length;
-            document.getElementById('activeCounters').textContent = active;
-            document.getElementById('analystActiveCounters').textContent = active;
-          });
+        const seSnap = await get(tenantRef('analytics/serviceEvents'));
+        if (seSnap && seSnap.exists && typeof seSnap.val === 'function') {
+          const seObj = seSnap.val();
+          serviceEventsArr = Object.values(seObj || {}).map(x => x);
         } else {
-          // no firebase - warn and avoid wiring listeners
-          showToast('Admin running without Firebase - enable tenant firebase for live data', 'error', 8000);
-        }
-
-        // ---------- settings listeners (tenant-scoped) ----------
-        if (firebaseConfig) {
-          onValueFn(refFn('settings/mainTitle'), snap => { if (snap && snap.exists && snap.exists()) document.getElementById('mainTitle').value = snap.val(); });
-          onValueFn(refFn('settings/introText'), snap => { if (snap && snap.exists && snap.exists()) document.getElementById('introText').value = snap.val(); });
-          onValueFn(refFn('settings/smallTextOnTop'), snap => { if (snap && snap.exists && snap.exists()) document.getElementById('smallTextOnTop').value = snap.val(); });
-          onValueFn(refFn('settings/titleinmiddle'), snap => { if (snap && snap.exists && snap.exists()) document.getElementById('titleinmiddle').value = snap.val(); });
-
-          const createMediaPreview = (src, container, type='image') => {
-            container.innerHTML = '';
-            if (!src) return;
-            if (type === 'video' || (typeof src === 'string' && src.startsWith('data:video'))) {
-              const v = document.createElement('video'); v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.className = 'preview-video';
-              container.appendChild(v);
-            } else {
-              const img = document.createElement('img'); img.src = src; img.className = 'preview-image';
-              container.appendChild(img);
-            }
-          };
-
-          onValueFn(refFn('settings/logo'), snap => { if (snap && snap.exists && snap.exists()) createMediaPreview(snap.val(), document.getElementById('logoPreviewContainer')); });
-          onValueFn(refFn('settings/logoUrl'), snap => { if (snap && snap.exists && snap.exists()) createMediaPreview(snap.val(), document.getElementById('logoUrlPreviewContainer')); });
-          onValueFn(refFn('settings/adImage'), snap => { if (snap && snap.exists && snap.exists()) createMediaPreview(snap.val(), document.getElementById('adImagePreviewContainer')); });
-        }
-
-        // ---------- settings update flow (kept identical, but uses tenantRef) ----------
-        let uploadedMedia = { logo: null, logoUrl: null, adImage: null };
-
-        document.getElementById('logoFile').addEventListener('change', async (e) => {
-          const f = e.target.files?.[0]; if (!f) return;
-          const b = await fileToBase64(f);
-          uploadedMedia.logo = b;
-          (function createMediaPreviewLocal(src, container, type) {
-            container.innerHTML = '';
-            if (!src) return;
-            if (type === 'video') {
-              const v = document.createElement('video'); v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.className = 'preview-video';
-              container.appendChild(v);
-            } else {
-              const img = document.createElement('img'); img.src = src; img.className = 'preview-image';
-              container.appendChild(img);
-            }
-          })(b, document.getElementById('logoPreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
-          showToast('Logo uploaded (not saved)', 'success', 1800);
-        });
-        document.getElementById('logoUrlFile').addEventListener('change', async (e) => {
-          const f = e.target.files?.[0]; if (!f) return;
-          const b = await fileToBase64(f);
-          uploadedMedia.logoUrl = b;
-          (function createMediaPreviewLocal(src, container, type) {
-            container.innerHTML = '';
-            if (!src) return;
-            if (type === 'video') {
-              const v = document.createElement('video'); v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.className = 'preview-video';
-              container.appendChild(v);
-            } else {
-              const img = document.createElement('img'); img.src = src; img.className = 'preview-image';
-              container.appendChild(img);
-            }
-          })(b, document.getElementById('logoUrlPreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
-          showToast('Logo URL uploaded (not saved)', 'success', 1800);
-        });
-        document.getElementById('adImageFile').addEventListener('change', async (e) => {
-          const f = e.target.files?.[0]; if (!f) return;
-          const b = await fileToBase64(f);
-          uploadedMedia.adImage = b;
-          (function createMediaPreviewLocal(src, container, type) {
-            container.innerHTML = '';
-            if (!src) return;
-            if (type === 'video') {
-              const v = document.createElement('video'); v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.className = 'preview-video';
-              container.appendChild(v);
-            } else {
-              const img = document.createElement('img'); img.src = src; img.className = 'preview-image';
-              container.appendChild(img);
-            }
-          })(b, document.getElementById('adImagePreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
-          showToast('Ad banner uploaded (not saved)', 'success', 1800);
-        });
-
-        async function updateSettings() {
-          const btn = document.getElementById('updateSettingsBtn');
-          const text = document.getElementById('updateBtnText');
-          const spinner = document.getElementById('updateBtnSpinner');
-          btn.disabled = true; text.style.display='none'; spinner.style.display='inline';
-          try {
-            if (!firebaseConfig) throw new Error('Firebase config missing for tenant');
-            const currentSnap = await getFn('settings');
-            const current = (currentSnap && currentSnap.exists && currentSnap.exists()) ? currentSnap.val() : (currentSnap || {});
-            const updates = {
-              ...current,
-              mainTitle: document.getElementById('mainTitle').value || current.mainTitle || '',
-              introText: document.getElementById('introText').value || current.introText || '',
-              smallTextOnTop: document.getElementById('smallTextOnTop').value || current.smallTextOnTop || '',
-              titleinmiddle: document.getElementById('titleinmiddle').value || current.titleinmiddle || ''
-            };
-            if (uploadedMedia.logo) updates.logo = uploadedMedia.logo;
-            if (uploadedMedia.logoUrl) updates.logoUrl = uploadedMedia.logoUrl;
-            if (uploadedMedia.adImage) updates.adImage = uploadedMedia.adImage;
-            await setFn(refFn('settings'), updates);
-            uploadedMedia = { logo:null, logoUrl:null, adImage:null };
-            showToast('Settings updated!', 'success');
-          } catch (err) {
-            console.error('updateSettings', err);
-            showToast('Failed to update settings', 'error');
-          } finally {
-            btn.disabled = false; text.style.display='inline'; spinner.style.display='none';
+          // fallback: analytics/servedCount or legacy path
+          const servedSnap = await get(tenantRef('analytics/servedCount'));
+          const served = servedSnap && servedSnap.exists && servedSnap.val ? servedSnap.val() : null;
+          if (served !== null && !Number.isNaN(Number(served))) {
+            document.getElementById('analystTotalServed').textContent = String(served);
+            document.getElementById('analystCompleted').textContent = String(served);
           }
         }
+      } catch (e) { console.warn('analytics read failed', e); }
 
-        document.getElementById('updateSettingsBtn').addEventListener('click', updateSettings);
-        document.getElementById('saveAllBtn').addEventListener('click', updateSettings);
-
-        // ---------- Announcement flow (keeps same API usage but tenant-scoped) ----------
-        let selectedMediaFile = null;
-        const announcementMedia = document.getElementById('announcementMedia');
-        const announcementPreview = document.getElementById('announcementPreview');
-
-        announcementMedia.addEventListener('change', (e) => {
-          const f = e.target.files?.[0] || null;
-          selectedMediaFile = f;
-          announcementPreview.innerHTML = '';
-          if (!f) return;
-          if (f.size > 50 * 1024 * 1024) {
-            showToast('File too large! Max 50MB', 'error'); selectedMediaFile = null; announcementMedia.value=''; return;
-          }
-          const url = URL.createObjectURL(f);
-          if (f.type.startsWith('video/')) {
-            const v = document.createElement('video'); v.src = url; v.controls = true; v.style = 'width:100%;max-width:380px;border-radius:10px;margin-top:8px'; announcementPreview.appendChild(v);
-          } else if (f.type.startsWith('audio/')) {
-            const a = document.createElement('audio'); a.src = url; a.controls = true; a.style='width:100%;margin-top:8px'; announcementPreview.appendChild(a);
-          } else {
-            const img = document.createElement('img'); img.src = url; img.style='max-width:380px;width:100%;border-radius:10px;margin-top:8px'; announcementPreview.appendChild(img);
-          }
-        });
-
-        document.getElementById('sendAnnouncementBtn').addEventListener('click', async () => {
-          const message = document.getElementById('announcementMessage').value.trim();
-          if (!message && !selectedMediaFile) { showToast('Please enter a message or attach media', 'error'); return; }
-
-          const sendBtn = document.getElementById('sendAnnouncementBtn');
-          const sendBtnText = document.getElementById('sendBtnText');
-          const sendBtnSpinner = document.getElementById('sendBtnSpinner');
-          const announcementResult = document.getElementById('announcementResult');
-
-          sendBtn.disabled = true; sendBtnText.style.display = 'none'; sendBtnSpinner.style.display = 'inline';
-          try {
-            if (!firebaseConfig) throw new Error('Firebase config missing for tenant');
-
-            const chatIdsSnap = await getFn('announcement/chatIds');
-            const botTokenSnap = await getFn('announcement/botToken');
-            if (!chatIdsSnap || (chatIdsSnap.exists && !chatIdsSnap.exists()) || !botTokenSnap || (botTokenSnap.exists && !botTokenSnap.exists())) throw new Error('Missing chatIds or botToken in tenant settings');
-
-            const chatIdsObj = (chatIdsSnap && chatIdsSnap.val) ? chatIdsSnap.val() : (chatIdsSnap || {});
-            const chatIds = Array.isArray(chatIdsObj) ? chatIdsObj : Object.keys(chatIdsObj || {});
-            const telegramBotToken = (botTokenSnap && botTokenSnap.val) ? botTokenSnap.val() : (botTokenSnap || '');
-
-            let mediaBase64 = '';
-            let mediaType = '';
-            if (selectedMediaFile) {
-              mediaBase64 = await fileToBase64(selectedMediaFile);
-              mediaType = selectedMediaFile.type;
-            }
-
-            const payload = { message, media: mediaBase64, mediaType, chatIds, telegramBotToken, tenant: TENANT_SLUG };
-            const response = await fetch('/.netlify/functions/announce', {
-              method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-            if (!response.ok) throw result;
-
-            announcementResult.style.display='block';
-            announcementResult.style.borderRadius='10px';
-            announcementResult.style.padding='10px';
-            if (result.success && result.success > 0) {
-              announcementResult.style.background = '#dcfce7'; announcementResult.style.color = '#064e3b';
-              announcementResult.innerHTML = `✅ Sent to ${result.success} recipient(s)`;
-              if (result.failed && result.failed > 0) announcementResult.innerHTML += `<br>⚠️ Failed: ${result.failed}`;
-              document.getElementById('announcementMessage').value = '';
-              announcementMedia.value = ''; announcementPreview.innerHTML = ''; selectedMediaFile = null;
-              showToast('Announcement sent successfully!', 'success');
-            } else {
-              announcementResult.style.background = '#fee2e2'; announcementResult.style.color = '#7f1d1d';
-              announcementResult.innerHTML = '⚠️ Failed to send announcement';
-              showToast('Failed to send announcement', 'error');
-            }
-            setTimeout(()=>announcementResult.style.display='none', 4500);
-          } catch (err) {
-            console.error('Announcement error', err);
-            announcementResult.style.display='block';
-            announcementResult.style.background = '#fee2e2'; announcementResult.style.color = '#7f1d1d';
-            announcementResult.innerHTML = `⚠️ ${err.message || 'Unknown error'}`;
-            showToast(err.message || 'Announcement failed', 'error');
-            setTimeout(()=>announcementResult.style.display='none', 4500);
-          } finally {
-            sendBtn.disabled = false; sendBtnText.style.display='inline'; sendBtnSpinner.style.display='none';
-          }
-        });
-
-        // ---------- Charts logic (kept same, reusing functions above) ----------
-        let queueTrendChart = null;
-        let counterPerfChart = null;
-
-        function initializeCharts() {
-          if (!document.getElementById('queueTrendChart')) return;
-          if (!queueTrendChart) {
-            const ctx = document.getElementById('queueTrendChart').getContext('2d');
-            queueTrendChart = new Chart(ctx, {
-              type: 'line',
-              data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label:'Queues', data:[0,0,0,0,0,0,0], fill:true, tension:0.35, borderColor:'#667eea', backgroundColor:'rgba(102,126,234,0.08)' }] },
-              options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true} } }
-            });
-          }
-          if (!counterPerfChart) {
-            const ctx = document.getElementById('counterPerfChart').getContext('2d');
-            counterPerfChart = new Chart(ctx, {
-              type: 'bar',
-              data: { labels:[], datasets:[{ label:'Served', data:[], backgroundColor: ['#667eea','#8b5cf6','#ec4899','#f59e0b'] }] },
-              options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
-            });
-          }
+      if (serviceEventsArr.length > 0) {
+        document.getElementById('analystTotalServed').textContent = serviceEventsArr.length;
+        document.getElementById('analystCompleted').textContent = serviceEventsArr.length;
+      } else {
+        const completedFromQueue = queues.filter(q => q.status === 'done' || q.status === 'served').length;
+        document.getElementById('analystCompleted').textContent = completedFromQueue;
+        if (!document.getElementById('analystTotalServed').textContent || document.getElementById('analystTotalServed').textContent === '0') {
+          document.getElementById('analystTotalServed').textContent = completedFromQueue;
         }
-
-        function updateCharts(queues, serviceEvents) {
-          if (!queueTrendChart || !counterPerfChart) return;
-          const summary = calculateSevenDaySummary(queues, serviceEvents);
-          const labels = summary.days.map(d => new Date(d.date).toLocaleDateString('en-US',{weekday:'short'}));
-          const data = summary.days.map(d => d.total);
-          queueTrendChart.data.labels = labels;
-          queueTrendChart.data.datasets[0].data = data;
-          queueTrendChart.update();
-
-          const counterStats = {};
-          if (serviceEvents && Array.isArray(serviceEvents) && serviceEvents.length > 0) {
-            serviceEvents.forEach(e => {
-              const key = e.counter || e.counterId || 'unknown';
-              if (key) counterStats[key] = (counterStats[key] || 0) + 1;
-            });
-          } else {
-            queues.forEach(q => {
-              if (q.counterId) counterStats[q.counterId] = (counterStats[q.counterId] || 0) + 1;
-            });
-          }
-
-          counterPerfChart.data.labels = Object.keys(counterStats);
-          counterPerfChart.data.datasets[0].data = Object.values(counterStats);
-          counterPerfChart.update();
-        }
-
-        initializeCharts();
-
-        // Accessibility: Esc to close modal
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape') howToUseModal.classList.remove('active');
-        });
-
-        // final protective note: we purposely scoped to tenants/{slug} — do not modify this if you want safe multi-tenant behavior.
-        console.info('[admin] tenant-aware admin initialized for', TENANT_SLUG);
-      } catch (err) {
-        console.error('admin init error', err);
-        showToast('Admin initialization error (check console)', 'error', 6000);
       }
-    })();
-  </script>
+
+      // Wait stats & UI summary (re-use your earlier robust functions below)
+      updateUIFromQueues(queues, serviceEventsArr);
+    }, (err) => { console.error('queue listener error', err); });
+
+    // counters listener
+    onValue(tenantRef('counters'), (snapshot) => {
+      if (!snapshot.exists()) {
+        document.getElementById('activeCounters').textContent = '0';
+        document.getElementById('analystActiveCounters').textContent = '0';
+        return;
+      }
+      const counters = Object.values(snapshot.val() || {});
+      const active = counters.filter(c => c && c.active === true).length;
+      document.getElementById('activeCounters').textContent = active;
+      document.getElementById('analystActiveCounters').textContent = active;
+    });
+
+    // settings listeners: prefer public/config then fallback to settings/
+    onValue(tenantRef('public/config'), (snap) => {
+      if (!snap.exists()) return;
+      const cfg = snap.val() || {};
+      // apply fields
+      if (cfg.mainTitle) document.getElementById('mainTitle').value = cfg.mainTitle;
+      if (cfg.introText) document.getElementById('introText').value = cfg.introText;
+      if (cfg.smallTextOnTop) document.getElementById('smallTextOnTop').value = cfg.smallTextOnTop;
+      if (cfg.titleinmiddle) document.getElementById('titleinmiddle').value = cfg.titleinmiddle;
+      // previews
+      if (cfg.logo) createMediaPreview(cfg.logo, document.getElementById('logoPreviewContainer'));
+      if (cfg.logoUrl) createMediaPreview(cfg.logoUrl, document.getElementById('logoUrlPreviewContainer'));
+      if (cfg.adImage) createMediaPreview(cfg.adImage, document.getElementById('adImagePreviewContainer'));
+    }, (err)=>{console.warn('public/config read fail',err);});
+
+    // back-compat: if public/config missing, listen to 'settings' path
+    onValue(tenantRef('settings'), (snap) => {
+      if (!snap.exists()) return;
+      const s = snap.val() || {};
+      if (!document.getElementById('mainTitle').value) document.getElementById('mainTitle').value = s.mainTitle || '';
+      if (!document.getElementById('introText').value) document.getElementById('introText').value = s.introText || '';
+      if (!document.getElementById('smallTextOnTop').value) document.getElementById('smallTextOnTop').value = s.smallTextOnTop || '';
+      if (!document.getElementById('titleinmiddle').value) document.getElementById('titleinmiddle').value = s.titleinmiddle || '';
+      if (s.logo) createMediaPreview(s.logo, document.getElementById('logoPreviewContainer'));
+      if (s.logoUrl) createMediaPreview(s.logoUrl, document.getElementById('logoUrlPreviewContainer'));
+      if (s.adImage) createMediaPreview(s.adImage, document.getElementById('adImagePreviewContainer'));
+    }, (err)=>{ /* ignore */ });
+
+    // ---------- Upload previews & update settings (tenant-scoped) ----------
+    let uploadedMedia = { logo: null, logoUrl: null, adImage: null };
+
+    document.getElementById('logoFile').addEventListener('change', async (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      const b = await fileToBase64(f);
+      uploadedMedia.logo = b;
+      createMediaPreview(b, document.getElementById('logoPreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
+      showToast('Logo uploaded (not saved)', 'success', 1800);
+    });
+    document.getElementById('logoUrlFile').addEventListener('change', async (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      const b = await fileToBase64(f);
+      uploadedMedia.logoUrl = b;
+      createMediaPreview(b, document.getElementById('logoUrlPreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
+      showToast('Logo URL uploaded (not saved)', 'success', 1800);
+    });
+    document.getElementById('adImageFile').addEventListener('change', async (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      const b = await fileToBase64(f);
+      uploadedMedia.adImage = b;
+      createMediaPreview(b, document.getElementById('adImagePreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
+      showToast('Ad banner uploaded (not saved)', 'success', 1800);
+    });
+
+    async function updateSettings() {
+      const btn = document.getElementById('updateSettingsBtn');
+      const text = document.getElementById('updateBtnText');
+      const spinner = document.getElementById('updateBtnSpinner');
+      btn.disabled = true; text.style.display='none'; spinner.style.display='inline';
+      try {
+        // Read current public config
+        let current = {};
+        try {
+          const curSnap = await get(tenantRef('public/config'));
+          if (curSnap && curSnap.exists && typeof curSnap.val === 'function') current = curSnap.val();
+        } catch (e) { /* ignore */ }
+
+        const updates = Object.assign({}, current, {
+          mainTitle: document.getElementById('mainTitle').value || current.mainTitle || '',
+          introText: document.getElementById('introText').value || current.introText || '',
+          smallTextOnTop: document.getElementById('smallTextOnTop').value || current.smallTextOnTop || '',
+          titleinmiddle: document.getElementById('titleinmiddle').value || current.titleinmiddle || ''
+        });
+
+        if (uploadedMedia.logo) updates.logo = uploadedMedia.logo;
+        if (uploadedMedia.logoUrl) updates.logoUrl = uploadedMedia.logoUrl;
+        if (uploadedMedia.adImage) updates.adImage = uploadedMedia.adImage;
+
+        await setTenantBoth('public/config', updates);
+
+        // Best-effort: also write to legacy 'settings' for older clients
+        try { await set(tenantRef('settings'), updates); } catch(e){ /* ignore */ }
+
+        uploadedMedia = { logo:null, logoUrl:null, adImage:null };
+        showToast('Settings updated!', 'success');
+      } catch (err) {
+        console.error('updateSettings', err);
+        showToast('Failed to update settings', 'error');
+      } finally {
+        btn.disabled = false; text.style.display='inline'; spinner.style.display='none';
+      }
+    }
+
+    document.getElementById('updateSettingsBtn').addEventListener('click', updateSettings);
+    document.getElementById('saveAllBtn').addEventListener('click', updateSettings);
+
+    // ---------- Announcement (tenant-scoped) ----------
+    let selectedMediaFile = null;
+    const announcementMedia = document.getElementById('announcementMedia');
+    const announcementPreview = document.getElementById('announcementPreview');
+
+    announcementMedia.addEventListener('change', (e) => {
+      const f = e.target.files?.[0] || null;
+      selectedMediaFile = f;
+      announcementPreview.innerHTML = '';
+      if (!f) return;
+      if (f.size > 50 * 1024 * 1024) {
+        showToast('File too large! Max 50MB', 'error'); selectedMediaFile = null; announcementMedia.value=''; return;
+      }
+      const url = URL.createObjectURL(f);
+      if (f.type.startsWith('video/')) {
+        const v = document.createElement('video'); v.src = url; v.controls = true; v.style = 'width:100%;max-width:380px;border-radius:10px;margin-top:8px'; announcementPreview.appendChild(v);
+      } else if (f.type.startsWith('audio/')) {
+        const a = document.createElement('audio'); a.src = url; a.controls = true; a.style='width:100%;margin-top:8px'; announcementPreview.appendChild(a);
+      } else {
+        const img = document.createElement('img'); img.src = url; img.style='max-width:380px;width:100%;border-radius:10px;margin-top:8px'; announcementPreview.appendChild(img);
+      }
+    });
+
+    document.getElementById('sendAnnouncementBtn').addEventListener('click', async () => {
+      const message = document.getElementById('announcementMessage').value.trim();
+      if (!message && !selectedMediaFile) { showToast('Please enter a message or attach media', 'error'); return; }
+
+      const sendBtn = document.getElementById('sendAnnouncementBtn');
+      const sendBtnText = document.getElementById('sendBtnText');
+      const sendBtnSpinner = document.getElementById('sendBtnSpinner');
+      const announcementResult = document.getElementById('announcementResult');
+
+      sendBtn.disabled = true; sendBtnText.style.display='none'; sendBtnSpinner.style.display='inline';
+      try {
+        // Read tenant-scoped chatIds and bot token (preferred)
+        let chatIdsObj = await getTenantFirst('integrations/telegram/connected') || await getTenantFirst('announcement/chatIds');
+        // Normalize chatIds
+        let chatIds = [];
+        if (Array.isArray(chatIdsObj)) chatIds = chatIdsObj;
+        else if (chatIdsObj && typeof chatIdsObj === 'object') chatIds = Object.keys(chatIdsObj);
+        else if (typeof chatIdsObj === 'string') chatIds = [chatIdsObj];
+
+        // Bot token: tenant-scoped fallback to global
+        const botTokenVal = await getTenantFirst('integrations/telegram/botToken') || (await getTenantFirst('announcement/botToken')) || null;
+
+        if (!chatIds || chatIds.length === 0 || !botTokenVal) throw new Error('Missing chatIds or botToken in tenant data');
+
+        let mediaBase64 = '';
+        let mediaType = '';
+        if (selectedMediaFile) {
+          mediaBase64 = await fileToBase64(selectedMediaFile);
+          mediaType = selectedMediaFile.type;
+        }
+
+        // Send payload to serverless function (server-side sends Telegram messages; tenant-aware server function should read tenantId from headers or body)
+        const payload = {
+          tenantId: window.__TENANT_ID,
+          message,
+          media: mediaBase64,
+          mediaType,
+          chatIds,
+          telegramBotToken: botTokenVal
+        };
+
+        const res = await fetch('/.netlify/functions/announce', {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (!res.ok) throw result;
+
+        announcementResult.style.display='block';
+        announcementResult.style.borderRadius='10px';
+        announcementResult.style.padding='10px';
+        if (result.success && result.success > 0) {
+          announcementResult.style.background = '#dcfce7'; announcementResult.style.color = '#064e3b';
+          announcementResult.innerHTML = `✅ Sent to ${result.success} recipient(s)`;
+          if (result.failed && result.failed > 0) announcementResult.innerHTML += `<br>⚠️ Failed: ${result.failed}`;
+          document.getElementById('announcementMessage').value = '';
+          announcementMedia.value = ''; announcementPreview.innerHTML = ''; selectedMediaFile = null;
+          showToast('Announcement sent successfully!', 'success');
+        } else {
+          announcementResult.style.background = '#fee2e2'; announcementResult.style.color = '#7f1d1d';
+          announcementResult.innerHTML = '⚠️ Failed to send announcement';
+          showToast('Failed to send announcement', 'error');
+        }
+        setTimeout(()=>announcementResult.style.display='none', 4500);
+      } catch (err) {
+        console.error('Announcement error', err);
+        announcementResult.style.display='block';
+        announcementResult.style.background = '#fee2e2'; announcementResult.style.color = '#7f1d1d';
+        announcementResult.innerHTML = `⚠️ ${err.message || 'Unknown error'}`;
+        showToast(err.message || 'Announcement failed', 'error');
+        setTimeout(()=>announcementResult.style.display='none', 4500);
+      } finally {
+        sendBtn.disabled = false; sendBtnText.style.display='inline'; sendBtnSpinner.style.display='none';
+      }
+    });
+
+    // ---------- Media preview helper ----------
+    function createMediaPreview(src, container, type='image') {
+      container.innerHTML = '';
+      if (!src) return;
+      if (type === 'video' || (typeof src === 'string' && src.startsWith('data:video'))) {
+        const v = document.createElement('video'); v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.className = 'preview-video';
+        container.appendChild(v);
+      } else {
+        const img = document.createElement('img'); img.src = src; img.className = 'preview-image';
+        container.appendChild(img);
+      }
+    }
+
+    // ---------- Charts & analytics helpers (reused code from your original file) ----------
+    // (copy the analytics helpers & chart initialization functions here)
+    // ... re-use the same computeStats, calculateWaitTimesCombined, calculateSevenDaySummary,
+    // calculateBusiestHoursCombined, updateUIFromQueues, initializeCharts, updateCharts
+    // For brevity I reuse the functions from your existing admin file directly:
+
+    // ---------- (BEGIN reused analytics functions) ----------
+    function parseTimestamp(ts) {
+      if (ts === undefined || ts === null) return null;
+      let n = (typeof ts === 'number') ? ts : Number(ts);
+      if (Number.isNaN(n)) {
+        const d = Date.parse(ts);
+        if (Number.isNaN(d)) return null;
+        n = d;
+      }
+      const now = Date.now();
+      const min = 1230768000000;
+      const oneYearFuture = now + (365*24*60*60*1000);
+      if (n < min || n > oneYearFuture) return null;
+      return n;
+    }
+    function isToday(ts) {
+      const p = parseTimestamp(ts);
+      if (!p) return false;
+      const d = new Date(p); const today = new Date();
+      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    }
+    function computeStats(arr) {
+      if (!arr || arr.length === 0) return { average:0, median:0, p90:0, longest:0 };
+      const xs = arr.slice().sort((a,b)=>a-b);
+      const sum = xs.reduce((a,b)=>a+b,0);
+      const avg = Math.round(sum / xs.length);
+      const median = (xs.length % 2 === 0) ? Math.round((xs[xs.length/2 -1] + xs[xs.length/2]) / 2) : xs[Math.floor(xs.length/2)];
+      const p90 = Math.round(xs[Math.floor(xs.length * 0.9)]);
+      const longest = xs[xs.length-1];
+      return { average: avg, median, p90, longest };
+    }
+    function calculateWaitTimesCombined(queues, serviceEvents) {
+      const now = Date.now();
+      const waits = [];
+      if (serviceEvents && Array.isArray(serviceEvents)) {
+        for (const e of serviceEvents) {
+          const req = parseTimestamp(e.requestedAt ?? e.requestedAt);
+          const served = parseTimestamp(e.servedAt ?? e.servedAt);
+          if (!req || !served) continue;
+          const mins = Math.round((served - req) / 60000);
+          if (mins >= 0 && mins <= 30*24*60) waits.push(mins);
+        }
+      }
+      const waitingQs = queues.filter(q => q.status === 'waiting');
+      for (const q of waitingQs) {
+        const ts = parseTimestamp(q.timestamp);
+        if (!ts) continue;
+        const mins = Math.max(0, Math.round((now - ts) / 60000));
+        if (mins >= 0 && mins <= 30*24*60) waits.push(mins);
+      }
+      return computeStats(waits);
+    }
+    function calculateSevenDaySummary(queues, serviceEvents) {
+      const days = []; const today = new Date(); today.setHours(0,0,0,0);
+      for (let i=6;i>=0;i--) {
+        const d = new Date(today); d.setDate(d.getDate() - i);
+        const start = d.getTime(); const end = start + 24*60*60*1000;
+        const dayQs = queues.filter(q => { const ts = parseTimestamp(q.timestamp); return ts && ts >= start && ts < end; });
+        const total = dayQs.length;
+        let completed = 0;
+        if (serviceEvents && Array.isArray(serviceEvents)) {
+          completed = serviceEvents.filter(e => { const s = parseTimestamp(e.servedAt); return s && s >= start && s < end; }).length;
+        }
+        const cancelled = dayQs.filter(q => q.status === 'cancelled').length;
+        const waitTimes = [];
+        if (serviceEvents && Array.isArray(serviceEvents)) {
+          for (const e of serviceEvents) {
+            const req = parseTimestamp(e.requestedAt); const served = parseTimestamp(e.servedAt);
+            if (!req || !served) continue;
+            if (req >= start && req < end) {
+              const mins = Math.round((served - req) / 60000);
+              if (mins >= 0 && mins <= 30*24*60) waitTimes.push(mins);
+            }
+          }
+        }
+        for (const q of dayQs) {
+          if (q.status === 'waiting') {
+            const ts = parseTimestamp(q.timestamp); if (!ts) continue;
+            const mins = Math.round((Date.now() - ts) / 60000);
+            if (mins >= 0 && mins <= 30*24*60) waitTimes.push(mins);
+          }
+        }
+        const avgWait = waitTimes.length ? Math.round(waitTimes.reduce((a,b)=>a+b,0) / waitTimes.length) : 0;
+        const hourCounts = new Array(24).fill(0);
+        for (const q of dayQs) { const ts = parseTimestamp(q.timestamp); if (ts) hourCounts[new Date(ts).getHours()]++; }
+        if (serviceEvents && Array.isArray(serviceEvents)) {
+          for (const e of serviceEvents) { const s = parseTimestamp(e.servedAt); if (s && s >= start && s < end) hourCounts[new Date(s).getHours()]++; }
+        }
+        const maxCount = Math.max(...hourCounts);
+        const busiestHour = maxCount > 0 ? hourCounts.indexOf(maxCount) : null;
+        days.push({ date: d.toISOString().split('T')[0], total, completed, cancelled, avgWait, busiestHour });
+      }
+      return { days };
+    }
+    function calculateBusiestHoursCombined(queues, serviceEvents) {
+      const now = Date.now(); const last7 = now - 7*24*60*60*1000; const hourCounts = new Array(24).fill(0);
+      for (const q of queues) { const ts = parseTimestamp(q.timestamp); if (!ts) continue; if (ts >= last7) hourCounts[new Date(ts).getHours()]++; }
+      if (serviceEvents && Array.isArray(serviceEvents)) {
+        for (const e of serviceEvents) { const s = parseTimestamp(e.servedAt); if (!s) continue; if (s >= last7) hourCounts[new Date(s).getHours()]++; }
+      }
+      const arr = hourCounts.map((count,h) => ({ hour:h, count })).filter(x => x.count>0).sort((a,b)=>b.count-a.count);
+      return arr.slice(0,5);
+    }
+
+    function formatHourLabel(hour) {
+      if (hour === null || hour === undefined) return '-';
+      if (hour === 0) return '12 AM';
+      if (hour < 12) return `${hour} AM`;
+      if (hour === 12) return '12 PM';
+      return `${hour-12} PM`;
+    }
+
+    let queueTrendChart = null;
+    let counterPerfChart = null;
+    function initializeCharts() {
+      if (!document.getElementById('queueTrendChart')) return;
+      if (!queueTrendChart) {
+        const ctx = document.getElementById('queueTrendChart').getContext('2d');
+        queueTrendChart = new Chart(ctx, { type: 'line', data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label:'Queues', data:[0,0,0,0,0,0,0], fill:true, tension:0.35, borderColor:'#667eea', backgroundColor:'rgba(102,126,234,0.08)' }] }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true} } } });
+      }
+      if (!counterPerfChart) {
+        const ctx = document.getElementById('counterPerfChart').getContext('2d');
+        counterPerfChart = new Chart(ctx, { type: 'bar', data: { labels:[], datasets:[{ label:'Served', data:[], backgroundColor: ['#667eea','#8b5cf6','#ec4899','#f59e0b'] }] }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} } });
+      }
+    }
+
+    function updateCharts(queues, serviceEvents) {
+      if (!queueTrendChart || !counterPerfChart) return;
+      const summary = calculateSevenDaySummary(queues, serviceEvents);
+      const labels = summary.days.map(d => new Date(d.date).toLocaleDateString('en-US',{weekday:'short'}));
+      const data = summary.days.map(d => d.total);
+      queueTrendChart.data.labels = labels;
+      queueTrendChart.data.datasets[0].data = data;
+      queueTrendChart.update();
+
+      const counterStats = {};
+      if (serviceEvents && Array.isArray(serviceEvents) && serviceEvents.length > 0) {
+        serviceEvents.forEach(e => {
+          const key = e.counter || e.counterId || 'unknown';
+          if (key) counterStats[key] = (counterStats[key] || 0) + 1;
+        });
+      } else {
+        queues.forEach(q => {
+          if (q.counterId) counterStats[q.counterId] = (counterStats[q.counterId] || 0) + 1;
+        });
+      }
+      counterPerfChart.data.labels = Object.keys(counterStats);
+      counterPerfChart.data.datasets[0].data = Object.values(counterStats);
+      counterPerfChart.update();
+    }
+
+    function updateUIFromQueues(queues, serviceEvents) {
+      const total = queues.length;
+      const waiting = queues.filter(q => q.status === 'waiting').length;
+      const serving = queues.filter(q => q.status === 'serving').length;
+      const cancelled = queues.filter(q => q.status === 'cancelled').length;
+
+      document.getElementById('totalQueues').textContent = total;
+      document.getElementById('activeQueues').textContent = waiting;
+      document.getElementById('todayQueues').textContent = queues.filter(q => isToday(q.timestamp)).length;
+
+      document.getElementById('analystWaiting').textContent = waiting;
+      document.getElementById('analystServing').textContent = serving;
+      document.getElementById('analystCancelled').textContent = cancelled;
+
+      let servedCount = null;
+      if (serviceEvents && Array.isArray(serviceEvents)) servedCount = serviceEvents.length;
+      if (servedCount !== null && !Number.isNaN(servedCount)) {
+        document.getElementById('analystTotalServed').textContent = servedCount;
+        document.getElementById('analystCompleted').textContent = servedCount;
+      }
+
+      const waitStats = calculateWaitTimesCombined(queues, serviceEvents);
+      document.getElementById('analystAvgWait').textContent = waitStats.average;
+      document.getElementById('analystMedianWait').textContent = waitStats.median;
+      document.getElementById('waitAverage').textContent = waitStats.average + ' min';
+      document.getElementById('waitMedian').textContent = waitStats.median + ' min';
+      document.getElementById('wait90th').textContent = waitStats.p90 + ' min';
+      document.getElementById('waitLongest').textContent = waitStats.longest + ' min';
+
+      const busiest = calculateBusiestHoursCombined(queues, serviceEvents);
+      const container = document.getElementById('busiestHoursContainer');
+      container.innerHTML = '';
+      if (busiest.length === 0) container.innerHTML = '<div class="muted">No data available</div>';
+      else {
+        const colors = ['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981'];
+        busiest.forEach((h,i) => {
+          const badge = document.createElement('div');
+          badge.className = 'metric-badge';
+          badge.style.background = colors[i % colors.length];
+          badge.textContent = `${formatHourLabel(h.hour)}: ${h.count} queues`;
+          container.appendChild(badge);
+        });
+      }
+
+      updateCharts(queues, serviceEvents);
+    }
+    // ---------- (END reused analytics functions) ----------
+
+    // init charts
+    initializeCharts();
+
+    // ---- done boot ----
+    console.info('Tenant-aware admin booted for', window.__TENANT_SLUG, window.__TENANT_ID);
+  } // end boot
+
+  // Start
+  boot().catch(err => {
+    console.error('bootstrap error', err);
+    showFatal(String(err && err.message ? err.message : err));
+  });
+
+  // Accessibility/UX
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') howToUseModal.classList.remove('active');
+  });
+</script>
 </body>
 </html>

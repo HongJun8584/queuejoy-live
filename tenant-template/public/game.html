@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>$INJECT<script>/* injection missing */</script>
+<head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Queue Joy - Snake Game</title>
@@ -15,9 +15,13 @@
     canvas { border-radius: 8px; display:block; touch-action: none; }
     /* when locked, prevent scroll on mobile & desktop */
     .no-scroll { overflow: hidden !important; height: 100% !important; touch-action: none !important; }
+    #tenant-slug-badge{position:fixed;right:12px;bottom:12px;background:#111827;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;z-index:99999;opacity:.95}
+    #tenant-slug-badge small{opacity:.9;font-weight:600}
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex flex-col items-center justify-center p-4 pb-32">
+  <div id="tenant-slug-badge" style="display:none"><small>slug</small> <span id="tenant-slug-value" style="font-weight:700;margin-left:6px"></span> <span id="tenant-id-value" style="margin-left:8px;font-size:11px;opacity:.9"></span></div>
+
   <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4 fade-in">
     <div class="text-center space-y-2">
       <div class="w-12 h-12 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
@@ -66,10 +70,21 @@
   </div>
 
   <script type="module">
-    // --- Game UI + logic (unchanged behaviour) ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-    // We'll import database functions dynamically after we decide firebase config.
+    import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
+    // --- use your site Firebase config (same as other pages) ---
+    const siteFirebaseConfig = {
+      apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+      authDomain: "queue-joy-aa21b.firebaseapp.com",
+      databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "queue-joy-aa21b",
+      storageBucket: "queue-joy-aa21b.firebasestorage.app",
+      messagingSenderId: "950240394209",
+      appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+    };
+
+    // UI refs
     const scoreEl = document.getElementById('score');
     const highScoreEl = document.getElementById('highScore');
     const gameOverEl = document.getElementById('gameOver');
@@ -83,8 +98,9 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
+    // game variables
     const grid = 16;
-    let tileCount = 20;
+    let tileCount = 20; // will adapt with resize
     let score = 0;
     let highScore = 0;
     let loopId = null;
@@ -93,43 +109,17 @@
     let snake = { x: 160, y:160, dx: grid, dy:0, cells: [], maxCells: 4 };
     let apple = { x: 256, y: 256 };
 
-    // Tenant / DB scoped variables (populated later)
-    let TENANT_SLUG = null;
-    let DB = null;
-    let dbRef = null; // function to create refs under tenant: dbRef(path)
-    let dbOnValue = null;
-    let dbOff = null;
-    let dbSet = null;
-
-    // DB listeners refs
+    // DB listeners (tenant aware)
     let adRef = null;
     let queueRef = null;
     let counterRef = null;
-    let highScoreRef = null;
 
     let hasNavigated = false;
     let currentQueueKey = null;
     let currentQueueData = null;
 
-    // util helpers (UI)
-    function showError(msg) {
-      inlineError.textContent = msg;
-      inlineError.classList.remove('hidden');
-      setTimeout(()=> inlineError.classList.add('hidden'), 5000);
-    }
-    function randInt(min, max){ return Math.floor(Math.random() * (max - min)) + min; }
-
-    function resizeCanvasToContainer() {
-      const rect = canvas.getBoundingClientRect();
-      const w = Math.max(240, Math.min(480, Math.round(rect.width)));
-      canvas.width = w;
-      canvas.height = w;
-      tileCount = Math.max(6, Math.floor(w / grid));
-    }
-    window.addEventListener('resize', resizeCanvasToContainer);
-
+    // scroll-lock helpers
     let _preventTouchMove = (e) => { e.preventDefault(); };
-    function preventWheel(e){ e.preventDefault(); }
     function lockScroll() {
       document.documentElement.classList.add('no-scroll');
       document.body.classList.add('no-scroll');
@@ -142,9 +132,30 @@
       window.removeEventListener('wheel', preventWheel, { passive: false });
       window.removeEventListener('touchmove', _preventTouchMove, { passive: false });
     }
+    function preventWheel(e){ e.preventDefault(); }
+
+    function showError(msg) {
+      inlineError.textContent = msg;
+      inlineError.classList.remove('hidden');
+      setTimeout(()=> inlineError.classList.add('hidden'), 5000);
+    }
+
+    function randInt(min, max){ return Math.floor(Math.random() * (max - min)) + min; }
+
+    function resizeCanvasToContainer() {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(240, Math.min(480, Math.round(rect.width)));
+      canvas.width = w;
+      canvas.height = w;
+      tileCount = Math.max(6, Math.floor(w / grid));
+    }
+
+    window.addEventListener('resize', resizeCanvasToContainer);
 
     function resetGameState() {
+      // unlock scroll on restart
       unlockScroll();
+
       resizeCanvasToContainer();
       const mid = Math.floor(canvas.width / 2 / grid) * grid;
       snake = { x: mid, y: mid, dx: grid, dy: 0, cells: [], maxCells: 4 };
@@ -162,15 +173,9 @@
       loopId = null;
       finalStatsEl.innerText = `Final Score: ${score}`;
       gameOverEl.classList.remove('hidden');
+
+      // lock scrolling while Game Over is visible
       lockScroll();
-      // persist per-tenant high score if available
-      try {
-        if (dbSet && highScoreRef && score > highScore) {
-          highScore = score;
-          highScoreEl.textContent = highScore;
-          dbSet(highScoreRef, highScore).catch(() => {});
-        }
-      } catch (e) {}
     }
 
     function gameLoop() {
@@ -184,6 +189,7 @@
       snake.x += snake.dx;
       snake.y += snake.dy;
 
+      // wall collision -> end
       if (snake.x < 0 || snake.x >= canvas.width || snake.y < 0 || snake.y >= canvas.height) {
         endGame(); return;
       }
@@ -191,34 +197,34 @@
       snake.cells.unshift({ x: snake.x, y: snake.y });
       if (snake.cells.length > snake.maxCells) snake.cells.pop();
 
+      // draw apple
       ctx.fillStyle = 'red';
       ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
 
+      // draw snake
       ctx.fillStyle = 'green';
       for (let i=0;i<snake.cells.length;i++){
         const cell = snake.cells[i];
         ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1);
 
+        // apple eaten
         if (cell.x === apple.x && cell.y === apple.y){
           score += 10;
           snake.maxCells++;
           scoreEl.textContent = score;
-          if (score > highScore){
-            highScore = score;
-            highScoreEl.textContent = highScore;
-            // persist if db available (will be handled in endGame too)
-            try { if (dbSet && highScoreRef) dbSet(highScoreRef, highScore).catch(()=>{}); } catch(e){}
-          }
+          if (score > highScore){ highScore = score; highScoreEl.textContent = highScore; }
           apple.x = randInt(0, tileCount) * grid;
           apple.y = randInt(0, tileCount) * grid;
         }
 
+        // collision with self
         for (let j=i+1;j<snake.cells.length;j++){
           if (cell.x === snake.cells[j].x && cell.y === snake.cells[j].y) { endGame(); return; }
         }
       }
     }
 
+    // touch / click controls map to direction change
     canvas.addEventListener('click', (e) => {
       if (!loopId) return;
       const rect = canvas.getBoundingClientRect();
@@ -237,275 +243,285 @@
       }
     });
 
-    // ---------------------------
-    // TENANT + FIREBASE BOOTSTRAP
-    // ---------------------------
-    function inferTenantSlug() {
+    // -------------------------
+    // Tenant-aware bootstrap
+    // -------------------------
+    function getSlugFromQueryOrPath() {
       try {
-        if (window.__TENANT__ && window.__TENANT__.slug) return String(window.__TENANT__.slug);
-      } catch(e){}
-      // first path segment
-      try {
-        const parts = (location.pathname || '/').split('/').filter(Boolean);
-        if (parts.length && /^[A-Za-z0-9\-_]+$/.test(parts[0])) return parts[0].toLowerCase();
+        const qp = new URLSearchParams(window.location.search);
+        const s = qp.get('slug') || qp.get('tenant') || qp.get('tenantSlug');
+        if (s && String(s).trim()) return String(s).trim();
       } catch(e){}
       try {
-        const qp = new URLSearchParams(location.search);
-        if (qp.get('tenantId')) return qp.get('tenantId');
-        if (qp.get('slug')) return qp.get('slug');
-        if (qp.get('tenant')) return qp.get('tenant');
+        const p = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
+        if (p && p.length && p[0] && !p[0].includes('.') ) return p[0];
       } catch(e){}
-      return 'template';
-    }
-
-    // default (demo) firebase config — kept as fallback so page works locally
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
-      authDomain: "queue-joy-aa21b.firebaseapp.com",
-      databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "queue-joy-aa21b",
-      storageBucket: "queue-joy-aa21b.firebasestorage.app",
-      messagingSenderId: "950240394209",
-      appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
-    };
-
-    async function tryFetchTenantFirebaseConfig(slug) {
-      try {
-        const res = await fetch(`/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(slug)}`);
-        if (!res.ok) return null;
-        const json = await res.json();
-        if (json && typeof json === 'object') return json;
-      } catch (e) { /* ignore */ }
       return null;
     }
 
-    function safeOff(refToOff) {
-      try { if (dbOff && refToOff) dbOff(refToOff); } catch(e){}
-    }
-
-    // clean-up helper (tenant-scoped listeners)
-    function cleanupTenantListeners() {
+    async function resolveTenant(slug) {
       try {
-        safeOff(adRef); adRef = null;
-        safeOff(queueRef); queueRef = null;
-        safeOff(counterRef); counterRef = null;
-        safeOff(highScoreRef); highScoreRef = null;
-      } catch(e){ console.warn('cleanup error', e); }
+        const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+        if (!res.ok) {
+          const txt = await res.text().catch(()=>null);
+          throw new Error(`Tenant lookup failed (${res.status}): ${txt || res.statusText}`);
+        }
+        return await res.json();
+      } catch (e) { throw e; }
     }
 
-    // helper used when redirecting to your_turn page
+    function tenantRefFactory(dbInstance) {
+      return function tenantRef(relPath = '') {
+        relPath = String(relPath || '').replace(/^\/+/, '');
+        const tenantId = window.__TENANT_ID || null;
+        const slug = window.__TENANT_SLUG || null;
+        if (!tenantId && !slug) {
+          return ref(dbInstance, relPath || '/');
+        }
+        const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
+        if (!relPath) return ref(dbInstance, base);
+        return ref(dbInstance, `${base}/${relPath}`);
+      };
+    }
+
+    // read tenant-first (fallback to legacy/global)
+    async function getTenantFirst(db, tenantRefFn, path) {
+      try {
+        const snap = await get(tenantRefFn(path));
+        if (snap && snap.exists && typeof snap.val === 'function') return snap.val();
+      } catch (e) { /* continue to fallback */ }
+      try {
+        const snap2 = await get(ref(db, path));
+        if (snap2 && snap2.exists && typeof snap2.val === 'function') return snap2.val();
+      } catch (e) {}
+      return null;
+    }
+
+    // cleanup helper
+    function cleanupListeners() {
+      try {
+        if (adRef) { off(adRef); adRef = null; }
+        if (queueRef) { off(queueRef); queueRef = null; }
+        if (counterRef) { off(counterRef); counterRef = null; }
+      } catch (e) { console.warn('cleanup error', e); }
+    }
+
+    // redirect helper
     function performRedirectToYourTurn(dbKey) {
       try {
         if (loopId) cancelAnimationFrame(loopId);
-        cleanupTenantListeners();
-      } catch (e){}
+        cleanupListeners();
+      } catch (e) { console.warn('redirect cleanup error', e); }
       setTimeout(() => {
-        const redirectUrl = `/your_turn.html?queueId=${encodeURIComponent(dbKey)}${TENANT_SLUG ? `&tenantId=${encodeURIComponent(TENANT_SLUG)}` : ''}`;
-        window.location.assign(redirectUrl);
+        window.location.assign(`/your_turn.html?queueId=${encodeURIComponent(dbKey)}${window.__TENANT_SLUG ? '&slug=' + encodeURIComponent(window.__TENANT_SLUG) : ''}`);
       }, 150);
     }
 
-    // Attach tenant-scoped queue + counter listeners
-    function initQueueAndCounterListenersTenant(dbKey) {
+    // initQueueAndCounterListeners (tenant-scoped)
+    function initQueueAndCounterListeners(db, tenantRefFn, dbKey) {
       if (!dbKey) return;
-      cleanupTenantListeners();
+      cleanupListeners();
 
-      try {
-        queueRef = dbRef(`queue/${dbKey}`);
-        dbOnValue(queueRef, (snap) => {
-          if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
-          const val = (typeof snap.val === 'function') ? snap.val() : snap;
-          if (!val) return;
-          currentQueueData = val;
-          const identifiers = [];
-          function pushIf(v){
-            if (v === undefined || v === null) return;
-            const s = String(v).trim();
-            if (s.length) identifiers.push(s);
-          }
-          pushIf(val.ticketNumber);
-          pushIf(val.number);
-          pushIf(val.queueId);
-          pushIf(val.id);
-          pushIf(val.ticket);
-          pushIf(val.code);
+      // try tenant path 'queues' first, fallback to 'queue' (legacy)
+      const qPaths = [`queues/${dbKey}`, `queue/${dbKey}`, `queue/${dbKey}`];
+      let attached = false;
+      for (const p of qPaths) {
+        const candidateRef = tenantRefFn(p);
+        // attach a listener optimistically
+        try {
+          queueRef = candidateRef;
+          onValue(queueRef, (snap) => {
+            if (!snap.exists()) return;
+            const val = snap.val();
+            currentQueueData = val;
 
-          const numericIds = identifiers.map(s => {
-            const n = Number(String(s).replace(/\D+/g,'')); return Number.isFinite(n) ? n : NaN;
-          });
+            const identifiers = [];
+            function pushIf(v){
+              if (v === undefined || v === null) return;
+              const s = String(v).trim();
+              if (s.length) identifiers.push(s);
+            }
+            pushIf(val.ticketNumber);
+            pushIf(val.number);
+            pushIf(val.queueId);
+            pushIf(val.id);
+            pushIf(val.ticket);
+            pushIf(val.code);
 
-          const status = (val.status || '').toString().toLowerCase();
-          if ((status === 'called' || status === 'serving' || status === 'called_by_staff') && !hasNavigated) {
-            hasNavigated = true;
-            performRedirectToYourTurn(dbKey);
-            return;
-          }
+            const numericIds = identifiers.map(s => {
+              const n = Number(String(s).replace(/\D+/g,''));
+              return Number.isFinite(n) ? n : NaN;
+            });
 
-          const counterId = val.counterId || val.counter || val.counter_id;
-          if (counterId) {
-            if (counterRef) safeOff(counterRef);
-            counterRef = dbRef(`counters/${counterId}/nowServing`);
-            dbOnValue(counterRef, (nowSnap) => {
-              if (!nowSnap || (typeof nowSnap.exists === 'function' && !nowSnap.exists())) return;
-              let nowRaw = (typeof nowSnap.val === 'function') ? nowSnap.val() : nowSnap;
-              if (typeof nowRaw === 'object' && nowRaw !== null) {
-                nowRaw = nowRaw.value || nowRaw.nowServing || nowRaw.current || nowRaw;
-              }
-              nowRaw = String(nowRaw || '').trim();
-              if (!nowRaw) return;
+            const status = (val.status || '').toString().toLowerCase();
+            if ((status === 'called' || status === 'serving' || status === 'called_by_staff') && !hasNavigated) {
+              hasNavigated = true;
+              performRedirectToYourTurn(dbKey);
+              return;
+            }
 
-              if (!hasNavigated && identifiers.some(id => id === nowRaw)) {
-                hasNavigated = true; performRedirectToYourTurn(dbKey); return;
-              }
+            const counterId = val.counterId || val.counter || val.counter_id;
+            if (counterId) {
+              if (counterRef) { off(counterRef); counterRef = null; }
+              // tenant-scoped counter path
+              counterRef = tenantRefFn(`counters/${counterId}/nowServing`);
+              onValue(counterRef, (nowSnap) => {
+                if (!nowSnap.exists()) return;
+                let nowRaw = nowSnap.val();
+                if (typeof nowRaw === 'object' && nowRaw !== null) {
+                  nowRaw = nowRaw.value || nowRaw.nowServing || nowRaw.current || nowRaw;
+                }
+                nowRaw = String(nowRaw || '').trim();
+                if (!nowRaw) return;
 
-              const nowNum = Number(nowRaw.replace(/\D+/g,'')) || NaN;
-              if (!hasNavigated && Number.isFinite(nowNum)) {
-                for (const idNum of numericIds) {
-                  if (Number.isFinite(idNum) && idNum === nowNum) {
-                    hasNavigated = true; performRedirectToYourTurn(dbKey); return;
+                if (!hasNavigated && identifiers.some(id => id === nowRaw)) {
+                  hasNavigated = true;
+                  performRedirectToYourTurn(dbKey);
+                  return;
+                }
+
+                const nowNum = Number(nowRaw.replace(/\D+/g,''));
+                if (!hasNavigated && Number.isFinite(nowNum)) {
+                  for (const idNum of numericIds) {
+                    if (Number.isFinite(idNum) && idNum === nowNum) {
+                      hasNavigated = true;
+                      performRedirectToYourTurn(dbKey);
+                      return;
+                    }
                   }
                 }
-              }
 
-              if (!hasNavigated && nowRaw === String(dbKey)) {
-                hasNavigated = true; performRedirectToYourTurn(dbKey); return;
-              }
-            });
-          }
-        });
-      } catch (err) {
-        console.warn('initQueueAndCounterListenersTenant error', err);
+                if (!hasNavigated && nowRaw === String(dbKey)) {
+                  hasNavigated = true;
+                  performRedirectToYourTurn(dbKey);
+                  return;
+                }
+              });
+            }
+          });
+          attached = true;
+          break;
+        } catch (e) {
+          console.warn('attach queue listener failed for', p, e);
+          try { off(candidateRef); } catch (_) {}
+        }
+      }
+      if (!attached) console.warn('Failed to attach any queue listener for', dbKey);
+    }
+
+    // initAd: read tenant-scoped public config ad image with fallbacks
+    function initAd(db, tenantRefFn) {
+      // Candidate paths in priority order:
+      // 1) tenants/{tenantId}/public/config/adImage
+      // 2) tenants/{tenantId}/settings/adImage
+      // 3) /settings/adImage (legacy global)
+      const candidatePaths = ['public/config/adImage', 'settings/adImage', 'adImage', 'public/config/ad.image'];
+      let attached = false;
+      for (const p of candidatePaths) {
+        try {
+          const r = tenantRefFn(p);
+          adRef = r;
+          onValue(adRef, (snap) => {
+            const v = (snap && snap.exists && typeof snap.val === 'function') ? snap.val() : '';
+            if (v) { adPanel.src = v; adPanel.classList.remove('hidden'); noAd.classList.add('hidden'); }
+            else { adPanel.classList.add('hidden'); noAd.classList.remove('hidden'); }
+          });
+          attached = true;
+          break;
+        } catch (e) {
+          console.warn('ad attach failed for', p, e);
+          try { off(r); } catch(_) {}
+        }
+      }
+      if (!attached) {
+        // best-effort: try global /settings/adImage directly
+        try {
+          const globalRef = ref(db, 'settings/adImage');
+          adRef = globalRef;
+          onValue(adRef, (snap) => {
+            const v = (snap && snap.exists && typeof snap.val === 'function') ? snap.val() : '';
+            if (v) { adPanel.src = v; adPanel.classList.remove('hidden'); noAd.classList.add('hidden'); }
+            else { adPanel.classList.add('hidden'); noAd.classList.remove('hidden'); }
+          });
+        } catch (e) {
+          console.warn('global ad attach failed', e);
+        }
       }
     }
 
-    // load per-tenant ad image
-    function initAdTenant() {
+    // bootstrap & start
+    (async function bootstrapTenantAware() {
+      const slug = getSlugFromQueryOrPath();
+      if (!slug) {
+        // still allow page to function without tenant (legacy), but show badge indicating missing slug
+        console.warn('No slug provided; falling back to global paths');
+      } else {
+        document.getElementById('tenant-slug-badge').style.display = 'block';
+        document.getElementById('tenant-slug-value').textContent = slug;
+        try {
+          const info = await resolveTenant(slug);
+          const tenantId = info.tenantId || null;
+          window.__TENANT_SLUG = slug;
+          window.__TENANT_ID = tenantId || slug;
+          document.getElementById('tenant-id-value').textContent = `id:${window.__TENANT_ID}`;
+          // emit tenant.public.loaded so tenant helpers pick up
+          window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: window.__TENANT_ID, slug: window.__TENANT_SLUG, config: info.config || info } }));
+        } catch (err) {
+          // If tenant resolution fails we still allow legacy behavior but surface a user-visible error
+          console.error('Tenant resolution failed:', err);
+          showError('Tenant lookup failed — running in legacy/global mode. (Check console.)');
+        }
+      }
+
+      // init firebase & tenantRef
+      let app;
       try {
-        adRef = dbRef('settings/adImage');
-        dbOnValue(adRef, (snap) => {
-          const v = (snap && snap.exists && snap.exists()) ? snap.val() : (snap && (typeof snap === 'string') ? snap : '');
-          if (v) { adPanel.src = v; adPanel.classList.remove('hidden'); noAd.classList.add('hidden'); }
-          else { adPanel.classList.add('hidden'); noAd.classList.remove('hidden'); }
-        });
+        app = initializeApp(siteFirebaseConfig);
       } catch (e) {
-        console.warn('ad init error', e);
+        console.error('Firebase init failed', e);
+        showError('Firebase init failed (check console).');
+        return;
       }
-    }
+      const db = getDatabase(app);
+      const tenantRef = tenantRefFactory(db);
 
-    // load & watch per-tenant highScore (optional)
-    function initHighScoreTenant() {
-      try {
-        highScoreRef = dbRef('highScore');
-        dbOnValue(highScoreRef, (snap) => {
-          const v = (snap && snap.exists && snap.exists()) ? snap.val() : (snap && typeof snap === 'number' ? snap : null);
-          if (v !== null && v !== undefined) {
-            highScore = Number(v) || 0;
-            highScoreEl.textContent = highScore;
-          }
-        });
-      } catch (e) { console.warn('highscore init error', e); }
-    }
+      // set up ad listener
+      try { initAd(db, tenantRef); } catch (e) { console.warn('initAd error', e); }
 
-    // Main DOM ready init
-    document.addEventListener('DOMContentLoaded', async () => {
+      // handle queueId param for redirect listening
+      const params = new URLSearchParams(window.location.search);
+      const dbKey = params.get('queueId');
+      currentQueueKey = dbKey || null;
+      if (currentQueueKey) {
+        try { initQueueAndCounterListeners(db, tenantRef, currentQueueKey); } catch (e) { console.warn('initQueueAndCounterListeners error', e); }
+      }
+
+      // Back navigation handler
+      backBtn.addEventListener('click', () => {
+        try { if (loopId) cancelAnimationFrame(loopId); } catch(e){}
+        cleanupListeners();
+        unlockScroll();
+        if (currentQueueKey) {
+          const target = `status.html?queueId=${encodeURIComponent(currentQueueKey)}${window.__TENANT_SLUG ? '&slug=' + encodeURIComponent(window.__TENANT_SLUG) : ''}`;
+          window.location.assign(target);
+        } else {
+          const target = `index.html${window.__TENANT_SLUG ? '?slug=' + encodeURIComponent(window.__TENANT_SLUG) : ''}`;
+          window.location.assign(target);
+        }
+      });
+
+      newGameBtn.addEventListener('click', () => { resetGameState(); });
+
+      // start game immediately
       resizeCanvasToContainer();
       resetGameState();
 
-      // determine tenant slug and queueId
-      TENANT_SLUG = inferTenantSlug();
-      const params = new URLSearchParams(window.location.search);
-      const dbKey = params.get('queueId') || params.get('qid') || params.get('id') || null;
-      currentQueueKey = dbKey || null;
-
-      // Attempt to resolve firebase config:
-      let firebaseConfig = null;
-      try {
-        if (window.__TENANT__ && window.__TENANT__.firebaseConfig) {
-          firebaseConfig = window.__TENANT__.firebaseConfig;
-          console.info('[snake] using injected tenant firebaseConfig');
-        } else {
-          const fetched = await tryFetchTenantFirebaseConfig(TENANT_SLUG);
-          if (fetched) {
-            firebaseConfig = fetched;
-            console.info('[snake] fetched tenant firebaseConfig');
-          } else {
-            // fallback to default (keeps local testing working)
-            firebaseConfig = DEFAULT_FIREBASE_CONFIG;
-            console.warn('[snake] tenant firebase config not found; using default demo config (read-only/sandbox may apply)');
-          }
-        }
-      } catch (e) {
-        firebaseConfig = DEFAULT_FIREBASE_CONFIG;
-        console.warn('[snake] error obtaining firebase config, using default', e);
-      }
-
-      // Initialize DB functions if config exists
-      let firebaseInitialized = false;
-      try {
-        if (firebaseConfig) {
-          // dynamic import for database functions
-          const modApp = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js');
-          const modDB = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js');
-          const app = modApp.initializeApp(firebaseConfig);
-          DB = modDB.getDatabase(app);
-
-          // helper to create tenant-scoped refs easily
-          dbRef = (rel='') => {
-            rel = String(rel || '').replace(/^\/+/, '');
-            if (!rel) return modDB.ref(DB, `tenants/${TENANT_SLUG}`);
-            return modDB.ref(DB, `tenants/${TENANT_SLUG}/${rel}`);
-          };
-          dbOnValue = modDB.onValue;
-          dbOff = modDB.off;
-          dbSet = modDB.set;
-
-          // Mark as initialized
-          firebaseInitialized = true;
-          console.info('[snake] Firebase initialized for tenant:', TENANT_SLUG);
-        }
-      } catch (err) {
-        console.warn('[snake] firebase init failed', err);
-        firebaseInitialized = false;
-      }
-
-      if (firebaseInitialized) {
-        initAdTenant();
-        initHighScoreTenant();
-        if (currentQueueKey) initQueueAndCounterListenersTenant(currentQueueKey);
-      } else {
-        // No firebase — run safely in demo/read-only mode
-        console.warn('[snake] running without Firebase (demo/read-only)');
-        // leave ad panel hidden (noAd visible)
-        adPanel.classList.add('hidden');
-        noAd.classList.remove('hidden');
-      }
-
-      // Back button behaviour (keeps same query param when redirecting)
-      backBtn.addEventListener('click', () => {
-        try { if (loopId) cancelAnimationFrame(loopId); } catch(e){}
-        cleanupTenantListeners();
-        unlockScroll();
-        if (currentQueueKey) {
-          const redirect = `status.html?queueId=${encodeURIComponent(currentQueueKey)}${TENANT_SLUG ? `&tenantId=${encodeURIComponent(TENANT_SLUG)}` : ''}`;
-          window.location.assign(redirect);
-        } else {
-          window.location.assign('index.html');
-        }
+      // cleanup on unload
+      window.addEventListener('beforeunload', () => {
+        try { if (loopId) cancelAnimationFrame(loopId); cleanupListeners(); unlockScroll(); } catch (e) {}
       });
+    })();
 
-      newGameBtn.addEventListener('click', () => {
-        resetGameState();
-      });
-    });
-
-    // cleanup on unload
-    window.addEventListener('beforeunload', () => {
-      try {
-        if (loopId) cancelAnimationFrame(loopId);
-        cleanupTenantListeners();
-        unlockScroll();
-      } catch (e) {}
-    });
   </script>
 </body>
 </html>
