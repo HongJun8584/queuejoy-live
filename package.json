@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "firebase-admin": "^13.6.1"
+    "firebase-admin": "^13.6.1",
+    "nanoid": "^5.1.6"
   },
   "name": "queuejoy-live",
   "version": "1.0.0",
