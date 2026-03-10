@@ -35,8 +35,6 @@
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     // --- Site-wide Firebase client config (shared project)
-    // This project hosts the Realtime DB that stores all tenants under /tenants/{tenantId}.
-    // Keep this in sync with your Netlify functions' DB (production RTDB url).
     const siteFirebaseConfig = {
       apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
       authDomain: "queue-joy-aa21b.firebaseapp.com",
@@ -64,15 +62,12 @@
       } catch (e) { return null; }
     }
 
-    // tenantRef will resolve to tenants/{tenantId}/... if tenantId known,
-    // otherwise fallback to tenants/{slug}/... (legacy).
     function tenantRefFactory(dbInstance) {
       return function tenantRef(relPath = '') {
         relPath = String(relPath || '').replace(/^\/+/, '');
         const tenantId = window.__TENANT_ID || null;
         const slug = window.__TENANT_SLUG || null;
         if (!tenantId && !slug) {
-          // return top-level ref as last resort
           return ref(dbInstance, relPath || '/');
         }
         const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
@@ -81,7 +76,6 @@
       };
     }
 
-    // retry-friendly transaction helper
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     async function runTxWithRetries(pathRef, updater, maxRetries = 6) {
       let lastErr = null;
@@ -100,9 +94,9 @@
       throw lastErr || new Error('Transaction failed after retries');
     }
 
-    // ---------- Startup: resolve slug -> tenantId (via Netlify function), init Firebase, then boot app ----------
+    // ---------- Startup: resolve slug -> tenantId, init Firebase, boot ----------
     document.addEventListener('DOMContentLoaded', async () => {
-      // UI handles we will need early
+      // DOM refs
       const siteTitleEl = document.getElementById('siteTitle');
       const siteLogoEl = document.getElementById('siteLogo');
       const centerLogoImg = document.getElementById('centerLogo');
@@ -120,7 +114,7 @@
       const smallTopTextEl = document.getElementById('smallTopText');
       const adContainer = document.getElementById('adContainer');
 
-      // get slug from query param only (explicit)
+      // extract slug from ?slug= only (explicit)
       const slug = getSlugFromQuery();
       if (!slug) {
         showFatal('Missing slug — please open the page with ?slug=your-tenant-slug');
@@ -136,7 +130,7 @@
         document.body.appendChild(badge);
       })();
 
-      // 1) Resolve slug -> tenantId & public config via serverless function
+      // Resolve tenant via Netlify function
       let tenantId = null;
       let tenantPublicConfig = null;
       try {
@@ -149,15 +143,10 @@
         const j = await res.json();
         tenantId = j.tenantId || null;
         tenantPublicConfig = j.config || j.public || null;
-        // some implementations might return firebaseClientConfig -- accept it but do not use as tenantId
         if (!tenantId && tenantPublicConfig && tenantPublicConfig.tenantId) tenantId = tenantPublicConfig.tenantId;
-        if (!tenantId) {
-          // if mapping not found, we may still allow slug==tenantId pattern (legacy)
-          tenantId = slug;
-        }
+        if (!tenantId) tenantId = slug; // fallback legacy
         window.__TENANT_ID = tenantId;
         window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
-        // update badge with tenantId
         const idSpan = document.getElementById('tenant-id-value');
         if (idSpan) idSpan.textContent = `id:${tenantId}`;
       } catch (e) {
@@ -165,7 +154,7 @@
         return;
       }
 
-      // 2) Initialize Firebase client (site-wide config). This project hosts /tenants.
+      // Initialize Firebase client
       let app, db;
       try {
         app = initializeApp(siteFirebaseConfig);
@@ -176,7 +165,6 @@
         return;
       }
 
-      // create tenantRef factory now that DB and tenantId are known
       const tenantRef = tenantRefFactory(db);
 
       // Apply public config to UI (if present)
@@ -192,7 +180,7 @@
         }
       } catch (e) { /* non-fatal */ }
 
-      // --- helper UI functions (local) ---
+      // UI helpers
       function showError(msg) {
         console.warn(msg);
         try { errorMessage.querySelector('p').textContent = msg; errorMessage.classList.remove('hidden'); successMessage.classList.add('hidden'); setTimeout(()=>errorMessage.classList.add('hidden'),6000); } catch(e){}
@@ -207,27 +195,20 @@
         getNumberBtn.setAttribute('aria-busy', String(flag));
       }
 
-      // --- Settings listener (single source) ---
-      const settingsRef = tenantRef('public/config'); // prefer the public/config path that createBusiness writes
-      // If public/config not found, fallback to 'settings' key (older)
+      // Settings listener (tenant-aware)
+      const settingsRef = tenantRef('public/config');
       onValue(settingsRef, snap => {
         const s = snap && typeof snap.val === 'function' ? (snap.exists() ? snap.val() : {}) : {};
         const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
 
-        // header logo
-        if (s && s.logo) { siteLogoEl.src = s.logo; siteLogoEl.classList.remove('hidden'); }
-        else { siteLogoEl.src = ''; siteLogoEl.classList.add('hidden'); }
+        if (s && s.logo) { siteLogoEl.src = s.logo; siteLogoEl.classList.remove('hidden'); } else { siteLogoEl.src = ''; siteLogoEl.classList.add('hidden'); }
 
-        // page title — prefer displayName
         const topTitle = pick(s.displayName) || pick(s.mainTitle) || pick(s.name) || 'Queue Joy';
         siteTitleEl.textContent = topTitle;
         document.title = topTitle + ' - Digital Queue System';
 
-        if (smallTopTextEl) {
-          smallTopTextEl.textContent = pick(s.smallTextOnTop) || pick(s.smallTopText) || 'Digital Queue System';
-        }
+        if (smallTopTextEl) smallTopTextEl.textContent = pick(s.smallTextOnTop) || pick(s.smallTopText) || 'Digital Queue System';
 
-        // center logo (big)
         if (s.logoUrl) {
           centerLogoImg.src = s.logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
         } else if (s.logo) {
@@ -236,12 +217,11 @@
           centerLogoImg.src = ''; centerLogoImg.classList.add('hidden'); centerIcon.classList.remove('hidden');
         }
 
-        // main headline & intro
         mainHeading.textContent = pick(s.titleinmiddle) || pick(s.ctaTitle) || 'Get your queue number';
         introText.textContent = pick(s.introText) || pick(s.smallTextOnTop) || 'Real-time queueing system. Mobile-friendly. No app needed.';
         btnText.textContent = '🎫 ' + (pick(s.ctaText) || 'Get your queue number');
 
-        // ad handling (safe)
+        // ad handling
         adContainer.innerHTML = '';
         if (s.adImage) {
           const url = String(s.adImage).trim();
@@ -279,14 +259,15 @@
         showError('Failed to read tenant settings.');
       });
 
-      /* --- auto-redirect if lastQueueId still waiting (STRICT: only to local status.html) --- */
+      // Auto-redirect if lastQueueId still waiting — preserve slug
       (async function autoRedirect() {
         try {
           const lastQueueId = sessionStorage.getItem('lastQueueId');
           if (!lastQueueId) return;
+          // check both tenant-scoped and legacy global
           const snap = await get(child(tenantRef('queue'), lastQueueId));
-          if (snap && snap.exists && snap.val().status === 'waiting') {
-            const target = `status.html?queueId=${encodeURIComponent(lastQueueId)}`;
+          if (snap && snap.exists && snap.val() && snap.val().status === 'waiting') {
+            const target = `status.html?queueId=${encodeURIComponent(lastQueueId)}&slug=${encodeURIComponent(slug)}&tenantId=${encodeURIComponent(tenantId)}`;
             console.info('Auto-redirecting to local status page ->', target);
             window.location.href = target;
           }
@@ -295,7 +276,7 @@
         }
       })();
 
-      /* ------------ fetch active counters (deterministic) ------------ */
+      // Fetch active counters
       async function fetchActiveCounters() {
         const snap = await get(tenantRef('counters'));
         if (!snap.exists()) return [];
@@ -326,7 +307,7 @@
         return activeList;
       }
 
-      /* ---------------- core: getQueueNumber ---------------- */
+      // Core: getQueueNumber
       async function getQueueNumber() {
         setLoading(true);
         try {
@@ -377,7 +358,7 @@
           const prefix = (chosen.prefix && String(chosen.prefix)) || 'Q';
           const queueId = `${prefix}${String(nextNumber).padStart(3, '0')}`;
 
-          // push queue entry
+          // push queue entry (use push key as the queueKey that status.html expects)
           const newNode = push(tenantRef('queue'));
           await set(newNode, {
             counterId: chosen.id,
@@ -386,11 +367,19 @@
             status: 'waiting'
           });
 
-          try { sessionStorage.setItem('lastQueueId', newNode.key); } catch (e) { /* ignore */ }
+          // persist lastQueueId and slug for auto-redirect
+          try {
+            sessionStorage.setItem('lastQueueId', newNode.key);
+            sessionStorage.setItem('lastTenantSlug', slug);
+          } catch (e) { /* ignore */ }
 
           showSuccess(`You're number ${queueId}`);
+
+          // important: redirect using the RTDB push key (newNode.key) and include slug and tenantId
           setTimeout(() => {
-            window.location.href = `status.html?queueId=${encodeURIComponent(newNode.key)}`;
+            const target = `status.html?queueId=${encodeURIComponent(newNode.key)}&slug=${encodeURIComponent(slug)}&tenantId=${encodeURIComponent(tenantId)}`;
+            console.info('Redirecting to status page ->', target);
+            window.location.href = target;
           }, 750);
 
         } catch (err) {
@@ -401,7 +390,7 @@
         }
       }
 
-      // Prevent accidental external navigation via ad link (double-safety)
+      // Prevent accidental external navigation via ad link
       adLinkEl.addEventListener('click', (ev) => {
         const href = adLinkEl.getAttribute('href') || '';
         if (!href || href === '#') { ev.preventDefault(); return; }
