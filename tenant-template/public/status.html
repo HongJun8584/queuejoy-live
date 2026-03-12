@@ -300,50 +300,30 @@ function tenantPath(subpath) {
 
 // Try several candidate paths but always tenant-scoped first
 async function chooseQueuePath(queueKey) {
-  const candidates = [
-    tenantPath(`queues/${queueKey}`),
-    tenantPath(`queue/${queueKey}`),
-    `queue/${queueKey}`, // legacy/global fallback
-    `queues/${queueKey}`
-  ];
-  for (const p of candidates) {
-    try {
-      const snap = await get(ref(db, p));
-      if (snap && typeof snap.exists === 'function' ? snap.exists() : !!snap) return p;
-    } catch (e) {}
-  }
-  // default to tenant queues path
+  // Simplified: always use tenant-scoped queues path
   return tenantPath(`queues/${queueKey}`);
 }
 
 async function chooseCounterPath(counterId) {
-  const cands = [
-    tenantPath(`counters/${counterId}`),
-    tenantPath(`public/counters/${counterId}`),
-    `counters/${counterId}`
-  ];
-  for (const p of cands) {
-    try {
-      const snap = await get(ref(db, p));
-      if (snap && typeof snap.exists === 'function' ? snap.exists() : !!snap) return p;
-    } catch (e) {}
-  }
   return tenantPath(`counters/${counterId}`);
 }
 
 async function chooseSettingsPath(key) {
-  const cands = [
+  const candidates = [
     tenantPath(`public/config/${key}`),
+    tenantPath(`public/config/theme/${key}`),
     tenantPath(`public/${key}`),
-    tenantPath(`settings/${key}`),
-    `settings/${key}`
+    // legacy fallbacks (only after tenant checks)
+    `settings/${key}`,
+    `public/config/${key}`
   ];
-  for (const p of cands) {
+  for (const p of candidates) {
     try {
-      const snap = await get(ref(db, p));
-      if (snap && typeof snap.exists === 'function' ? snap.exists() : !!snap) return p;
+      const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
+      if (snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap)) return p;
     } catch (e) {}
   }
+  // default path if nothing found
   return tenantPath(`public/config/${key}`);
 }
 
@@ -355,8 +335,8 @@ async function chooseAnalyticsPath() {
   ];
   for (const p of cands) {
     try {
-      const snap = await get(ref(db, p));
-      if (snap && typeof snap.exists === 'function' ? snap.exists() : !!snap) return p;
+      const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
+      if (snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap)) return p;
     } catch (e) {}
   }
   return tenantPath(`analytics/serviceEvents`);
