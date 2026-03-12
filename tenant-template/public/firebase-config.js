@@ -1,154 +1,296 @@
-// public/firebase-config.js
-// Robust client-side Firebase initializer for QueueJoy (single Firebase project, multi-tenant by path)
+'use strict';
 
-// NOTE:
-//  - This file is safe to commit: it contains only *public* Firebase client keys.
-//  - Tenant-specific config is fetched from a Netlify function when possible.
-//  - The tenant bootstrapping (window.__TENANT_ID / tenant.public.loaded) is handled by tenant-firebase.js
-//  - Usage: await initFirebase({ slug }); then use getApp(), getDb(), tenantDbRef(path) etc.
+/**
+ * get-firebase-config.js
+ * Netlify function: returns tenant-scoped firebase client config
+ *
+ * Query param: ?slug=your-tenant-slug
+ *
+ * Behavior:
+ *  - Lookup slug -> tenantId via RTDB /slugs/{slug} (or Firestore if available)
+ *  - Read tenants/{tenantId}/public/config
+ *  - Prefer to return { firebaseClientConfig: <object> } (if found)
+ *  - If not present, attempt to construct minimal client config from known keys
+ *  - Cache results in-memory for a short TTL
+ *
+ * Required env ideally:
+ *  - FIREBASE_DATABASE_URL (or FIREBASE_DB_URL) OR FIREBASE_SERVICE_ACCOUNT_BASE64
+ *  - (optional) SLUGS_PATH (default 'slugs'), FIREBASE_PATH (default 'tenants')
+ *  - (optional) GET_TENANT_CACHE_TTL_MS
+ *
+ * Fallback:
+ *  - If admin unavailable but TEST_PUBLIC_CONFIG env is set (or base64), returns that config as env fallback.
+ */
 
-import { initializeApp, getApps } from 'firebase/app';
-import { getDatabase, ref as rtdbRef } from 'firebase/database';
+const CACHE = new Map();
+const DEFAULT_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
 
-// ---- DEFAULT (fallback) client config for local/demo preview ----
-// Replace values below only for local demo preview. Production should rely on
-// the get-firebase-config Netlify function or environment-managed builds.
-const DEFAULT_CLIENT_CONFIG = {
-  apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
-  authDomain: "queuejoy-live.firebaseapp.com",
-  databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "queuejoy-live",
-  storageBucket: "queuejoy-live.firebasestorage.app",
-  messagingSenderId: "882772437195",
-  appId: "1:882772437195:web:60a2f1081a139d0810d34e",
-  measurementId: "G-KWBELWRC5M"
-};
+function jsonResp(code, body) {
+  return { statusCode: code, headers: HEADERS, body: JSON.stringify(body) };
+}
 
-let _app = null;
-let _db = null;
-let _clientConfigUsed = null;
-
-// ---- Helpers ----
-function parseQuerySlug() {
+function safeParseMaybeBase64(raw) {
+  if (!raw) return null;
   try {
-    const q = new URLSearchParams(location.search || '');
-    return q.get('slug') || null;
-  } catch (e) {
-    return null;
-  }
+    if (/^[A-Za-z0-9+/=\s]+$/.test(raw) && raw.replace(/\s+/g, '').length % 4 === 0) {
+      return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+    }
+  } catch (e) {}
+  try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
-async function fetchTenantClientConfig(slug) {
-  if (!slug) return null;
+async function ensureAdmin() {
+  // Try to use local helper if present
   try {
-    const url = `/.netlify/functions/get-firebase-config?slug=${encodeURIComponent(slug)}`;
-    const res = await fetch(url, { credentials: 'same-origin' });
-    if (!res.ok) return null;
-    const j = await res.json().catch(()=>null);
-    if (!j) return null;
-    // Function should return either { firebaseClientConfig } or a sanitized config object
-    if (j.firebaseClientConfig) return j.firebaseClientConfig;
-    if (j.config && j.config.firebaseClientConfig) return j.config.firebaseClientConfig;
-    // Some implementations return top-level config
-    if (j.firebaseConfig) return j.firebaseConfig;
-    if (j.config) return j.config;
-    return null;
-  } catch (e) {
-    // network or CORS etc
-    return null;
-  }
-}
+    const local = require('./lib/firebaseAdmin');
+    if (local && local.database) return local;
+  } catch (e) { /* ignore */ }
 
-// Wait until tenant.public.loaded event (if tenant will be set by bootstrap)
-function waitForTenantEvent(timeoutMs = 3000) {
-  return new Promise((resolve) => {
-    if (window.__TENANT_SLUG) return resolve(window.__TENANT_SLUG);
-    let cleared = false;
-    const onLoaded = (e) => {
-      if (cleared) return;
-      cleared = true;
-      window.removeEventListener('tenant.public.loaded', onLoaded);
-      resolve(e && e.detail && e.detail.slug ? e.detail.slug : null);
-    };
-    window.addEventListener('tenant.public.loaded', onLoaded);
-    if (timeoutMs) setTimeout(() => { if (!cleared) { cleared = true; window.removeEventListener('tenant.public.loaded', onLoaded); resolve(null); } }, timeoutMs);
-  });
-}
+  let admin;
+  try { admin = require('firebase-admin'); } catch (e) { throw new Error('firebase-admin module not available'); }
 
-// Initialize Firebase app. Tries (in order): explicit slug fetch -> window.__TENANT_SLUG -> query slug -> fallback DEFAULT_CLIENT_CONFIG
-export async function initFirebase(opts = {}) {
-  if (_app && getApps && getApps().length) return { app: _app, db: _db, clientConfig: _clientConfigUsed };
-  const { slug: explicitSlug = null, waitForTenant = true } = opts;
-
-  // 1) Try explicit slug
-  let slug = explicitSlug || null;
-
-  // 2) If none, prefer tenant event or existing global
-  if (!slug) {
-    if (typeof window !== 'undefined' && window.__TENANT_SLUG) slug = window.__TENANT_SLUG;
-    else if (waitForTenant) slug = await waitForTenantEvent(2500) || null;
-  }
-
-  // 3) If still none, try URL query
-  if (!slug) slug = parseQuerySlug();
-
-  // 4) Try fetch of tenant-scoped client config
-  let fetched = null;
-  if (slug) {
-    fetched = await fetchTenantClientConfig(slug);
-  }
-
-  const clientCfg = fetched || DEFAULT_CLIENT_CONFIG;
-
-  // initialize
+  // If already initialized and db url matches, return
   try {
-    _app = initializeApp(clientCfg);
-    _db = getDatabase(_app);
-    _clientConfigUsed = clientCfg;
-    return { app: _app, db: _db, clientConfig: _clientConfigUsed };
-  } catch (e) {
-    // If initializeApp fails (rare), rethrow for caller to handle
-    throw e;
+    if (admin.apps && admin.apps.length && admin.database) {
+      return admin;
+    }
+  } catch (e) { /* continue init */ }
+
+  // Parse service account or db url from env
+  const saRaw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || null;
+  const dbUrl = (process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || process.env.FIREBASE_RTDB_URL || '').trim() || null;
+
+  const initOpts = {};
+  if (dbUrl) initOpts.databaseURL = dbUrl;
+
+  if (saRaw) {
+    const saObj = safeParseMaybeBase64(saRaw);
+    if (!saObj) throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT* env: must be JSON or base64 JSON');
+    try {
+      admin.initializeApp({ credential: admin.credential.cert(saObj), ...initOpts });
+      return admin;
+    } catch (err) {
+      // If init fails but admin.apps exists, try to continue
+      if (!(admin.apps && admin.apps.length)) throw err;
+      return admin;
+    }
+  }
+
+  // Try initialize with only databaseURL (ADC may be present in platform env)
+  try {
+    admin.initializeApp({ ...(initOpts) });
+    return admin;
+  } catch (err) {
+    if (admin.apps && admin.apps.length) return admin;
+    throw new Error('Failed to initialize firebase-admin. Provide FIREBASE_SERVICE_ACCOUNT_BASE64 or set FIREBASE_DATABASE_URL.');
   }
 }
 
-export function getApp() {
-  if (!_app) throw new Error('Firebase app not initialized. Call initFirebase() first.');
-  return _app;
+async function readSlugMapping(admin, slug) {
+  const slugsPath = (process.env.SLUGS_PATH || 'slugs').replace(/^\/+|\/+$/g, '');
+  // Try RTDB first
+  try {
+    if (typeof admin.database === 'function') {
+      const db = admin.database();
+      const ref = db.ref(`${slugsPath}/${slug}`);
+      if (typeof ref.get === 'function') {
+        const snap = await ref.get().catch(()=>null);
+        if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) {
+          const val = typeof snap.val === 'function' ? snap.val() : snap;
+          if (typeof val === 'string') return { tenantId: val, source: 'rtdb_value' };
+          if (val && typeof val === 'object' && val.tenantId) return { tenantId: val.tenantId, source: 'rtdb_obj' };
+        }
+      } else if (typeof ref.once === 'function') {
+        const snap = await ref.once('value').catch(()=>null);
+        if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) {
+          const val = typeof snap.val === 'function' ? snap.val() : snap;
+          if (typeof val === 'string') return { tenantId: val, source: 'rtdb_value' };
+          if (val && typeof val === 'object' && val.tenantId) return { tenantId: val.tenantId, source: 'rtdb_obj' };
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  // Try Firestore mapping if available
+  try {
+    if (typeof admin.firestore === 'function') {
+      const fs = admin.firestore();
+      const doc = await fs.collection(slugsPath).doc(slug).get().catch(()=>null);
+      if (doc && doc.exists) {
+        const data = doc.data();
+        if (!data) return null;
+        if (typeof data === 'string') return { tenantId: data, source: 'firestore_value' };
+        if (data.tenantId) return { tenantId: data.tenantId, source: 'firestore_obj' };
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  return null;
 }
 
-export function getDb() {
-  if (!_db) throw new Error('Firebase DB not initialized. Call initFirebase() first.');
-  return _db;
+async function readTenantPublicConfig(admin, tenantId) {
+  const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || 'tenants').replace(/^\/+|\/+$/g, '');
+  // Try Firestore public.config if possible
+  try {
+    if (typeof admin.firestore === 'function') {
+      const fs = admin.firestore();
+      // Common layout: collection(tenants)/doc(tenantId)/public/config (doc)
+      const docRef = fs.collection(basePath).doc(tenantId).collection('public').doc('config');
+      const doc = await docRef.get().catch(()=>null);
+      if (doc && doc.exists) return { config: doc.data(), source: 'firestore.public.config' };
+
+      // Another possibility: tenant doc has public field
+      const tenantDoc = await fs.collection(basePath).doc(tenantId).get().catch(()=>null);
+      if (tenantDoc && tenantDoc.exists) {
+        const data = tenantDoc.data();
+        if (data && data.public && typeof data.public === 'object') {
+          if (data.public.config && typeof data.public.config === 'object') return { config: data.public.config, source: 'firestore.tenant.public.configField' };
+          return { config: data.public, source: 'firestore.tenant.public' };
+        }
+      }
+    }
+  } catch (e) { /* ignore and fallback to RTDB */ }
+
+  // RTDB path: /tenants/{tenantId}/public/config
+  try {
+    if (typeof admin.database === 'function') {
+      const db = admin.database();
+      const ref = db.ref(`${basePath}/${tenantId}/public/config`);
+      if (typeof ref.get === 'function') {
+        const snap = await ref.get().catch(()=>null);
+        if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) {
+          return { config: typeof snap.val === 'function' ? snap.val() : snap, source: 'rtdb.public.config' };
+        }
+      } else if (typeof ref.once === 'function') {
+        const snap = await ref.once('value').catch(()=>null);
+        if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) {
+          return { config: typeof snap.val === 'function' ? snap.val() : snap, source: 'rtdb.public.config.once' };
+        }
+      }
+      // fallback: maybe published directly under tenants/{tenantId}/public
+      const ref2 = db.ref(`${basePath}/${tenantId}/public`);
+      const snap2 = await (typeof ref2.get === 'function' ? ref2.get().catch(()=>null) : ref2.once('value').catch(()=>null));
+      if (snap2 && (typeof snap2.exists === 'function' ? snap2.exists() : snap2.val() != null)) {
+        const v = typeof snap2.val === 'function' ? snap2.val() : snap2;
+        if (v && v.config && typeof v.config === 'object') return { config: v.config, source: 'rtdb.public.as_field' };
+        return { config: v, source: 'rtdb.public' };
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  return null;
 }
 
-// Returns a string path under tenants/{tenantId}/...
-export function tenantDbPath(subpath) {
-  const tid = (typeof window !== 'undefined' && (window.__TENANT_ID || (window.TenantClient && window.TenantClient.TENANT_ID))) || null;
-  if (!tid) throw new Error('Tenant ID not available. Ensure tenant.public.loaded fired or set window.__TENANT_ID.');
-  if (!subpath) return `tenants/${encodeURIComponent(tid)}`;
-  const clean = String(subpath).replace(/^\/+/, '');
-  return `tenants/${encodeURIComponent(tid)}/${clean}`;
+function buildClientConfigFromPublic(cfg) {
+  // cfg may contain a firebaseClientConfig directly, or pieces we can use
+  if (!cfg || typeof cfg !== 'object') return null;
+  if (cfg.firebaseClientConfig && typeof cfg.firebaseClientConfig === 'object') return cfg.firebaseClientConfig;
+  // sometimes stored as firebaseConfig
+  if (cfg.firebaseConfig && typeof cfg.firebaseConfig === 'object') return cfg.firebaseConfig;
+
+  // try to build a minimal config if projectId / databaseURL / apiKey present
+  const candidate = {};
+  if (cfg.apiKey) candidate.apiKey = cfg.apiKey;
+  if (cfg.authDomain) candidate.authDomain = cfg.authDomain;
+  if (cfg.databaseURL) candidate.databaseURL = cfg.databaseURL;
+  if (cfg.projectId) candidate.projectId = cfg.projectId;
+  if (cfg.storageBucket) candidate.storageBucket = cfg.storageBucket;
+  if (cfg.messagingSenderId) candidate.messagingSenderId = cfg.messagingSenderId;
+  if (cfg.appId) candidate.appId = cfg.appId;
+  if (Object.keys(candidate).length >= 2) return candidate; // require at least two keys to be useful
+  return null;
 }
 
-// Returns a Realtime Database SDK ref for tenants/{tenantId}/{subpath}
-export function tenantDbRef(subpath) {
-  const db = getDb();
-  const path = tenantDbPath(subpath);
-  return rtdbRef(db, path);
-}
+const CACHE_TTL_MS = (() => {
+  const v = parseInt(process.env.GET_TENANT_CACHE_TTL_MS || '', 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_CACHE_TTL_MS;
+})();
 
-// Convenience: returns the raw client config used (useful for debugging)
-export function clientConfigUsed() {
-  return _clientConfigUsed;
-}
+exports.handler = async function(event) {
+  try {
+    const qs = event.queryStringParameters || {};
+    const slug = (qs.slug || '').trim();
+    if (!slug) return jsonResp(400, { error: 'missing slug' });
 
-// Default export for convenience
-export default {
-  initFirebase,
-  getApp,
-  getDb,
-  tenantDbPath,
-  tenantDbRef,
-  clientConfigUsed
+    // cache fast path
+    const cached = CACHE.get(slug);
+    if (cached && cached.expiresAt > Date.now()) {
+      return jsonResp(200, { source: 'cache', firebaseClientConfig: cached.payload });
+    }
+
+    // try init admin
+    let admin;
+    try {
+      admin = await ensureAdmin();
+    } catch (e) {
+      // admin not available -> try env fallback (TEST_PUBLIC_CONFIG / TEST_PUBLIC_CONFIG_BASE64)
+      const raw = process.env.TEST_PUBLIC_CONFIG_BASE64 || process.env.TEST_PUBLIC_CONFIG || null;
+      const parsed = safeParseMaybeBase64(raw);
+      if (parsed) {
+        const cfg = buildClientConfigFromPublic(parsed) || parsed;
+        CACHE.set(slug, { expiresAt: Date.now() + CACHE_TTL_MS, payload: cfg });
+        return jsonResp(200, { source: 'env.fallback', firebaseClientConfig: cfg });
+      }
+      return jsonResp(500, { error: 'firebase_admin_unavailable', message: String(e && e.message) });
+    }
+
+    // 1) try to resolve slug -> tenantId
+    let tenantId = null;
+    try {
+      const mapping = await readSlugMapping(admin, slug);
+      if (mapping && mapping.tenantId) tenantId = mapping.tenantId;
+    } catch (e) { /* ignore resolution error and try slug as tenantId */ }
+
+    // 2) read tenant public config
+    let configResult = null;
+    try {
+      if (tenantId) configResult = await readTenantPublicConfig(admin, tenantId);
+      if (!configResult) {
+        // try slug as tenantId
+        configResult = await readTenantPublicConfig(admin, slug);
+        if (configResult && !tenantId) tenantId = slug;
+      }
+    } catch (e) {
+      // log then continue to error out below
+      console.warn('readTenantPublicConfig error', e && e.message);
+    }
+
+    if (!configResult || !configResult.config) {
+      return jsonResp(404, { error: 'tenant_not_found', tried: { tenantId, slug } });
+    }
+
+    const publicCfg = configResult.config;
+    // first prefer explicit firebaseClientConfig
+    let clientCfg = buildClientConfigFromPublic(publicCfg);
+
+    if (!clientCfg) {
+      // maybe a nested firebaseClientConfig field
+      if (publicCfg.firebaseClientConfig && typeof publicCfg.firebaseClientConfig === 'object') {
+        clientCfg = publicCfg.firebaseClientConfig;
+      } else if (publicCfg.firebaseConfig && typeof publicCfg.firebaseConfig === 'object') {
+        clientCfg = publicCfg.firebaseConfig;
+      }
+    }
+
+    if (!clientCfg) {
+      // last effort: if we have global DB URL env and tenantId, try to build minimal client config that points to same RTDB
+      const envDb = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || null;
+      if (envDb) {
+        clientCfg = { databaseURL: envDb };
+      }
+    }
+
+    if (!clientCfg) {
+      return jsonResp(404, { error: 'no_client_config', message: 'tenant public config found but no firebase client config present' });
+    }
+
+    // cache and return
+    CACHE.set(slug, { expiresAt: Date.now() + CACHE_TTL_MS, payload: clientCfg });
+    return jsonResp(200, { source: configResult.source || 'tenant.public.config', tenantId: tenantId || null, firebaseClientConfig: clientCfg });
+
+  } catch (err) {
+    console.error('get-firebase-config unexpected', err && (err.stack || err.message || err));
+    return jsonResp(500, { error: 'internal_error', message: String(err && err.message) });
+  }
 };
