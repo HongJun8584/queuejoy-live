@@ -171,11 +171,13 @@
 
 <script type="module">
 /*
-  Tenant-aware status.html
-  - resolves tenant via /.netlify/functions/get-tenant
-  - fetches tenant firebase client config via /.netlify/functions/get-firebase-config
-  - scopes all reads/watches to tenants/{tenantId}/...
-  - compatible with your tenant-firebase.js (listens to tenant.public.loaded)
+  Tenant-aware status.html (modified to support the demo Firebase structure)
+  - Prefers tenant-scoped paths but also probes the demo global structure:
+    - queue/<queueId>  (demo)
+    - counters/<counterId> (demo)
+    - settings/<key> (demo)
+    - analytics/serviceEvents (demo)
+  - Will fall back to tenants/{tenantId}/... when tenant data exists.
 */
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -298,33 +300,95 @@ function tenantPath(subpath) {
   return `tenants/${encodeURIComponent(TENANT_ID)}/${clean}`;
 }
 
-// Try several candidate paths but always tenant-scoped first
+/* ---------------------------
+   Path chooser helpers (demo-structure aware)
+   --------------------------- */
+
 async function chooseQueuePath(queueKey) {
-  // Simplified: always use tenant-scoped queues path
-  return tenantPath(`queues/${queueKey}`);
+  // Candidates ordered by preference:
+  // 1) tenant-scoped demo structure (tenants/{id}/queue/{id})
+  // 2) tenant-scoped plural (tenants/{id}/queues/{id})
+  // 3) tenant-scoped public fallbacks
+  // 4) global demo structure (queue/{id})
+  // 5) legacy plural (queues/{id})
+  const candidates = [
+    tenantPath(`queue/${queueKey}`),
+    tenantPath(`queues/${queueKey}`),
+    tenantPath(`public/queue/${queueKey}`),
+    tenantPath(`public/queues/${queueKey}`),
+    `queue/${queueKey}`,
+    `queues/${queueKey}`,
+    // some older layouts used 'queue' top-level with nested token entries: try root key
+    `${queueKey}`
+  ];
+
+  if (!db) {
+    console.warn('[STATUS] chooseQueuePath: no db available, defaulting to tenant path');
+    return tenantPath(`queue/${queueKey}`);
+  }
+
+  for (const p of candidates) {
+    try {
+      const snap = await get(ref(db, p)).catch(()=>null);
+      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
+      console.log('[STATUS] chooseQueuePath check', p, 'exists=', exists);
+      if (exists) return p;
+    } catch (e) {
+      console.warn('[STATUS] chooseQueuePath check failed for', p, e && (e.message || e));
+    }
+  }
+
+  // fallback: tenant queue path (so listener at least attaches somewhere)
+  console.warn('[STATUS] chooseQueuePath: none of candidates exist, falling back to tenant path');
+  return tenantPath(`queue/${queueKey}`);
 }
 
 async function chooseCounterPath(counterId) {
+  // Demo structure uses top-level 'counters' and tenant-scoped 'counters'
+  const candidates = [
+    tenantPath(`counters/${counterId}`),
+    `counters/${counterId}`,
+    tenantPath(`public/counters/${counterId}`),
+    `public/counters/${counterId}`
+  ];
+
+  if (!db) return tenantPath(`counters/${counterId}`);
+
+  for (const p of candidates) {
+    try {
+      const snap = await get(ref(db, p)).catch(()=>null);
+      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
+      console.log('[STATUS] chooseCounterPath check', p, 'exists=', exists);
+      if (exists) return p;
+    } catch (e) {
+      console.warn('[STATUS] chooseCounterPath check failed for', p, e && (e.message || e));
+    }
+  }
+
   return tenantPath(`counters/${counterId}`);
 }
 
 async function chooseSettingsPath(key) {
+  // Demo uses top-level 'settings'
   const candidates = [
+    tenantPath(`settings/${key}`),
     tenantPath(`public/config/${key}`),
     tenantPath(`public/config/theme/${key}`),
-    tenantPath(`public/${key}`),
-    // legacy fallbacks (only after tenant checks)
     `settings/${key}`,
-    `public/config/${key}`
+    `public/config/${key}`,
+    `public/config/theme/${key}`
   ];
   for (const p of candidates) {
     try {
       const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
-      if (snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap)) return p;
-    } catch (e) {}
+      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
+      console.log('[STATUS] chooseSettingsPath check', p, 'exists=', exists);
+      if (exists) return p;
+    } catch (e) {
+      console.warn('[STATUS] chooseSettingsPath check failed for', p, e && (e.message || e));
+    }
   }
-  // default path if nothing found
-  return tenantPath(`public/config/${key}`);
+  return tenantPath(`settings/${key}`);
 }
 
 async function chooseAnalyticsPath() {
@@ -336,8 +400,12 @@ async function chooseAnalyticsPath() {
   for (const p of cands) {
     try {
       const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
-      if (snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap)) return p;
-    } catch (e) {}
+      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
+      console.log('[STATUS] chooseAnalyticsPath check', p, 'exists=', exists);
+      if (exists) return p;
+    } catch (e) {
+      console.warn('[STATUS] chooseAnalyticsPath check failed for', p, e && (e.message || e));
+    }
   }
   return tenantPath(`analytics/serviceEvents`);
 }
@@ -661,6 +729,15 @@ async function loadLogo() {
         logoImg.onload = ()=>{ logoText.style.display='none'; logoImg.style.display='block'; };
       }
     } else {
+      // also try settings.mainTitle as a displayName fallback
+      try {
+        const settingsPath = await chooseSettingsPath('mainTitle');
+        const sSnap = db ? await get(ref(db, settingsPath)).catch(()=>null) : null;
+        if (sSnap && typeof sSnap.exists === 'function' && sSnap.exists()) {
+          const title = sSnap.val();
+          if (title) displayNameEl.textContent = title;
+        }
+      } catch(e){}
       // also try theme.logo in public/config
       try {
         const cfgPath = tenantPath('public/config');
@@ -743,11 +820,13 @@ async function computeEstimates() {
   } else if (myNum === null) {
     peopleAhead = 0;
   } else {
-    // fallback: count tenant queue entries older than my timestamp
+    // fallback: count tenant/demo queue entries older than my timestamp
     try {
       const candidates = [
-        tenantPath('queues'),
         tenantPath('queue'),
+        tenantPath('queues'),
+        tenantPath('public/queue'),
+        tenantPath('public/queues'),
         'queue',
         'queues'
       ];
@@ -756,7 +835,7 @@ async function computeEstimates() {
         try {
           const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
           if (snap && typeof snap.exists === 'function' && snap.exists()) { all = snap.val(); break; }
-        } catch (e) {}
+        } catch (e) { console.warn('[STATUS] fallback candidates read failed', p, e); }
       }
       if (all) {
         const myTime = currentQueueData.timestamp || currentQueueData.createdAt || 0;
@@ -816,8 +895,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Attach queue watcher using tenant-aware path selection
   try {
     const chosenPath = await chooseQueuePath(currentQueueKey);
-    qRef = db ? ref(db, chosenPath) : null;
-    if (!qRef) { showError('Realtime DB not available'); return; }
+    console.log('[STATUS] chosenPath for queue watch ->', chosenPath);
+
+    if (!db) {
+      showError('Realtime DB not available');
+      return;
+    }
+
+    qRef = ref(db, chosenPath);
+
+    // quick existence check before binding long-lived onValue (helps debugging)
+    try {
+      const qSnap = await get(qRef).catch(()=>null);
+      const exists = qSnap && (typeof qSnap.exists === 'function' ? qSnap.exists() : !!qSnap);
+      console.log('[STATUS] quick check:', chosenPath, 'exists=', exists);
+      if (!exists) {
+        // probe some legacy/common candidates for diagnostics
+        const legacyCandidates = [
+          `queue/${currentQueueKey}`,
+          `queues/${currentQueueKey}`,
+          tenantPath(`queue/${currentQueueKey}`),
+          tenantPath(`public/queues/${currentQueueKey}`)
+        ];
+        for (const p of legacyCandidates) {
+          try {
+            const snap = await get(ref(db, p)).catch(()=>null);
+            const ex = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
+            console.log('[STATUS] legacy probe', p, 'exists=', ex);
+          } catch (e) { console.warn('legacy probe failed', p, e); }
+        }
+      }
+    } catch (e) {
+      console.warn('[STATUS] quick existence check failed', e);
+    }
 
     onValue(qRef, (snap) => {
       if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
@@ -832,13 +942,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ticket = currentQueueData.queueId || currentQueueData.ticketNumber || currentQueueData.ticket || currentQueueData.number || '—';
       yourNumberEl.textContent = ticket;
 
-      // telegram connection detection (tenant-scoped)
+      // telegram connection detection (tenant-scoped or demo)
       const connected = Boolean(currentQueueData.telegramConnected || currentQueueData.tgConnected || currentQueueData.telegramChatId || currentQueueData.telegram_chat_id);
       setTelegramUI(connected);
 
       if (!connected && !obModal.classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + currentQueueKey)) openModal();
 
-      // attach counter watcher tenant-scoped
+      // attach counter watcher tenant/demo-scoped
       const cid = currentQueueData.counterId || currentQueueData.counter || currentQueueData.counterAssigned;
       if (cid && cid !== currentCounterId) {
         if (counterRef) off(counterRef);
@@ -858,9 +968,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     showError('Failed to watch queue.');
   }
 
-  // Watch tenant-scoped ads
+  // Watch tenant-scoped ads / settings.adImage (demo uses settings)
   try {
-    const adPath = await chooseSettingsPath('adImage') || tenantPath('public/config/ads/adImage');
+    const adPath = await chooseSettingsPath('adImage') || tenantPath('public/config/ads/adImage') || 'settings/adImage';
     adRef = ref(db, adPath);
     onValue(adRef, (snap) => showAd(snap && typeof snap.exists === 'function' && snap.exists() ? snap.val() : null));
   } catch (e) { console.warn('ad watch failed', e); }
