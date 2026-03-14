@@ -15,7 +15,7 @@
     .fade-in { animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1); }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
     .db-image { max-height: 180px; object-fit: cover; }
-    /* removed QA badge per request */
+    /* QA badge removed per request */
   </style>
 
   <!-- Firebase v10 (module) -->
@@ -61,6 +61,7 @@
       } catch (e) { return null; }
     }
 
+    // Returns a tenant-scoped DatabaseReference factory
     function tenantRefFactory(dbInstance) {
       return function tenantRef(relPath = '') {
         relPath = String(relPath || '').replace(/^\/+/, '');
@@ -74,6 +75,18 @@
         if (!relPath) return ref(dbInstance, base);
         return ref(dbInstance, `${base}/${relPath}`);
       };
+    }
+
+    // Returns a tenant-scoped path string (e.g. "tenants/<id>/settings/adImage")
+    function tenantPath(relPath = '') {
+      relPath = String(relPath || '').replace(/^\/+/, '');
+      const tenantId = window.__TENANT_ID || null;
+      const slug = window.__TENANT_SLUG || null;
+      if (!tenantId && !slug) {
+        throw new Error('tenantPath requires TENANT_ID or TENANT_SLUG to be set');
+      }
+      const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
+      return relPath ? `${base}/${relPath}` : base;
     }
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -369,7 +382,7 @@
           }
 
           // round-robin index (atomic), tenant-scoped
-          const rrRef = tenantRef(tenantPath('settings/lastCounterIndex'));
+          const rrRef = tenantRef('settings/lastCounterIndex');
           const rrResult = await runTxWithRetries(rrRef, cur => {
             const ncur = Number(cur) || 0;
             return ncur + 1;
