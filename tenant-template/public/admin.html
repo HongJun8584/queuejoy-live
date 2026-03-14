@@ -677,7 +677,7 @@
         if (uploadedMedia.logoUrl) updates.logoUrl = uploadedMedia.logoUrl;
         if (uploadedMedia.adImage) updates.adImage = uploadedMedia.adImage;
 
-        await setTenantBoth('public/config', updates);
+        try { await set( tenantRef('public/config'), updates ); } catch (e) { console.warn('tenant public/config write failed', e); }
 
         // Best-effort: also write to legacy 'settings' for older clients
         try { await set(tenantRef('settings'), updates); } catch(e){ /* ignore */ }

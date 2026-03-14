@@ -15,9 +15,7 @@
     .fade-in { animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1); }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
     .db-image { max-height: 180px; object-fit: cover; }
-    /* QA badge */
-    #tenant-slug-badge{position:fixed;right:12px;bottom:12px;background:var(--theme-color);color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;z-index:9999;opacity:.95}
-    #tenant-slug-badge small{opacity:.9;font-weight:600}
+    /* removed QA badge per request */
   </style>
 
   <!-- Firebase v10 (module) -->
@@ -31,7 +29,8 @@
       child,
       push,
       onValue,
-      runTransaction
+      runTransaction,
+      off
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     // --- Site-wide Firebase client config (shared project)
@@ -67,8 +66,9 @@
         relPath = String(relPath || '').replace(/^\/+/, '');
         const tenantId = window.__TENANT_ID || null;
         const slug = window.__TENANT_SLUG || null;
+        // If no tenant/slug, intentionally throw — we require slug to scope everything
         if (!tenantId && !slug) {
-          return ref(dbInstance, relPath || '/');
+          throw new Error('tenantRef requires TENANT_ID or TENANT_SLUG to be set');
         }
         const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
         if (!relPath) return ref(dbInstance, base);
@@ -122,14 +122,6 @@
       }
       window.__TENANT_SLUG = slug;
 
-      // show QA badge
-      (function insertBadge() {
-        const badge = document.createElement('div');
-        badge.id = 'tenant-slug-badge';
-        badge.innerHTML = `<small>slug</small> <span id="tenant-slug-value" style="font-weight:700;margin-left:6px">${slug}</span> <span id="tenant-id-value" style="margin-left:8px;font-size:11px;opacity:.9"></span>`;
-        document.body.appendChild(badge);
-      })();
-
       // Resolve tenant via Netlify function
       let tenantId = null;
       let tenantPublicConfig = null;
@@ -147,8 +139,6 @@
         if (!tenantId) tenantId = slug; // fallback legacy
         window.__TENANT_ID = tenantId;
         window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
-        const idSpan = document.getElementById('tenant-id-value');
-        if (idSpan) idSpan.textContent = `id:${tenantId}`;
       } catch (e) {
         showFatal('Failed to resolve tenant: ' + String(e && e.message ? e.message : e));
         return;
@@ -167,18 +157,161 @@
 
       const tenantRef = tenantRefFactory(db);
 
-      // Apply public config to UI (if present)
+      // ---------- Real-time caches & listeners ----------
+      let countersCache = {};    // { counterId: { ... } }
+      let countersLoaded = false;
+      let settingsCache = {};    // the tenant's public/config object
+      // helper to compute active counters list from cache
+      function getActiveCountersFromCache() {
+        const raw = [];
+        for (const id in countersCache) {
+          if (!Object.prototype.hasOwnProperty.call(countersCache, id)) continue;
+          const val = countersCache[id] || {};
+          // interpret 'active' flexibly like existing implementation
+          const activeRaw = val.active;
+          const active =
+            activeRaw === undefined ||
+            activeRaw === null ||
+            activeRaw === true ||
+            activeRaw === 'true' ||
+            activeRaw === 1 ||
+            activeRaw === '1' ||
+            String(activeRaw).toLowerCase() === 'yes' ||
+            String(activeRaw).toLowerCase() === 'y';
+          raw.push({ id, ...val, _active: !!active });
+        }
+        const activeList = raw.filter(c => c && c._active);
+        activeList.sort((a, b) => {
+          const ao = (a.order !== undefined && a.order !== '' && a.order !== null) ? Number(a.order) : Number.POSITIVE_INFINITY;
+          const bo = (b.order !== undefined && b.order !== '' && b.order !== null) ? Number(b.order) : Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          const ai = a.id, bi = b.id;
+          if (!isNaN(Number(ai)) && !isNaN(Number(bi))) return Number(ai) - Number(bi);
+          return String(ai).localeCompare(String(bi), undefined, { numeric: true, sensitivity: 'base' });
+        });
+        return activeList;
+      }
+
+      function updateGetNumberButtonState() {
+        try {
+          const actives = getActiveCountersFromCache();
+          getNumberBtn.disabled = !(actives && actives.length > 0);
+        } catch (e) {
+          getNumberBtn.disabled = false;
+        }
+      }
+
+      // counters listener (tenant-scoped, realtime)
       try {
-        const cfg = window.__TENANT_PUBLIC_CONFIG || {};
-        if (cfg.theme && cfg.theme.color) {
-          document.documentElement.style.setProperty('--theme-color', cfg.theme.color);
-        }
-        const title = (cfg.displayName) ? String(cfg.displayName) : null;
-        if (title) {
-          siteTitleEl.textContent = title;
-          document.title = `${title} - Digital Queue System`;
-        }
-      } catch (e) { /* non-fatal */ }
+        const countersRef = tenantRef('counters');
+        onValue(countersRef, snap => {
+          countersCache = {};
+          if (snap && typeof snap.forEach === 'function') {
+            snap.forEach(ch => {
+              countersCache[ch.key] = ch.val();
+            });
+          } else if (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) {
+            // fallback: raw object
+            const obj = snap.val() || {};
+            Object.keys(obj).forEach(k => countersCache[k] = obj[k]);
+          }
+          countersLoaded = true;
+          updateGetNumberButtonState();
+        }, err => {
+          console.warn('counters listener failed', err);
+          // keep previous cache
+        });
+      } catch (e) {
+        console.warn('counters listener setup failed', e);
+      }
+
+      // settings (public/config) listener (tenant-scoped, realtime)
+      try {
+        const settingsRef = tenantRef('public/config');
+        onValue(settingsRef, snap => {
+          settingsCache = (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) ? snap.val() : {};
+          // merge into window.__TENANT_PUBLIC_CONFIG for any downstream code
+          window.__TENANT_PUBLIC_CONFIG = Object.assign({}, window.__TENANT_PUBLIC_CONFIG || {}, settingsCache || {});
+          // Apply config to UI
+          try {
+            const cfg = window.__TENANT_PUBLIC_CONFIG || {};
+            if (cfg.theme && cfg.theme.color) {
+              document.documentElement.style.setProperty('--theme-color', cfg.theme.color);
+            } else if (cfg.theme && cfg.theme.color === undefined) {
+              // keep default
+            }
+            const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
+            const title = (cfg.displayName) ? String(cfg.displayName) : null;
+            if (title) {
+              siteTitleEl.textContent = title;
+              document.title = `${title} - Digital Queue System`;
+            } else {
+              // fallback
+              siteTitleEl.textContent = pick(cfg.mainTitle) || pick(cfg.name) || 'Queue Joy';
+              document.title = siteTitleEl.textContent + ' - Digital Queue System';
+            }
+            if (smallTopTextEl) smallTopTextEl.textContent = pick(cfg.smallTextOnTop) || pick(cfg.smallTopText) || 'Digital Queue System';
+
+            if (cfg.logoUrl) {
+              centerLogoImg.src = cfg.logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
+            } else if (cfg.logo) {
+              centerLogoImg.src = cfg.logo; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
+            } else {
+              centerLogoImg.src = ''; centerLogoImg.classList.add('hidden'); centerIcon.classList.remove('hidden');
+            }
+
+            if (cfg.logo) {
+              siteLogoEl.src = cfg.logo; siteLogoEl.classList.remove('hidden');
+            } else {
+              siteLogoEl.src = ''; siteLogoEl.classList.add('hidden');
+            }
+
+            mainHeading.textContent = pick(cfg.titleinmiddle) || pick(cfg.ctaTitle) || 'Get your queue number';
+            introText.textContent = pick(cfg.introText) || pick(cfg.smallTextOnTop) || 'Real-time queueing system. Mobile-friendly. No app needed.';
+            btnText.textContent = '🎫 ' + (pick(cfg.ctaText) || 'Get your queue number');
+
+            // ad handling
+            adContainer.innerHTML = '';
+            if (cfg.adImage) {
+              const url = String(cfg.adImage).trim();
+              const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith('data:video/');
+              if (isVideo) {
+                const videoEl = document.createElement('video');
+                videoEl.setAttribute('playsinline','');
+                videoEl.setAttribute('autoplay','');
+                videoEl.setAttribute('loop','');
+                videoEl.setAttribute('muted','');
+                videoEl.setAttribute('preload','metadata');
+                videoEl.className = 'w-full object-cover db-image';
+                videoEl.src = url;
+                adContainer.appendChild(videoEl);
+                videoEl.play().catch(()=>videoEl.setAttribute('controls',''));
+              } else {
+                const imgEl = document.createElement('img');
+                imgEl.src = url;
+                imgEl.alt = 'Advertisement';
+                imgEl.className = 'w-full object-cover db-image';
+                adContainer.appendChild(imgEl);
+              }
+              adContainer.classList.remove('hidden');
+              noAd.classList.add('hidden');
+            } else {
+              adContainer.innerHTML = '';
+              adContainer.classList.add('hidden');
+              noAd.classList.remove('hidden');
+            }
+            adTextEl.textContent = pick(cfg.adText) || '';
+            adTextEl.classList.toggle('hidden', !adTextEl.textContent);
+
+          } catch (e) {
+            console.warn('apply settings to UI failed', e);
+          }
+        }, err => {
+          console.warn('settings read failed', err);
+        });
+      } catch (e) {
+        console.warn('settings listener setup failed', e);
+      }
 
       // UI helpers
       function showError(msg) {
@@ -195,78 +328,13 @@
         getNumberBtn.setAttribute('aria-busy', String(flag));
       }
 
-      // Settings listener (tenant-aware)
-      const settingsRef = tenantRef('public/config');
-      onValue(settingsRef, snap => {
-        const s = snap && typeof snap.val === 'function' ? (snap.exists() ? snap.val() : {}) : {};
-        const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
-
-        if (s && s.logo) { siteLogoEl.src = s.logo; siteLogoEl.classList.remove('hidden'); } else { siteLogoEl.src = ''; siteLogoEl.classList.add('hidden'); }
-
-        const topTitle = pick(s.displayName) || pick(s.mainTitle) || pick(s.name) || 'Queue Joy';
-        siteTitleEl.textContent = topTitle;
-        document.title = topTitle + ' - Digital Queue System';
-
-        if (smallTopTextEl) smallTopTextEl.textContent = pick(s.smallTextOnTop) || pick(s.smallTopText) || 'Digital Queue System';
-
-        if (s.logoUrl) {
-          centerLogoImg.src = s.logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
-        } else if (s.logo) {
-          centerLogoImg.src = s.logo; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
-        } else {
-          centerLogoImg.src = ''; centerLogoImg.classList.add('hidden'); centerIcon.classList.remove('hidden');
-        }
-
-        mainHeading.textContent = pick(s.titleinmiddle) || pick(s.ctaTitle) || 'Get your queue number';
-        introText.textContent = pick(s.introText) || pick(s.smallTextOnTop) || 'Real-time queueing system. Mobile-friendly. No app needed.';
-        btnText.textContent = '🎫 ' + (pick(s.ctaText) || 'Get your queue number');
-
-        // ad handling
-        adContainer.innerHTML = '';
-        if (s.adImage) {
-          const url = String(s.adImage).trim();
-          const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith('data:video/');
-          if (isVideo) {
-            const videoEl = document.createElement('video');
-            videoEl.setAttribute('playsinline','');
-            videoEl.setAttribute('autoplay','');
-            videoEl.setAttribute('loop','');
-            videoEl.setAttribute('muted','');
-            videoEl.setAttribute('preload','metadata');
-            videoEl.className = 'w-full object-cover db-image';
-            videoEl.src = url;
-            adContainer.appendChild(videoEl);
-            videoEl.play().catch(()=>videoEl.setAttribute('controls',''));
-          } else {
-            const imgEl = document.createElement('img');
-            imgEl.src = url;
-            imgEl.alt = 'Advertisement';
-            imgEl.className = 'w-full object-cover db-image';
-            adContainer.appendChild(imgEl);
-          }
-          adContainer.classList.remove('hidden');
-          noAd.classList.add('hidden');
-        } else {
-          adContainer.innerHTML = '';
-          adContainer.classList.add('hidden');
-          noAd.classList.remove('hidden');
-        }
-        adTextEl.textContent = pick(s.adText) || '';
-        adTextEl.classList.toggle('hidden', !adTextEl.textContent);
-
-      }, err => {
-        console.warn('settings read failed', err);
-        showError('Failed to read tenant settings.');
-      });
-
       // Auto-redirect if lastQueueId still waiting — preserve slug
       (async function autoRedirect() {
         try {
           const lastQueueId = sessionStorage.getItem('lastQueueId');
           if (!lastQueueId) return;
-          // check both tenant-scoped and legacy global
           const snap = await get(child(tenantRef('queue'), lastQueueId));
-          if (snap && snap.exists && snap.val() && snap.val().status === 'waiting') {
+          if (snap && snap.exists && snap.val && snap.val().status === 'waiting') {
             const target = `status.html?queueId=${encodeURIComponent(lastQueueId)}&slug=${encodeURIComponent(slug)}&tenantId=${encodeURIComponent(tenantId)}`;
             console.info('Auto-redirecting to local status page ->', target);
             window.location.href = target;
@@ -276,50 +344,32 @@
         }
       })();
 
-      // Fetch active counters
-      async function fetchActiveCounters() {
-        const snap = await get(tenantRef('counters'));
-        if (!snap.exists()) return [];
-        const raw = [];
-        snap.forEach(s => {
-          const val = s.val() || {};
-          const activeRaw = val.active;
-          const active =
-            activeRaw === undefined ||
-            activeRaw === null ||
-            activeRaw === true ||
-            activeRaw === 'true' ||
-            activeRaw === 1 ||
-            activeRaw === '1' ||
-            String(activeRaw).toLowerCase() === 'yes' ||
-            String(activeRaw).toLowerCase() === 'y';
-          raw.push({ id: s.key, ...val, _active: !!active });
-        });
-        const activeList = raw.filter(c => c && c._active);
-        activeList.sort((a, b) => {
-          const ao = (a.order !== undefined && a.order !== '' && a.order !== null) ? Number(a.order) : Number.POSITIVE_INFINITY;
-          const bo = (b.order !== undefined && b.order !== '' && b.order !== null) ? Number(b.order) : Number.POSITIVE_INFINITY;
-          if (ao !== bo) return ao - bo;
-          const ai = a.id, bi = b.id;
-          if (!isNaN(Number(ai)) && !isNaN(Number(bi))) return Number(ai) - Number(bi);
-          return String(ai).localeCompare(String(bi), undefined, { numeric: true, sensitivity: 'base' });
-        });
-        return activeList;
-      }
-
       // Core: getQueueNumber
       async function getQueueNumber() {
         setLoading(true);
         try {
-          const activeCounters = await fetchActiveCounters();
-          console.debug('Active counters:', activeCounters.map(c => ({ id: c.id, order: c.order, active: c._active })));
-          if (!activeCounters || activeCounters.length === 0) {
+          // Use the realtime cache first
+          const activeCounters = getActiveCountersFromCache();
+          // If counters not loaded yet, try a one-off get to avoid waiting
+          if ((!activeCounters || activeCounters.length === 0) && !countersLoaded) {
+            const snap = await get(tenantRef('counters'));
+            if (snap && snap.exists && typeof snap.forEach === 'function') {
+              countersCache = {};
+              snap.forEach(ch => countersCache[ch.key] = ch.val());
+            } else if (snap && snap.exists && typeof snap.val === 'function') {
+              const obj = snap.val() || {};
+              Object.keys(obj).forEach(k => countersCache[k] = obj[k]);
+            }
+          }
+
+          const finalActive = getActiveCountersFromCache();
+          if (!finalActive || finalActive.length === 0) {
             showError('No active counters available right now.');
             return;
           }
 
-          // round-robin index (atomic)
-          const rrRef = tenantRef('settings/lastCounterIndex');
+          // round-robin index (atomic), tenant-scoped
+          const rrRef = tenantRef(tenantPath('settings/lastCounterIndex'));
           const rrResult = await runTxWithRetries(rrRef, cur => {
             const ncur = Number(cur) || 0;
             return ncur + 1;
@@ -335,15 +385,13 @@
             throw new Error('Invalid round-robin counter value returned.');
           }
 
-          const n = activeCounters.length;
+          const n = finalActive.length;
           const index = ((globalCounter - 1) % n + n) % n;
-          let chosen = activeCounters[index];
+          let chosen = finalActive[index];
           if (!chosen) {
             console.warn('Round-robin: chosen counter missing for index, falling back to first active counter', { globalCounter, index, n });
-            chosen = activeCounters[0];
+            chosen = finalActive[0];
           }
-
-          console.info('Round-robin selected:', { globalCounter, index, chosenId: chosen.id });
 
           // increment per-counter lastIssued
           const lastIssuedRef = tenantRef(`counters/${chosen.id}/lastIssued`);
@@ -407,6 +455,12 @@
 
       // wire button
       getNumberBtn.addEventListener('click', e => { e.preventDefault(); getQueueNumber(); });
+
+      // initial UI state: disable until counters known (will be enabled by listener)
+      getNumberBtn.disabled = true;
+
+      // ensure we update button state if counters change externally (listener handles it)
+      // Done.
 
     }); // DOMContentLoaded end
   </script>

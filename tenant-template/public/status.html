@@ -970,7 +970,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Watch tenant-scoped ads / settings.adImage (demo uses settings)
   try {
-    const adPath = await chooseSettingsPath('adImage') || tenantPath('public/config/ads/adImage') || 'settings/adImage';
+    const adPath = await chooseSettingsPath('adImage') || tenantPath('public/config/ads/adImage') || tenantPath('settings/adImage');
     adRef = ref(db, adPath);
     onValue(adRef, (snap) => showAd(snap && typeof snap.exists === 'function' && snap.exists() ? snap.val() : null));
   } catch (e) { console.warn('ad watch failed', e); }

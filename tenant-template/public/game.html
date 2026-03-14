@@ -415,7 +415,7 @@
       // 1) tenants/{tenantId}/public/config/adImage
       // 2) tenants/{tenantId}/settings/adImage
       // 3) /settings/adImage (legacy global)
-      const candidatePaths = ['public/config/adImage', 'settings/adImage', 'adImage', 'public/config/ad.image'];
+      const candidatePaths = ['public/config/adImage', tenantPath('settings/adImage'), 'adImage', 'public/config/ad.image'];
       let attached = false;
       for (const p of candidatePaths) {
         try {
@@ -436,7 +436,7 @@
       if (!attached) {
         // best-effort: try global /settings/adImage directly
         try {
-          const globalRef = ref(db, 'settings/adImage');
+          const globalRef = ref(db, tenantPath('settings/adImage'));
           adRef = globalRef;
           onValue(adRef, (snap) => {
             const v = (snap && snap.exists && typeof snap.val === 'function') ? snap.val() : '';
