@@ -413,9 +413,9 @@
     function initAd(db, tenantRefFn) {
       // Candidate paths in priority order:
       // 1) tenants/{tenantId}/public/config/adImage
-      // 2) tenants/{tenantId}/settings/adImage
-      // 3) /settings/adImage (legacy global)
-      const candidatePaths = ['public/config/adImage', tenantPath('settings/adImage'), 'adImage', 'public/config/ad.image'];
+      // 2) tenants/{tenantId}/cfg.adImage
+      // 3) /cfg.adImage (legacy global)
+      const candidatePaths = ['public/config/adImage', 'cfg.adImage', 'adImage', 'public/config/ad.image'];
       let attached = false;
       for (const p of candidatePaths) {
         try {
@@ -434,9 +434,9 @@
         }
       }
       if (!attached) {
-        // best-effort: try global /settings/adImage directly
+        // best-effort: try global /cfg.adImage directly
         try {
-          const globalRef = ref(db, tenantPath('settings/adImage'));
+          const globalRef = ref(db, 'cfg.adImage');
           adRef = globalRef;
           onValue(adRef, (snap) => {
             const v = (snap && snap.exists && typeof snap.val === 'function') ? snap.val() : '';

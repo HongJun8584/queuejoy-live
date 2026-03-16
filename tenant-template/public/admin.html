@@ -1,1033 +1,1434 @@
 <!doctype html>
 <html lang="en">
+<!--
+  QueueJoy Admin Panel — Tenant-Aware Single-File SPA
+  =====================================================
+  Usage: /admin.html?slug=your-tenant-slug
+  
+  Required env vars (server-side / Netlify):
+    FIREBASE_DATABASE_URL — Firebase RTDB URL
+    ANNOUNCE_SECRET (optional) — protects announce endpoint
+    TELEGRAM_BOT_TOKEN (fallback) — bot token if not in tenant DB
+    FIREBASE_SERVICE_ACCOUNT_BASE64 (optional) — for firebase-admin
+
+  All reads/writes are tenant-scoped: /tenants/{tenantId}/...
+  No global /settings/* writes.
+-->
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>QueueJoy Admin Panel</title>
+  <meta name="description" content="QueueJoy tenant admin panel — manage queues, settings, analytics, and announcements."/>
 
-  <!-- Fonts + Tailwind (CDN) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Chart.js (UMD build) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
-    /* Keep your styles (trimmed slightly) */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-      min-height: 100vh; -webkit-font-smoothing: antialiased; color: #111827;
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --brand-1:#667eea;--brand-2:#764ba2;
+      --gradient:linear-gradient(135deg,var(--brand-1) 0%,var(--brand-2) 100%);
+      --glass:rgba(255,255,255,0.96);--glass-border:rgba(255,255,255,0.35);
+      --text:#111827;--text-muted:#6b7280;--text-light:#9ca3af;
+      --green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;
+      --radius:16px;--radius-sm:10px;
+      --sidebar-w:280px;
+      --shadow:0 20px 60px rgba(0,0,0,0.12);
+      --shadow-sm:0 4px 16px rgba(0,0,0,0.08);
     }
-    .glass-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(18px); border-radius: 20px; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
-    .sidebar { position: fixed; left: 0; top: 0; height: 100vh; width: 280px; background: linear-gradient(180deg, rgba(102,126,234,0.98), rgba(118,75,162,0.98)); backdrop-filter: blur(10px); z-index: 100; box-shadow: 4px 0 30px rgba(0,0,0,0.2); transition: transform .28s ease; }
-    .sidebar-item { display:flex; gap:12px; align-items:center; padding:14px 20px; margin:8px 14px; border-radius:12px; color:white; font-weight:600; cursor:pointer; transition:all .18s ease; }
-    .sidebar-item:hover { transform: translateX(4px); background: rgba(255,255,255,0.06); }
-    .sidebar-item.active { background: rgba(255,255,255,0.12); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
-    .main-content { margin-left: 280px; padding: 32px; transition:margin-left .28s ease; }
-    @media (max-width: 1024px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .main-content { margin-left: 0; padding: 20px; } }
-    .btn-primary { background: linear-gradient(135deg,#667eea,#764ba2); color: white; padding: 12px 20px; border-radius: 12px; font-weight:700; border: none; cursor:pointer; box-shadow: 0 8px 30px rgba(102,126,234,0.25); }
-    .input-field { width:100%; padding:10px 14px; border-radius:10px; border:2px solid #e5e7eb; font-size:14px; }
-    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:999; align-items:center; justify-content:center; padding:20px; }
-    .modal.active { display:flex; }
-    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 18px; border-radius: 10px; font-weight:700; z-index:99999; box-shadow:0 14px 40px rgba(0,0,0,0.14); animation: slideIn .28s ease; }
-    .toast.success { background:#10b981; color:white; } .toast.error { background:#ef4444; color:white; }
-    @keyframes slideIn { from { transform: translateX(200px); opacity:0 } to { transform: translateX(0); opacity:1 } }
-    .spinner { width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); border-top-color:white; animation:spin .6s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
-    @keyframes spin { to { transform: rotate(360deg) } }
-    .preview-image, .preview-video { max-width:140px; max-height:120px; object-fit:cover; border-radius:10px; border:2px solid #e5e7eb; margin-top:8px; }
-    .file-input-label { padding:8px 14px; background:#f3f4f6; color:#667eea; border-radius:8px; cursor:pointer; font-weight:700; display:inline-block; }
-    .metric-badge { display:inline-block; padding:8px 12px; border-radius:10px; font-weight:700; color:white; margin:6px; }
-    .muted { color:#6b7280; font-weight:600; font-size:13px; }
-    /* QA badge */
-    #tenant-slug-badge{position:fixed;right:12px;bottom:12px;background:#111827;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;z-index:99999;opacity:.95}
-    #tenant-slug-badge small{opacity:.9;font-weight:600}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--gradient);min-height:100vh;-webkit-font-smoothing:antialiased;color:var(--text);overflow-x:hidden}
+
+    /* --- Login Overlay --- */
+    #loginOverlay{position:fixed;inset:0;background:var(--gradient);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px}
+    .login-card{background:var(--glass);border-radius:24px;padding:40px;width:100%;max-width:420px;box-shadow:var(--shadow);text-align:center}
+    .login-card h1{font-size:28px;font-weight:900;margin-bottom:6px}
+    .login-card p{color:var(--text-muted);font-size:14px;margin-bottom:24px}
+    .login-card .login-input{width:100%;padding:14px 16px;border-radius:var(--radius-sm);border:2px solid #e5e7eb;font-size:15px;margin-bottom:12px;outline:none;transition:border .2s}
+    .login-card .login-input:focus{border-color:var(--brand-1)}
+    .login-card .login-btn{width:100%;padding:14px;background:var(--gradient);color:white;font-weight:700;font-size:16px;border:none;border-radius:var(--radius-sm);cursor:pointer;box-shadow:0 8px 30px rgba(102,126,234,0.3);transition:transform .15s}
+    .login-card .login-btn:hover{transform:translateY(-1px)}
+    .login-card .login-btn:disabled{opacity:.6;cursor:not-allowed}
+    .login-error{color:var(--red);font-size:13px;font-weight:600;margin-top:8px;min-height:20px}
+
+    /* --- Slug Error Overlay --- */
+    #slugErrorOverlay{position:fixed;inset:0;background:var(--gradient);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px}
+    .slug-error-card{background:var(--glass);border-radius:24px;padding:40px;max-width:560px;width:100%;box-shadow:var(--shadow);text-align:center}
+    .slug-error-card h2{color:var(--red);font-size:24px;font-weight:800;margin-bottom:12px}
+    .slug-error-card code{background:#f3f4f6;padding:4px 10px;border-radius:6px;font-size:14px;font-weight:600}
+
+    /* --- Glass Card --- */
+    .glass-card{background:var(--glass);backdrop-filter:blur(18px);border-radius:var(--radius);border:1px solid var(--glass-border);box-shadow:var(--shadow)}
+
+    /* --- Sidebar --- */
+    .sidebar{position:fixed;left:0;top:0;height:100vh;width:var(--sidebar-w);background:linear-gradient(180deg,rgba(102,126,234,0.98),rgba(118,75,162,0.98));backdrop-filter:blur(10px);z-index:1000;box-shadow:4px 0 30px rgba(0,0,0,0.2);transition:transform .28s ease;display:flex;flex-direction:column}
+    .sidebar-header{padding:20px 24px;border-bottom:1px solid rgba(255,255,255,0.12);flex-shrink:0}
+    .sidebar-nav{flex:1;overflow-y:auto;padding:12px 0}
+    .sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,0.12);flex-shrink:0}
+    .sidebar-item{display:flex;gap:12px;align-items:center;padding:12px 18px;margin:4px 12px;border-radius:12px;color:white;font-weight:600;font-size:14px;cursor:pointer;transition:all .18s ease;user-select:none}
+    .sidebar-item:hover{transform:translateX(4px);background:rgba(255,255,255,0.08)}
+    .sidebar-item.active{background:rgba(255,255,255,0.15);box-shadow:0 6px 20px rgba(0,0,0,0.08)}
+    .sidebar-item svg{width:20px;height:20px;flex-shrink:0}
+    .sidebar-section{color:rgba(255,255,255,0.5);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;padding:16px 30px 6px;user-select:none}
+
+    /* --- Main --- */
+    .main-content{margin-left:var(--sidebar-w);padding:28px 32px;transition:margin-left .28s ease;min-height:100vh}
+    @media(max-width:1024px){
+      .sidebar{transform:translateX(-100%)}
+      .sidebar.open{transform:translateX(0)}
+      .main-content{margin-left:0;padding:20px 16px}
+      #mobileMenuBtn{display:flex!important}
+    }
+
+    /* --- Mobile menu btn --- */
+    #mobileMenuBtn{display:none;position:fixed;top:16px;left:16px;z-index:900;padding:10px;border-radius:var(--radius-sm);background:var(--gradient);color:white;border:none;box-shadow:var(--shadow-sm);cursor:pointer;align-items:center;justify-content:center}
+
+    /* --- Page Header --- */
+    .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+    .page-header h2{color:white;font-size:26px;font-weight:800}
+
+    /* --- Stats Grid --- */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+    .stat-card{padding:18px;position:relative;overflow:hidden}
+    .stat-card .stat-label{color:var(--text-muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+    .stat-card .stat-value{font-size:28px;font-weight:800;margin-top:4px}
+    .stat-card .stat-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;color:white}
+
+    /* --- Buttons --- */
+    .btn-primary{background:var(--gradient);color:white;padding:12px 20px;border-radius:12px;font-weight:700;border:none;cursor:pointer;box-shadow:0 8px 30px rgba(102,126,234,0.25);font-size:14px;transition:all .15s}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 36px rgba(102,126,234,0.35)}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .btn-secondary{background:#f3f4f6;color:var(--text);padding:10px 16px;border-radius:var(--radius-sm);font-weight:700;border:2px solid #e5e7eb;cursor:pointer;font-size:13px;transition:all .15s}
+    .btn-secondary:hover{border-color:var(--brand-1);color:var(--brand-1)}
+    .btn-danger{background:var(--red);color:white;padding:10px 16px;border-radius:var(--radius-sm);font-weight:700;border:none;cursor:pointer;font-size:13px}
+    .btn-success{background:var(--green);color:white;padding:10px 16px;border-radius:var(--radius-sm);font-weight:700;border:none;cursor:pointer;font-size:13px}
+
+    /* --- Form Fields --- */
+    .input-field{width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:2px solid #e5e7eb;font-size:14px;outline:none;transition:border .2s;font-family:inherit}
+    .input-field:focus{border-color:var(--brand-1)}
+    .field-label{display:block;color:var(--text-muted);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;margin-top:16px}
+    .field-label:first-child{margin-top:0}
+
+    /* --- Toast --- */
+    .toast{position:fixed;top:20px;right:20px;padding:14px 20px;border-radius:var(--radius-sm);font-weight:700;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.14);animation:slideIn .28s ease;font-size:14px;max-width:360px}
+    .toast.success{background:var(--green);color:white}
+    .toast.error{background:var(--red);color:white}
+    .toast.info{background:var(--brand-1);color:white}
+    @keyframes slideIn{from{transform:translateX(200px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+    /* --- Spinner --- */
+    .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:white;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* --- Preview Media --- */
+    .preview-thumb{width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:2px solid #e5e7eb}
+    .file-upload-btn{padding:10px 16px;background:#f3f4f6;color:var(--brand-1);border-radius:var(--radius-sm);cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:6px;font-size:13px;transition:background .15s}
+    .file-upload-btn:hover{background:#e5e7eb}
+    .file-upload-btn input{position:absolute;left:-9999px}
+
+    /* --- Metric Badge --- */
+    .metric-badge{display:inline-block;padding:6px 12px;border-radius:8px;font-weight:700;color:white;font-size:13px;margin:4px}
+
+    /* --- Tabs --- */
+    .tab-bar{display:flex;gap:4px;background:#f3f4f6;padding:4px;border-radius:var(--radius-sm);margin-bottom:20px;flex-wrap:wrap}
+    .tab-btn{padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all .15s}
+    .tab-btn.active{background:white;color:var(--text);box-shadow:var(--shadow-sm)}
+
+    /* --- Phone Preview --- */
+    .phone-frame{width:280px;height:560px;border-radius:36px;border:6px solid #1f2937;background:white;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.25);position:relative;flex-shrink:0}
+    .phone-notch{width:120px;height:24px;background:#1f2937;border-radius:0 0 16px 16px;margin:0 auto;position:relative;z-index:1}
+    .phone-screen{height:calc(100% - 24px);overflow-y:auto;position:relative}
+    .phone-preview-header{padding:16px;text-align:center;position:relative}
+    .phone-preview-logo{width:60px;height:60px;border-radius:50%;object-fit:cover;margin:0 auto 8px;border:2px solid #e5e7eb}
+    .phone-preview-cta{margin:16px;padding:14px;border-radius:12px;text-align:center;color:white;font-weight:700;font-size:14px;cursor:pointer}
+    .phone-preview-ad{width:calc(100% - 32px);margin:8px 16px;border-radius:12px;object-fit:cover;max-height:120px}
+
+    /* --- Modal --- */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:20px}
+    .modal-overlay.active{display:flex}
+    .modal-card{background:white;border-radius:var(--radius);padding:28px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow)}
+
+    /* --- Table --- */
+    .data-table{width:100%;border-collapse:collapse;font-size:13px}
+    .data-table th{text-align:left;padding:10px 12px;border-bottom:2px solid #e5e7eb;color:var(--text-muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    .data-table td{padding:10px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+    .data-table tr:hover td{background:#fafafa}
+
+    /* --- Badge --- */
+    .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
+    .badge-green{background:#dcfce7;color:#065f46}
+    .badge-red{background:#fee2e2;color:#991b1b}
+    .badge-blue{background:#dbeafe;color:#1e40af}
+    .badge-amber{background:#fef3c7;color:#92400e}
+    .badge-gray{background:#f3f4f6;color:#374151}
+
+    /* --- Sections --- */
+    .view-section{display:none}
+    .view-section.active{display:block}
+
+    /* --- Settings Layout --- */
+    .settings-layout{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+    @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.phone-frame{display:none}}
+
+    /* --- Color Picker --- */
+    .color-swatch{width:40px;height:40px;border-radius:10px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;overflow:hidden;position:relative}
+    .color-swatch input[type=color]{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);border:none;cursor:pointer;padding:0}
+
+    /* --- Toggle Switch --- */
+    .toggle{position:relative;display:inline-block;width:44px;height:24px}
+    .toggle input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:24px;transition:.2s;cursor:pointer}
+    .toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}
+    .toggle input:checked+.toggle-slider{background:var(--brand-1)}
+    .toggle input:checked+.toggle-slider::before{transform:translateX(20px)}
+
+    /* --- Scrollbar --- */
+    ::-webkit-scrollbar{width:6px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px}
+
+    /* --- QA Badge --- */
+    #tenantBadge{position:fixed;right:12px;bottom:12px;background:#1f2937;color:white;padding:8px 14px;border-radius:var(--radius-sm);font-size:11px;z-index:9000;opacity:.92;display:none;font-weight:600}
+
+    /* --- Announcement Target --- */
+    .target-option{padding:10px 14px;border:2px solid #e5e7eb;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;transition:all .15s}
+    .target-option.selected{border-color:var(--brand-1);background:#eef2ff}
+
+    /* --- CSV Export btn --- */
+    .export-btn{padding:8px 14px;background:#f3f4f6;border:2px solid #e5e7eb;border-radius:var(--radius-sm);font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+    .export-btn:hover{border-color:var(--brand-1)}
+
+    /* --- Audit log --- */
+    .audit-entry{padding:10px 14px;border-left:3px solid var(--brand-1);background:#fafafa;border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin-bottom:8px;font-size:13px}
+    .audit-entry .audit-time{color:var(--text-muted);font-size:11px;font-weight:600}
+
+    /* Counters page */
+    .counter-card{padding:16px;border:2px solid #e5e7eb;border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;transition:border .15s}
+    .counter-card:hover{border-color:var(--brand-1)}
+    .counter-active{border-left:4px solid var(--green)}
+    .counter-inactive{border-left:4px solid var(--text-light)}
   </style>
 </head>
 <body>
-  <!-- QA badge placeholder (filled by script) -->
-  <div id="tenant-slug-badge" style="display:none"><small>slug</small> <span id="tenant-slug-value" style="font-weight:700;margin-left:6px"></span> <span id="tenant-id-value" style="margin-left:8px;font-size:11px;opacity:.9"></span></div>
 
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div style="padding:20px 28px; border-bottom: 1px solid rgba(255,255,255,0.12);">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:48px;height:48px;background:rgba(255,255,255,0.14);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;color:white">🎫</div>
-        <div>
-          <h1 style="color:white;font-size:20px;font-weight:800;margin-bottom:2px" id="brandTitle">QueueJoy</h1>
-          <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px" id="brandSubtitle">Admin Panel</div>
-        </div>
-      </div>
+<!-- ========== LOGIN OVERLAY ========== -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <div style="font-size:48px;margin-bottom:12px">🎫</div>
+    <h1>QueueJoy Admin</h1>
+    <p>Sign in to manage your queue system</p>
+    <input type="email" id="loginEmail" class="login-input" placeholder="Email address" autocomplete="email"/>
+    <input type="password" id="loginPassword" class="login-input" placeholder="Password" autocomplete="current-password"/>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:13px;color:var(--text-muted);cursor:pointer">
+      <input type="checkbox" id="loginRemember" checked/> Remember me
+    </label>
+    <button id="loginBtn" class="login-btn">Sign In</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ========== SLUG ERROR OVERLAY ========== -->
+<div id="slugErrorOverlay">
+  <div class="slug-error-card">
+    <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+    <h2>Invalid URL Format</h2>
+    <p style="color:var(--text-muted);margin:12px 0" id="slugErrorMsg"></p>
+    <p style="margin-top:16px;font-size:14px;color:var(--text-muted)">Correct format:</p>
+    <code id="slugErrorCorrectUrl"></code>
+    <div style="margin-top:20px">
+      <button class="btn-primary" id="slugErrorRedirectBtn">Go to correct URL</button>
     </div>
+  </div>
+</div>
 
-    <nav style="margin-top:18px; padding-bottom:20px;">
-      <div class="sidebar-item active" data-view="dashboard">🏠 Dashboard</div>
-      <div class="sidebar-item" data-view="analytics">📊 Analytics</div>
-      <div class="sidebar-item" data-view="settings">⚙️ Business Settings</div>
-      <div class="sidebar-item" id="howToUseBtn">❓ How to Use</div>
-    </nav>
-  </aside>
+<!-- ========== TENANT BADGE ========== -->
+<div id="tenantBadge">
+  <span id="tenantBadgeSlug"></span>
+  <span id="tenantBadgeId" style="margin-left:8px;opacity:.7"></span>
+</div>
 
-  <!-- Mobile menu button -->
-  <button id="mobileMenuBtn" style="display:none;position:fixed;top:18px;left:18px;z-index:200;padding:10px;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;box-shadow:0 8px 30px rgba(0,0,0,0.12);">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
+<!-- ========== MOBILE MENU BTN ========== -->
+<button id="mobileMenuBtn">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
 
-  <!-- Main content -->
-  <main class="main-content">
-    <!-- Dashboard -->
-    <section id="dashboardView">
-      <div style="max-width:1400px;margin:0 auto">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
-          <h2 style="color:white;font-size:28px;font-weight:800">Dashboard</h2>
-          <button class="btn-primary" id="saveAllBtn">💾 Save All Changes</button>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:22px">
-          <div class="glass-card" style="padding:18px">
-            <p class="muted">Total Queues</p>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <h3 id="totalQueues" style="font-size:28px;font-weight:800;color:#667eea">0</h3>
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white">📊</div>
-            </div>
-          </div>
-
-          <div class="glass-card" style="padding:18px">
-            <p class="muted">Active Queues</p>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <h3 id="activeQueues" style="font-size:28px;font-weight:800;color:#8b5cf6">0</h3>
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#ec4899);display:flex;align-items:center;justify-content:center;color:white">🎫</div>
-            </div>
-          </div>
-
-          <div class="glass-card" style="padding:18px">
-            <p class="muted">Today's Queues</p>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <h3 id="todayQueues" style="font-size:28px;font-weight:800;color:#10b981">0</h3>
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;color:white">📈</div>
-            </div>
-          </div>
-
-          <div class="glass-card" style="padding:18px">
-            <p class="muted">Active Counters</p>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <h3 id="activeCounters" style="font-size:28px;font-weight:800;color:#f59e0b">0</h3>
-              <div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;color:white">🏪</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Announcement -->
-        <div class="glass-card" style="padding:20px;margin-bottom:20px">
-          <h3 style="font-weight:800;margin-bottom:12px">📢 Send Announcement</h3>
-          <label class="muted" style="display:block;margin-bottom:6px">Message</label>
-          <textarea id="announcementMessage" class="input-field" rows="4" placeholder="Enter your announcement here..."></textarea>
-
-          <div style="margin-top:12px">
-            <label class="muted" style="display:block;margin-bottom:6px">Attach Media (Optional)</label>
-            <label class="file-input-label">📎 Choose File
-              <input type="file" id="announcementMedia" accept="image/*,video/*,audio/*" style="position:absolute;left:-9999px">
-            </label>
-            <p class="muted" style="margin-top:8px;font-size:12px">Supports images, videos, GIFs, audio. Max ~50MB (client-side enforced).</p>
-            <div id="announcementPreview"></div>
-          </div>
-
-          <div style="margin-top:12px">
-            <button class="btn-primary" id="sendAnnouncementBtn" style="width:100%">
-              <span id="sendBtnText">📱 Send to All Subscribers</span>
-              <span id="sendBtnSpinner" style="display:none"><span class="spinner"></span>Sending...</span>
-            </button>
-            <div id="announcementResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px"></div>
-          </div>
-        </div>
+<!-- ========== SIDEBAR ========== -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;background:rgba(255,255,255,0.14);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;color:white">🎫</div>
+      <div>
+        <div style="color:white;font-size:18px;font-weight:800" id="sidebarTitle">QueueJoy</div>
+        <div style="color:rgba(255,255,255,0.7);font-size:12px" id="sidebarSubtitle">Admin Panel</div>
       </div>
-    </section>
-
-    <!-- Analytics -->
-    <section id="analyticsView" style="display:none">
-      <div style="max-width:1400px;margin:0 auto">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-          <h2 style="color:white;font-size:26px;font-weight:800">📊 Analytics Dashboard</h2>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">
-          <div class="glass-card" style="padding:18px;background:linear-gradient(135deg,rgba(139,92,246,0.95),rgba(139,92,246,0.8));color:white;">
-            <p class="muted" style="color:rgba(255,255,255,0.85)">Total Served</p>
-            <h3 id="analystTotalServed" style="font-size:26px;font-weight:800;color:white">0</h3>
-          </div>
-
-          <div class="glass-card" style="padding:18px;background:linear-gradient(135deg,rgba(102,126,234,0.95),rgba(102,126,234,0.8));color:white;">
-            <p class="muted" style="color:rgba(255,255,255,0.85)">Avg Wait Time</p>
-            <h3 style="font-size:26px;font-weight:800;color:white"><span id="analystAvgWait">0</span> min</h3>
-          </div>
-
-          <div class="glass-card" style="padding:18px;background:linear-gradient(135deg,rgba(236,72,153,0.95),rgba(236,72,153,0.8));color:white;">
-            <p class="muted" style="color:rgba(255,255,255,0.85)">Active Counters</p>
-            <h3 id="analystActiveCounters" style="font-size:26px;font-weight:800;color:white">0</h3>
-          </div>
-
-          <div class="glass-card" style="padding:18px;background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(16,185,129,0.8));color:white;">
-            <p class="muted" style="color:rgba(255,255,255,0.85)">Median Wait</p>
-            <h3 style="font-size:26px;font-weight:800;color:white"><span id="analystMedianWait">0</span> min</h3>
-          </div>
-        </div>
-
-        <div class="glass-card" style="padding:20px;margin-bottom:16px">
-          <h4 style="font-weight:800;margin-bottom:12px">Queue Status Breakdown</h4>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
-            <div style="text-align:center">
-              <h3 id="analystCompleted" style="font-size:28px;font-weight:800;color:#10b981">0</h3>
-              <p class="muted">Completed</p>
-            </div>
-            <div style="text-align:center">
-              <h3 id="analystWaiting" style="font-size:28px;font-weight:800;color:#3b82f6">0</h3>
-              <p class="muted">Waiting</p>
-            </div>
-            <div style="text-align:center">
-              <h3 id="analystServing" style="font-size:28px;font-weight:800;color:#8b5cf6">0</h3>
-              <p class="muted">Serving</p>
-            </div>
-            <div style="text-align:center">
-              <h3 id="analystCancelled" style="font-size:28px;font-weight:800;color:#6b7280">0</h3>
-              <p class="muted">Cancelled</p>
-            </div>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">
-          <div class="glass-card" style="padding:18px">
-            <h4 style="font-weight:800;margin-bottom:12px">⏱️ Wait Time Analytics</h4>
-            <div style="display:flex;gap:12px;flex-wrap:wrap">
-              <div>
-                <p class="muted">Average</p>
-                <h3 id="waitAverage" style="font-weight:800;font-size:20px;color:#667eea">0 min</h3>
-              </div>
-              <div>
-                <p class="muted">Median</p>
-                <h3 id="waitMedian" style="font-weight:800;font-size:20px;color:#8b5cf6">0 min</h3>
-              </div>
-              <div>
-                <p class="muted">90th Percentile</p>
-                <h3 id="wait90th" style="font-weight:800;font-size:20px;color:#ec4899">0 min</h3>
-              </div>
-              <div>
-                <p class="muted">Longest Wait</p>
-                <h3 id="waitLongest" style="font-weight:800;font-size:20px;color:#f59e0b">0 min</h3>
-              </div>
-            </div>
-          </div>
-
-          <div class="glass-card" style="padding:18px">
-            <h4 style="font-weight:800;margin-bottom:12px">🕐 Busiest Hours (Last 7 Days)</h4>
-            <div id="busiestHoursContainer" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px">
-          <div class="glass-card" style="padding:18px">
-            <h4 style="font-weight:800;margin-bottom:12px">Queue Trend (Last 7 Days)</h4>
-            <div class="chart-container" style="height:320px;position:relative"><canvas id="queueTrendChart"></canvas></div>
-          </div>
-
-          <div class="glass-card" style="padding:18px">
-            <h4 style="font-weight:800;margin-bottom:12px">Counter Performance (Served)</h4>
-            <div class="chart-container" style="height:320px;position:relative"><canvas id="counterPerfChart"></canvas></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Settings -->
-    <section id="settingsView" style="display:none">
-      <div style="max-width:900px;margin:0 auto">
-        <h2 style="color:white;font-weight:800;margin-bottom:12px">⚙️ Business Settings</h2>
-
-        <div class="glass-card" style="padding:18px">
-          <label class="muted">Main Title</label>
-          <input id="mainTitle" class="input-field" placeholder="e.g., ICE CREAM" style="margin-top:8px" />
-
-          <label class="muted" style="margin-top:12px;display:block">Welcome Message</label>
-          <textarea id="introText" class="input-field" rows="2" style="margin-top:8px"></textarea>
-
-          <label class="muted" style="margin-top:12px;display:block">Small Text on Top</label>
-          <input id="smallTextOnTop" class="input-field" style="margin-top:8px" />
-
-          <label class="muted" style="margin-top:12px;display:block">Title in Middle</label>
-          <input id="titleinmiddle" class="input-field" style="margin-top:8px" />
-
-          <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <div id="logoPreviewContainer"></div>
-            <label class="file-input-label">🖼️ Upload Logo<input id="logoFile" type="file" accept="image/*,video/*" style="position:absolute;left:-9999px" /></label>
-          </div>
-
-          <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <div id="logoUrlPreviewContainer"></div>
-            <label class="file-input-label">🖼️ Upload Logo URL<input id="logoUrlFile" type="file" accept="image/*,video/*" style="position:absolute;left:-9999px" /></label>
-          </div>
-
-          <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <div id="adImagePreviewContainer"></div>
-            <label class="file-input-label">🖼️ Upload Ad Banner<input id="adImageFile" type="file" accept="image/*,video/*" style="position:absolute;left:-9999px" /></label>
-          </div>
-
-          <div style="margin-top:16px">
-            <button id="updateSettingsBtn" class="btn-primary" style="width:100%"><span id="updateBtnText">✨ Update Business Settings</span><span id="updateBtnSpinner" style="display:none"><span class="spinner"></span>Updating...</span></button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- How to Use Modal -->
-  <div id="howToUseModal" class="modal" aria-hidden="true">
-    <div class="modal-content">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="font-weight:800">❓ How to Use QueueJoy Admin</h3>
-        <button id="closeHowToUse" style="background:none;border:none;font-size:22px;cursor:pointer">×</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div style="padding:12px;background:#f3f4f6;border-radius:10px">
-          <h4 style="font-weight:800;margin-bottom:8px">🏠 Dashboard</h4>
-          <ul style="margin-left:18px;color:#374151">
-            <li>Send announcements to Telegram subscribers</li>
-            <li>View real-time queue counts</li>
-          </ul>
-        </div>
-        <div style="padding:12px;background:#eef2ff;border-radius:10px">
-          <h4 style="font-weight:800;margin-bottom:8px">📊 Analytics</h4>
-          <ul style="margin-left:18px;color:#374151">
-            <li>7-day trends, busiest hours, wait time stats</li>
-            <li>Counter performance breakdown</li>
-          </ul>
-        </div>
-        <div style="padding:12px;background:#ecfdf5;border-radius:10px">
-          <h4 style="font-weight:800;margin-bottom:8px">⚙️ Settings</h4>
-          <ul style="margin-left:18px;color:#374151">
-            <li>Change titles, upload logos and banners (images/GIFs/videos)</li>
-            <li>All settings save to Firebase scoped to this tenant</li>
-          </ul>
-        </div>
-      </div>
-
-      <button id="closeHowToUseBtn" class="btn-primary" style="width:100%;margin-top:12px">Got it!</button>
     </div>
   </div>
 
+  <div class="sidebar-nav">
+    <div class="sidebar-section">Main</div>
+    <div class="sidebar-item active" data-view="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Dashboard
+    </div>
+    <div class="sidebar-item" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Business Settings
+    </div>
+    <div class="sidebar-item" data-view="counters">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Counters
+    </div>
+
+    <div class="sidebar-section">Insights</div>
+    <div class="sidebar-item" data-view="analytics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </div>
+
+    <div class="sidebar-section">Engage</div>
+    <div class="sidebar-item" data-view="announcements">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+      Announcements
+    </div>
+
+    <div class="sidebar-section">System</div>
+    <div class="sidebar-item" data-view="audit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Audit Logs
+    </div>
+    <div class="sidebar-item" data-view="account">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Account
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-item" id="signOutBtn" style="margin:0;padding:10px 14px;opacity:.8">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </div>
+  </div>
+</aside>
+
+<!-- ========== MAIN CONTENT ========== -->
+<main class="main-content" id="mainContent" style="display:none">
+
+  <!-- ===== DASHBOARD ===== -->
+  <section id="view-dashboard" class="view-section active">
+    <div style="max-width:1400px;margin:0 auto">
+      <div class="page-header">
+        <h2>📊 Dashboard</h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn-primary" id="saveAllBtn">💾 Save All</button>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="dashboardStats">
+        <div class="glass-card stat-card">
+          <p class="stat-label">Total Queues</p>
+          <div class="stat-value" id="totalQueues" style="color:var(--brand-1)">0</div>
+          <div class="stat-icon" style="background:var(--gradient)">📊</div>
+        </div>
+        <div class="glass-card stat-card">
+          <p class="stat-label">Active (Waiting)</p>
+          <div class="stat-value" id="activeQueues" style="color:var(--violet)">0</div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,var(--violet),var(--pink))">🎫</div>
+        </div>
+        <div class="glass-card stat-card">
+          <p class="stat-label">Today's Queues</p>
+          <div class="stat-value" id="todayQueues" style="color:var(--green)">0</div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,var(--green),#059669)">📈</div>
+        </div>
+        <div class="glass-card stat-card">
+          <p class="stat-label">Active Counters</p>
+          <div class="stat-value" id="activeCounters" style="color:var(--amber)">0</div>
+          <div class="stat-icon" style="background:linear-gradient(135deg,var(--amber),#d97706)">🏪</div>
+        </div>
+      </div>
+
+      <!-- Quick Announcement -->
+      <div class="glass-card" style="padding:22px;margin-bottom:20px">
+        <h3 style="font-weight:800;margin-bottom:14px">📢 Quick Announcement</h3>
+        <textarea id="dashAnnouncementMsg" class="input-field" rows="3" placeholder="Type your announcement message..."></textarea>
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn-primary" id="dashSendAnnouncementBtn">📱 Send to All</button>
+          <span class="badge badge-gray" id="dashSubscriberCount">0 subscribers</span>
+        </div>
+        <div id="dashAnnouncementResult" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:13px;font-weight:600"></div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="glass-card" style="padding:22px">
+        <h3 style="font-weight:800;margin-bottom:14px">🕐 Recent Queue Activity</h3>
+        <div id="recentActivity" style="color:var(--text-muted);font-size:13px">Loading...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== BUSINESS SETTINGS ===== -->
+  <section id="view-settings" class="view-section">
+    <div style="max-width:1400px;margin:0 auto">
+      <div class="page-header">
+        <h2>⚙️ Business Settings</h2>
+        <div style="display:flex;gap:10px">
+          <button class="btn-secondary" id="settingsSaveBtn">💾 Save Draft</button>
+          <button class="btn-primary" id="settingsPublishBtn">🚀 Save & Publish</button>
+        </div>
+      </div>
+
+      <div class="settings-layout">
+        <div>
+          <!-- Basic Info -->
+          <div class="glass-card" style="padding:22px;margin-bottom:16px">
+            <h3 style="font-weight:800;margin-bottom:4px">📋 Basic Info</h3>
+            <label class="field-label">Display Name / Main Title</label>
+            <input id="cfg-displayName" class="input-field" placeholder="e.g., My Café"/>
+            <label class="field-label">Timezone</label>
+            <select id="cfg-timezone" class="input-field">
+              <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (MYT)</option>
+              <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+              <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+              <option value="America/New_York">America/New_York (EST)</option>
+              <option value="Europe/London">Europe/London (GMT)</option>
+              <option value="UTC">UTC</option>
+            </select>
+            <label class="field-label">Small Text on Top</label>
+            <input id="cfg-smallTextOnTop" class="input-field" placeholder="e.g., Welcome to"/>
+            <label class="field-label">Title in Middle</label>
+            <input id="cfg-titleinmiddle" class="input-field" placeholder="e.g., Your Queue Number"/>
+          </div>
+
+          <!-- Theme -->
+          <div class="glass-card" style="padding:22px;margin-bottom:16px">
+            <h3 style="font-weight:800;margin-bottom:4px">🎨 Theme</h3>
+            <div style="display:flex;gap:16px;align-items:center;margin-top:12px;flex-wrap:wrap">
+              <div>
+                <label class="field-label" style="margin-top:0">Primary Color</label>
+                <div class="color-swatch"><input type="color" id="cfg-themeColor" value="#8b5cf6"/></div>
+              </div>
+              <div>
+                <label class="field-label" style="margin-top:0">Accent Color</label>
+                <div class="color-swatch"><input type="color" id="cfg-accentColor" value="#667eea"/></div>
+              </div>
+              <div style="flex:1;min-width:120px">
+                <label class="field-label" style="margin-top:0">Font</label>
+                <select id="cfg-font" class="input-field" style="max-width:200px">
+                  <option value="Inter">Inter</option>
+                  <option value="Poppins">Poppins</option>
+                  <option value="Roboto">Roboto</option>
+                  <option value="DM Sans">DM Sans</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- CTA & Texts -->
+          <div class="glass-card" style="padding:22px;margin-bottom:16px">
+            <h3 style="font-weight:800;margin-bottom:4px">💬 CTA & Texts</h3>
+            <label class="field-label">CTA Title</label>
+            <input id="cfg-ctaTitle" class="input-field" placeholder="e.g., Get your queue number"/>
+            <label class="field-label">CTA Text</label>
+            <input id="cfg-ctaText" class="input-field" placeholder="e.g., Tap to join the queue"/>
+            <label class="field-label">Intro / Welcome Text</label>
+            <textarea id="cfg-introText" class="input-field" rows="2" placeholder="e.g., Welcome! Real-time queueing system"></textarea>
+          </div>
+
+          <!-- Logos & Media -->
+          <div class="glass-card" style="padding:22px;margin-bottom:16px">
+            <h3 style="font-weight:800;margin-bottom:12px">🖼️ Logos & Media</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+              <div>
+                <label class="field-label" style="margin-top:0">Site Logo</label>
+                <div id="logoPreview" style="margin-bottom:8px"></div>
+                <label class="file-upload-btn">📎 Upload Logo<input type="file" id="logoFile" accept="image/*"/></label>
+              </div>
+              <div>
+                <label class="field-label" style="margin-top:0">Header Logo</label>
+                <div id="logoUrlPreview" style="margin-bottom:8px"></div>
+                <label class="file-upload-btn">📎 Upload Header<input type="file" id="logoUrlFile" accept="image/*"/></label>
+              </div>
+              <div>
+                <label class="field-label" style="margin-top:0">Ad Banner</label>
+                <div id="adImagePreview" style="margin-bottom:8px"></div>
+                <label class="file-upload-btn">📎 Upload Ad<input type="file" id="adImageFile" accept="image/*,video/mp4,video/webm"/></label>
+              </div>
+            </div>
+            <p style="margin-top:12px;font-size:11px;color:var(--text-muted)">Max 10MB per file. Accepts jpg, png, webp, mp4, webm.</p>
+          </div>
+
+          <!-- Feature Toggles -->
+          <div class="glass-card" style="padding:22px;margin-bottom:16px">
+            <h3 style="font-weight:800;margin-bottom:12px">🔧 Feature Toggles</h3>
+            <div style="display:grid;gap:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:600;font-size:14px">Announcements Enabled</span>
+                <label class="toggle"><input type="checkbox" id="cfg-feat-announcements" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:600;font-size:14px">Analytics Enabled</span>
+                <label class="toggle"><input type="checkbox" id="cfg-feat-analytics" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:600;font-size:14px">Ad Banner Visible</span>
+                <label class="toggle"><input type="checkbox" id="cfg-feat-adBanner" checked/><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PHONE PREVIEW -->
+        <div style="position:sticky;top:28px">
+          <h4 style="color:white;font-weight:700;margin-bottom:12px;text-align:center;font-size:13px;text-transform:uppercase;letter-spacing:1px">Live Preview</h4>
+          <div class="phone-frame" id="phonePreview">
+            <div class="phone-notch"></div>
+            <div class="phone-screen" id="phoneScreen">
+              <div class="phone-preview-header" id="phoneHeader" style="padding-top:20px">
+                <div id="phoneSmallText" style="font-size:11px;color:var(--text-muted);font-weight:600"></div>
+                <div id="phoneLogo" style="margin:10px auto"></div>
+                <div id="phoneTitle" style="font-size:18px;font-weight:800;margin-top:6px"></div>
+                <div id="phoneTitleMiddle" style="font-size:13px;color:var(--text-muted);margin-top:4px"></div>
+              </div>
+              <div id="phoneAdBanner" style="margin:0 16px"></div>
+              <div id="phoneIntroText" style="padding:12px 20px;font-size:12px;color:var(--text-muted);text-align:center"></div>
+              <div id="phoneCTA" class="phone-preview-cta" style="background:var(--brand-1)">
+                Get Queue Number
+              </div>
+              <div style="padding:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text-light)">— Queue Preview —</div>
+                <div style="margin-top:8px;padding:12px;background:#f9fafb;border-radius:8px">
+                  <div style="font-size:24px;font-weight:800;color:var(--brand-1)">A-001</div>
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Sample ticket</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:10px">
+            <button class="btn-secondary" id="phoneOrientationBtn" style="font-size:11px;padding:6px 12px">↔️ Toggle Size</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== COUNTERS ===== -->
+  <section id="view-counters" class="view-section">
+    <div style="max-width:900px;margin:0 auto">
+      <div class="page-header">
+        <h2>🏪 Counters</h2>
+        <button class="btn-primary" id="addCounterBtn">+ Add Counter</button>
+      </div>
+      <div class="glass-card" style="padding:22px">
+        <div id="countersList">
+          <p style="color:var(--text-muted);font-size:14px">Loading counters...</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ANALYTICS ===== -->
+  <section id="view-analytics" class="view-section">
+    <div style="max-width:1400px;margin:0 auto">
+      <div class="page-header">
+        <h2>📊 Analytics</h2>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="analyticsRange" class="input-field" style="width:auto;padding:8px 12px;font-size:13px">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+          <button class="export-btn" id="exportCsvBtn">📥 Export CSV</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(139,92,246,.95),rgba(139,92,246,.8));color:white">
+          <p class="stat-label" style="color:rgba(255,255,255,.85)">Total Served</p>
+          <div class="stat-value" id="anTotalServed" style="color:white">0</div>
+        </div>
+        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(102,126,234,.95),rgba(102,126,234,.8));color:white">
+          <p class="stat-label" style="color:rgba(255,255,255,.85)">Avg Wait</p>
+          <div class="stat-value" style="color:white"><span id="anAvgWait">0</span> min</div>
+        </div>
+        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(236,72,153,.95),rgba(236,72,153,.8));color:white">
+          <p class="stat-label" style="color:rgba(255,255,255,.85)">Counters</p>
+          <div class="stat-value" id="anCounters" style="color:white">0</div>
+        </div>
+        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(16,185,129,.95),rgba(16,185,129,.8));color:white">
+          <p class="stat-label" style="color:rgba(255,255,255,.85)">Median Wait</p>
+          <div class="stat-value" style="color:white"><span id="anMedianWait">0</span> min</div>
+        </div>
+      </div>
+
+      <!-- Status Breakdown -->
+      <div class="glass-card" style="padding:20px;margin-bottom:16px">
+        <h4 style="font-weight:800;margin-bottom:14px">Queue Status Breakdown</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;text-align:center">
+          <div><div id="anCompleted" style="font-size:28px;font-weight:800;color:var(--green)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Completed</p></div>
+          <div><div id="anWaiting" style="font-size:28px;font-weight:800;color:var(--blue)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Waiting</p></div>
+          <div><div id="anServing" style="font-size:28px;font-weight:800;color:var(--violet)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Serving</p></div>
+          <div><div id="anCancelled" style="font-size:28px;font-weight:800;color:var(--text-muted)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Cancelled</p></div>
+        </div>
+      </div>
+
+      <!-- Wait Time Stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">
+        <div class="glass-card" style="padding:20px">
+          <h4 style="font-weight:800;margin-bottom:12px">⏱️ Wait Time Analysis</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">AVERAGE</p><div id="anWaitAvg" style="font-size:20px;font-weight:800;color:var(--brand-1)">0 min</div></div>
+            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">MEDIAN</p><div id="anWaitMedian" style="font-size:20px;font-weight:800;color:var(--violet)">0 min</div></div>
+            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">90TH PCTL</p><div id="anWait90" style="font-size:20px;font-weight:800;color:var(--pink)">0 min</div></div>
+            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">LONGEST</p><div id="anWaitMax" style="font-size:20px;font-weight:800;color:var(--amber)">0 min</div></div>
+          </div>
+        </div>
+        <div class="glass-card" style="padding:20px">
+          <h4 style="font-weight:800;margin-bottom:12px">🕐 Busiest Hours</h4>
+          <div id="busiestHours" style="display:flex;flex-wrap:wrap;gap:6px"><span style="color:var(--text-muted);font-size:13px">No data</span></div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px">
+        <div class="glass-card" style="padding:20px"><h4 style="font-weight:800;margin-bottom:12px">Queue Trend</h4><div style="height:300px;position:relative"><canvas id="trendChart"></canvas></div></div>
+        <div class="glass-card" style="padding:20px"><h4 style="font-weight:800;margin-bottom:12px">Counter Performance</h4><div style="height:300px;position:relative"><canvas id="perfChart"></canvas></div></div>
+      </div>
+
+      <!-- Raw Events (paginated) -->
+      <div class="glass-card" style="padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h4 style="font-weight:800">📋 Raw Events</h4>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-secondary" id="eventsPrev" style="padding:6px 10px;font-size:12px">← Prev</button>
+            <span id="eventsPageInfo" style="font-size:12px;color:var(--text-muted);font-weight:600">Page 1</span>
+            <button class="btn-secondary" id="eventsNext" style="padding:6px 10px;font-size:12px">Next →</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="eventsTable">
+            <thead><tr><th>Time</th><th>Counter</th><th>Ticket</th><th>Wait (min)</th><th>Status</th></tr></thead>
+            <tbody id="eventsBody"><tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ANNOUNCEMENTS ===== -->
+  <section id="view-announcements" class="view-section">
+    <div style="max-width:900px;margin:0 auto">
+      <div class="page-header">
+        <h2>📢 Announcements</h2>
+      </div>
+
+      <div class="glass-card" style="padding:22px;margin-bottom:16px">
+        <h3 style="font-weight:800;margin-bottom:14px">Compose Message</h3>
+
+        <label class="field-label">Title</label>
+        <input id="ann-title" class="input-field" placeholder="Announcement title"/>
+
+        <label class="field-label">Message Body</label>
+        <textarea id="ann-body" class="input-field" rows="5" placeholder="Write your announcement..."></textarea>
+
+        <label class="field-label">Attach Media (Optional)</label>
+        <label class="file-upload-btn">📎 Choose File<input type="file" id="ann-media" accept="image/*,video/*,audio/*" style="position:absolute;left:-9999px"/></label>
+        <p style="margin-top:6px;font-size:11px;color:var(--text-muted)">Images, videos, GIFs, audio. Max 10MB.</p>
+        <div id="annMediaPreview" style="margin-top:8px"></div>
+
+        <label class="field-label">Target Audience</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <div class="target-option selected" data-target="all">🌍 All Subscribers</div>
+          <div class="target-option" data-target="list">📋 Specific Chat IDs</div>
+        </div>
+        <div id="annTargetListInput" style="display:none;margin-bottom:12px">
+          <textarea id="ann-chatids" class="input-field" rows="2" placeholder="Comma-separated chat IDs..."></textarea>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:10px">
+          <span class="badge badge-blue" id="annRecipientCount">Estimated: 0 recipients</span>
+          <button class="btn-primary" id="annSendBtn">
+            <span id="annSendText">📱 Send Now</span>
+            <span id="annSendSpinner" style="display:none"><span class="spinner"></span>Sending...</span>
+          </button>
+        </div>
+        <div id="annResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-weight:600;font-size:13px"></div>
+      </div>
+
+      <!-- Send Log -->
+      <div class="glass-card" style="padding:22px">
+        <h3 style="font-weight:800;margin-bottom:14px">📋 Send Log</h3>
+        <div id="annSendLog" style="font-size:13px;color:var(--text-muted)">No announcements sent yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== AUDIT LOGS ===== -->
+  <section id="view-audit" class="view-section">
+    <div style="max-width:900px;margin:0 auto">
+      <div class="page-header"><h2>📝 Audit Logs</h2></div>
+      <div class="glass-card" style="padding:22px">
+        <div id="auditLogsList" style="font-size:13px;color:var(--text-muted)">Loading...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ACCOUNT ===== -->
+  <section id="view-account" class="view-section">
+    <div style="max-width:600px;margin:0 auto">
+      <div class="page-header"><h2>👤 Account</h2></div>
+      <div class="glass-card" style="padding:22px">
+        <label class="field-label">Signed in as</label>
+        <p id="accountEmail" style="font-size:16px;font-weight:700;margin-bottom:16px">—</p>
+        <label class="field-label">Tenant ID</label>
+        <p id="accountTenantId" style="font-size:14px;font-weight:600;color:var(--text-muted);word-break:break-all">—</p>
+        <label class="field-label">Tenant Slug</label>
+        <p id="accountSlug" style="font-size:14px;font-weight:600;color:var(--text-muted)">—</p>
+        <div style="margin-top:24px">
+          <button class="btn-danger" id="accountSignOutBtn">Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== HOW TO USE MODAL ===== -->
+<div id="howToUseModal" class="modal-overlay">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-weight:800">❓ How to Use QueueJoy Admin</h3>
+      <button id="closeHowToUse" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--text-muted)">×</button>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div style="padding:12px;background:#f3f4f6;border-radius:10px"><h4 style="font-weight:800;margin-bottom:6px">🏠 Dashboard</h4><ul style="margin-left:18px;color:#374151;font-size:13px"><li>View real-time stats</li><li>Send quick announcements</li></ul></div>
+      <div style="padding:12px;background:#eef2ff;border-radius:10px"><h4 style="font-weight:800;margin-bottom:6px">⚙️ Settings</h4><ul style="margin-left:18px;color:#374151;font-size:13px"><li>Edit titles, logos, banners, theme colors</li><li>Live phone preview updates instantly</li></ul></div>
+      <div style="padding:12px;background:#ecfdf5;border-radius:10px"><h4 style="font-weight:800;margin-bottom:6px">📊 Analytics</h4><ul style="margin-left:18px;color:#374151;font-size:13px"><li>7-day trends, wait time stats, CSV export</li><li>Counter performance breakdown</li></ul></div>
+      <div style="padding:12px;background:#fef3c7;border-radius:10px"><h4 style="font-weight:800;margin-bottom:6px">📢 Announcements</h4><ul style="margin-left:18px;color:#374151;font-size:13px"><li>Send targeted or broadcast messages via Telegram</li><li>Attach images/videos, view send logs</li></ul></div>
+    </div>
+    <button class="btn-primary" id="closeHowToUseBtn" style="width:100%;margin-top:16px">Got it!</button>
+  </div>
+</div>
+
+<!-- ===== ADD COUNTER MODAL ===== -->
+<div id="addCounterModal" class="modal-overlay">
+  <div class="modal-card" style="max-width:420px">
+    <h3 style="font-weight:800;margin-bottom:16px">Add Counter</h3>
+    <label class="field-label">Counter Name</label>
+    <input id="newCounterName" class="input-field" placeholder="e.g., Counter A"/>
+    <label class="field-label">Prefix</label>
+    <input id="newCounterPrefix" class="input-field" placeholder="e.g., A" maxlength="5"/>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn-primary" id="createCounterBtn" style="flex:1">Create</button>
+      <button class="btn-secondary" id="cancelCounterBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
-  // ---------- Firebase (modular) ----------
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-  import { getDatabase, ref, onValue, get, set, update, child } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
-  import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+// ========== Firebase Modular SDK ==========
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import{getAuth,signInWithEmailAndPassword,signOut as fbSignOut,onAuthStateChanged,setPersistence,browserLocalPersistence,browserSessionPersistence}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import{getDatabase,ref,onValue,get,set,update,push,remove,child,serverTimestamp}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
 
-  // ---------- Site-wide Firebase client config (shared project) ----------
-  // Keep in sync with your Netlify functions/other pages.
-  const siteFirebaseConfig = {
-    apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
-    authDomain: "queue-joy-aa21b.firebaseapp.com",
-    databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "queue-joy-aa21b",
-    storageBucket: "queue-joy-aa21b.appspot.com",
-    messagingSenderId: "950240394209",
-    appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
-  };
+// ========== Firebase Config ==========
+const firebaseConfig={
+  apiKey:"AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+  authDomain:"queue-joy-aa21b.firebaseapp.com",
+  databaseURL:"https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"queue-joy-aa21b",
+  storageBucket:"queue-joy-aa21b.appspot.com",
+  messagingSenderId:"950240394209",
+  appId:"1:950240394209:web:78d4f2471d2d89ac91f0a0"
+};
 
-  // ---------- Small UI helpers ----------
-  function showToast(message, type = 'success', ms = 3000) {
-    const t = document.createElement('div');
-    t.className = `toast ${type}`;
-    t.textContent = message;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), ms);
-  }
-  function showFatal(msg) {
-    console.error(msg);
-    const overlay = document.createElement('div');
-    overlay.style = 'position:fixed;inset:0;background:#fff;z-index:999999;padding:20px;display:flex;align-items:center;justify-content:center';
-    overlay.innerHTML = `<div style="max-width:720px"><h2 style="color:#b91c1c;margin-bottom:12px">Fatal: ${String(msg)}</h2><p style="color:#374151">Open this page with <code>?slug=your-tenant-slug</code> or fix get-tenant function. Check console for details.</p></div>`;
-    document.body.appendChild(overlay);
-  }
+// ========== Helpers ==========
+function showToast(msg,type='success',ms=3000){const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),ms)}
+const fileToBase64=f=>new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=j;fr.readAsDataURL(f)});
+function formatDate(ts){if(!ts)return'—';const d=new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function parseTimestamp(ts){if(ts==null)return null;let n=typeof ts==='number'?ts:Number(ts);if(Number.isNaN(n)){const d=Date.parse(ts);if(Number.isNaN(d))return null;n=d}const now=Date.now();if(n<1230768000000||n>now+365*864e5)return null;return n}
+function isToday(ts){const p=parseTimestamp(ts);if(!p)return false;const d=new Date(p),t=new Date();return d.toDateString()===t.toDateString()}
+function computeStats(arr){if(!arr.length)return{average:0,median:0,p90:0,longest:0};const s=arr.slice().sort((a,b)=>a-b);const avg=Math.round(s.reduce((a,b)=>a+b,0)/s.length);const med=s.length%2?s[Math.floor(s.length/2)]:Math.round((s[s.length/2-1]+s[s.length/2])/2);return{average:avg,median:med,p90:Math.round(s[Math.floor(s.length*.9)]),longest:s[s.length-1]}}
+function formatHour(h){if(h==null)return'—';if(h===0)return'12AM';if(h<12)return h+'AM';if(h===12)return'12PM';return(h-12)+'PM'}
+function genId(p=''){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 
-  const fileToBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-
-  // ---------- DOM refs ----------
-  const sidebar = document.getElementById('sidebar');
-  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-  const sidebarItems = document.querySelectorAll('.sidebar-item[data-view]');
-  const howToUseBtn = document.getElementById('howToUseBtn');
-  const howToUseModal = document.getElementById('howToUseModal');
-  const closeHowToUse = document.getElementById('closeHowToUse');
-  const closeHowToUseBtn = document.getElementById('closeHowToUseBtn');
-
-  function updateMobileButtonVisibility(){
-    if (window.innerWidth <= 1024) mobileMenuBtn.style.display = 'block';
-    else { mobileMenuBtn.style.display = 'none'; sidebar.classList.remove('open'); }
-  }
-  updateMobileButtonVisibility();
-  window.addEventListener('resize', updateMobileButtonVisibility);
-  mobileMenuBtn.addEventListener('click', ()=> sidebar.classList.toggle('open'));
-
-  sidebarItems.forEach(item => item.addEventListener('click', () => {
-    sidebarItems.forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
-
-    const view = item.dataset.view;
-    document.getElementById('dashboardView').style.display = view === 'dashboard' ? 'block' : 'none';
-    document.getElementById('analyticsView').style.display = view === 'analytics' ? 'block' : 'none';
-    document.getElementById('settingsView').style.display = view === 'settings' ? 'block' : 'none';
-
-    if (view === 'analytics') initializeCharts();
-    if (window.innerWidth <= 1024) sidebar.classList.remove('open');
-  }));
-
-  howToUseBtn.addEventListener('click', () => howToUseModal.classList.add('active'));
-  closeHowToUse.addEventListener('click', () => howToUseModal.classList.remove('active'));
-  closeHowToUseBtn.addEventListener('click', () => howToUseModal.classList.remove('active'));
-
-  // ---------- Tenant bootstrap ----------
-  // Resolve slug: ?slug= OR first path segment after site origin (e.g. /debug-tenant-2/admin.html)
-  function getSlugFromQueryOrPath() {
-    try {
-      const qp = new URLSearchParams(window.location.search);
-      const s = qp.get('slug') || qp.get('tenant') || qp.get('tenantSlug');
-      if (s && String(s).trim()) return String(s).trim();
-    } catch(e){}
-    // first path segment
-    try {
-      const p = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
-      if (p && p.length && p[0] && !p[0].includes('.') ) return p[0];
-    } catch(e){}
-    return null;
-  }
-
-  async function resolveTenant(slug) {
-    try {
-      const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
-      if (!res.ok) {
-        const txt = await res.text().catch(()=>null);
-        throw new Error(`Tenant lookup failed (${res.status}): ${txt || res.statusText}`);
-      }
-      const j = await res.json();
-      // function returns { tenantId, config, ... } in our implementation
-      return j;
-    } catch (e) {
-      throw e;
-    }
-  }
-
-  // tenantRef factory like other pages — resolves to tenants/{tenantId}/...
-  function tenantRefFactory(dbInstance) {
-    return function tenantRef(relPath = '') {
-      relPath = String(relPath || '').replace(/^\/+/, '');
-      const tenantId = window.__TENANT_ID || null;
-      const slug = window.__TENANT_SLUG || null;
-      if (!tenantId && !slug) {
-        // return top-level ref
-        return ref(dbInstance, relPath || '/');
-      }
-      const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
-      if (!relPath) return ref(dbInstance, base);
-      return ref(dbInstance, `${base}/${relPath}`);
-    };
-  }
-
-  // ---------- Initialize Firebase client after tenant resolved ----------
-  async function boot() {
-    const slug = getSlugFromQueryOrPath();
-    if (!slug) { showFatal('Missing slug — open with ?slug=your-tenant-slug or put slug as first path segment.'); return; }
-    window.__TENANT_SLUG = slug;
-
-    // show QA badge
-    (function insertBadge() {
-      const badge = document.getElementById('tenant-slug-badge');
-      badge.style.display = 'block';
-      document.getElementById('tenant-slug-value').textContent = slug;
-    })();
-
-    let tenantId = null;
-    let tenantPublicConfig = null;
-    try {
-      const info = await resolveTenant(slug);
-      tenantId = info.tenantId || null;
-      // older get-tenant returned config under config or firebaseClientConfig — accept both
-      tenantPublicConfig = info.config || info.public || info.firebaseClientConfig || info.tenant || null;
-      // sometimes config may include tenantId
-      if (!tenantId && tenantPublicConfig && tenantPublicConfig.tenantId) tenantId = tenantPublicConfig.tenantId;
-      if (!tenantId) tenantId = slug; // fallback: allow slug==tenantId legacy
-      window.__TENANT_ID = tenantId;
-      window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
-      document.getElementById('tenant-id-value').textContent = `id:${tenantId}`;
-    } catch (err) {
-      showFatal('Failed to resolve tenant: ' + String(err && err.message ? err.message : err));
-      return;
-    }
-
-    // init firebase
-    let app;
-    try {
-      app = initializeApp(siteFirebaseConfig);
-    } catch (e) {
-      showFatal('Failed to initialize Firebase client: ' + String(e && e.message ? e.message : e));
-      return;
-    }
-    const db = getDatabase(app);
-    const storage = getStorage(app);
-    window._db = db; // debug hook
-    const tenantRef = tenantRefFactory(db);
-
-    // Apply public config to UI if available
-    try {
-      const cfg = window.__TENANT_PUBLIC_CONFIG || {};
-      if (cfg.theme && cfg.theme.color) document.documentElement.style.setProperty('--primary', cfg.theme.color);
-      const title = (cfg.displayName) ? String(cfg.displayName) : (cfg.name || cfg.displayName);
-      if (title) {
-        document.getElementById('brandTitle').textContent = title;
-        document.title = `${title} — Admin`;
-      }
-      if (cfg.smallTextOnTop) document.getElementById('brandSubtitle').textContent = cfg.smallTextOnTop;
-    } catch(e){ /* non-fatal */ }
-
-    // ---- helpers that prefer tenant path but fallback to legacy root path ----
-    async function getTenantFirst(path) {
-      // path is relative under tenant node, e.g. 'settings', 'queue', 'analytics/serviceEvents'
-      try {
-        const snap = await get(tenantRef(path));
-        if (snap && snap.exists && typeof snap.val === 'function') return snap.val();
-      } catch (e) { console.warn('tenant read failed', path, e); }
-      // fallback to global path (legacy)
-      try {
-        const snap2 = await get(ref(db, path));
-        if (snap2 && snap2.exists && typeof snap2.val === 'function') return snap2.val();
-      } catch (e) {}
+// ========== Slug Resolution & Redirect ==========
+function getSlug(){
+  const params=new URLSearchParams(location.search);
+  let slug=params.get('slug')||params.get('tenant')||params.get('tenantSlug');
+  if(slug)return slug.trim();
+  // Check if slug is in path (wrong format): /admin.html/some-slug or /some-slug/admin.html
+  const path=location.pathname.replace(/^\/+|\/+$/g,'');
+  const parts=path.split('/');
+  if(parts.length>=2){
+    // user likely used /slug/admin.html or /admin.html/slug
+    const slugPart=parts.find(p=>!p.includes('.')&&p!=='admin');
+    if(slugPart){
+      // Show redirect
+      const correctUrl=`${location.origin}/admin.html?slug=${encodeURIComponent(slugPart)}`;
+      document.getElementById('slugErrorMsg').textContent=`It looks like you're trying to access tenant "${slugPart}" but the URL format is incorrect.`;
+      document.getElementById('slugErrorCorrectUrl').textContent=correctUrl;
+      document.getElementById('slugErrorRedirectBtn').onclick=()=>location.href=correctUrl;
+      document.getElementById('slugErrorOverlay').style.display='flex';
       return null;
     }
+  }
+  // single segment that's not a file
+  if(parts.length===1&&parts[0]&&!parts[0].includes('.'))return parts[0];
+  return null;
+}
 
-    async function setTenantBoth(path, value) {
-      // Save to tenant/path. Also save to legacy path 'settings' for older clients (best-effort).
-      try {
-        await set(tenantRef(path), value);
-      } catch (e) { console.warn('set tenantRef failed', path, e); throw e; }
+async function resolveTenant(slug){
+  const res=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`,{cache:'no-store'});
+  if(!res.ok)throw new Error(`Tenant lookup failed (${res.status})`);
+  return res.json();
+}
+
+// ========== BOOT ==========
+const slug=getSlug();
+if(!slug&&!document.getElementById('slugErrorOverlay').style.display){
+  document.getElementById('slugErrorMsg').textContent='No tenant slug provided. Please add ?slug=your-tenant to the URL.';
+  document.getElementById('slugErrorCorrectUrl').textContent=`${location.origin}/admin.html?slug=your-tenant`;
+  document.getElementById('slugErrorRedirectBtn').onclick=()=>{};
+  document.getElementById('slugErrorOverlay').style.display='flex';
+}
+
+if(slug)boot();
+
+async function boot(){
+  // Init Firebase
+  const app=initializeApp(firebaseConfig);
+  const auth=getAuth(app);
+  const db=getDatabase(app);
+  const storage=getStorage(app);
+
+  // Resolve tenant
+  let tenantId=null,tenantConfig={};
+  try{
+    const info=await resolveTenant(slug);
+    tenantId=info.tenantId||info.tenant||slug;
+    tenantConfig=info.config||info.public||{};
+  }catch(e){
+    console.warn('Tenant resolve failed, using slug as tenantId',e);
+    tenantId=slug;
+  }
+  window.__TENANT_ID=tenantId;
+  window.__TENANT_SLUG=slug;
+
+  // Badge
+  const badge=document.getElementById('tenantBadge');
+  badge.style.display='block';
+  document.getElementById('tenantBadgeSlug').textContent=slug;
+  document.getElementById('tenantBadgeId').textContent='id:'+tenantId;
+
+  // Tenant ref factory
+  function tRef(p=''){p=String(p||'').replace(/^\/+/,'');return p?ref(db,`tenants/${tenantId}/${p}`):ref(db,`tenants/${tenantId}`)}
+
+  // ===== AUTH =====
+  const loginOverlay=document.getElementById('loginOverlay');
+  const loginBtn=document.getElementById('loginBtn');
+  const loginEmail=document.getElementById('loginEmail');
+  const loginPassword=document.getElementById('loginPassword');
+  const loginRemember=document.getElementById('loginRemember');
+  const loginError=document.getElementById('loginError');
+
+  loginBtn.addEventListener('click',async()=>{
+    loginError.textContent='';
+    const email=loginEmail.value.trim();
+    const pass=loginPassword.value;
+    if(!email||!pass){loginError.textContent='Email and password required';return}
+    loginBtn.disabled=true;loginBtn.textContent='Signing in...';
+    try{
+      await setPersistence(auth,loginRemember.checked?browserLocalPersistence:browserSessionPersistence);
+      await signInWithEmailAndPassword(auth,email,pass);
+    }catch(e){
+      loginError.textContent=e.code==='auth/invalid-credential'?'Invalid email or password':e.message;
+      loginBtn.disabled=false;loginBtn.textContent='Sign In';
+    }
+  });
+  loginPassword.addEventListener('keydown',e=>{if(e.key==='Enter')loginBtn.click()});
+
+  onAuthStateChanged(auth,user=>{
+    if(user){
+      loginOverlay.style.display='none';
+      document.getElementById('mainContent').style.display='block';
+      document.getElementById('accountEmail').textContent=user.email;
+      document.getElementById('accountTenantId').textContent=tenantId;
+      document.getElementById('accountSlug').textContent=slug;
+      initAdmin(db,storage,auth,user);
+    }else{
+      loginOverlay.style.display='flex';
+      document.getElementById('mainContent').style.display='none';
+    }
+  });
+
+  // Sign out
+  const doSignOut=()=>fbSignOut(auth);
+  document.getElementById('signOutBtn').addEventListener('click',doSignOut);
+  document.getElementById('accountSignOutBtn').addEventListener('click',doSignOut);
+
+  // ===== NAV =====
+  const sidebar=document.getElementById('sidebar');
+  const mobileBtn=document.getElementById('mobileMenuBtn');
+  const navItems=document.querySelectorAll('.sidebar-item[data-view]');
+  const views=['dashboard','settings','counters','analytics','announcements','audit','account'];
+
+  function showView(v){
+    views.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.classList.toggle('active',id===v)});
+    navItems.forEach(i=>i.classList.toggle('active',i.dataset.view===v));
+    if(v==='analytics')initCharts();
+    if(window.innerWidth<=1024)sidebar.classList.remove('open');
+  }
+  navItems.forEach(i=>i.addEventListener('click',()=>showView(i.dataset.view)));
+  mobileBtn.addEventListener('click',()=>sidebar.classList.toggle('open'));
+  function checkMobile(){mobileBtn.style.display=window.innerWidth<=1024?'flex':'none';if(window.innerWidth>1024)sidebar.classList.remove('open')}
+  checkMobile();window.addEventListener('resize',checkMobile);
+
+  // How to use modal
+  document.getElementById('closeHowToUse').addEventListener('click',()=>document.getElementById('howToUseModal').classList.remove('active'));
+  document.getElementById('closeHowToUseBtn').addEventListener('click',()=>document.getElementById('howToUseModal').classList.remove('active'));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.getElementById('howToUseModal').classList.remove('active');document.getElementById('addCounterModal').classList.remove('active')}});
+
+  // ===== ADMIN INIT (after auth) =====
+  let adminInitialized=false;
+  function initAdmin(db,storage,auth,user){
+    if(adminInitialized)return;
+    adminInitialized=true;
+
+    // Apply config to sidebar/title
+    if(tenantConfig.displayName){
+      document.getElementById('sidebarTitle').textContent=tenantConfig.displayName;
+      document.title=tenantConfig.displayName+' — Admin';
     }
 
-    // ---------- Core listeners & logic (tenant-scoped) ----------
-    // Queue listener
-    onValue(tenantRef('queue'), async (snapshot) => {
-      if (!snapshot.exists()) {
-        // reset UI counts
-        ['totalQueues','activeQueues','todayQueues','analystTotalServed','analystCompleted','analystWaiting','analystServing','analystCancelled','analystAvgWait','analystMedianWait','waitAverage','waitMedian','wait90th','waitLongest'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.textContent = '0';
-        });
-        updateCharts([], []);
-        return;
+    // ----- Settings live listeners -----
+    let currentConfig={};
+    const settingsFields={displayName:'cfg-displayName',timezone:'cfg-timezone',smallTextOnTop:'cfg-smallTextOnTop',titleinmiddle:'cfg-titleinmiddle',ctaTitle:'cfg-ctaTitle',ctaText:'cfg-ctaText',introText:'cfg-introText'};
+
+    function applyConfigToForm(cfg){
+      currentConfig=cfg||{};
+      Object.entries(settingsFields).forEach(([key,id])=>{const el=document.getElementById(id);if(el&&cfg[key])el.value=cfg[key]});
+      if(cfg.theme){
+        if(cfg.theme.color)document.getElementById('cfg-themeColor').value=cfg.theme.color;
+        if(cfg.theme.accent)document.getElementById('cfg-accentColor').value=cfg.theme.accent;
+        if(cfg.theme.font)document.getElementById('cfg-font').value=cfg.theme.font;
       }
+      if(cfg.features){
+        if(cfg.features.announcementsEnabled!=null)document.getElementById('cfg-feat-announcements').checked=cfg.features.announcementsEnabled;
+        if(cfg.features.analyticsEnabled!=null)document.getElementById('cfg-feat-analytics').checked=cfg.features.analyticsEnabled;
+        if(cfg.features.adBannerVisible!=null)document.getElementById('cfg-feat-adBanner').checked=cfg.features.adBannerVisible;
+      }
+      // Media previews
+      ['logo','logoUrl','adImage'].forEach(k=>{
+        const containerId=k==='logo'?'logoPreview':k==='logoUrl'?'logoUrlPreview':'adImagePreview';
+        const c=document.getElementById(containerId);
+        c.innerHTML='';
+        if(cfg[k]){
+          const isVid=typeof cfg[k]==='string'&&(cfg[k].includes('video')||cfg[k].endsWith('.mp4'));
+          if(isVid){const v=document.createElement('video');v.src=cfg[k];v.className='preview-thumb';v.muted=true;v.loop=true;v.autoplay=true;c.appendChild(v)}
+          else{const img=document.createElement('img');img.src=cfg[k];img.className='preview-thumb';c.appendChild(img)}
+        }
+      });
+      updatePhonePreview(cfg);
+    }
 
-      const rawObj = snapshot.val() || {};
-      const raw = Object.values(rawObj);
-      const now = Date.now();
+    // Listen to public/config
+    onValue(tRef('public/config'),snap=>{
+      if(snap.exists())applyConfigToForm(snap.val());
+    });
+    // Fallback: legacy settings
+    onValue(tRef('settings'),snap=>{
+      if(snap.exists()&&!currentConfig.displayName)applyConfigToForm(snap.val());
+    });
 
-      const queues = raw.map(q => {
-        try {
-          const ts = (q && q.timestamp) ? Number(q.timestamp) : null;
-          const parsed = (ts && !Number.isNaN(ts)) ? ts : (q && q.timestamp ? Date.parse(q.timestamp) : null);
-          const t = (parsed && !Number.isNaN(parsed)) ? parsed : null;
-          if (!t) return null;
-          if (t > now + 24*60*60*1000) return null;
-          return { ...q, timestamp: t, status: (q.status||'waiting').toString().toLowerCase() };
-        } catch (e) { return null; }
+    // ----- Phone Preview -----
+    function updatePhonePreview(cfg){
+      const color=cfg.theme?.color||'#8b5cf6';
+      document.getElementById('phoneSmallText').textContent=cfg.smallTextOnTop||'';
+      document.getElementById('phoneTitle').textContent=cfg.displayName||cfg.mainTitle||'Your Business';
+      document.getElementById('phoneTitleMiddle').textContent=cfg.titleinmiddle||'';
+      document.getElementById('phoneIntroText').textContent=cfg.introText||'';
+      const cta=document.getElementById('phoneCTA');
+      cta.textContent=cfg.ctaTitle||cfg.ctaText||'Get Queue Number';
+      cta.style.background=color;
+
+      // Logo
+      const logoC=document.getElementById('phoneLogo');
+      logoC.innerHTML='';
+      if(cfg.logo||cfg.logoUrl){
+        const img=document.createElement('img');
+        img.src=cfg.logoUrl||cfg.logo;
+        img.className='phone-preview-logo';
+        logoC.appendChild(img);
+      }
+      // Ad
+      const adC=document.getElementById('phoneAdBanner');
+      adC.innerHTML='';
+      if(cfg.adImage&&document.getElementById('cfg-feat-adBanner').checked){
+        const img=document.createElement('img');
+        img.src=cfg.adImage;
+        img.className='phone-preview-ad';
+        adC.appendChild(img);
+      }
+      // Header bg hint
+      document.getElementById('phoneHeader').style.borderBottom=`3px solid ${color}`;
+    }
+
+    // Live preview on input change (debounced)
+    let previewTimer=null;
+    function livePreview(){
+      clearTimeout(previewTimer);
+      previewTimer=setTimeout(()=>{
+        const cfg={...currentConfig};
+        Object.entries(settingsFields).forEach(([k,id])=>{const el=document.getElementById(id);if(el)cfg[k]=el.value});
+        cfg.theme={...cfg.theme,color:document.getElementById('cfg-themeColor').value,accent:document.getElementById('cfg-accentColor').value,font:document.getElementById('cfg-font').value};
+        cfg.features={announcementsEnabled:document.getElementById('cfg-feat-announcements').checked,analyticsEnabled:document.getElementById('cfg-feat-analytics').checked,adBannerVisible:document.getElementById('cfg-feat-adBanner').checked};
+        updatePhonePreview(cfg);
+      },150);
+    }
+    Object.values(settingsFields).forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',livePreview)});
+    ['cfg-themeColor','cfg-accentColor','cfg-font','cfg-feat-announcements','cfg-feat-analytics','cfg-feat-adBanner'].forEach(id=>{
+      document.getElementById(id).addEventListener('change',livePreview);document.getElementById(id).addEventListener('input',livePreview);
+    });
+
+    // Phone orientation toggle
+    let phoneWide=false;
+    document.getElementById('phoneOrientationBtn').addEventListener('click',()=>{
+      const frame=document.getElementById('phonePreview');
+      phoneWide=!phoneWide;
+      frame.style.width=phoneWide?'380px':'280px';
+      frame.style.height=phoneWide?'420px':'560px';
+    });
+
+    // ----- Image Uploads -----
+    let uploadedMedia={logo:null,logoUrl:null,adImage:null};
+
+    async function handleUpload(fileInput,key,previewContainer){
+      const f=fileInput.files?.[0];if(!f)return;
+      if(f.size>10*1024*1024){showToast('File too large! Max 10MB','error');return}
+      try{
+        // Upload to Firebase Storage
+        const ext=f.name.split('.').pop()||'bin';
+        const ym=new Date().toISOString().slice(0,7).replace('-','');
+        const storagePath=`tenants/${tenantId}/assets/${ym}/${genId()}_.${ext}`;
+        const storageRef=sRef(storage,storagePath);
+        showToast('Uploading...','info',2000);
+        await uploadBytes(storageRef,f);
+        const url=await getDownloadURL(storageRef);
+
+        // Write asset metadata
+        const assetId=genId('asset-');
+        await update(tRef('public/config'),{
+          [`assets/${assetId}`]:{url,storagePath,mime:f.type,size:f.size,createdAt:Date.now()},
+          [key]:url,
+          updatedAt:Date.now()
+        });
+        uploadedMedia[key]=url;
+
+        // Show preview
+        previewContainer.innerHTML='';
+        if(f.type.startsWith('video')){const v=document.createElement('video');v.src=url;v.className='preview-thumb';v.muted=true;v.loop=true;v.autoplay=true;previewContainer.appendChild(v)}
+        else{const img=document.createElement('img');img.src=url;img.className='preview-thumb';previewContainer.appendChild(img)}
+        showToast(`${key} uploaded!`,'success');
+        livePreview();
+      }catch(e){
+        console.error('Upload failed',e);
+        // Fallback to base64
+        const b64=await fileToBase64(f);
+        uploadedMedia[key]=b64;
+        previewContainer.innerHTML='';
+        const img=document.createElement('img');img.src=b64;img.className='preview-thumb';previewContainer.appendChild(img);
+        showToast('Uploaded locally (will save as base64)','info');
+        livePreview();
+      }
+    }
+
+    document.getElementById('logoFile').addEventListener('change',function(){handleUpload(this,'logo',document.getElementById('logoPreview'))});
+    document.getElementById('logoUrlFile').addEventListener('change',function(){handleUpload(this,'logoUrl',document.getElementById('logoUrlPreview'))});
+    document.getElementById('adImageFile').addEventListener('change',function(){handleUpload(this,'adImage',document.getElementById('adImagePreview'))});
+
+    // ----- Save Settings -----
+    async function saveSettings(publish=true){
+      try{
+        const updates={updatedAt:Date.now()};
+        Object.entries(settingsFields).forEach(([k,id])=>{const el=document.getElementById(id);if(el)updates[k]=el.value});
+        // Also set mainTitle = displayName for compat
+        updates.mainTitle=updates.displayName||'';
+        updates.theme={color:document.getElementById('cfg-themeColor').value,accent:document.getElementById('cfg-accentColor').value,font:document.getElementById('cfg-font').value,logo:currentConfig.theme?.logo||null};
+        updates.features={announcementsEnabled:document.getElementById('cfg-feat-announcements').checked,analyticsEnabled:document.getElementById('cfg-feat-analytics').checked,adBannerVisible:document.getElementById('cfg-feat-adBanner').checked};
+
+        // Keep existing assets/logo/etc
+        if(currentConfig.assets)updates.assets=currentConfig.assets;
+        if(currentConfig.logo&&!updates.logo)updates.logo=currentConfig.logo;
+        if(currentConfig.logoUrl&&!updates.logoUrl)updates.logoUrl=currentConfig.logoUrl;
+        if(currentConfig.adImage&&!updates.adImage)updates.adImage=currentConfig.adImage;
+        if(uploadedMedia.logo)updates.logo=uploadedMedia.logo;
+        if(uploadedMedia.logoUrl)updates.logoUrl=uploadedMedia.logoUrl;
+        if(uploadedMedia.adImage)updates.adImage=uploadedMedia.adImage;
+
+        if(!updates.createdAt)updates.createdAt=currentConfig.createdAt||Date.now();
+
+        if(publish){
+          // Check if config exists, create if not
+          const snap=await get(tRef('public/config'));
+          if(!snap.exists()){
+            await set(tRef('public/config'),updates);
+          }else{
+            await update(tRef('public/config'),updates);
+          }
+          // Legacy compat
+          try{await update(tRef('settings'),updates)}catch(e){}
+          // Audit
+          writeAudit('settings_updated',{fields:Object.keys(updates)});
+        }
+        uploadedMedia={logo:null,logoUrl:null,adImage:null};
+        showToast(publish?'Settings published!':'Draft saved','success');
+      }catch(e){
+        console.error('Save failed',e);
+        showToast('Failed to save: '+e.message,'error');
+      }
+    }
+
+    document.getElementById('settingsPublishBtn').addEventListener('click',()=>saveSettings(true));
+    document.getElementById('settingsSaveBtn').addEventListener('click',()=>saveSettings(false));
+    document.getElementById('saveAllBtn').addEventListener('click',()=>saveSettings(true));
+
+    // ----- Queue Listener -----
+    let allQueues=[],allServiceEvents=[];
+
+    onValue(tRef('queue'),snap=>{
+      if(!snap.exists()){allQueues=[];updateDashboard();return}
+      const raw=Object.values(snap.val()||{});
+      allQueues=raw.map(q=>{
+        const ts=parseTimestamp(q.timestamp);
+        if(!ts)return null;
+        return{...q,timestamp:ts,status:(q.status||'waiting').toLowerCase()};
       }).filter(Boolean);
-
-      const waiting = queues.filter(q => q.status === 'waiting').length;
-      const serving = queues.filter(q => q.status === 'serving').length;
-      const cancelled = queues.filter(q => q.status === 'cancelled').length;
-
-      document.getElementById('totalQueues').textContent = queues.length;
-      document.getElementById('activeQueues').textContent = waiting;
-      document.getElementById('analystWaiting').textContent = waiting;
-      document.getElementById('analystServing').textContent = serving;
-      document.getElementById('analystCancelled').textContent = cancelled;
-
-      // analytics/serviceEvents (authoritative)
-      let serviceEventsArr = [];
-      try {
-        const seSnap = await get(tenantRef('analytics/serviceEvents'));
-        if (seSnap && seSnap.exists && typeof seSnap.val === 'function') {
-          const seObj = seSnap.val();
-          serviceEventsArr = Object.values(seObj || {}).map(x => x);
-        } else {
-          // fallback: analytics/servedCount or legacy path
-          const servedSnap = await get(tenantRef('analytics/servedCount'));
-          const served = servedSnap && servedSnap.exists && servedSnap.val ? servedSnap.val() : null;
-          if (served !== null && !Number.isNaN(Number(served))) {
-            document.getElementById('analystTotalServed').textContent = String(served);
-            document.getElementById('analystCompleted').textContent = String(served);
-          }
-        }
-      } catch (e) { console.warn('analytics read failed', e); }
-
-      if (serviceEventsArr.length > 0) {
-        document.getElementById('analystTotalServed').textContent = serviceEventsArr.length;
-        document.getElementById('analystCompleted').textContent = serviceEventsArr.length;
-      } else {
-        const completedFromQueue = queues.filter(q => q.status === 'done' || q.status === 'served').length;
-        document.getElementById('analystCompleted').textContent = completedFromQueue;
-        if (!document.getElementById('analystTotalServed').textContent || document.getElementById('analystTotalServed').textContent === '0') {
-          document.getElementById('analystTotalServed').textContent = completedFromQueue;
-        }
-      }
-
-      // Wait stats & UI summary (re-use your earlier robust functions below)
-      updateUIFromQueues(queues, serviceEventsArr);
-    }, (err) => { console.error('queue listener error', err); });
-
-    // counters listener
-    onValue(tenantRef('counters'), (snapshot) => {
-      if (!snapshot.exists()) {
-        document.getElementById('activeCounters').textContent = '0';
-        document.getElementById('analystActiveCounters').textContent = '0';
-        return;
-      }
-      const counters = Object.values(snapshot.val() || {});
-      const active = counters.filter(c => c && c.active === true).length;
-      document.getElementById('activeCounters').textContent = active;
-      document.getElementById('analystActiveCounters').textContent = active;
+      updateDashboard();
     });
 
-    // settings listeners: prefer public/config then fallback to settings/
-    onValue(tenantRef('public/config'), (snap) => {
-      if (!snap.exists()) return;
-      const cfg = snap.val() || {};
-      // apply fields
-      if (cfg.mainTitle) document.getElementById('mainTitle').value = cfg.mainTitle;
-      if (cfg.introText) document.getElementById('introText').value = cfg.introText;
-      if (cfg.smallTextOnTop) document.getElementById('smallTextOnTop').value = cfg.smallTextOnTop;
-      if (cfg.titleinmiddle) document.getElementById('titleinmiddle').value = cfg.titleinmiddle;
-      // previews
-      if (cfg.logo) createMediaPreview(cfg.logo, document.getElementById('logoPreviewContainer'));
-      if (cfg.logoUrl) createMediaPreview(cfg.logoUrl, document.getElementById('logoUrlPreviewContainer'));
-      if (cfg.adImage) createMediaPreview(cfg.adImage, document.getElementById('adImagePreviewContainer'));
-    }, (err)=>{console.warn('public/config read fail',err);});
-
-    // back-compat: if public/config missing, listen to 'settings' path
-    onValue(tenantRef('settings'), (snap) => {
-      if (!snap.exists()) return;
-      const s = snap.val() || {};
-      if (!document.getElementById('mainTitle').value) document.getElementById('mainTitle').value = s.mainTitle || '';
-      if (!document.getElementById('introText').value) document.getElementById('introText').value = s.introText || '';
-      if (!document.getElementById('smallTextOnTop').value) document.getElementById('smallTextOnTop').value = s.smallTextOnTop || '';
-      if (!document.getElementById('titleinmiddle').value) document.getElementById('titleinmiddle').value = s.titleinmiddle || '';
-      if (s.logo) createMediaPreview(s.logo, document.getElementById('logoPreviewContainer'));
-      if (s.logoUrl) createMediaPreview(s.logoUrl, document.getElementById('logoUrlPreviewContainer'));
-      if (s.adImage) createMediaPreview(s.adImage, document.getElementById('adImagePreviewContainer'));
-    }, (err)=>{ /* ignore */ });
-
-    // ---------- Upload previews & update settings (tenant-scoped) ----------
-    let uploadedMedia = { logo: null, logoUrl: null, adImage: null };
-
-    document.getElementById('logoFile').addEventListener('change', async (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
-      const b = await fileToBase64(f);
-      uploadedMedia.logo = b;
-      createMediaPreview(b, document.getElementById('logoPreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
-      showToast('Logo uploaded (not saved)', 'success', 1800);
-    });
-    document.getElementById('logoUrlFile').addEventListener('change', async (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
-      const b = await fileToBase64(f);
-      uploadedMedia.logoUrl = b;
-      createMediaPreview(b, document.getElementById('logoUrlPreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
-      showToast('Logo URL uploaded (not saved)', 'success', 1800);
-    });
-    document.getElementById('adImageFile').addEventListener('change', async (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
-      const b = await fileToBase64(f);
-      uploadedMedia.adImage = b;
-      createMediaPreview(b, document.getElementById('adImagePreviewContainer'), f.type.startsWith('video') ? 'video' : 'image');
-      showToast('Ad banner uploaded (not saved)', 'success', 1800);
+    // Service events
+    onValue(tRef('analytics/serviceEvents'),snap=>{
+      allServiceEvents=snap.exists()?Object.values(snap.val()||[]):[];
+      updateDashboard();
     });
 
-    async function updateSettings() {
-      const btn = document.getElementById('updateSettingsBtn');
-      const text = document.getElementById('updateBtnText');
-      const spinner = document.getElementById('updateBtnSpinner');
-      btn.disabled = true; text.style.display='none'; spinner.style.display='inline';
-      try {
-        // Read current public config
-        let current = {};
-        try {
-          const curSnap = await get(tenantRef('public/config'));
-          if (curSnap && curSnap.exists && typeof curSnap.val === 'function') current = curSnap.val();
-        } catch (e) { /* ignore */ }
+    // Counters
+    let allCounters={};
+    onValue(tRef('counters'),snap=>{
+      allCounters=snap.exists()?snap.val():{};
+      const active=Object.values(allCounters).filter(c=>c&&c.active).length;
+      document.getElementById('activeCounters').textContent=active;
+      document.getElementById('anCounters').textContent=active;
+      renderCounters();
+    });
 
-        const updates = Object.assign({}, current, {
-          mainTitle: document.getElementById('mainTitle').value || current.mainTitle || '',
-          introText: document.getElementById('introText').value || current.introText || '',
-          smallTextOnTop: document.getElementById('smallTextOnTop').value || current.smallTextOnTop || '',
-          titleinmiddle: document.getElementById('titleinmiddle').value || current.titleinmiddle || ''
-        });
+    // ----- Dashboard Update -----
+    function updateDashboard(){
+      const q=allQueues,se=allServiceEvents;
+      const waiting=q.filter(x=>x.status==='waiting').length;
+      const serving=q.filter(x=>x.status==='serving').length;
+      const cancelled=q.filter(x=>x.status==='cancelled').length;
+      const completed=se.length||q.filter(x=>x.status==='done'||x.status==='served').length;
 
-        if (uploadedMedia.logo) updates.logo = uploadedMedia.logo;
-        if (uploadedMedia.logoUrl) updates.logoUrl = uploadedMedia.logoUrl;
-        if (uploadedMedia.adImage) updates.adImage = uploadedMedia.adImage;
+      document.getElementById('totalQueues').textContent=q.length;
+      document.getElementById('activeQueues').textContent=waiting;
+      document.getElementById('todayQueues').textContent=q.filter(x=>isToday(x.timestamp)).length;
 
-        try { await set( tenantRef('public/config'), updates ); } catch (e) { console.warn('tenant public/config write failed', e); }
+      // Analytics
+      document.getElementById('anTotalServed').textContent=completed;
+      document.getElementById('anCompleted').textContent=completed;
+      document.getElementById('anWaiting').textContent=waiting;
+      document.getElementById('anServing').textContent=serving;
+      document.getElementById('anCancelled').textContent=cancelled;
 
-        // Best-effort: also write to legacy 'settings' for older clients
-        try { await set(tenantRef('settings'), updates); } catch(e){ /* ignore */ }
+      // Wait stats
+      const waits=[];
+      const now=Date.now();
+      se.forEach(e=>{const r=parseTimestamp(e.requestedAt),s=parseTimestamp(e.servedAt);if(r&&s){const m=Math.round((s-r)/6e4);if(m>=0&&m<43200)waits.push(m)}});
+      q.filter(x=>x.status==='waiting').forEach(x=>{const m=Math.max(0,Math.round((now-x.timestamp)/6e4));if(m<43200)waits.push(m)});
+      const stats=computeStats(waits);
+      document.getElementById('anAvgWait').textContent=stats.average;
+      document.getElementById('anMedianWait').textContent=stats.median;
+      document.getElementById('anWaitAvg').textContent=stats.average+' min';
+      document.getElementById('anWaitMedian').textContent=stats.median+' min';
+      document.getElementById('anWait90').textContent=stats.p90+' min';
+      document.getElementById('anWaitMax').textContent=stats.longest+' min';
 
-        uploadedMedia = { logo:null, logoUrl:null, adImage:null };
-        showToast('Settings updated!', 'success');
-      } catch (err) {
-        console.error('updateSettings', err);
-        showToast('Failed to update settings', 'error');
-      } finally {
-        btn.disabled = false; text.style.display='inline'; spinner.style.display='none';
-      }
+      // Busiest hours
+      const hourCounts=new Array(24).fill(0);
+      const week=now-7*864e5;
+      q.forEach(x=>{if(x.timestamp>=week)hourCounts[new Date(x.timestamp).getHours()]++});
+      se.forEach(e=>{const s=parseTimestamp(e.servedAt);if(s&&s>=week)hourCounts[new Date(s).getHours()]++});
+      const busiest=hourCounts.map((c,h)=>({hour:h,count:c})).filter(x=>x.count>0).sort((a,b)=>b.count-a.count).slice(0,5);
+      const bhC=document.getElementById('busiestHours');
+      bhC.innerHTML=busiest.length?'':'<span style="color:var(--text-muted);font-size:13px">No data</span>';
+      const colors=['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981'];
+      busiest.forEach((h,i)=>{const b=document.createElement('div');b.className='metric-badge';b.style.background=colors[i%5];b.textContent=`${formatHour(h.hour)}: ${h.count}`;bhC.appendChild(b)});
+
+      // Recent activity
+      const recent=q.slice().sort((a,b)=>b.timestamp-a.timestamp).slice(0,8);
+      const raC=document.getElementById('recentActivity');
+      if(!recent.length){raC.innerHTML='<p>No queue activity yet.</p>';return}
+      raC.innerHTML=recent.map(q=>`<div style="padding:8px 0;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center"><div><span style="font-weight:700">${q.queueId||q.counterId||'—'}</span> <span class="badge badge-${q.status==='waiting'?'blue':q.status==='serving'?'amber':'green'}">${q.status}</span></div><span style="font-size:12px;color:var(--text-muted)">${formatDate(q.timestamp)}</span></div>`).join('');
+
+      updateCharts();
+      updateEventsTable();
     }
 
-    document.getElementById('updateSettingsBtn').addEventListener('click', updateSettings);
-    document.getElementById('saveAllBtn').addEventListener('click', updateSettings);
+    // ----- Charts -----
+    let trendChart=null,perfChart=null;
+    function initCharts(){
+      if(trendChart)return;
+      const ctx1=document.getElementById('trendChart')?.getContext('2d');
+      const ctx2=document.getElementById('perfChart')?.getContext('2d');
+      if(!ctx1||!ctx2)return;
+      trendChart=new Chart(ctx1,{type:'line',data:{labels:[],datasets:[{label:'Queues',data:[],fill:true,tension:.35,borderColor:'#667eea',backgroundColor:'rgba(102,126,234,0.08)',borderWidth:2,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}}});
+      perfChart=new Chart(ctx2,{type:'bar',data:{labels:[],datasets:[{label:'Served',data:[],backgroundColor:['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6'],borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}}});
+      updateCharts();
+    }
 
-    // ---------- Announcement (tenant-scoped) ----------
-    let selectedMediaFile = null;
-    const announcementMedia = document.getElementById('announcementMedia');
-    const announcementPreview = document.getElementById('announcementPreview');
+    function updateCharts(){
+      if(!trendChart||!perfChart)return;
+      const days=[];const today=new Date();today.setHours(0,0,0,0);
+      const range=parseInt(document.getElementById('analyticsRange')?.value||'7');
+      for(let i=range-1;i>=0;i--){
+        const d=new Date(today);d.setDate(d.getDate()-i);
+        const start=d.getTime(),end=start+864e5;
+        const count=allQueues.filter(q=>q.timestamp>=start&&q.timestamp<end).length;
+        days.push({label:d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),count});
+      }
+      trendChart.data.labels=days.map(d=>d.label);
+      trendChart.data.datasets[0].data=days.map(d=>d.count);
+      trendChart.update();
 
-    announcementMedia.addEventListener('change', (e) => {
-      const f = e.target.files?.[0] || null;
-      selectedMediaFile = f;
-      announcementPreview.innerHTML = '';
-      if (!f) return;
-      if (f.size > 50 * 1024 * 1024) {
-        showToast('File too large! Max 50MB', 'error'); selectedMediaFile = null; announcementMedia.value=''; return;
-      }
-      const url = URL.createObjectURL(f);
-      if (f.type.startsWith('video/')) {
-        const v = document.createElement('video'); v.src = url; v.controls = true; v.style = 'width:100%;max-width:380px;border-radius:10px;margin-top:8px'; announcementPreview.appendChild(v);
-      } else if (f.type.startsWith('audio/')) {
-        const a = document.createElement('audio'); a.src = url; a.controls = true; a.style='width:100%;margin-top:8px'; announcementPreview.appendChild(a);
-      } else {
-        const img = document.createElement('img'); img.src = url; img.style='max-width:380px;width:100%;border-radius:10px;margin-top:8px'; announcementPreview.appendChild(img);
-      }
+      const cs={};
+      if(allServiceEvents.length){allServiceEvents.forEach(e=>{const k=e.counter||e.counterId||'unknown';cs[k]=(cs[k]||0)+1})}
+      else{allQueues.forEach(q=>{if(q.counterId)cs[q.counterId]=(cs[q.counterId]||0)+1})}
+      perfChart.data.labels=Object.keys(cs);
+      perfChart.data.datasets[0].data=Object.values(cs);
+      perfChart.update();
+    }
+
+    document.getElementById('analyticsRange')?.addEventListener('change',updateCharts);
+
+    // ----- Events Table (paginated) -----
+    let eventsPage=0;const eventsPerPage=20;
+    function updateEventsTable(){
+      const events=[...allServiceEvents].sort((a,b)=>(b.servedAt||b.timestamp||0)-(a.servedAt||a.timestamp||0));
+      const total=events.length;
+      const pages=Math.max(1,Math.ceil(total/eventsPerPage));
+      eventsPage=Math.min(eventsPage,pages-1);
+      const start=eventsPage*eventsPerPage;
+      const slice=events.slice(start,start+eventsPerPage);
+      const tbody=document.getElementById('eventsBody');
+      if(!slice.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No events</td></tr>';return}
+      tbody.innerHTML=slice.map(e=>{
+        const waitMin=e.serviceMs?Math.round(e.serviceMs/6e4):(e.requestedAt&&e.servedAt?Math.round((e.servedAt-e.requestedAt)/6e4):'—');
+        return`<tr><td>${formatDate(e.servedAt||e.timestamp)}</td><td>${e.counter||e.counterId||'—'}</td><td>${e.ticketId||'—'}</td><td>${waitMin}</td><td><span class="badge badge-green">served</span></td></tr>`;
+      }).join('');
+      document.getElementById('eventsPageInfo').textContent=`Page ${eventsPage+1} of ${pages}`;
+    }
+    document.getElementById('eventsPrev')?.addEventListener('click',()=>{if(eventsPage>0){eventsPage--;updateEventsTable()}});
+    document.getElementById('eventsNext')?.addEventListener('click',()=>{eventsPage++;updateEventsTable()});
+
+    // ----- CSV Export -----
+    document.getElementById('exportCsvBtn')?.addEventListener('click',()=>{
+      const events=[...allServiceEvents];
+      if(!events.length){showToast('No events to export','error');return}
+      const headers=['timestamp','counter','ticketId','requestedAt','servedAt','serviceMs'];
+      const rows=events.map(e=>headers.map(h=>e[h]??'').join(','));
+      const csv=[headers.join(','),...rows].join('\n');
+      const blob=new Blob([csv],{type:'text/csv'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`analytics-${slug}-${new Date().toISOString().slice(0,10)}.csv`;a.click();
+      showToast('CSV exported!','success');
     });
 
-    document.getElementById('sendAnnouncementBtn').addEventListener('click', async () => {
-      const message = document.getElementById('announcementMessage').value.trim();
-      if (!message && !selectedMediaFile) { showToast('Please enter a message or attach media', 'error'); return; }
+    // ----- Counters -----
+    function renderCounters(){
+      const list=document.getElementById('countersList');
+      const entries=Object.entries(allCounters);
+      if(!entries.length){list.innerHTML='<p style="color:var(--text-muted)">No counters yet. Click "Add Counter" to create one.</p>';return}
+      list.innerHTML=entries.map(([id,c])=>`
+        <div class="counter-card ${c.active?'counter-active':'counter-inactive'}">
+          <div>
+            <div style="font-weight:800;font-size:16px">${c.name||id}</div>
+            <div style="font-size:12px;color:var(--text-muted)">Prefix: <strong>${c.prefix||'—'}</strong> | Now Serving: <strong>${c.nowServing||0}</strong> | Last Issued: <strong>${c.lastIssued||0}</strong></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label class="toggle"><input type="checkbox" ${c.active?'checked':''} onchange="window.__toggleCounter('${id}',this.checked)"/><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      `).join('');
+    }
+    window.__toggleCounter=async(id,active)=>{
+      try{await update(tRef(`counters/${id}`),{active});showToast(`Counter ${active?'activated':'deactivated'}`)}catch(e){showToast('Failed','error')}
+    };
 
-      const sendBtn = document.getElementById('sendAnnouncementBtn');
-      const sendBtnText = document.getElementById('sendBtnText');
-      const sendBtnSpinner = document.getElementById('sendBtnSpinner');
-      const announcementResult = document.getElementById('announcementResult');
+    // Add counter modal
+    const addModal=document.getElementById('addCounterModal');
+    document.getElementById('addCounterBtn').addEventListener('click',()=>addModal.classList.add('active'));
+    document.getElementById('cancelCounterBtn').addEventListener('click',()=>addModal.classList.remove('active'));
+    document.getElementById('createCounterBtn').addEventListener('click',async()=>{
+      const name=document.getElementById('newCounterName').value.trim();
+      const prefix=document.getElementById('newCounterPrefix').value.trim().toUpperCase();
+      if(!name||!prefix){showToast('Name and prefix required','error');return}
+      try{
+        const id=genId('ctr-');
+        await set(tRef(`counters/${id}`),{name,prefix,active:true,lastIssued:0,nowServing:0,order:Object.keys(allCounters).length,createdAt:Date.now()});
+        writeAudit('counter_created',{id,name,prefix});
+        addModal.classList.remove('active');
+        document.getElementById('newCounterName').value='';
+        document.getElementById('newCounterPrefix').value='';
+        showToast('Counter created!');
+      }catch(e){showToast('Failed: '+e.message,'error')}
+    });
 
-      sendBtn.disabled = true; sendBtnText.style.display='none'; sendBtnSpinner.style.display='inline';
-      try {
-        // Read tenant-scoped chatIds and bot token (preferred)
-        let chatIdsObj = await getTenantFirst('integrations/telegram/connected') || await getTenantFirst('announcement/chatIds');
-        // Normalize chatIds
-        let chatIds = [];
-        if (Array.isArray(chatIdsObj)) chatIds = chatIdsObj;
-        else if (chatIdsObj && typeof chatIdsObj === 'object') chatIds = Object.keys(chatIdsObj);
-        else if (typeof chatIdsObj === 'string') chatIds = [chatIdsObj];
+    // ----- Announcements -----
+    let annTarget={type:'all'};
+    let annMediaFile=null;
+    let subscriberCount=0;
 
-        // Bot token: tenant-scoped fallback to global
-        const botTokenVal = await getTenantFirst('integrations/telegram/botToken') || (await getTenantFirst('announcement/botToken')) || null;
-
-        if (!chatIds || chatIds.length === 0 || !botTokenVal) throw new Error('Missing chatIds or botToken in tenant data');
-
-        let mediaBase64 = '';
-        let mediaType = '';
-        if (selectedMediaFile) {
-          mediaBase64 = await fileToBase64(selectedMediaFile);
-          mediaType = selectedMediaFile.type;
-        }
-
-        // Send payload to serverless function (server-side sends Telegram messages; tenant-aware server function should read tenantId from headers or body)
-        const payload = {
-          tenantId: window.__TENANT_ID,
-          message,
-          media: mediaBase64,
-          mediaType,
-          chatIds,
-          telegramBotToken: botTokenVal
-        };
-
-        const res = await fetch('/.netlify/functions/announce', {
-          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        if (!res.ok) throw result;
-
-        announcementResult.style.display='block';
-        announcementResult.style.borderRadius='10px';
-        announcementResult.style.padding='10px';
-        if (result.success && result.success > 0) {
-          announcementResult.style.background = '#dcfce7'; announcementResult.style.color = '#064e3b';
-          announcementResult.innerHTML = `✅ Sent to ${result.success} recipient(s)`;
-          if (result.failed && result.failed > 0) announcementResult.innerHTML += `<br>⚠️ Failed: ${result.failed}`;
-          document.getElementById('announcementMessage').value = '';
-          announcementMedia.value = ''; announcementPreview.innerHTML = ''; selectedMediaFile = null;
-          showToast('Announcement sent successfully!', 'success');
-        } else {
-          announcementResult.style.background = '#fee2e2'; announcementResult.style.color = '#7f1d1d';
-          announcementResult.innerHTML = '⚠️ Failed to send announcement';
-          showToast('Failed to send announcement', 'error');
-        }
-        setTimeout(()=>announcementResult.style.display='none', 4500);
-      } catch (err) {
-        console.error('Announcement error', err);
-        announcementResult.style.display='block';
-        announcementResult.style.background = '#fee2e2'; announcementResult.style.color = '#7f1d1d';
-        announcementResult.innerHTML = `⚠️ ${err.message || 'Unknown error'}`;
-        showToast(err.message || 'Announcement failed', 'error');
-        setTimeout(()=>announcementResult.style.display='none', 4500);
-      } finally {
-        sendBtn.disabled = false; sendBtnText.style.display='inline'; sendBtnSpinner.style.display='none';
+    // Load subscriber count
+    onValue(tRef('integrations/telegram/connected'),snap=>{
+      const obj=snap.exists()?snap.val():{};
+      subscriberCount=Object.keys(obj||{}).length;
+      document.getElementById('dashSubscriberCount').textContent=subscriberCount+' subscribers';
+      document.getElementById('annRecipientCount').textContent='Estimated: '+subscriberCount+' recipients';
+    });
+    onValue(tRef('announcement/chatIds'),snap=>{
+      if(subscriberCount===0&&snap.exists()){
+        subscriberCount=Object.keys(snap.val()||{}).length;
+        document.getElementById('dashSubscriberCount').textContent=subscriberCount+' subscribers';
+        document.getElementById('annRecipientCount').textContent='Estimated: '+subscriberCount+' recipients';
       }
     });
 
-    // ---------- Media preview helper ----------
-    function createMediaPreview(src, container, type='image') {
-      container.innerHTML = '';
-      if (!src) return;
-      if (type === 'video' || (typeof src === 'string' && src.startsWith('data:video'))) {
-        const v = document.createElement('video'); v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.className = 'preview-video';
-        container.appendChild(v);
-      } else {
-        const img = document.createElement('img'); img.src = src; img.className = 'preview-image';
-        container.appendChild(img);
+    // Target selection
+    document.querySelectorAll('.target-option').forEach(el=>{
+      el.addEventListener('click',()=>{
+        document.querySelectorAll('.target-option').forEach(x=>x.classList.remove('selected'));
+        el.classList.add('selected');
+        annTarget.type=el.dataset.target;
+        document.getElementById('annTargetListInput').style.display=annTarget.type==='list'?'block':'none';
+        if(annTarget.type==='list')document.getElementById('annRecipientCount').textContent='Custom list';
+        else document.getElementById('annRecipientCount').textContent='Estimated: '+subscriberCount+' recipients';
+      });
+    });
+
+    // Media attach
+    document.getElementById('ann-media').addEventListener('change',e=>{
+      const f=e.target.files?.[0];annMediaFile=f||null;
+      const prev=document.getElementById('annMediaPreview');prev.innerHTML='';
+      if(!f)return;
+      if(f.size>10*1024*1024){showToast('Max 10MB','error');annMediaFile=null;return}
+      const url=URL.createObjectURL(f);
+      if(f.type.startsWith('video/')){const v=document.createElement('video');v.src=url;v.controls=true;v.style='width:100%;max-width:300px;border-radius:10px';prev.appendChild(v)}
+      else{const img=document.createElement('img');img.src=url;img.style='max-width:300px;width:100%;border-radius:10px';prev.appendChild(img)}
+    });
+
+    async function sendAnnouncement(message){
+      if(!message){showToast('Enter a message','error');return}
+      const payload={slug,tenantId,message,level:'info',target:annTarget};
+      if(annTarget.type==='list'){
+        const ids=document.getElementById('ann-chatids').value.split(',').map(s=>s.trim()).filter(Boolean);
+        if(!ids.length){showToast('Enter chat IDs','error');return}
+        payload.target={type:'list',chatIds:ids};
       }
+      // Media base64 for server
+      if(annMediaFile){
+        payload.media=await fileToBase64(annMediaFile);
+        payload.mediaType=annMediaFile.type;
+      }
+      const res=await fetch('/.netlify/functions/announce',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      return res.json();
     }
 
-    // ---------- Charts & analytics helpers (reused code from your original file) ----------
-    // (copy the analytics helpers & chart initialization functions here)
-    // ... re-use the same computeStats, calculateWaitTimesCombined, calculateSevenDaySummary,
-    // calculateBusiestHoursCombined, updateUIFromQueues, initializeCharts, updateCharts
-    // For brevity I reuse the functions from your existing admin file directly:
+    // Dashboard quick send
+    document.getElementById('dashSendAnnouncementBtn').addEventListener('click',async()=>{
+      const btn=document.getElementById('dashSendAnnouncementBtn');
+      const msg=document.getElementById('dashAnnouncementMsg').value.trim();
+      const resultDiv=document.getElementById('dashAnnouncementResult');
+      btn.disabled=true;btn.textContent='Sending...';
+      try{
+        const r=await sendAnnouncement(msg);
+        resultDiv.style.display='block';
+        if(r.success>0){resultDiv.style.background='#dcfce7';resultDiv.style.color='#065f46';resultDiv.textContent=`✅ Sent to ${r.success} recipient(s)`+(r.failed?` | ⚠️ ${r.failed} failed`:'');document.getElementById('dashAnnouncementMsg').value='';writeAudit('announcement_sent',{success:r.success,failed:r.failed})}
+        else{resultDiv.style.background='#fee2e2';resultDiv.style.color='#991b1b';resultDiv.textContent='⚠️ Failed: '+(r.error||'Unknown error')}
+        setTimeout(()=>resultDiv.style.display='none',5000);
+      }catch(e){showToast(e.message||'Send failed','error')}
+      finally{btn.disabled=false;btn.textContent='📱 Send to All'}
+    });
 
-    // ---------- (BEGIN reused analytics functions) ----------
-    function parseTimestamp(ts) {
-      if (ts === undefined || ts === null) return null;
-      let n = (typeof ts === 'number') ? ts : Number(ts);
-      if (Number.isNaN(n)) {
-        const d = Date.parse(ts);
-        if (Number.isNaN(d)) return null;
-        n = d;
-      }
-      const now = Date.now();
-      const min = 1230768000000;
-      const oneYearFuture = now + (365*24*60*60*1000);
-      if (n < min || n > oneYearFuture) return null;
-      return n;
-    }
-    function isToday(ts) {
-      const p = parseTimestamp(ts);
-      if (!p) return false;
-      const d = new Date(p); const today = new Date();
-      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-    }
-    function computeStats(arr) {
-      if (!arr || arr.length === 0) return { average:0, median:0, p90:0, longest:0 };
-      const xs = arr.slice().sort((a,b)=>a-b);
-      const sum = xs.reduce((a,b)=>a+b,0);
-      const avg = Math.round(sum / xs.length);
-      const median = (xs.length % 2 === 0) ? Math.round((xs[xs.length/2 -1] + xs[xs.length/2]) / 2) : xs[Math.floor(xs.length/2)];
-      const p90 = Math.round(xs[Math.floor(xs.length * 0.9)]);
-      const longest = xs[xs.length-1];
-      return { average: avg, median, p90, longest };
-    }
-    function calculateWaitTimesCombined(queues, serviceEvents) {
-      const now = Date.now();
-      const waits = [];
-      if (serviceEvents && Array.isArray(serviceEvents)) {
-        for (const e of serviceEvents) {
-          const req = parseTimestamp(e.requestedAt ?? e.requestedAt);
-          const served = parseTimestamp(e.servedAt ?? e.servedAt);
-          if (!req || !served) continue;
-          const mins = Math.round((served - req) / 60000);
-          if (mins >= 0 && mins <= 30*24*60) waits.push(mins);
+    // Full announcement send
+    document.getElementById('annSendBtn').addEventListener('click',async()=>{
+      const btn=document.getElementById('annSendBtn');
+      const text=document.getElementById('annSendText');
+      const spin=document.getElementById('annSendSpinner');
+      const resultDiv=document.getElementById('annResult');
+      const title=document.getElementById('ann-title').value.trim();
+      const body=document.getElementById('ann-body').value.trim();
+      const message=title?`📢 ${title}\n\n${body}`:body;
+      if(!message){showToast('Enter a message','error');return}
+
+      btn.disabled=true;text.style.display='none';spin.style.display='inline';
+      try{
+        const r=await sendAnnouncement(message);
+        resultDiv.style.display='block';
+        if(r&&r.success>0){
+          resultDiv.style.background='#dcfce7';resultDiv.style.color='#065f46';
+          resultDiv.innerHTML=`✅ Sent to ${r.success} recipient(s)`+(r.failed?`<br>⚠️ ${r.failed} failed`:'');
+          document.getElementById('ann-title').value='';document.getElementById('ann-body').value='';
+          document.getElementById('annMediaPreview').innerHTML='';annMediaFile=null;
+          writeAudit('announcement_sent',{success:r.success,failed:r.failed,title});
+          loadSendLog();
+        }else{
+          resultDiv.style.background='#fee2e2';
+          resultDiv.style.color='#991b1b';
+          resultDiv.textContent='⚠️ '+(r?.error||'Failed to send');
         }
-      }
-      const waitingQs = queues.filter(q => q.status === 'waiting');
-      for (const q of waitingQs) {
-        const ts = parseTimestamp(q.timestamp);
-        if (!ts) continue;
-        const mins = Math.max(0, Math.round((now - ts) / 60000));
-        if (mins >= 0 && mins <= 30*24*60) waits.push(mins);
-      }
-      return computeStats(waits);
+        setTimeout(()=>resultDiv.style.display='none',6000);
+      }catch(e){showToast(e.message||'Error','error')}
+      finally{btn.disabled=false;text.style.display='inline';spin.style.display='none'}
+    });
+
+    // Send log
+    function loadSendLog(){
+      get(tRef('integrations/telegram/sentAnnouncements')).then(snap=>{
+        const logDiv=document.getElementById('annSendLog');
+        if(!snap.exists()){logDiv.innerHTML='<p style="color:var(--text-muted)">No send logs yet.</p>';return}
+        const data=snap.val();
+        const announcements=Object.entries(data).slice(-10).reverse();
+        logDiv.innerHTML=announcements.map(([annId,chats])=>{
+          const chatEntries=Object.entries(chats||{});
+          const ok=chatEntries.filter(([,v])=>v.status==='ok').length;
+          const fail=chatEntries.length-ok;
+          const ts=chatEntries[0]?.[1]?.ts;
+          return`<div class="audit-entry"><div class="audit-time">${formatDate(ts)} — ${annId}</div><div style="margin-top:4px"><span class="badge badge-green">${ok} sent</span> ${fail?`<span class="badge badge-red">${fail} failed</span>`:''}</div></div>`;
+        }).join('');
+      }).catch(()=>{});
     }
-    function calculateSevenDaySummary(queues, serviceEvents) {
-      const days = []; const today = new Date(); today.setHours(0,0,0,0);
-      for (let i=6;i>=0;i--) {
-        const d = new Date(today); d.setDate(d.getDate() - i);
-        const start = d.getTime(); const end = start + 24*60*60*1000;
-        const dayQs = queues.filter(q => { const ts = parseTimestamp(q.timestamp); return ts && ts >= start && ts < end; });
-        const total = dayQs.length;
-        let completed = 0;
-        if (serviceEvents && Array.isArray(serviceEvents)) {
-          completed = serviceEvents.filter(e => { const s = parseTimestamp(e.servedAt); return s && s >= start && s < end; }).length;
-        }
-        const cancelled = dayQs.filter(q => q.status === 'cancelled').length;
-        const waitTimes = [];
-        if (serviceEvents && Array.isArray(serviceEvents)) {
-          for (const e of serviceEvents) {
-            const req = parseTimestamp(e.requestedAt); const served = parseTimestamp(e.servedAt);
-            if (!req || !served) continue;
-            if (req >= start && req < end) {
-              const mins = Math.round((served - req) / 60000);
-              if (mins >= 0 && mins <= 30*24*60) waitTimes.push(mins);
-            }
-          }
-        }
-        for (const q of dayQs) {
-          if (q.status === 'waiting') {
-            const ts = parseTimestamp(q.timestamp); if (!ts) continue;
-            const mins = Math.round((Date.now() - ts) / 60000);
-            if (mins >= 0 && mins <= 30*24*60) waitTimes.push(mins);
-          }
-        }
-        const avgWait = waitTimes.length ? Math.round(waitTimes.reduce((a,b)=>a+b,0) / waitTimes.length) : 0;
-        const hourCounts = new Array(24).fill(0);
-        for (const q of dayQs) { const ts = parseTimestamp(q.timestamp); if (ts) hourCounts[new Date(ts).getHours()]++; }
-        if (serviceEvents && Array.isArray(serviceEvents)) {
-          for (const e of serviceEvents) { const s = parseTimestamp(e.servedAt); if (s && s >= start && s < end) hourCounts[new Date(s).getHours()]++; }
-        }
-        const maxCount = Math.max(...hourCounts);
-        const busiestHour = maxCount > 0 ? hourCounts.indexOf(maxCount) : null;
-        days.push({ date: d.toISOString().split('T')[0], total, completed, cancelled, avgWait, busiestHour });
-      }
-      return { days };
-    }
-    function calculateBusiestHoursCombined(queues, serviceEvents) {
-      const now = Date.now(); const last7 = now - 7*24*60*60*1000; const hourCounts = new Array(24).fill(0);
-      for (const q of queues) { const ts = parseTimestamp(q.timestamp); if (!ts) continue; if (ts >= last7) hourCounts[new Date(ts).getHours()]++; }
-      if (serviceEvents && Array.isArray(serviceEvents)) {
-        for (const e of serviceEvents) { const s = parseTimestamp(e.servedAt); if (!s) continue; if (s >= last7) hourCounts[new Date(s).getHours()]++; }
-      }
-      const arr = hourCounts.map((count,h) => ({ hour:h, count })).filter(x => x.count>0).sort((a,b)=>b.count-a.count);
-      return arr.slice(0,5);
+    loadSendLog();
+
+    // ----- Audit Logs -----
+    function writeAudit(action,details={}){
+      try{
+        const id=genId('aud-');
+        set(tRef(`audit/${id}`),{action,by:user.email,createdAt:Date.now(),details}).catch(()=>{});
+      }catch(e){}
     }
 
-    function formatHourLabel(hour) {
-      if (hour === null || hour === undefined) return '-';
-      if (hour === 0) return '12 AM';
-      if (hour < 12) return `${hour} AM`;
-      if (hour === 12) return '12 PM';
-      return `${hour-12} PM`;
-    }
+    onValue(tRef('audit'),snap=>{
+      const div=document.getElementById('auditLogsList');
+      if(!snap.exists()){div.innerHTML='<p>No audit logs yet.</p>';return}
+      const entries=Object.entries(snap.val()||{}).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0)).slice(0,50);
+      div.innerHTML=entries.map(([id,e])=>`<div class="audit-entry"><div class="audit-time">${formatDate(e.createdAt)} — ${e.by||'system'}</div><div style="margin-top:2px;font-weight:700">${e.action}</div>${e.details?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${JSON.stringify(e.details).slice(0,120)}</div>`:''}</div>`).join('');
+    });
 
-    let queueTrendChart = null;
-    let counterPerfChart = null;
-    function initializeCharts() {
-      if (!document.getElementById('queueTrendChart')) return;
-      if (!queueTrendChart) {
-        const ctx = document.getElementById('queueTrendChart').getContext('2d');
-        queueTrendChart = new Chart(ctx, { type: 'line', data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label:'Queues', data:[0,0,0,0,0,0,0], fill:true, tension:0.35, borderColor:'#667eea', backgroundColor:'rgba(102,126,234,0.08)' }] }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true} } } });
-      }
-      if (!counterPerfChart) {
-        const ctx = document.getElementById('counterPerfChart').getContext('2d');
-        counterPerfChart = new Chart(ctx, { type: 'bar', data: { labels:[], datasets:[{ label:'Served', data:[], backgroundColor: ['#667eea','#8b5cf6','#ec4899','#f59e0b'] }] }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} } });
-      }
-    }
-
-    function updateCharts(queues, serviceEvents) {
-      if (!queueTrendChart || !counterPerfChart) return;
-      const summary = calculateSevenDaySummary(queues, serviceEvents);
-      const labels = summary.days.map(d => new Date(d.date).toLocaleDateString('en-US',{weekday:'short'}));
-      const data = summary.days.map(d => d.total);
-      queueTrendChart.data.labels = labels;
-      queueTrendChart.data.datasets[0].data = data;
-      queueTrendChart.update();
-
-      const counterStats = {};
-      if (serviceEvents && Array.isArray(serviceEvents) && serviceEvents.length > 0) {
-        serviceEvents.forEach(e => {
-          const key = e.counter || e.counterId || 'unknown';
-          if (key) counterStats[key] = (counterStats[key] || 0) + 1;
-        });
-      } else {
-        queues.forEach(q => {
-          if (q.counterId) counterStats[q.counterId] = (counterStats[q.counterId] || 0) + 1;
-        });
-      }
-      counterPerfChart.data.labels = Object.keys(counterStats);
-      counterPerfChart.data.datasets[0].data = Object.values(counterStats);
-      counterPerfChart.update();
-    }
-
-    function updateUIFromQueues(queues, serviceEvents) {
-      const total = queues.length;
-      const waiting = queues.filter(q => q.status === 'waiting').length;
-      const serving = queues.filter(q => q.status === 'serving').length;
-      const cancelled = queues.filter(q => q.status === 'cancelled').length;
-
-      document.getElementById('totalQueues').textContent = total;
-      document.getElementById('activeQueues').textContent = waiting;
-      document.getElementById('todayQueues').textContent = queues.filter(q => isToday(q.timestamp)).length;
-
-      document.getElementById('analystWaiting').textContent = waiting;
-      document.getElementById('analystServing').textContent = serving;
-      document.getElementById('analystCancelled').textContent = cancelled;
-
-      let servedCount = null;
-      if (serviceEvents && Array.isArray(serviceEvents)) servedCount = serviceEvents.length;
-      if (servedCount !== null && !Number.isNaN(servedCount)) {
-        document.getElementById('analystTotalServed').textContent = servedCount;
-        document.getElementById('analystCompleted').textContent = servedCount;
-      }
-
-      const waitStats = calculateWaitTimesCombined(queues, serviceEvents);
-      document.getElementById('analystAvgWait').textContent = waitStats.average;
-      document.getElementById('analystMedianWait').textContent = waitStats.median;
-      document.getElementById('waitAverage').textContent = waitStats.average + ' min';
-      document.getElementById('waitMedian').textContent = waitStats.median + ' min';
-      document.getElementById('wait90th').textContent = waitStats.p90 + ' min';
-      document.getElementById('waitLongest').textContent = waitStats.longest + ' min';
-
-      const busiest = calculateBusiestHoursCombined(queues, serviceEvents);
-      const container = document.getElementById('busiestHoursContainer');
-      container.innerHTML = '';
-      if (busiest.length === 0) container.innerHTML = '<div class="muted">No data available</div>';
-      else {
-        const colors = ['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981'];
-        busiest.forEach((h,i) => {
-          const badge = document.createElement('div');
-          badge.className = 'metric-badge';
-          badge.style.background = colors[i % colors.length];
-          badge.textContent = `${formatHourLabel(h.hour)}: ${h.count} queues`;
-          container.appendChild(badge);
-        });
-      }
-
-      updateCharts(queues, serviceEvents);
-    }
-    // ---------- (END reused analytics functions) ----------
-
-    // init charts
-    initializeCharts();
-
-    // ---- done boot ----
-    console.info('Tenant-aware admin booted for', window.__TENANT_SLUG, window.__TENANT_ID);
-  } // end boot
-
-  // Start
-  boot().catch(err => {
-    console.error('bootstrap error', err);
-    showFatal(String(err && err.message ? err.message : err));
-  });
-
-  // Accessibility/UX
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') howToUseModal.classList.remove('active');
-  });
+    // Initial audit
+    writeAudit('admin_login',{email:user.email});
+  }
+}
 </script>
 </body>
 </html>
