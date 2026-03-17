@@ -1,415 +1,485 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Queue Joy — Your Turn</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    #tenant-badge { position: fixed; right: 12px; bottom: 12px; background: #111827; color:#fff; padding:8px 10px; border-radius:8px; font-size:12px; z-index:9999; display:none; }
-    #tenant-badge small { opacity:0.9; font-weight:700; margin-right:6px; }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>QueueJoy — Your Turn</title>
+<meta name="description" content="Track your queue position in real-time" />
+<style>
+  :root { --primary:#7c3aed; --accent:#8b5cf6; --success:#10b981; --muted:#6b7280; }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(135deg,#f6f5ff,#f0efff);color:#111827;display:flex;align-items:center;justify-content:center}
+  .card{width:98%;max-width:480px;background:#fff;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(17,24,39,0.06);text-align:center}
+  h1{font-size:22px;margin:0 0 6px;font-weight:800}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+  #yourNumber{font-size:62px;font-weight:900;color:var(--primary);letter-spacing:4px}
+  #counterName{font-size:28px;font-weight:800;color:var(--accent);margin-top:12px}
+  .small{font-size:13px;color:var(--muted);margin-top:8px}
+  .controls{display:flex;gap:8px;justify-content:center;margin-top:18px}
+  button{padding:10px 14px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
+  .btn-primary{background:linear-gradient(90deg,var(--accent),var(--primary));color:#fff}
+  .btn-outline{background:#fff;border:1px solid rgba(0,0,0,0.06)}
+  #statusBanner{margin-top:12px;font-size:13px;color:var(--muted)}
+  .qa-badge{position:fixed;right:12px;bottom:12px;background:#111827;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;z-index:9999;display:none}
+  .error{color:#b91c1c;margin-top:10px;font-weight:700}
+  .hint{font-size:12px;color:#6b7280;margin-top:8px}
+</style>
 </head>
-<body class="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+<body>
+  <div class="card" role="main" aria-live="polite">
+    <h1>It's Your Turn</h1>
+    <div class="sub">We'll watch your number and notify you when it's called</div>
 
-  <div id="tenant-badge"><small>slug</small><span id="tenant-badge-slug"></span> · <small>id</small> <span id="tenant-badge-id"></span></div>
+    <div id="yourNumber">—</div>
+    <div class="small">Your Queue Number</div>
 
-  <div class="w-full max-w-md bg-white rounded-xl shadow p-6 text-center">
-    <h1 class="text-2xl font-bold text-gray-800 mb-3">It’s Your Turn</h1>
+    <div id="counterName">—</div>
+    <div class="small">Proceed To</div>
 
-    <div class="mb-6">
-      <div class="text-sm text-gray-500">Your Queue Number</div>
-      <div id="yourNumber" class="mt-2 text-6xl font-extrabold text-indigo-700">—</div>
-      <div id="tgBadge" class="mt-2 text-xs text-green-600 hidden">Connected via Telegram</div>
+    <div class="controls" style="margin-top:18px">
+      <button id="enableSoundBtn" class="btn-primary">Enable sound & notifications</button>
+      <button id="openTelegramBtn" class="btn-outline">Connect Telegram</button>
     </div>
 
-    <div>
-      <div class="text-sm text-gray-500">Proceed To</div>
-      <div id="counterName" class="mt-2 text-3xl font-bold text-purple-700">—</div>
-    </div>
-
-    <div class="mt-6 text-xs text-gray-400" id="fbStatus">Connecting to Firebase…</div>
+    <div id="statusBanner">Connecting...</div>
+    <div id="errorBox" class="error" style="display:none"></div>
+    <div class="hint">If the number isn't updating, open devtools console for diagnostics.</div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-    import { getDatabase, ref, onValue, off, get } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+  <div id="qaBadge" class="qa-badge"><small>slug</small> <span id="qaSlug"></span> · <small>id</small> <span id="qaId"></span></div>
 
-    // --- site Firebase config (same as your other pages) ---
-    const siteFirebaseConfig = {
-      apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
-      authDomain: "queue-joy-aa21b.firebaseapp.com",
-      databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "queue-joy-aa21b",
-      storageBucket: "queue-joy-aa21b.firebasestorage.app",
-      messagingSenderId: "950240394209",
-      appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
-    };
+<script type="module">
+/*
+  Robust your_turn.html
+  - probes multiple RTDB paths (tenant-aware and global/demo) to find queue & counter
+  - uses modular firebase v10 imports
+  - requires 1 user gesture to unlock audio + request Notification permission
+  - best-effort reconnection + backoff
+*/
 
-    // DOM refs
-    const yourNumberEl = document.getElementById('yourNumber');
-    const counterNameEl = document.getElementById('counterName');
-    const fbStatusEl = document.getElementById('fbStatus');
-    const tgBadge = document.getElementById('tgBadge');
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
-    // tenant QA badge
-    const tenantBadge = document.getElementById('tenant-badge');
-    const tenantBadgeSlug = document.getElementById('tenant-badge-slug');
-    const tenantBadgeId = document.getElementById('tenant-badge-id');
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+  databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  authDomain: "queue-joy-aa21b.firebaseapp.com",
+  projectId: "queue-joy-aa21b",
+  storageBucket: "queue-joy-aa21b.firebasestorage.app",
+  messagingSenderId: "950240394209",
+  appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+};
 
-    // state
-    let app, db, queueRef, counterRef;
-    let queueKey = null;
-    let lastTicket = null;
-    const alertedKeyPrefix = 'qj_alerted_';
-    let tenantResolved = false;
+const GET_TENANT_ENDPOINT = '/.netlify/functions/get-tenant';
+const GET_FIREBASE_CLIENT_CONFIG = '/.netlify/functions/get-firebase-config';
+const CREATE_LINK_ENDPOINT = '/.netlify/functions/createTelegramLink';
+const TELEGRAM_BOT_URL = 'https://t.me/QueueJoyBot';
 
-    // -------------------------
-    // Tenant helpers
-    // -------------------------
-    function getSlugFromQueryOrPath() {
+// UI refs
+const yourNumberEl = document.getElementById('yourNumber');
+const counterNameEl = document.getElementById('counterName');
+const statusBanner = document.getElementById('statusBanner');
+const enableSoundBtn = document.getElementById('enableSoundBtn');
+const openTelegramBtn = document.getElementById('openTelegramBtn');
+const errorBox = document.getElementById('errorBox');
+const qaBadge = document.getElementById('qaBadge');
+const qaSlug = document.getElementById('qaSlug');
+const qaId = document.getElementById('qaId');
+
+// state
+let db = null, firebaseApp = null;
+let TENANT_SLUG = null, TENANT_ID = null;
+let currentQueueKey = null;
+let qListenerRef = null, cListenerRef = null;
+let audioUnlocked = false, audioCtx = null;
+let lastSeenTicket = null;
+let alertKeyPrefix = 'qj_alerted_';
+let reconnectDelay = 1000;
+
+// helpers
+function log(...a){ console.log('[STATUS]', ...a); }
+function warn(...a){ console.warn('[STATUS]', ...a); }
+function fail(msg){ errorBox.style.display='block'; errorBox.textContent = String(msg); console.error('[STATUS]', msg); }
+function clearError(){ errorBox.style.display='none'; errorBox.textContent=''; }
+
+function getParam(keys){
+  try {
+    const usp = new URLSearchParams(window.location.search);
+    for (const k of keys){ const v = usp.get(k); if (v) return v; }
+  } catch(e){}
+  return null;
+}
+function getSlugFromUrl(){
+  try {
+    const usp = new URLSearchParams(window.location.search);
+    if (usp.get('slug')) return usp.get('slug');
+  } catch(e){}
+  const parts = location.pathname.replace(/^\/+|\/+$/g,'').split('/');
+  if (parts && parts.length && parts[0] && !parts[0].includes('.')) return parts[0];
+  return null;
+}
+
+function parseTicketNum(ticket){
+  if(!ticket) return NaN;
+  const s = String(ticket);
+  const m = s.match(/(\d+)$/);
+  return m ? parseInt(m[1],10) : ( /^\d+$/.test(s) ? parseInt(s,10) : NaN );
+}
+
+function readableTicket(ticket){ return (ticket===undefined || ticket===null || ticket==='') ? '—' : String(ticket); }
+
+async function resolveTenant(slug){
+  if(!slug) return null;
+  try {
+    const res = await fetch(`${GET_TENANT_ENDPOINT}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
+    if (!res.ok) { log('get-tenant returned',res.status); return null; }
+    const j = await res.json().catch(()=>null);
+    return j || null;
+  } catch(e){ warn('resolveTenant failed', e); return null; }
+}
+
+async function fetchClientConfig(slug){
+  try {
+    const res = await fetch(`${GET_FIREBASE_CLIENT_CONFIG}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    return await res.json().catch(()=>null);
+  } catch(e){ return null; }
+}
+
+async function initFirebase(clientCfg){
+  try {
+    const cfg = clientCfg && (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig) && clientCfg.firebaseClientConfig?.databaseURL ? clientCfg.firebaseClientConfig : DEFAULT_FIREBASE_CONFIG;
+    if (!getApps().length) firebaseApp = initializeApp(cfg);
+    else firebaseApp = getApps()[0];
+    db = getDatabase(firebaseApp);
+    log('Firebase initialized using', cfg.databaseURL || cfg);
+    return true;
+  } catch(e){ warn('Firebase init failed', e); db = null; return false; }
+}
+
+/* Path probe helpers
+   Returns the first path that exists in RTDB among candidates
+*/
+async function findExistingPath(candidates){
+  if(!db) return candidates[0] || null;
+  for(const p of candidates){
+    try{
+      const snap = await get(ref(db,p)).catch(()=>null);
+      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
+      log('probe',p,'exists=',exists);
+      if (exists) return p;
+    }catch(e){ warn('probe failed',p,e); }
+  }
+  return null;
+}
+
+/* Attach queue listener using best-guess path */
+async function attachQueue(queueKey){
+  if (!db || !queueKey) return;
+  detachQueue();
+  statusBanner.textContent = 'Finding queue...';
+  currentQueueKey = queueKey;
+
+  // candidates: tenant-scoped with plural/singular, public fallbacks, demo global structure, legacy
+  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
+  const candidates = [
+    `${tBase}queue/${queueKey}`,
+    `${tBase}queues/${queueKey}`,
+    `${tBase}public/queue/${queueKey}`,
+    `${tBase}public/queues/${queueKey}`,
+    `queue/${queueKey}`,
+    `queues/${queueKey}`,
+    // some demos store the token as top-level child
+    `${queueKey}`
+  ];
+
+  const chosen = (await findExistingPath(candidates)) || candidates[0];
+  log('chosen queue path',chosen);
+
+  try {
+    qListenerRef = ref(db, chosen);
+    onValue(qListenerRef, snap => {
       try {
-        const qp = new URLSearchParams(window.location.search);
-        const s = qp.get('slug') || qp.get('tenant') || qp.get('tenantSlug');
-        if (s && String(s).trim()) return String(s).trim();
-      } catch (e) {}
-      // fallback: first path segment (if not a file)
-      try {
-        const p = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
-        if (p && p.length && p[0] && !p[0].includes('.') ) return p[0];
-      } catch (e) {}
-      return null;
-    }
-
-    async function resolveTenant(slug) {
-      if (!slug) return null;
-      try {
-        const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
-        if (!res.ok) {
-          const txt = await res.text().catch(()=>null);
-          throw new Error(`get-tenant failed (${res.status}) ${txt || ''}`);
+        if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
+          yourNumberEl.textContent = '—';
+          counterNameEl.textContent = '—';
+          statusBanner.textContent = 'Queue not found';
+          return;
         }
-        const j = await res.json();
-        // expected: { tenantId: '...', config: {...} }
-        return j;
-      } catch (e) {
-        console.warn('Tenant resolve error', e);
-        return null;
-      }
-    }
+        const q = snap.val() || {};
+        // Determine ticket / number robustly
+        const ticket = q.ticketNumber || q.ticket || q.number || q.id || q.queueId || q.token || q.key || (typeof q === 'string' ? q : null);
+        lastSeenTicket = ticket;
+        yourNumberEl.textContent = readableTicket(ticket);
 
-    // tenantRef factory: prefer tenants/{tenantId}/... else fallback to provided path
-    function tenantRefFactory(dbInstance) {
-      return function tenantRef(relPath = '') {
-        relPath = String(relPath || '').replace(/^\/+/, '');
-        const tenantId = window.__TENANT_ID || null;
-        const slug = window.__TENANT_SLUG || null;
-        if (!tenantId && !slug) {
-          // no tenant info — caller will handle using plain ref if desired
-          return ref(dbInstance, relPath || '/');
-        }
-        const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
-        if (!relPath) return ref(dbInstance, base);
-        return ref(dbInstance, `${base}/${relPath}`);
-      };
-    }
+        // Telegram badge + UI handled externally if you have a token
+        // If server marked as called already, alert immediately
+        const calledFlag = q.called === true || q.called === 'true' || q.calledAt || q.notifiedAt || q.calledAt;
+        // compute counter id and name. many variants: counterId, counterAssigned, counterAssignedName, counterName
+        const counterId = q.counterId || q.counterAssigned || q.counter || q.counter_key || q.counterKey || null;
+        const counterName = q.counterAssignedName || q.counterName || q.counterNameDisplay || q.counterDisplay || null;
 
-    // safe read that tries tenant-scoped path first, then global legacy path
-    async function getTenantFirst(dbInstance, tenantRefFn, relPath) {
-      try {
-        const snap = await get(tenantRefFn(relPath));
-        if (snap && snap.exists && typeof snap.val === 'function') return snap.val();
-      } catch (e) { /* ignore */ }
-      try {
-        const snap2 = await get(ref(dbInstance, relPath));
-        if (snap2 && snap2.exists && typeof snap2.val === 'function') return snap2.val();
-      } catch (e) { /* ignore */ }
-      return null;
-    }
+        if (counterName) counterNameEl.textContent = counterName;
+        else if (counterId) counterNameEl.textContent = `Counter ${counterId}`;
+        else counterNameEl.textContent = '—';
 
-    // -------------------------
-    // Audio / alert helpers
-    // -------------------------
-    function playSoftChime() {
-      try {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return;
-        const ctx = new Ctx();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-
-        o.type = 'sine';
-        o.frequency.value = 880;
-        g.gain.value = 0.0001;
-
-        o.connect(g);
-        g.connect(ctx.destination);
-
-        const now = ctx.currentTime;
-        g.gain.setValueAtTime(0.0001, now);
-        g.gain.exponentialRampToValueAtTime(0.06, now + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
-
-        o.start(now);
-        o.stop(now + 0.85);
-
-        setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1000);
-      } catch (e) {
-        console.warn('playSoftChime failed', e);
-      }
-    }
-
-    function alertUser(ticket, counterName) {
-      const alertedKey = alertedKeyPrefix + (queueKey || 'unknown');
-      if (localStorage.getItem(alertedKey)) return;
-      localStorage.setItem(alertedKey, 'true');
-
-      if (ticket) yourNumberEl.textContent = ticket;
-      if (counterName) counterNameEl.textContent = counterName;
-
-      playSoftChime();
-      try { if (navigator.vibrate) navigator.vibrate([180,80,180]); } catch(e) {}
-
-      const originalTitle = document.title;
-      document.title = `▶ Your Turn — ${ticket || ''}`;
-      setTimeout(() => { document.title = originalTitle; }, 2500);
-      try { window.focus(); } catch(_) {}
-    }
-
-    // parse numeric suffix of tickets (robust)
-    function parseTicketNum(ticket) {
-      if (!ticket) return NaN;
-      const s = String(ticket);
-      const letters = s.match(/^[A-Za-z]+/);
-      const numPart = letters ? s.slice(letters[0].length) : s;
-      return parseInt(numPart, 10) || NaN;
-    }
-
-    // -------------------------
-    // Firebase listeners (tenant-aware)
-    // -------------------------
-    let attachedCounterId = null;
-
-    function attachCounterListeners(dbInstance, tenantRefFn, counterId) {
-      if (!counterId) return;
-      if (attachedCounterId === counterId) return;
-      attachedCounterId = counterId;
-
-      // cleanup previous
-      try { if (counterRef) { off(counterRef); counterRef = null; } } catch(_) {}
-
-      // Primary: tenant-scoped counters/{counterId}
-      const candidatePaths = [
-        `counters/${counterId}`,
-        `counters/${counterId}/nowServing`,
-        // legacy fallback
-        `counters/${counterId}`
-      ];
-
-      // Attach one listener that watches either object or nowServing node
-      try {
-        // try tenant-scoped object ref
-        counterRef = tenantRefFn(`counters/${counterId}`);
-        onValue(counterRef, (snap) => {
-          if (!snap.exists()) return;
-          const c = snap.val() || {};
-          counterNameEl.textContent = c.name || `Counter ${counterId}`;
-
-          // handle nowServing which might be a child or a value inside object
-          if (c.nowServing !== undefined && c.nowServing !== null) {
-            evaluateNowServing(c.nowServing, c.name);
+        // progress UI
+        if (q.nowServing || q.nowServingValue || q.current) {
+          const now = q.nowServing || q.nowServingValue || q.current;
+          const nowNum = parseTicketNum(now);
+          const ticketNum = parseTicketNum(ticket);
+          if (!isNaN(nowNum) && !isNaN(ticketNum)) {
+            const ahead = Math.max(0, ticketNum - nowNum);
+            statusBanner.textContent = (ahead === 0 ? "You're next!" : `${ahead} ahead`);
           } else {
-            // attach to nested nowServing if available
-            try {
-              const nestedRef = tenantRefFn(`counters/${counterId}/nowServing`);
-              onValue(nestedRef, (nsSnap) => {
-                if (!nsSnap.exists()) return;
-                evaluateNowServing(nsSnap.val(), c.name);
-              });
-            } catch (e) { /* ignore */ }
+            statusBanner.textContent = 'Monitoring queue...';
           }
-        });
-      } catch (e) {
-        // final fallback: global counters path
-        try {
-          counterRef = ref(dbInstance, `counters/${counterId}`);
-          onValue(counterRef, (snap) => {
-            if (!snap.exists()) return;
-            const c = snap.val() || {};
-            counterNameEl.textContent = c.name || `Counter ${counterId}`;
-            if (c.nowServing !== undefined && c.nowServing !== null) evaluateNowServing(c.nowServing, c.name);
-          });
-        } catch (err) {
-          console.warn('attachCounter fallback failed', err);
-        }
-      }
-    }
-
-    function evaluateNowServing(nowServingValue, counterName) {
-      if (!lastTicket) return;
-      const ticketNum = parseTicketNum(lastTicket);
-      const currentNum = parseTicketNum(nowServingValue);
-      if (isNaN(ticketNum) || isNaN(currentNum)) {
-        if (String(nowServingValue) === String(lastTicket)) alertUser(lastTicket, counterName);
-        return;
-      }
-      if (currentNum >= ticketNum) alertUser(lastTicket, counterName);
-    }
-
-    async function attachQueueListeners(dbInstance, tenantRefFn, qKey) {
-      if (!qKey) return;
-      // cleanup previous
-      try { if (queueRef) { off(queueRef); queueRef = null; } } catch(_) {}
-
-      // Try multiple candidate paths in priority:
-      // 1) tenants/{tenantId}/queues/{qKey}
-      // 2) tenants/{tenantId}/queue/{qKey}
-      // 3) global /queues/{qKey}
-      // 4) global /queue/{qKey}
-      const candidates = [
-        `queues/${qKey}`,
-        `queue/${qKey}`,
-        // legacy global
-        `queues/${qKey}`,
-        `queue/${qKey}`
-      ];
-
-      let attached = false;
-      for (const p of candidates) {
-        try {
-          queueRef = tenantRefFn(p);
-          onValue(queueRef, (snap) => {
-            if (!snap.exists()) {
-              // if listener attached for this path and nothing here, show not found (but keep trying other paths isn't possible once attached)
-              yourNumberEl.textContent = '--';
-              counterNameEl.textContent = '--';
-              fbStatusEl.textContent = 'Queue not found';
-              return;
-            }
-            const q = snap.val() || {};
-            lastTicket = q.ticketNumber || q.queueId || q.id || q.number || '--';
-            yourNumberEl.textContent = lastTicket;
-
-            // Telegram badge
-            if (q.telegramChatId) tgBadge.classList.remove('hidden'); else tgBadge.classList.add('hidden');
-
-            // If server already marked called, alert immediately
-            if (q.called === true || q.notifiedAt || q.calledAt) {
-              const counterName = q.counterAssignedName || q.counterName || q.counterAssigned || null;
-              alertUser(lastTicket, counterName);
-              return;
-            }
-
-            // otherwise attach counter watch (tenant-scoped)
-            const counterId = q.counterId || q.counterAssigned || q.counter || null;
-            if (counterId) attachCounterListeners(dbInstance, tenantRefFn, counterId);
-          });
-          attached = true;
-          break;
-        } catch (e) {
-          // try next candidate
-          try { off(queueRef); } catch (_) {}
-        }
-      }
-      if (!attached) {
-        // last attempt: plain global /queue/{qKey}
-        try {
-          queueRef = ref(dbInstance, `queue/${qKey}`);
-          onValue(queueRef, (snap) => {
-            if (!snap.exists()) { yourNumberEl.textContent = '--'; counterNameEl.textContent = '--'; fbStatusEl.textContent = 'Queue not found'; return; }
-            const q = snap.val() || {};
-            lastTicket = q.ticketNumber || q.queueId || q.id || q.number || '--';
-            yourNumberEl.textContent = lastTicket;
-            if (q.telegramChatId) tgBadge.classList.remove('hidden'); else tgBadge.classList.add('hidden');
-
-            if (q.called === true || q.notifiedAt || q.calledAt) {
-              const counterName = q.counterAssignedName || q.counterName || q.counterAssigned || null;
-              alertUser(lastTicket, counterName);
-              return;
-            }
-            const counterId = q.counterId || q.counterAssigned || q.counter || null;
-            if (counterId) attachCounterListeners(dbInstance, tenantRefFactory(dbInstance), counterId);
-          });
-          attached = true;
-        } catch (e) {
-          console.error('Failed to attach queue listener', e);
-          fbStatusEl.textContent = 'Listener error';
-        }
-      }
-    }
-
-    // -------------------------
-    // bootstrap
-    // -------------------------
-    (async function init() {
-      // Get queueKey from query params
-      function getParam(keys) {
-        const usp = new URLSearchParams(window.location.search);
-        for (const k of keys) { const v = usp.get(k); if (v) return v; }
-        return null;
-      }
-      queueKey = getParam(['queueId','queueid','qid','id']);
-      if (!queueKey) {
-        fbStatusEl.textContent = 'Missing queueId';
-        console.error('Missing queueId');
-        return;
-      }
-
-      // Resolve tenant (optional)
-      const slug = getSlugFromQueryOrPath();
-      if (slug) {
-        tenantBadge.style.display = 'block';
-        tenantBadgeSlug.textContent = slug;
-      }
-      let tenantInfo = null;
-      if (slug) {
-        tenantInfo = await resolveTenant(slug);
-        if (tenantInfo) {
-          window.__TENANT_SLUG = slug;
-          window.__TENANT_ID = tenantInfo.tenantId || slug;
-          tenantBadgeId.textContent = window.__TENANT_ID;
-          tenantResolved = true;
-          // emit event for tenant-firebase helper / other scripts
-          try {
-            window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: window.__TENANT_ID, slug: window.__TENANT_SLUG, config: tenantInfo.config || tenantInfo } }));
-          } catch (e) { /* ignore */ }
         } else {
-          // show resolved badge with slug only
-          tenantBadgeId.textContent = '(unresolved)';
-          console.warn('Tenant lookup returned no result for slug', slug);
-          // continue and allow legacy global behaviour
+          statusBanner.textContent = 'Monitoring queue...';
         }
-      }
 
-      // Init firebase app
-      try {
-        app = initializeApp(siteFirebaseConfig);
-        db = getDatabase(app);
-        fbStatusEl.textContent = 'Connected to Firebase';
-      } catch (e) {
-        console.error('Firebase init failed', e);
-        fbStatusEl.textContent = 'Firebase init failed';
+        // If server already marked called -> alert
+        if (calledFlag) {
+          notifyUser(ticket, counterName || counterId);
+          return;
+        }
+
+        // attach counter listener for live nowServing
+        if (counterId) attachCounter(counterId);
+
+      } catch(e){ warn('q onValue callback failed', e); }
+    });
+    statusBanner.textContent = 'Listening for your number...';
+  } catch(e){
+    warn('attachQueue failed', e);
+    statusBanner.textContent = 'Listener error';
+    scheduleReconnect(()=>attachQueue(queueKey));
+  }
+}
+
+function detachQueue(){
+  try { if (qListenerRef) off(qListenerRef); qListenerRef = null; } catch(e){}
+  detachCounter();
+}
+
+async function attachCounter(counterId){
+  if (!db || !counterId) return;
+  detachCounter();
+
+  // candidates try tenant-scoped then global
+  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
+  const candidates = [
+    `${tBase}counters/${counterId}`,
+    `${tBase}public/counters/${counterId}`,
+    `counters/${counterId}`,
+    `public/counters/${counterId}`
+  ];
+  const chosen = (await findExistingPath(candidates)) || candidates[0];
+  log('chosen counter path', chosen);
+  try {
+    cListenerRef = ref(db, chosen);
+    onValue(cListenerRef, snap => {
+      if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
+        // nothing
         return;
       }
-
-      const tenantRef = tenantRefFactory(db);
-
-      // Attach queue listener (tenant-aware)
-      try {
-        await attachQueueListeners(db, tenantRef, queueKey);
-        fbStatusEl.textContent = 'Listening for your number...';
-      } catch (e) {
-        console.warn('attachQueueListeners error', e);
-        fbStatusEl.textContent = 'Listener error';
+      const c = snap.val() || {};
+      const nowServing = c.nowServing || c.nowServingValue || c.current || null;
+      const name = c.name || c.displayName || c.counterName || null;
+      if (name) counterNameEl.textContent = name;
+      if (nowServing !== undefined && nowServing !== null) {
+        // if nowServing matches our ticket, notify
+        const nowStr = String(nowServing);
+        if (lastSeenTicket && (nowStr === String(lastSeenTicket) || parseTicketNum(nowStr) >= parseTicketNum(lastSeenTicket))) {
+          notifyUser(lastSeenTicket, name || counterId);
+        }
+        // update small display
+        document.getElementById('counterName').textContent = name || `Counter ${counterId}`;
       }
+    });
+  } catch(e){ warn('attachCounter failed',e); scheduleReconnect(()=>attachCounter(counterId)); }
+}
 
-      // cleanup on unload
-      window.addEventListener('beforeunload', () => {
-        try { if (queueRef) off(queueRef); if (counterRef) off(counterRef); } catch(_) {}
-      });
+function detachCounter(){
+  try { if (cListenerRef) off(cListenerRef); cListenerRef = null; } catch(e){}
+}
 
-    })();
-  </script>
+function scheduleReconnect(fn){
+  reconnectDelay = Math.min(30_000, reconnectDelay * 1.8 || 1000);
+  setTimeout(()=>{ try{ fn(); reconnectDelay = 1000; } catch(e){ warn('reconnect attempt failed',e); } }, reconnectDelay);
+}
+
+/* Notification & audio logic */
+async function unlockAudioAndNotifications(){
+  // create/resume AudioContext on user gesture
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    audioUnlocked = true;
+    enableSoundBtn.textContent = 'Sound enabled';
+    enableSoundBtn.disabled = true;
+    // request Notification permission
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      const p = await Notification.requestPermission();
+      log('Notification permission', p);
+    }
+    // small silent buffer to ensure resume in background pages on some platforms:
+    try {
+      const buf = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+      src.stop(0);
+    } catch(e){}
+  } catch(e){ warn('unlockAudio failed',e); }
+}
+
+function playChime(){
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = 880;
+    g.gain.value = 0.0001;
+    o.connect(g); g.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+    o.start(now);
+    o.stop(now + 0.9);
+    setTimeout(()=>{ try{o.disconnect(); g.disconnect();}catch(_){} }, 1200);
+  } catch(e){ warn('playChime error', e); }
+}
+
+function notifyUser(ticket, counterName){
+  try {
+    if (!ticket) ticket = '—';
+    const alertedKey = alertKeyPrefix + (currentQueueKey || 'unknown') + '_' + String(ticket);
+    if (localStorage.getItem(alertedKey)) {
+      log('already alerted for', alertedKey);
+      return;
+    }
+    localStorage.setItem(alertedKey, '1');
+
+    // UI update
+    yourNumberEl.textContent = readableTicket(ticket);
+    if (counterName) counterNameEl.textContent = counterName;
+
+    // sound (if unlocked) — try to play even when tab hidden; will only succeed after a user gesture unlocked audio
+    if (audioUnlocked) {
+      try { playChime(); } catch(e){ warn('chime fail',e); }
+    }
+
+    // vibrate if available
+    try { if (navigator.vibrate) navigator.vibrate([200, 80, 200]); } catch(e){}
+
+    // Notification
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const title = `Your turn — ${ticket}`;
+        const body = counterName ? `Proceed to ${counterName}` : 'Please proceed to the counter';
+        new Notification(title, { body, tag: 'queuejoy', renotify: true });
+      } else {
+        // fallback: title change and visual
+        const prev = document.title;
+        document.title = `▶ Your Turn — ${ticket}`;
+        setTimeout(()=>{ document.title = prev; }, 3000);
+      }
+    } catch(e){ warn('notification failed',e); }
+
+  } catch(e){ warn('notifyUser failed', e); }
+}
+
+/* Bootstrapping: parse queueKey, resolve tenant, init firebase, attach listeners */
+async function bootstrap(){
+  try {
+    clearError();
+    const queueKey = getParam(['queueId','queueid','qid','id']) || getParam(['token']) || null;
+    if (!queueKey) {
+      fail('Missing queueId (use ?queueId=...)');
+      return;
+    }
+    statusBanner.textContent = 'Resolving tenant...';
+    currentQueueKey = queueKey;
+
+    // tenant discovery
+    const slug = getSlugFromUrl();
+    if (slug) {
+      qaBadge.style.display='block';
+      qaSlug.textContent = slug;
+      qaId.textContent = '(resolving...)';
+      TENANT_SLUG = slug;
+      const tenantResp = await resolveTenant(slug);
+      if (tenantResp && (tenantResp.tenantId || tenantResp.tenant)) {
+        TENANT_ID = tenantResp.tenantId || tenantResp.tenant || tenantResp.id || slug;
+      } else {
+        TENANT_ID = slug;
+      }
+      qaId.textContent = TENANT_ID;
+    }
+
+    // try tenant-specific firebase client config first
+    let clientCfg = null;
+    try { clientCfg = await fetchClientConfig(TENANT_SLUG || ''); } catch(e){}
+
+    const inited = await initFirebase(clientCfg);
+    if (!inited) {
+      statusBanner.textContent = 'Firebase init failed';
+      fail('Firebase client initialization failed. Check console.');
+      return;
+    }
+
+    // load averages etc - omitted for brevity (optional)
+
+    // attach queue listener
+    await attachQueue(currentQueueKey);
+    statusBanner.textContent = 'Listening for your number...';
+
+    // page visibility: try to resume audio when page becomes visible/hidden in some browsers
+    document.addEventListener('visibilitychange', ()=> {
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    });
+
+  } catch(e){
+    warn('bootstrap failed', e);
+    fail('Initialization failed — see console for details.');
+  }
+}
+
+// UI events
+enableSoundBtn.addEventListener('click', async () => {
+  try {
+    await unlockAudioAndNotifications();
+    enableSoundBtn.textContent = 'Enabled';
+  } catch(e){ warn('enableSound click failed',e); }
+});
+
+openTelegramBtn.addEventListener('click', async () => {
+  // ask server to create link if function exists; fallback to bot link with queue token
+  try {
+    let url = `${TELEGRAM_BOT_URL}?start=${encodeURIComponent(currentQueueKey)}`;
+    try {
+      const res = await fetch(CREATE_LINK_ENDPOINT, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ queueKey: currentQueueKey, tenantId: TENANT_ID }) });
+      if (res.ok) {
+        const j = await res.json().catch(()=>null);
+        if (j && (j.link || (j.token && `${TELEGRAM_BOT_URL}?start=${j.token}`))) {
+          url = j.link || `${TELEGRAM_BOT_URL}?start=${j.token}`;
+        }
+      }
+    } catch(e){}
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) { const a=document.createElement('a'); a.href=url; a.target='_blank'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+  } catch(e){ warn('openTelegram failed',e); }
+});
+
+// Start
+bootstrap();
+
+</script>
 </body>
 </html>

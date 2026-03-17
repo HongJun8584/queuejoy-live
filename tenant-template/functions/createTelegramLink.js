@@ -1,20 +1,22 @@
+// createTelegramLink.js
 'use strict';
 
 /*
-  createTelegramLink.js - production-grade Netlify function for QueueJoy
-  - 使用 firebase-admin 优先写入 Realtime Database（不受 RTDB rules 限制）
-  - 支持 slug 或 tenantId（优先解析 /slugs/{slug} -> tenantId）
-  - 若 admin SDK 不可用，则回退到 REST 写入（并在响应里报告失败原因）
-  - 环境变量：
+  createTelegramLink.js - Netlify function
+  - Writes tokens to:
+      tenants/{tenantId}/integrations/telegram/tokens/{token}
+      telegramTokens/{token}
+  - Tries firebase-admin first, falls back to RTDB REST PUT when admin unavailable
+  - Env:
       FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_SERVICE_ACCOUNT (JSON text)
-      FIREBASE_DATABASE_URL (或 FIREBASE_DB_URL / FIREBASE_RTDB_URL)
-      BOT_USERNAME (可选, default QueueJoyBot)
-      ALLOWED_ORIGIN (CORS, default '*')
+      FIREBASE_DATABASE_URL (or FIREBASE_DB_URL / FIREBASE_RTDB_URL)
+      BOT_USERNAME (optional, default QueueJoyBot)
+      ALLOWED_ORIGIN (CORS)
 */
 
 const { nanoid } = require('nanoid');
 
-const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 24 * 60 * 60 * 1000); // default 24h
 
 function makeHeaders(origin) {
   const CORS = process.env.ALLOWED_ORIGIN || origin || '*';
@@ -30,7 +32,7 @@ function json(status, payload, origin) {
   return { statusCode: status, headers: makeHeaders(origin), body: JSON.stringify(payload) };
 }
 
-function sanitize(v, max = 1000) {
+function sanitize(v, max = 2000) {
   if (v === undefined || v === null) return '';
   const s = (typeof v === 'string') ? v.trim() : String(v);
   return s.length > max ? s.slice(0, max) : s;
@@ -45,7 +47,7 @@ function parseBody(event) {
   }
 }
 
-function pickTenantFromReq(event, body) {
+function pickTenantCandidate(event, body) {
   // priority: body.tenantId | body.tenant | body.slug | query ?slug= | header x-tenant
   if (body && (body.tenantId || body.tenant || body.slug)) return sanitize(body.tenantId || body.tenant || body.slug);
   if (event && event.queryStringParameters && event.queryStringParameters.slug) return sanitize(event.queryStringParameters.slug);
@@ -90,7 +92,7 @@ function tryInitAdmin() {
         ...(dbUrl ? { databaseURL: dbUrl } : {})
       });
     } else {
-      // try default app credentials
+      // try default application credentials (Netlify may not provide)
       admin.initializeApp({ ...(dbUrl ? { databaseURL: dbUrl } : {}) });
     }
     return { ok: true, admin };
@@ -99,58 +101,65 @@ function tryInitAdmin() {
   }
 }
 
-/* -------- helpers to resolve slug -> tenantId (RTDB) -------- */
+/* -------- helpers to resolve slug -> tenantId (RTDB) using admin SDK -------- */
 async function resolveTenantIdWithAdmin(admin, slugOrId) {
   const db = admin.database();
-  // try slugs/{slugOrId}
+  // try slugs/{slug}
   try {
     const sRef = db.ref(`slugs/${slugOrId}`);
     const sSnap = await sRef.get().catch(()=>null);
     if (sSnap && sSnap.exists && sSnap.exists()) {
       const val = sSnap.val();
       if (typeof val === 'string' && val.trim()) return { tenantId: val.trim(), source: 'slugs.value' };
-      if (val && typeof val === 'object' && val.tenantId) return { tenantId: String(val.tenantId), source: 'slugs.obj' };
+      if (val && typeof val === 'object' && (val.tenantId || val.id)) return { tenantId: String(val.tenantId || val.id), source: 'slugs.obj' };
     }
-  } catch (e) {
-    // ignore and continue
-  }
-
-  // if not found, verify slugOrId is a tenantId (tenants/{id}/public/config)
-  try {
-    const tRef = db.ref(`tenants/${slugOrId}/public/config`);
-    const tSnap = await tRef.get().catch(()=>null);
-    if (tSnap && tSnap.exists && tSnap.exists()) return { tenantId: slugOrId, source: 'direct-check' };
   } catch (e) {
     // ignore
   }
 
+  // fallback: check tenants/{id}/meta exists (tolerant)
+  try {
+    const tRef = db.ref(`tenants/${slugOrId}/meta`);
+    const tSnap = await tRef.get().catch(()=>null);
+    if (tSnap && tSnap.exists && tSnap.exists()) return { tenantId: slugOrId, source: 'tenants.meta' };
+  } catch (e) {
+    // ignore
+  }
+
+  // last-resort: treat the input as tenant id (but caller may want explicit null)
   return null;
 }
 
 /* -------- main handler -------- */
 exports.handler = async function (event) {
-  const CORS_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+  const origin = (event && event.headers && (event.headers.origin || event.headers.Origin)) || '*';
 
-  // handle preflight
+  // CORS preflight
   if (event && event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
-      headers: makeHeaders(CORS_ORIGIN),
+      headers: makeHeaders(origin),
       body: ''
     };
   }
 
-  if (!event || event.httpMethod !== 'POST') return json(405, { error: 'Only POST allowed' }, CORS_ORIGIN);
+  if (!event || event.httpMethod !== 'POST') return json(405, { error: 'Only POST allowed' }, origin);
 
   const body = parseBody(event);
-  const queueKey = sanitize(body.queueKey || '');
+  const queueKey = sanitize(body.queueKey || body.token || '');
   const counterId = sanitize(body.counterId || '');
   const counterName = sanitize(body.counterName || '');
   const meta = (body.meta && typeof body.meta === 'object') ? body.meta : sanitize(body.meta || '');
 
-  const tenantCandidate = pickTenantFromReq(event, body); // slug or tenantId
+  if (!queueKey) {
+    // We still allow creating tokens without a queueKey, but warn user
+    // If you want to require queueKey, uncomment the next line:
+    // return json(400, { ok:false, error:'missing_queueKey' }, origin);
+  }
 
-  // generate token
+  const tenantCandidate = pickTenantCandidate(event, body); // slug or tenantId
+
+  // token generation
   const token = nanoid(12);
   const createdAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
@@ -158,19 +167,31 @@ exports.handler = async function (event) {
   const userAgent = (event.headers && (event.headers['user-agent'] || event.headers['User-Agent'])) || null;
   const ip = (event.headers && (event.headers['x-forwarded-for'] || event.headers['X-Forwarded-For'] || event.headers['x-nf-client-connection-ip'])) || null;
 
-  const payload = { queueKey, counterId, counterName, meta, createdAt, expiresAt, used: false, userAgent, ip };
+  const payload = {
+    token,
+    queueKey,
+    counterId,
+    counterName,
+    meta,
+    createdAt,
+    expiresAt,
+    used: false,
+    userAgent,
+    ip
+  };
 
   // build Telegram deep-link
   const botEnv = process.env.BOT_USERNAME || process.env.BOT_USER || 'QueueJoyBot';
   const botUsername = String(botEnv).replace(/^@/, '').trim() || 'QueueJoyBot';
   const telegramLink = `https://t.me/${encodeURIComponent(botUsername)}?start=${encodeURIComponent(token)}`;
 
-  // try admin SDK
+  // Try admin SDK
   const init = tryInitAdmin();
   if (init.ok && init.admin) {
     try {
       const admin = init.admin;
       let resolved = null;
+
       if (tenantCandidate) {
         resolved = await resolveTenantIdWithAdmin(admin, tenantCandidate);
       } else if (body.tenantId) {
@@ -178,45 +199,103 @@ exports.handler = async function (event) {
       }
 
       if (!resolved) {
-        // don't fail hard: return link but mention token NOT persisted
-        return json(200, { ok: true, link: telegramLink, token, createdAt, expiresAt, tenant: null, persisted: false, note: 'tenant not resolved; token not persisted' }, CORS_ORIGIN);
+        // Persist global fallback path only (so bot can still find token) and return a warning
+        const db = admin.database();
+        const globalPath = `telegramTokens/${token}`;
+        await db.ref(globalPath).set({ ...payload, tenant: null });
+        return json(200, {
+          ok: true,
+          link: telegramLink,
+          token,
+          createdAt,
+          expiresAt,
+          tenant: null,
+          persisted: true,
+          note: 'tenant not resolved — written to global telegramTokens path only',
+          paths: [globalPath],
+        }, origin);
       }
 
       const tenantId = resolved.tenantId;
-      const db = admin.database();
-      await db.ref(`tenants/${tenantId}/telegramTokens/${token}`).set(payload);
+      const tpath = `tenants/${tenantId}/integrations/telegram/tokens/${token}`;
+      const globalPath = `telegramTokens/${token}`;
 
-      return json(200, { ok: true, link: telegramLink, token, createdAt, expiresAt, tenant: tenantId, persisted: true, source: resolved.source }, CORS_ORIGIN);
+      // write both tenant-scoped token and global mapping (helps bot)
+      const db = admin.database();
+      const updates = {};
+      updates[`${tpath}`] = payload;
+      updates[`${globalPath}`] = { tenant: tenantId, queueKey, token, createdAt, expiresAt };
+
+      await db.ref().update(updates);
+
+      return json(200, {
+        ok: true,
+        link: telegramLink,
+        token,
+        createdAt,
+        expiresAt,
+        tenant: tenantId,
+        persisted: true,
+        source: resolved.source,
+        paths: [tpath, globalPath]
+      }, origin);
+
     } catch (err) {
+      // Admin write failed: log and fall through to REST fallback
       console.error('createTelegramLink: admin write failed', err && (err.stack || err));
-      // fall through to REST fallback (which may be rejected by rules)
     }
   } else {
     console.warn('createTelegramLink: admin SDK unavailable:', init && init.reason ? init.reason : '(no details)');
   }
 
-  // REST fallback (may be rejected by DB rules)
+  // REST fallback if admin was unavailable or failed
   const FIREBASE_DB_URL_RAW = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || process.env.FIREBASE_RTDB_URL || '';
   const FIREBASE_DB_URL = String(FIREBASE_DB_URL_RAW).replace(/\/$/, '');
+
   if (!FIREBASE_DB_URL) {
-    return json(500, { ok: false, error: 'no_firebase_config', note: 'admin SDK unavailable and FIREBASE_DB_URL not set for REST fallback' }, CORS_ORIGIN);
+    return json(500, { ok: false, error: 'no_firebase_config', note: 'admin SDK unavailable and FIREBASE_DB_URL not set for REST fallback' }, origin);
   }
 
-  // choose REST path
-  const rTenant = tenantCandidate || '';
-  const restPath = rTenant ? `${FIREBASE_DB_URL}/tenants/${encodeURIComponent(rTenant)}/telegramTokens/${encodeURIComponent(token)}.json`
-                          : `${FIREBASE_DB_URL}/telegramTokens/${encodeURIComponent(token)}.json`;
+  // If tenantCandidate exists, attempt to write under tenants/{tenantCandidate}/integrations/telegram/tokens/{token}.json
+  // Also write a global telegramTokens/{token}.json
+  const tenantPathEncoded = tenantCandidate ? `/tenants/${encodeURIComponent(tenantCandidate)}/integrations/telegram/tokens/${encodeURIComponent(token)}.json` : null;
+  const globalPath = `/telegramTokens/${encodeURIComponent(token)}.json`;
 
-  try {
-    const resp = await fetch(restPath, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const text = await resp.text().catch(()=>'');
-    if (!resp.ok) {
-      console.warn('createTelegramLink: REST write failed', resp.status, text);
-      return json(200, { ok: true, link: telegramLink, token, createdAt, expiresAt, tenant: null, persisted: false, restError: { status: resp.status, text } }, CORS_ORIGIN);
+  // helper to do PUT (fetch is available in Netlify functions runtime)
+  async function restPut(path, bodyObj) {
+    const url = `${FIREBASE_DB_URL}${path}`;
+    try {
+      const res = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) });
+      const text = await res.text().catch(()=>null);
+      return { ok: res.ok, status: res.status, text };
+    } catch (e) {
+      return { ok: false, error: String(e) };
     }
-    return json(200, { ok: true, link: telegramLink, token, createdAt, expiresAt, tenant: rTenant || null, persisted: true, method: 'rest' }, CORS_ORIGIN);
-  } catch (err) {
-    console.warn('createTelegramLink: REST write exception', String(err));
-    return json(200, { ok: true, link: telegramLink, token, createdAt, expiresAt, tenant: null, persisted: false, restException: String(err) }, CORS_ORIGIN);
   }
+
+  // try tenant write first (if candidate provided)
+  const restResults = {};
+  if (tenantPathEncoded) {
+    restResults.tenant = await restPut(tenantPathEncoded, payload);
+  } else {
+    restResults.tenant = { ok: false, status: 404, text: 'no tenantCandidate provided' };
+  }
+
+  // write global mapping too
+  restResults.global = await restPut(globalPath, { tenant: tenantCandidate || null, queueKey, token, createdAt, expiresAt });
+
+  // Interpret results
+  const persisted = (restResults.tenant && restResults.tenant.ok) || (restResults.global && restResults.global.ok);
+
+  return json(200, {
+    ok: true,
+    link: telegramLink,
+    token,
+    createdAt,
+    expiresAt,
+    tenant: tenantCandidate || null,
+    persisted,
+    restResults,
+    note: persisted ? 'written via REST fallback' : 'REST write attempted but may have failed (see restResults)'
+  }, origin);
 };
