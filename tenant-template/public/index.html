@@ -15,7 +15,6 @@
     .fade-in { animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1); }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
     .db-image { max-height: 180px; object-fit: cover; }
-    /* QA badge removed per request */
   </style>
 
   <!-- Firebase v10 (module) -->
@@ -67,7 +66,6 @@
         relPath = String(relPath || '').replace(/^\/+/, '');
         const tenantId = window.__TENANT_ID || null;
         const slug = window.__TENANT_SLUG || null;
-        // If no tenant/slug, intentionally throw — we require slug to scope everything
         if (!tenantId && !slug) {
           throw new Error('tenantRef requires TENANT_ID or TENANT_SLUG to be set');
         }
@@ -75,18 +73,6 @@
         if (!relPath) return ref(dbInstance, base);
         return ref(dbInstance, `${base}/${relPath}`);
       };
-    }
-
-    // Returns a tenant-scoped path string (e.g. "tenants/<id>/settings/adImage")
-    function tenantPath(relPath = '') {
-      relPath = String(relPath || '').replace(/^\/+/, '');
-      const tenantId = window.__TENANT_ID || null;
-      const slug = window.__TENANT_SLUG || null;
-      if (!tenantId && !slug) {
-        throw new Error('tenantPath requires TENANT_ID or TENANT_SLUG to be set');
-      }
-      const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
-      return relPath ? `${base}/${relPath}` : base;
     }
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -174,13 +160,13 @@
       let countersCache = {};    // { counterId: { ... } }
       let countersLoaded = false;
       let settingsCache = {};    // the tenant's public/config object
+
       // helper to compute active counters list from cache
       function getActiveCountersFromCache() {
         const raw = [];
         for (const id in countersCache) {
           if (!Object.prototype.hasOwnProperty.call(countersCache, id)) continue;
           const val = countersCache[id] || {};
-          // interpret 'active' flexibly like existing implementation
           const activeRaw = val.active;
           const active =
             activeRaw === undefined ||
@@ -205,11 +191,17 @@
         return activeList;
       }
 
+      // Button enabled only after countersLoaded is true
       function updateGetNumberButtonState() {
         try {
           const actives = getActiveCountersFromCache();
+          if (!countersLoaded) {
+            getNumberBtn.disabled = true;
+            return;
+          }
           getNumberBtn.disabled = !(actives && actives.length > 0);
         } catch (e) {
+          console.error('updateGetNumberButtonState error', e);
           getNumberBtn.disabled = false;
         }
       }
@@ -224,7 +216,6 @@
               countersCache[ch.key] = ch.val();
             });
           } else if (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) {
-            // fallback: raw object
             const obj = snap.val() || {};
             Object.keys(obj).forEach(k => countersCache[k] = obj[k]);
           }
@@ -232,61 +223,82 @@
           updateGetNumberButtonState();
         }, err => {
           console.warn('counters listener failed', err);
-          // keep previous cache
         });
       } catch (e) {
         console.warn('counters listener setup failed', e);
+      }
+
+      // Helper to read first matching key from config with many common names
+      function pickCfg(cfg, ...keys) {
+        const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
+        for (const k of keys) {
+          if (!k) continue;
+          const parts = k.split('.');
+          let cur = cfg;
+          for (const p of parts) {
+            if (!cur) break;
+            cur = cur[p];
+          }
+          const val = pick(cur);
+          if (val !== null) return val;
+        }
+        return null;
       }
 
       // settings (public/config) listener (tenant-scoped, realtime)
       try {
         const settingsRef = tenantRef('public/config');
         onValue(settingsRef, snap => {
-          settingsCache = (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) ? snap.val() : {};
-          // merge into window.__TENANT_PUBLIC_CONFIG for any downstream code
-          window.__TENANT_PUBLIC_CONFIG = Object.assign({}, window.__TENANT_PUBLIC_CONFIG || {}, settingsCache || {});
-          // Apply config to UI
           try {
+            settingsCache = (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) ? snap.val() : {};
+            window.__TENANT_PUBLIC_CONFIG = Object.assign({}, window.__TENANT_PUBLIC_CONFIG || {}, settingsCache || {});
+
             const cfg = window.__TENANT_PUBLIC_CONFIG || {};
-            if (cfg.theme && cfg.theme.color) {
-              document.documentElement.style.setProperty('--theme-color', cfg.theme.color);
-            } else if (cfg.theme && cfg.theme.color === undefined) {
-              // keep default
-            }
-            const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
-            const title = (cfg.displayName) ? String(cfg.displayName) : null;
-            if (title) {
-              siteTitleEl.textContent = title;
-              document.title = `${title} - Digital Queue System`;
+
+            // Apply theme color if present
+            const themeColor = pickCfg(cfg, 'theme.color', 'themeColor', 'themeColorHex');
+            if (themeColor) document.documentElement.style.setProperty('--theme-color', themeColor);
+
+            // Title / site name
+            const siteTitle = pickCfg(cfg, 'displayName', 'name', 'siteTitle', 'title', 'mainTitle');
+            if (siteTitle) {
+              siteTitleEl.textContent = siteTitle;
+              document.title = `${siteTitle} - Digital Queue System`;
             } else {
-              // fallback
-              siteTitleEl.textContent = pick(cfg.mainTitle) || pick(cfg.name) || 'Queue Joy';
+              const fallback = pickCfg(cfg, 'mainTitle', 'name');
+              siteTitleEl.textContent = fallback || 'Queue Joy';
               document.title = siteTitleEl.textContent + ' - Digital Queue System';
             }
-            if (smallTopTextEl) smallTopTextEl.textContent = pick(cfg.smallTextOnTop) || pick(cfg.smallTopText) || 'Digital Queue System';
 
-            if (cfg.logoUrl) {
-              centerLogoImg.src = cfg.logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
-            } else if (cfg.logo) {
-              centerLogoImg.src = cfg.logo; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
+            // small text on top
+            const smallTop = pickCfg(cfg, 'smallTextOnTop', 'smallTopText', 'smallTop');
+            if (smallTop && smallTopTextEl) smallTopTextEl.textContent = smallTop;
+
+            // logo — check multiple possible locations
+            const logoUrl = pickCfg(cfg, 'logoUrl', 'logo', 'theme.logo', 'theme.logoUrl', 'branding.logo');
+            if (logoUrl) {
+              centerLogoImg.src = logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
+              siteLogoEl.src = logoUrl; siteLogoEl.classList.remove('hidden');
             } else {
               centerLogoImg.src = ''; centerLogoImg.classList.add('hidden'); centerIcon.classList.remove('hidden');
-            }
-
-            if (cfg.logo) {
-              siteLogoEl.src = cfg.logo; siteLogoEl.classList.remove('hidden');
-            } else {
               siteLogoEl.src = ''; siteLogoEl.classList.add('hidden');
             }
 
-            mainHeading.textContent = pick(cfg.titleinmiddle) || pick(cfg.ctaTitle) || 'Get your queue number';
-            introText.textContent = pick(cfg.introText) || pick(cfg.smallTextOnTop) || 'Real-time queueing system. Mobile-friendly. No app needed.';
-            btnText.textContent = '🎫 ' + (pick(cfg.ctaText) || 'Get your queue number');
+            // main heading, intro and button text — try many common keys
+            const heading = pickCfg(cfg, 'titleinmiddle', 'titleInMiddle', 'ctaTitle', 'heading', 'mainHeading');
+            mainHeading.textContent = heading || 'Get your queue number';
 
-            // ad handling
+            const intro = pickCfg(cfg, 'introText', 'description', 'smallTextOnTop', 'subtitle');
+            introText.textContent = intro || 'Real-time queueing system. Mobile-friendly. No app needed.';
+
+            const cta = pickCfg(cfg, 'ctaText', 'cta', 'buttonText', 'getNumberText');
+            btnText.textContent = '🎫 ' + (cta || 'Get your queue number');
+
+            // Advertisement handling
             adContainer.innerHTML = '';
-            if (cfg.adImage) {
-              const url = String(cfg.adImage).trim();
+            const adImage = pickCfg(cfg, 'adImage', 'ad.image', 'adImageUrl');
+            if (adImage) {
+              const url = String(adImage).trim();
               const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith('data:video/');
               if (isVideo) {
                 const videoEl = document.createElement('video');
@@ -313,11 +325,16 @@
               adContainer.classList.add('hidden');
               noAd.classList.remove('hidden');
             }
-            adTextEl.textContent = pick(cfg.adText) || '';
+
+            const adText = pickCfg(cfg, 'adText', 'ad.text');
+            adTextEl.textContent = adText || '';
             adTextEl.classList.toggle('hidden', !adTextEl.textContent);
 
           } catch (e) {
             console.warn('apply settings to UI failed', e);
+          } finally {
+            // After settings apply, refresh button state (counters may already be loaded)
+            updateGetNumberButtonState();
           }
         }, err => {
           console.warn('settings read failed', err);
@@ -373,6 +390,8 @@
               const obj = snap.val() || {};
               Object.keys(obj).forEach(k => countersCache[k] = obj[k]);
             }
+            countersLoaded = true;
+            updateGetNumberButtonState();
           }
 
           const finalActive = getActiveCountersFromCache();
@@ -471,9 +490,6 @@
 
       // initial UI state: disable until counters known (will be enabled by listener)
       getNumberBtn.disabled = true;
-
-      // ensure we update button state if counters change externally (listener handles it)
-      // Done.
 
     }); // DOMContentLoaded end
   </script>
