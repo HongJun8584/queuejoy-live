@@ -2,998 +2,1210 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>QueueJoy — Your Status</title>
-  <meta name="description" content="Track your queue position in real-time" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>QueueJoy — Live Status</title>
+  <meta name="description" content="Track your queue position in real-time with QueueJoy" />
   <meta name="theme-color" content="#8b5cf6" />
-
-  <!-- NOTE: Tailwind CDN removed (don't use cdn.tailwindcss.com in production) -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <style>
-    :root { --primary: #8b5cf6; --primary-dark: #7c3aed; --bg-start: #f6f5ff; --bg-end: #ede9fe; --success: #10b981; }
-    * { box-sizing: border-box; margin:0; padding:0; }
-    html,body{ font-family:Inter,system-ui,-apple-system,sans-serif; background:linear-gradient(135deg,var(--bg-start),var(--bg-end)); min-height:100vh; min-height:100dvh; color:#1f2937; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
-    body{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px; padding-bottom:160px; }
-    .page-wrapper{ width:100%; max-width:420px; display:flex; flex-direction:column; gap:16px; }
-    .alert-banner{ background:linear-gradient(135deg,#fef3c7,#fde68a); border:1px solid #fcd34d; color:#92400e; padding:16px; border-radius:14px; font-size:13px; font-weight:600; text-align:center; line-height:1.5; }
-    .alert-banner.success{ background:linear-gradient(135deg,#d1fae5,#a7f3d0); border:1px solid #6ee7b7; color:#065f46; }
-    .card{ background:rgba(255,255,255,0.97); border-radius:24px; padding:24px 20px; box-shadow:0 20px 60px rgba(139,92,246,0.15); position:relative; }
-    .logo-box{ width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:28px;box-shadow:0 12px 30px rgba(139,92,246,0.3);overflow:hidden;flex-shrink:0; }
-    .logo-box img{ width:100%;height:100%;object-fit:cover; }
-    .header{ display:flex; gap:16px; align-items:center; margin-bottom:24px; padding-right:80px; }
-    .header-text h1{ font-size:22px; font-weight:800; color:#111827; line-height:1.2; }
-    .header-text p{ color:#6b7280; margin-top:6px; font-size:14px; line-height:1.4; }
-    .top-buttons{ position:absolute; right:16px; top:20px; display:flex; gap:10px; z-index:10; }
-    .circle-btn{ width:44px;height:44px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 12px rgba(0,0,0,0.1);cursor:pointer;transition:transform .15s,box-shadow .15s; }
-    .circle-btn:active{ transform:scale(.95); }
-    .progress-section{ margin-bottom:20px; }
-    .progress-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
-    .progress-label{ font-size:14px; font-weight:600; color:#374151; }
-    .progress-status{ font-size:14px; font-weight:700; color:var(--primary); display:flex; align-items:center; gap:6px; }
-    .progress-track{ height:28px;border-radius:999px;background:#f3f4f6;position:relative;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,0.05); }
-    .progress-fill{ height:100%; background:linear-gradient(90deg,var(--primary-dark),var(--primary)); display:flex; align-items:center; justify-content:flex-end; padding-right:12px; color:#fff; font-weight:800; font-size:13px; transition:width .6s cubic-bezier(.22,.9,.22,1); box-shadow:0 4px 16px rgba(139,92,246,0.4); min-width:50px; }
-    .stats-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
-    .glass-card{ background:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(250,248,255,0.9)); border-radius:16px; padding:18px 16px; border:1px solid rgba(139,92,246,0.08); box-shadow:0 4px 12px rgba(0,0,0,0.03); }
-    .stat-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; font-weight:600; }
-    .stat-value{ font-weight:900; font-size:32px; margin-top:8px; line-height:1; word-break:break-word; color:var(--primary); }
-    .stat-value.dark{ color:#111827; }
-    .stat-value-sm{ font-weight:800; font-size:26px; margin-top:8px; line-height:1; color:#374151; }
-    .stat-value-sm.highlight{ color:var(--primary); }
-    .connection-banner{ display:flex; align-items:center; gap:14px; background:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(250,248,255,0.9)); border-radius:16px; padding:16px; border:1px solid rgba(139,92,246,0.08); }
-    .connection-icon{ width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--primary-dark),var(--primary));display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;flex-shrink:0; }
-    .connection-text{ flex:1; min-width:0; }
-    .connection-title{ font-weight:700; font-size:14px; color:#111827; line-height:1.3; }
-    .connection-sub{ color:#6b7280; font-size:12px; margin-top:4px; line-height:1.3; }
-    .btn-primary{ background:linear-gradient(135deg,var(--primary-dark),var(--primary)); color:#fff; padding:14px 20px; border-radius:12px; font-weight:700; border:none; box-shadow:0 8px 20px rgba(139,92,246,0.3); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; transition:transform .15s,box-shadow .15s,opacity .15s; min-height:48px; white-space:nowrap; }
-    .btn-primary:active{ transform:scale(.98); } .btn-primary:disabled{ opacity:.6; cursor:not-allowed; transform:none; }
-    .btn-connected{ background:linear-gradient(135deg,#059669,var(--success)); }
-    .error-banner{ padding:14px; border-radius:12px; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-weight:600; font-size:13px; text-align:center; display:none; }
-    .modal-overlay{ position:fixed; inset:0; background:rgba(15,23,42,0.6); display:flex; align-items:center; justify-content:center; z-index:999; padding:20px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); opacity:0; visibility:hidden; transition:opacity .25s, visibility .25s; }
-    .modal-overlay.show{ opacity:1; visibility:visible; } .modal-card{ width:100%; max-width:380px; background:#fff; border-radius:24px; padding:28px 24px; box-shadow:0 24px 60px rgba(15,23,42,0.4); transform:translateY(20px) scale(.96); transition:transform .3s cubic-bezier(.22,.9,.22,1); }
-    .modal-overlay.show .modal-card{ transform:translateY(0) scale(1); }
-    .modal-icon{ width:100px;height:100px;margin:0 auto;border-radius:24px;background:linear-gradient(135deg,var(--primary),var(--primary-dark)); display:flex;align-items:center;justify-content:center;font-size:44px;color:#fff; box-shadow:0 16px 40px rgba(139,92,246,0.3); }
-    .modal-icon.success{ background:linear-gradient(135deg,var(--success),#059669); box-shadow:0 16px 40px rgba(16,185,129,0.3); }
-    .modal-title{ margin-top:24px; font-size:22px; font-weight:800; color:#111827; text-align:center; }
-    .modal-desc{ color:#6b7280; margin-top:12px; font-size:15px; line-height:1.6; text-align:center; }
-    .step-dots{ display:flex; gap:8px; justify-content:center; margin:20px 0; }
-    .step-dot{ width:8px;height:8px;border-radius:999px;background:#e5e7eb; transition:all .25s; } .step-dot.active{ width:28px; background:linear-gradient(90deg,var(--primary-dark),var(--primary)); box-shadow:0 4px 10px rgba(139,92,246,0.35); }
-    .btn-outline{ border:2px solid rgba(139,92,246,0.2); padding:14px 16px; border-radius:12px; background:#fff; font-weight:600; cursor:pointer; font-size:14px; color:#374151; display:flex; align-items:center; justify-content:center; gap:6px; transition:background .15s; width:100%; }
-    .btn-outline:active{ background:#f9fafb; } .btn-full{ width:100%; }
-    .slide{ display:none; } .slide.active{ display:block; } .spinner{ width:18px;height:18px;border:3px solid rgba(255,255,255,0.25); border-top-color:#fff;border-radius:50%; animation:spin .7s linear infinite; } @keyframes spin{ to { transform:rotate(360deg); } }
-    .pulse{ animation:pulse 2s ease-in-out infinite; } @keyframes pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.08); } }
-    .ad-panel{ position:fixed; left:50%; transform:translateX(-50%); bottom:12px; width:calc(100% - 32px); max-width:400px; background:#fff; border-radius:16px; box-shadow:0 16px 40px rgba(15,23,42,0.2); padding:12px; z-index:100; display:none; }
-    .ad-label{ font-size:9px; color:#9ca3af; text-align:center; margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em; }
-    .ad-media{ width:100%; height:100px; object-fit:cover; border-radius:12px; }
+    :root {
+      --primary: 263 70% 66%;
+      --primary-hex: #8b5cf6;
+      --primary-dark: 263 70% 50%;
+      --primary-dark-hex: #6d28d9;
+      --tg-blue: #0088cc;
+      --success: #10b981;
+      --warning-bg: #fffbeb;
+      --warning-border: #fef3c7;
+      --warning-text: #92400e;
+      --success-bg: #ecfdf5;
+      --success-border: #d1fae5;
+      --success-text: #065f46;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --stat-bg: #f8fafc;
+      --stat-border: #f1f5f9;
+      --track-bg: #f1f5f9;
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --shadow-card: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 16px 140px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .page-wrapper { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* Language Switcher */
+    .lang-nav { display: flex; justify-content: flex-end; gap: 6px; }
+    .lang-btn {
+      background: none; border: 1px solid transparent; font-size: 12px; font-weight: 600;
+      color: var(--text-muted); cursor: pointer; padding: 5px 10px; border-radius: 8px;
+      transition: all 0.2s var(--ease); font-family: inherit;
+    }
+    .lang-btn:hover { background: rgba(139, 92, 246, 0.06); }
+    .lang-btn.active { color: var(--primary-hex); background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.15); }
+
+    /* Banners */
+    .banner {
+      padding: 14px 18px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 10px; line-height: 1.5;
+      animation: slideDown 0.4s var(--ease);
+    }
+    .banner-warning { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
+    .banner-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
+
+    @keyframes slideDown { from { transform: translateY(-8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* Main Card */
+    .status-card {
+      background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+      padding: 28px 24px; position: relative; overflow: hidden;
+    }
+
+    .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+    .logo-container {
+      width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 20px;
+      box-shadow: 0 8px 20px rgba(139, 92, 246, 0.25);
+    }
+    .logo-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+
+    .header-info h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    .header-info p { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
+
+    /* Progress */
+    .progress-area { margin-bottom: 28px; }
+    .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .progress-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+    .progress-value { font-size: 13px; font-weight: 700; color: var(--primary-hex); }
+    .progress-track { height: 12px; background: var(--track-bg); border-radius: 99px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex));
+      width: 0%; border-radius: 99px;
+      transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    }
+
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .stat-box {
+      background: var(--stat-bg); border: 1px solid var(--stat-border);
+      padding: 18px 16px; border-radius: var(--radius-md);
+      transition: transform 0.2s var(--ease);
+    }
+    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
+    .stat-number { font-size: 28px; font-weight: 800; margin-top: 6px; color: var(--text-main); line-height: 1; word-break: break-word; }
+    .stat-number.highlight { color: var(--primary-hex); }
+
+    /* Telegram CTA */
+    .tg-cta {
+      background: #f0f7ff; border: 1px solid #e0f2fe;
+      padding: 20px; border-radius: var(--radius-md);
+      display: flex; flex-direction: column; gap: 14px;
+      transition: all 0.3s var(--ease);
+    }
+    .tg-cta.connected {
+      background: var(--success-bg); border-color: var(--success-border);
+    }
+    .tg-cta-header { display: flex; gap: 12px; align-items: center; }
+    .tg-icon { font-size: 24px; flex-shrink: 0; }
+    .tg-cta-text h4 { font-size: 14px; font-weight: 700; color: #0369a1; }
+    .tg-cta-text p { font-size: 12px; color: #0c4a6e; opacity: 0.8; margin-top: 2px; }
+    .tg-cta.connected .tg-cta-text h4 { color: var(--success-text); }
+    .tg-cta.connected .tg-cta-text p { color: var(--success-text); opacity: 0.7; }
+
+    .btn-tg {
+      background: var(--tg-blue); color: white; border: none;
+      padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 14px rgba(0, 136, 204, 0.3);
+      transition: all 0.2s var(--ease); font-family: inherit;
+    }
+    .btn-tg:active { transform: scale(0.97); }
+    .btn-tg:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-tg.btn-connected { background: var(--success); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); }
+
+    .pulse { animation: shadowPulse 2s infinite; }
+    @keyframes shadowPulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0.4); }
+      70% { box-shadow: 0 0 0 12px rgba(0, 136, 204, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0); }
+    }
+
+    /* Error */
+    .error-banner {
+      padding: 14px; border-radius: 12px; background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; font-weight: 600; font-size: 13px; text-align: center;
+    }
+
+    /* Onboarding Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0.25s;
+    }
+    .modal-overlay.show { opacity: 1; visibility: visible; }
+
+    .modal-card {
+      background: white; width: 100%; max-width: 380px;
+      border-radius: var(--radius-lg); padding: 32px 24px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.4);
+      transform: translateY(20px) scale(0.96);
+      transition: transform 0.3s cubic-bezier(0.22, 0.9, 0.22, 1);
+    }
+    .modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
+
+    .modal-icon {
+      width: 88px; height: 88px; margin: 0 auto; border-radius: 22px;
+      background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
+      display: flex; align-items: center; justify-content: center; font-size: 40px; color: white;
+      box-shadow: 0 12px 30px rgba(139, 92, 246, 0.3);
+    }
+    .modal-icon.success { background: linear-gradient(135deg, var(--success), #059669); box-shadow: 0 12px 30px rgba(16, 185, 129, 0.3); }
+
+    .modal-title { margin-top: 24px; font-size: 22px; font-weight: 800; text-align: center; }
+    .modal-desc { color: var(--text-muted); margin-top: 12px; font-size: 14px; line-height: 1.6; text-align: center; }
+
+    .step-dots { display: flex; gap: 8px; justify-content: center; margin: 20px 0; }
+    .step-dot { width: 8px; height: 8px; border-radius: 99px; background: #e5e7eb; transition: all 0.25s; }
+    .step-dot.active { width: 28px; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex)); box-shadow: 0 4px 10px rgba(139, 92, 246, 0.35); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-dark-hex), var(--primary-hex));
+      color: white; padding: 14px 20px; border-radius: 12px; font-weight: 700; border: none;
+      box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-size: 14px; width: 100%; min-height: 48px; font-family: inherit;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .btn-outline {
+      border: 2px solid rgba(139, 92, 246, 0.15); padding: 14px; border-radius: 12px;
+      background: white; font-weight: 600; cursor: pointer; font-size: 14px; color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center; width: 100%; font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-outline:active { background: #f9fafb; }
+
+    .slide { display: none; }
+    .slide.active { display: block; }
+
+    .spinner {
+      width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.25);
+      border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Ad Panel */
+    .ad-panel {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 12px; width: calc(100% - 32px); max-width: 400px;
+      background: white; border-radius: 16px; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.15);
+      padding: 12px; z-index: 100;
+    }
+    .ad-label { font-size: 9px; color: #9ca3af; text-align: center; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .ad-media { width: 100%; height: 100px; object-fit: cover; border-radius: 12px; }
+
+    .hidden { display: none !important; }
+
+    /* Skeleton pulse for initial load */
+    .skeleton-text { background: var(--track-bg); border-radius: 4px; animation: skeletonPulse 1.5s ease-in-out infinite; }
+    @keyframes skeletonPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
   </style>
 </head>
 <body>
 
 <div class="page-wrapper">
 
-  <div id="stayAlert" class="alert-banner" style="display:none">
-    ⚠️ <strong>Stay on this page</strong> — Only Telegram can notify you when the app is closed.
+  <!-- Language Switcher -->
+  <nav class="lang-nav" id="langNav">
+    <button class="lang-btn active" data-lang="en">EN</button>
+    <button class="lang-btn" data-lang="zh">中文</button>
+    <button class="lang-btn" data-lang="bm">BM</button>
+  </nav>
+
+  <!-- Warning Banner (visible until Telegram connected) -->
+  <div id="bannerWarning" class="banner banner-warning">
+    <span>⚠️</span>
+    <span data-t="stay_on_page">Stay on this page — only Telegram can notify you when closed.</span>
   </div>
 
-  <div id="connectedAlert" class="alert-banner success" style="display:none">
-    ✅ <strong>You're all set!</strong> You can close this browser now. We'll notify you on Telegram when it's your turn.
+  <!-- Success Banner (hidden until Telegram connected) -->
+  <div id="bannerSuccess" class="banner banner-success hidden">
+    <span>✅</span>
+    <span data-t="all_set">You're all set! We'll notify you on Telegram.</span>
   </div>
 
-  <!-- Onboarding Modal -->
-  <div id="onboardingModal" class="modal-overlay" aria-hidden="true">
-    <div class="modal-card" role="dialog" aria-modal="true">
-      <!-- slides (identical content to your UX) -->
-      <div class="slide active" data-slide="0">
-        <div class="modal-icon">✉️</div>
-        <h3 class="modal-title">Get Telegram Notifications</h3>
-        <p class="modal-desc">Only Telegram can notify you when the app is closed. Receive instant alerts on your phone when it's your turn.</p>
-        <div class="step-dots"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
-        <button id="obNext" class="btn-primary btn-full">Continue →</button>
-        <button id="obSkip" class="btn-outline" style="margin-top:12px">Skip for now</button>
-      </div>
-      <div class="slide" data-slide="1">
-        <div class="modal-icon">▶️</div>
-        <h3 class="modal-title">Tap "Start" in Telegram</h3>
-        <p class="modal-desc">We'll open our bot. Tap <strong>Start</strong> to activate notifications.</p>
-        <div class="step-dots"><div class="step-dot"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
-        <button id="obNext2" class="btn-primary btn-full">Next →</button>
-        <button id="obBack1" class="btn-outline" style="margin-top:12px">← Back</button>
-      </div>
-      <div class="slide" data-slide="2">
-        <div class="modal-icon">✅</div>
-        <h3 class="modal-title">Ready to Connect</h3>
-        <p id="obStatusText" class="modal-desc">Generating your secure link...</p>
-        <div class="step-dots"><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot active"></div></div>
-        <button id="obFinish" class="btn-primary btn-full" disabled><span id="obFinishContent"><span class="spinner"></span><span>Generating...</span></span></button>
-        <button id="obBack2" class="btn-outline" style="margin-top:12px">← Back</button>
-      </div>
-      <div class="slide" data-slide="connected">
-        <div class="modal-icon success">✅</div>
-        <h3 class="modal-title">You're Connected!</h3>
-        <p class="modal-desc">You'll get a Telegram notification when it's your turn.</p>
-        <button id="obDone" class="btn-primary btn-full" style="margin-top:24px">Got it!</button>
-      </div>
-    </div>
-  </div>
+  <!-- Error Banner -->
+  <div id="errorBanner" class="error-banner hidden"></div>
 
-  <main class="card">
-    <div class="top-buttons">
-      <button id="miniGame" class="circle-btn" title="Play game">🎮</button>
-      <button id="miniConnect" class="circle-btn pulse" title="Connect Telegram">✉️</button>
-    </div>
-
+  <!-- Main Card -->
+  <main class="status-card">
     <div class="header">
-      <div class="logo-box" id="logoBox">
+      <div class="logo-container" id="logoBox">
         <span id="logoText">QJ</span>
-        <img id="logoImg" style="display:none" alt="Logo"/>
+        <img id="logoImg" class="hidden" alt="Logo" />
       </div>
-      <div class="header-text">
-        <h1 id="displayName">You're in the queue</h1>
-        <p id="displaySubtitle">We're tracking your spot in real-time.</p>
+      <div class="header-info">
+        <h1 id="displayName" data-t="in_queue">You're in the queue</h1>
+        <p data-t="tracking_realtime">We're tracking your spot in real-time.</p>
       </div>
     </div>
 
-    <section class="progress-section">
-      <div class="progress-header">
-        <span class="progress-label">Queue Progress</span>
-        <span id="progressCaption" class="progress-status">Loading...</span>
+    <section class="progress-area">
+      <div class="progress-meta">
+        <span class="progress-label" data-t="progress">Queue Progress</span>
+        <span id="progressCaption" class="progress-value">...</span>
       </div>
       <div class="progress-track">
-        <div id="progressFill" class="progress-fill" style="width:8%"><span id="progressLabel">8%</span></div>
+        <div id="progressFill" class="progress-fill"></div>
       </div>
     </section>
 
-    <section class="stats-grid">
-      <div class="glass-card"><div class="stat-label">Your Ticket</div><div id="yourNumber" class="stat-value">—</div></div>
-      <div class="glass-card"><div class="stat-label">Now Serving</div><div id="nowServing" class="stat-value dark">—</div></div>
-    </section>
-
-    <section class="stats-grid">
-      <div class="glass-card"><div class="stat-label">People Ahead</div><div id="peopleAhead" class="stat-value-sm">—</div></div>
-      <div class="glass-card"><div class="stat-label">Estimated Wait</div><div id="estimatedWait" class="stat-value-sm highlight">—</div></div>
-    </section>
-
-    <section id="connectionBanner" class="connection-banner">
-      <div class="connection-icon">🔔</div>
-      <div class="connection-text">
-        <div id="connectionTitle" class="connection-title">Get Telegram notifications</div>
-        <div id="connectionSub" class="connection-sub">Only Telegram can notify you when the app is closed.</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label" data-t="your_ticket">Your Ticket</div>
+        <div id="yourNumber" class="stat-number">—</div>
       </div>
-      <button id="connectMain" class="btn-primary" style="padding:12px 16px;font-size:13px">Connect</button>
-    </section>
+      <div class="stat-box">
+        <div class="stat-label" data-t="now_serving">Now Serving</div>
+        <div id="nowServing" class="stat-number">—</div>
+      </div>
+    </div>
 
-    <div id="error" class="error-banner"></div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label" data-t="people_ahead">People Ahead</div>
+        <div id="peopleAhead" class="stat-number">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label" data-t="est_wait">Est. Wait</div>
+        <div id="estimatedWait" class="stat-number highlight">—</div>
+      </div>
+    </div>
+
+    <!-- Telegram CTA -->
+    <div id="tgCta" class="tg-cta">
+      <div class="tg-cta-header">
+        <span class="tg-icon">🔔</span>
+        <div class="tg-cta-text">
+          <h4 id="tgTitle" data-t="tg_title">Get Telegram Alerts</h4>
+          <p id="tgDesc" data-t="tg_desc">Receive a notification when it's your turn.</p>
+        </div>
+      </div>
+      <button id="btnConnect" class="btn-tg pulse" data-t-inner="connect_btn">Connect Telegram</button>
+    </div>
   </main>
 </div>
 
+<!-- Onboarding Modal -->
+<div id="obModal" class="modal-overlay" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true">
+
+    <div class="slide active" data-slide="0">
+      <div class="modal-icon">✉️</div>
+      <h3 class="modal-title" data-t="modal_title">Never Miss Your Turn</h3>
+      <p class="modal-desc" data-t="modal_desc">Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.</p>
+      <div class="step-dots"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+      <button id="obNext" class="btn-primary" data-t-inner="modal_continue">Continue →</button>
+      <button id="obSkip" class="btn-outline" style="margin-top:12px" data-t-inner="skip">Skip for now</button>
+    </div>
+
+    <div class="slide" data-slide="1">
+      <div class="modal-icon">▶️</div>
+      <h3 class="modal-title" data-t="modal_step2_title">Tap "Start" in Telegram</h3>
+      <p class="modal-desc" data-t="modal_step2_desc">We'll open our bot. Tap <strong>Start</strong> to activate notifications.</p>
+      <div class="step-dots"><div class="step-dot"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
+      <button id="obNext2" class="btn-primary">Next →</button>
+      <button id="obBack1" class="btn-outline" style="margin-top:12px">← Back</button>
+    </div>
+
+    <div class="slide" data-slide="2">
+      <div class="modal-icon">🚀</div>
+      <h3 class="modal-title" data-t="modal_step3_title">Ready to Connect</h3>
+      <p id="obStatusText" class="modal-desc">Generating your secure link...</p>
+      <div class="step-dots"><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot active"></div></div>
+      <button id="obFinish" class="btn-primary" disabled><span id="obFinishContent"><span class="spinner"></span> Generating...</span></button>
+      <button id="obBack2" class="btn-outline" style="margin-top:12px">← Back</button>
+    </div>
+
+    <div class="slide" data-slide="connected">
+      <div class="modal-icon success">✅</div>
+      <h3 class="modal-title" data-t="modal_connected_title">You're Connected!</h3>
+      <p class="modal-desc" data-t="modal_connected_desc">You'll get a Telegram notification when it's your turn.</p>
+      <button id="obDone" class="btn-primary" style="margin-top:24px">Got it!</button>
+    </div>
+
+  </div>
+</div>
+
 <!-- Ad Panel -->
-<div id="adPanel" class="ad-panel"><div class="ad-label">Advertisement</div><div id="adContainer"></div></div>
+<div id="adPanel" class="ad-panel hidden">
+  <div class="ad-label">Advertisement</div>
+  <div id="adContainer"></div>
+</div>
 
 <script type="module">
-/*
-  Tenant-aware status.html (modified to support the demo Firebase structure)
-  - Prefers tenant-scoped paths but also probes the demo global structure:
-    - queue/<queueId>  (demo)
-    - counters/<counterId> (demo)
-    - settings/<key> (demo)
-    - analytics/serviceEvents (demo)
-  - Will fall back to tenants/{tenantId}/... when tenant data exists.
-*/
-
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// Endpoints
-const GET_TENANT_ENDPOINT = '/.netlify/functions/get-tenant';
-const GET_FIREBASE_CLIENT_CONFIG = '/.netlify/functions/get-firebase-config';
-const CREATE_LINK_ENDPOINT = '/.netlify/functions/createTelegramLink';
-const MARK_TOKEN_USED = '/.netlify/functions/markTokenUsed';
-const TELEGRAM_BOT_URL = 'https://t.me/QueueJoyBot';
-
-// Default safe public fallback client config (non-sensitive)
-const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
-  databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
-  authDomain: "queue-joy-aa21b.firebaseapp.com",
-  projectId: "queue-joy-aa21b",
-  storageBucket: "queue-joy-aa21b.firebasestorage.app",
-  messagingSenderId: "950240394209",
-  appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+/* ========================================
+   CONFIGURATION
+   ======================================== */
+const CONFIG = {
+  firebase: {
+    apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+    databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    authDomain: "queue-joy-aa21b.firebaseapp.com",
+    projectId: "queue-joy-aa21b",
+    storageBucket: "queue-joy-aa21b.firebasestorage.app",
+    messagingSenderId: "950240394209",
+    appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+  },
+  endpoints: {
+    createLink: '/.netlify/functions/createTelegramLink',
+    getTenant: '/.netlify/functions/get-tenant',
+    getFirebaseConfig: '/.netlify/functions/get-firebase-config',
+    markTokenUsed: '/.netlify/functions/markTokenUsed'
+  },
+  telegramBotUrl: 'https://t.me/QueueJoyBot',
+  maxAhead: 20,
+  retryDelays: [500, 1500, 3000],  // exponential backoff ms
+  redirectDelay: 3000               // wait before redirect on not-found
 };
 
-const MAX_AHEAD = 20;
+/* ========================================
+   I18N
+   ======================================== */
+const I18N = {
+  en: {
+    in_queue: "You're in the queue",
+    tracking_realtime: "We're tracking your spot in real-time.",
+    progress: "Queue Progress",
+    your_ticket: "Your Ticket",
+    now_serving: "Now Serving",
+    people_ahead: "People Ahead",
+    est_wait: "Est. Wait",
+    tg_title: "Get Telegram Alerts",
+    tg_desc: "Receive a notification when it's your turn.",
+    tg_title_connected: "✅ Connected to Telegram",
+    tg_desc_connected: "We'll notify you when it's your turn.",
+    connect_btn: "Connect Telegram",
+    stay_on_page: "Stay on this page — only Telegram can notify you when closed.",
+    all_set: "You're all set! We'll notify you on Telegram.",
+    modal_title: "Never Miss Your Turn",
+    modal_desc: "Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.",
+    modal_continue: "Continue →",
+    modal_step2_title: 'Tap "Start" in Telegram',
+    modal_step2_desc: "We'll open our bot. Tap <strong>Start</strong> to activate notifications.",
+    modal_step3_title: "Ready to Connect",
+    modal_connected_title: "You're Connected!",
+    modal_connected_desc: "You'll get a Telegram notification when it's your turn.",
+    skip: "Skip for now",
+    next: "You're next!",
+    loading: "Loading...",
+    not_found: "Queue not found. Retrying...",
+    est_now: "Now",
+    people_1: "1 person ahead",
+    your_turn: "🎉 It's your turn!"
+  },
+  zh: {
+    in_queue: "您正在排队中",
+    tracking_realtime: "我们正在实时追踪您的位置。",
+    progress: "排队进度",
+    your_ticket: "您的号码",
+    now_serving: "正在叫号",
+    people_ahead: "等待人数",
+    est_wait: "预计等待",
+    tg_title: "获取 Telegram 提醒",
+    tg_desc: "到您时收到即时通知。",
+    tg_title_connected: "✅ 已连接 Telegram",
+    tg_desc_connected: "到您时我们将通过 Telegram 通知您。",
+    connect_btn: "连接 Telegram",
+    stay_on_page: "请保持此页面打开 — 只有 Telegram 可以在关闭时通知您。",
+    all_set: "设置成功！我们将通过 Telegram 通知您。",
+    modal_title: "不错过任何叫号",
+    modal_desc: "浏览器可能会休眠。Telegram 确保您在手机锁屏时也能收到提醒。",
+    modal_continue: "继续 →",
+    modal_step2_title: "在 Telegram 中点击「开始」",
+    modal_step2_desc: "我们将打开机器人。点击 <strong>开始</strong> 来激活通知。",
+    modal_step3_title: "准备连接",
+    modal_connected_title: "已连接！",
+    modal_connected_desc: "到您时会收到 Telegram 通知。",
+    skip: "稍后再说",
+    next: "下一位到您！",
+    loading: "加载中...",
+    not_found: "未找到队列，正在重试...",
+    est_now: "即时",
+    people_1: "前面 1 人",
+    your_turn: "🎉 到您了！"
+  },
+  bm: {
+    in_queue: "Anda dalam barisan",
+    tracking_realtime: "Kami menjejaki kedudukan anda secara langsung.",
+    progress: "Status Barisan",
+    your_ticket: "Tiket Anda",
+    now_serving: "Sedang Dipanggil",
+    people_ahead: "Orang Menunggu",
+    est_wait: "Anggaran Masa",
+    tg_title: "Dapatkan Notifikasi Telegram",
+    tg_desc: "Terima makluman apabila tiba giliran anda.",
+    tg_title_connected: "✅ Telegram disambung",
+    tg_desc_connected: "Kami akan maklumkan apabila giliran anda.",
+    connect_btn: "Sambung Telegram",
+    stay_on_page: "Kekal di halaman ini — hanya Telegram boleh memaklumkan jika ditutup.",
+    all_set: "Semua siap! Kami akan maklumkan anda di Telegram.",
+    modal_title: "Jangan Terlepas Giliran",
+    modal_desc: "Tab pelayar boleh 'tidur'. Telegram memastikan anda mendapat makluman walaupun telefon dikunci.",
+    modal_continue: "Teruskan →",
+    modal_step2_title: 'Tekan "Start" di Telegram',
+    modal_step2_desc: "Kami akan buka bot. Tekan <strong>Start</strong> untuk aktifkan notifikasi.",
+    modal_step3_title: "Sedia untuk sambung",
+    modal_connected_title: "Disambung!",
+    modal_connected_desc: "Anda akan terima notifikasi Telegram apabila tiba giliran.",
+    skip: "Langkau dahulu",
+    next: "Giliran anda seterusnya!",
+    loading: "Memuatkan...",
+    not_found: "Barisan tidak ditemui. Mencuba semula...",
+    est_now: "Sekarang",
+    people_1: "1 orang di hadapan",
+    your_turn: "🎉 Giliran anda!"
+  }
+};
 
-// DOM refs
-const obModal = document.getElementById('onboardingModal');
-const slides = document.querySelectorAll('.slide');
-const stepDots = document.querySelectorAll('.step-dot');
-const obNext = document.getElementById('obNext');
-const obNext2 = document.getElementById('obNext2');
-const obBack1 = document.getElementById('obBack1');
-const obBack2 = document.getElementById('obBack2');
-const obSkip = document.getElementById('obSkip');
-const obFinish = document.getElementById('obFinish');
-const obFinishContent = document.getElementById('obFinishContent');
-const obStatusText = document.getElementById('obStatusText');
-const obDone = document.getElementById('obDone');
+/* ========================================
+   STATE
+   ======================================== */
+const state = {
+  lang: localStorage.getItem('qj_lang') || 'en',
+  queueId: null,
+  slug: null,
+  tenantId: null,
+  data: null,       // current queue data from Firebase
+  cachedData: null,  // from localStorage
+  isTgConnected: false,
+  isRedirecting: false,
+  retryCount: 0,
+  avgServiceTime: 3,
+  latestConnectLink: null,
+  linkGenerating: false
+};
 
-const logoBox = document.getElementById('logoBox');
-const logoText = document.getElementById('logoText');
-const logoImg = document.getElementById('logoImg');
-const displayNameEl = document.getElementById('displayName');
-const displaySubtitleEl = document.getElementById('displaySubtitle');
-const yourNumberEl = document.getElementById('yourNumber');
-const nowServingEl = document.getElementById('nowServing');
-const peopleAheadEl = document.getElementById('peopleAhead');
-const estimatedWaitEl = document.getElementById('estimatedWait');
-const progressFill = document.getElementById('progressFill');
-const progressLabel = document.getElementById('progressLabel');
-const progressCaption = document.getElementById('progressCaption');
-const connectMainBtn = document.getElementById('connectMain');
-const connectMiniBtn = document.getElementById('miniConnect');
-const connectionTitle = document.getElementById('connectionTitle');
-const connectionSub = document.getElementById('connectionSub');
-const stayAlert = document.getElementById('stayAlert');
-const connectedAlert = document.getElementById('connectedAlert');
-const adPanel = document.getElementById('adPanel');
-const adContainer = document.getElementById('adContainer');
-const errorBox = document.getElementById('error');
-
-// State
-let TENANT_SLUG = null;
-let TENANT_ID = null;
-let firebaseApp = null;
 let db = null;
-
-let currentQueueKey = null;
-let currentQueueData = null;
+let firebaseApp = null;
+let qRef = null, counterRef = null, adRef = null;
 let currentCounterId = null;
-let qRef = null, counterRef = null, adRef = null, analyticsRef = null;
 
-let latestConnectLink = null;
-let linkGenerating = false;
-let isTelegramConnected = false;
-let redirecting = false;
-let avgServiceTime = 3;
+/* ========================================
+   DOM REFS
+   ======================================== */
+const $ = id => document.getElementById(id);
 
-/* ---------------------------
-   Tenant helpers & discovery
-   --------------------------- */
-
-function getSlugFromUrl() {
-  // Try search param first
-  try {
-    const q = new URLSearchParams(window.location.search || '');
-    const qSlug = q.get('slug');
-    if (qSlug) return qSlug;
-  } catch (e) {}
-  // Fallback: path first segment (e.g. /slug/status.html)
-  try {
-    const p = location.pathname || '';
-    const parts = p.replace(/^\/+|\/+$/g, '').split('/');
-    if (parts && parts.length > 1 && !parts[0].includes('.html')) return parts[0];
-  } catch (e) {}
-  return null;
-}
-
-async function fetchTenantBySlug(slug) {
-  if (!slug) return null;
-  try {
-    const url = `${GET_TENANT_ENDPOINT}?slug=${encodeURIComponent(slug)}`;
-    const res = await fetch(url, { credentials: 'same-origin' });
-    if (!res.ok) return null;
-    const j = await res.json().catch(()=>null);
-    return j || null;
-  } catch (e) {
-    console.warn('fetchTenantBySlug failed', e);
-    return null;
-  }
-}
-
-function tenantPath(subpath) {
-  // Always prefer tenants/{tenantId}/...
-  if (!TENANT_ID) {
-    // caller should have resolved tenant first - defensive fallback
-    return (subpath || '').replace(/^\/+/, '');
-  }
-  const clean = (subpath || '').replace(/^\/+/, '');
-  return `tenants/${encodeURIComponent(TENANT_ID)}/${clean}`;
-}
-
-/* ---------------------------
-   Path chooser helpers (demo-structure aware)
-   --------------------------- */
-
-async function chooseQueuePath(queueKey) {
-  // Candidates ordered by preference:
-  // 1) tenant-scoped demo structure (tenants/{id}/queue/{id})
-  // 2) tenant-scoped plural (tenants/{id}/queues/{id})
-  // 3) tenant-scoped public fallbacks
-  // 4) global demo structure (queue/{id})
-  // 5) legacy plural (queues/{id})
-  const candidates = [
-    tenantPath(`queue/${queueKey}`),
-    tenantPath(`queues/${queueKey}`),
-    tenantPath(`public/queue/${queueKey}`),
-    tenantPath(`public/queues/${queueKey}`),
-    `queue/${queueKey}`,
-    `queues/${queueKey}`,
-    // some older layouts used 'queue' top-level with nested token entries: try root key
-    `${queueKey}`
-  ];
-
-  if (!db) {
-    console.warn('[STATUS] chooseQueuePath: no db available, defaulting to tenant path');
-    return tenantPath(`queue/${queueKey}`);
-  }
-
-  for (const p of candidates) {
-    try {
-      const snap = await get(ref(db, p)).catch(()=>null);
-      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-      console.log('[STATUS] chooseQueuePath check', p, 'exists=', exists);
-      if (exists) return p;
-    } catch (e) {
-      console.warn('[STATUS] chooseQueuePath check failed for', p, e && (e.message || e));
-    }
-  }
-
-  // fallback: tenant queue path (so listener at least attaches somewhere)
-  console.warn('[STATUS] chooseQueuePath: none of candidates exist, falling back to tenant path');
-  return tenantPath(`queue/${queueKey}`);
-}
-
-async function chooseCounterPath(counterId) {
-  // Demo structure uses top-level 'counters' and tenant-scoped 'counters'
-  const candidates = [
-    tenantPath(`counters/${counterId}`),
-    `counters/${counterId}`,
-    tenantPath(`public/counters/${counterId}`),
-    `public/counters/${counterId}`
-  ];
-
-  if (!db) return tenantPath(`counters/${counterId}`);
-
-  for (const p of candidates) {
-    try {
-      const snap = await get(ref(db, p)).catch(()=>null);
-      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-      console.log('[STATUS] chooseCounterPath check', p, 'exists=', exists);
-      if (exists) return p;
-    } catch (e) {
-      console.warn('[STATUS] chooseCounterPath check failed for', p, e && (e.message || e));
-    }
-  }
-
-  return tenantPath(`counters/${counterId}`);
-}
-
-async function chooseSettingsPath(key) {
-  // Demo uses top-level 'settings'
-  const candidates = [
-    tenantPath(`settings/${key}`),
-    tenantPath(`public/config/${key}`),
-    tenantPath(`public/config/theme/${key}`),
-    `settings/${key}`,
-    `public/config/${key}`,
-    `public/config/theme/${key}`
-  ];
-  for (const p of candidates) {
-    try {
-      const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
-      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-      console.log('[STATUS] chooseSettingsPath check', p, 'exists=', exists);
-      if (exists) return p;
-    } catch (e) {
-      console.warn('[STATUS] chooseSettingsPath check failed for', p, e && (e.message || e));
-    }
-  }
-  return tenantPath(`settings/${key}`);
-}
-
-async function chooseAnalyticsPath() {
-  const cands = [
-    tenantPath(`analytics/serviceEvents`),
-    tenantPath(`public/analytics/serviceEvents`),
-    `analytics/serviceEvents`
-  ];
-  for (const p of cands) {
-    try {
-      const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
-      const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-      console.log('[STATUS] chooseAnalyticsPath check', p, 'exists=', exists);
-      if (exists) return p;
-    } catch (e) {
-      console.warn('[STATUS] chooseAnalyticsPath check failed for', p, e && (e.message || e));
-    }
-  }
-  return tenantPath(`analytics/serviceEvents`);
-}
-
-/* ---------------------------
-   Tenant bootstrap
-   --------------------------- */
-
-async function resolveTenantAndInitFirebase() {
-  // 1) determine slug
-  const slug = getSlugFromUrl();
-  if (!slug) {
-    console.warn('No slug in URL; continuing without tenant.');
-    return null;
-  }
-
-  // 2) fetch tenant via get-tenant
-  const tenantResp = await fetchTenantBySlug(slug);
-  if (!tenantResp || tenantResp.error) {
-    // if not found, still set slug->tenantId to slug (best-effort) so tenant scoping uses slug
-    TENANT_SLUG = slug;
-    TENANT_ID = slug;
-    window.__TENANT_SLUG = TENANT_SLUG;
-    window.__TENANT_ID = TENANT_ID;
-    window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: TENANT_ID, slug: TENANT_SLUG, config: null } }));
-    console.warn('tenant not found via get-tenant; falling back to slug-as-id');
-    // still attempt firebase client config fetch below using slug
-  } else {
-    // if get-tenant returned tenantId and config, use it
-    TENANT_SLUG = slug;
-    TENANT_ID = tenantResp.tenantId || tenantResp.tenant || (tenantResp.config && tenantResp.config.tenantId) || slug;
-    window.__TENANT_SLUG = TENANT_SLUG;
-    window.__TENANT_ID = TENANT_ID;
-    window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: TENANT_ID, slug: TENANT_SLUG, config: tenantResp.config || null } }));
-    // apply theme/displayName if present
-    try {
-      const cfg = tenantResp.config || {};
-      if (cfg.theme && cfg.theme.color) {
-        document.documentElement.style.setProperty('--primary', cfg.theme.color);
-        // derive darker color lightly (not perfect) — leave as is for now
-        const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', cfg.theme.color);
-      }
-      if (cfg.displayName) displayNameEl.textContent = cfg.displayName;
-      if (cfg.timezone) displaySubtitleEl.textContent = `Timezone: ${cfg.timezone}`;
-    } catch (e) {}
-  }
-
-  // 3) fetch tenant-specific firebase client config if available
-  let clientCfg = null;
-  try {
-    const res = await fetch(`${GET_FIREBASE_CLIENT_CONFIG}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
-    if (res.ok) {
-      const j = await res.json().catch(()=>null);
-      if (j && (j.firebaseClientConfig || j.firebaseConfig)) clientCfg = j.firebaseClientConfig || j.firebaseConfig;
-      else if (j && j.config && (j.config.firebaseClientConfig || j.config.firebaseConfig)) clientCfg = j.config.firebaseClientConfig || j.config.firebaseConfig;
-    }
-  } catch (e) { console.warn('get-firebase-config failed', e); }
-
-  // 4) defensive check: prefer tenant config when valid and not a demo placeholder
-  const cfgToUse = (clientCfg && clientCfg.databaseURL && !String(clientCfg.databaseURL).includes('demo.firebaseio.com')) ? clientCfg : DEFAULT_FIREBASE_CONFIG;
-
-  // 5) init firebase client
-  try {
-    if (!getApps().length) {
-      firebaseApp = initializeApp(cfgToUse);
-    } else {
-      firebaseApp = getApps()[0];
-    }
-    db = getDatabase(firebaseApp);
-    console.log('[STATUS] Firebase client initialized for tenant:', TENANT_ID);
-  } catch (e) {
-    console.error('Firebase client init failed', e);
-    // allow page to continue (some functionality will not work)
-    db = null;
-  }
-
-  // Also expose TenantClient if not present (compatible with your tenant-firebase.js)
-  if (!window.TenantClient) {
-    window.TenantClient = {
-      TENANT_ID: TENANT_ID,
-      setTenantId(id) { this.TENANT_ID = id; },
-      rtdbPath(path) { if (!this.TENANT_ID) throw new Error('TenantClient: TENANT_ID not set'); return '/tenants/' + encodeURIComponent(this.TENANT_ID) + (path ? '/' + path.replace(/^\/+/, '') : ''); },
-      fetchTenantJson(subpath) { const url = this.rtdbPath(subpath) + '.json'; return fetch(url).then(r => r.json()); }
-    };
-  } else {
-    try { window.TenantClient.setTenantId(TENANT_ID); } catch (e) {}
-  }
-
-  return { tenantId: TENANT_ID, slug: TENANT_SLUG, clientCfg: cfgToUse };
-}
-
-/* ---------------------------
-   Utility helpers
-   --------------------------- */
-
-function showError(msg) {
-  if (!errorBox) return;
-  errorBox.style.display = 'block';
-  errorBox.textContent = msg;
-  setTimeout(()=>{ errorBox.style.display = 'none'; }, 7000);
-}
-
+/* ========================================
+   UTILITIES
+   ======================================== */
 function extractNumber(str) {
-  if (str === null || str === undefined) return null;
-  const s = String(str).trim();
-  const m = s.match(/(\d+)$/);
-  if (m) return parseInt(m[1], 10);
-  if (/^\d+$/.test(s)) return parseInt(s,10);
-  return null;
+  if (str == null) return null;
+  const m = String(str).trim().match(/(\d+)$/);
+  return m ? parseInt(m[1], 10) : null;
 }
 
 function formatMinutes(m) {
   const mm = Math.max(0, Math.round(m));
-  if (mm === 0) return 'Now';
+  if (mm === 0) return I18N[state.lang].est_now;
   if (mm < 60) return `${mm} min`;
-  const h = Math.floor(mm/60), r = mm % 60;
-  return r===0 ? `${h}h` : `${h}h ${r}m`;
+  const h = Math.floor(mm / 60), r = mm % 60;
+  return r === 0 ? `${h}h` : `${h}h ${r}m`;
 }
 
-/* ---------------------------
-   UI helpers
-   --------------------------- */
-
-function setTelegramUI(connected) {
-  isTelegramConnected = connected;
-  if (connected) {
-    connectionTitle.textContent = '✅ Connected to Telegram';
-    connectionSub.textContent = "We'll notify you when it's your turn.";
-    connectMainBtn.innerHTML = '✅';
-    connectMainBtn.disabled = true;
-    connectMainBtn.classList.add('btn-connected');
-    connectMiniBtn.classList.remove('pulse');
-    stayAlert.style.display = 'none';
-    connectedAlert.style.display = 'block';
-  } else {
-    connectionTitle.textContent = 'Get Telegram notifications';
-    connectionSub.textContent = 'Only Telegram can notify you when the app is closed.';
-    connectMainBtn.innerHTML = 'Connect';
-    connectMainBtn.disabled = false;
-    connectMainBtn.classList.remove('btn-connected');
-    connectMiniBtn.classList.add('pulse');
-    stayAlert.style.display = 'block';
-    connectedAlert.style.display = 'none';
-  }
+function showError(msg) {
+  const el = $('errorBanner');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 7000);
 }
 
-function updateProgress(pct, ahead, status) {
-  const p = Math.max(4, Math.min(100, Math.round(pct)));
-  progressFill.style.width = p + '%';
-  progressLabel.textContent = p + '%';
-  const st = String(status || '').toLowerCase();
-  if (st === 'called' || st === 'serving' || st === 'your_turn') {
-    progressCaption.textContent = "🎉 It's your turn!";
-    progressCaption.style.color = 'var(--success)';
-  } else if (ahead === 0) {
-    progressCaption.textContent = "🎯 You're next!";
-    progressCaption.style.color = 'var(--primary)';
-  } else if (ahead === 1) {
-    progressCaption.textContent = "1 person ahead";
-    progressCaption.style.color = 'var(--primary)';
-  } else if (ahead > 1) {
-    progressCaption.textContent = `${ahead} people ahead`;
-    progressCaption.style.color = '#6b7280';
-  } else {
-    progressCaption.textContent = 'Loading...';
-    progressCaption.style.color = '#6b7280';
-  }
+function getSlugFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const s = params.get('slug');
+  if (s) return s;
+  const parts = location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  if (parts.length > 1 && !parts[0].includes('.html')) return parts[0];
+  return null;
 }
 
-/* ---------------------------
-   Telegram link generation
-   --------------------------- */
+/* ========================================
+   I18N ENGINE (zero-reload)
+   ======================================== */
+function setLang(lang) {
+  state.lang = lang;
+  localStorage.setItem('qj_lang', lang);
 
-window.generateLinkForTenant = window.generateLinkForTenant || (async function(slug) {
-  if (linkGenerating || latestConnectLink) return;
-  linkGenerating = true;
-  if (obFinish) { obFinish.disabled = true; obFinishContent && (obFinishContent.innerHTML = '<span class="spinner"></span><span>Generating...</span>'); }
-  obStatusText && (obStatusText.textContent = 'Creating secure link...');
-  try {
-    const payload = { queueKey: currentQueueKey };
-    if (TENANT_ID) payload.tenantId = TENANT_ID;
-    if (slug) payload.slug = slug;
-    const res = await fetch(CREATE_LINK_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error('create link failed');
-    const j = await res.json().catch(()=>null);
-    let link = (j && (j.link || (j.token && `${TELEGRAM_BOT_URL}?start=${j.token}`))) || null;
-    if (!link) {
-      const token = (currentQueueData && (currentQueueData.telegramToken || currentQueueData.token)) || currentQueueKey;
-      link = `${TELEGRAM_BOT_URL}?start=${token}`;
+  // Update nav buttons
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+
+  // Update all data-t elements
+  const t = I18N[lang];
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const key = el.getAttribute('data-t');
+    if (t[key]) {
+      // Some strings contain HTML (like <strong>)
+      if (t[key].includes('<')) el.innerHTML = t[key];
+      else el.textContent = t[key];
     }
-    latestConnectLink = link;
-    obStatusText && (obStatusText.textContent = 'Ready! Tap below to open Telegram.');
-    obFinish && (obFinish.disabled = false);
-    obFinishContent && (obFinishContent.innerHTML = '🚀 Open Telegram');
-  } catch (e) {
-    console.error('generate link failed', e);
-    latestConnectLink = `${TELEGRAM_BOT_URL}?start=${currentQueueKey}`;
-    obStatusText && (obStatusText.textContent = 'Using fallback link.');
-    obFinish && (obFinish.disabled = false);
-    obFinishContent && (obFinishContent.innerHTML = '🚀 Open Telegram');
-  } finally { linkGenerating = false; }
+  });
+
+  // Update data-t-inner elements
+  document.querySelectorAll('[data-t-inner]').forEach(el => {
+    const key = el.getAttribute('data-t-inner');
+    if (t[key]) el.textContent = t[key];
+  });
+
+  // Re-render dynamic values
+  renderData();
+}
+
+// Bind language buttons
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLang(btn.dataset.lang));
 });
 
-async function openTelegram() {
-  if (linkGenerating) return;
-  obFinish && (obFinish.disabled = true);
-  obFinishContent && (obFinishContent.innerHTML = '<span class="spinner"></span><span>Opening...</span>');
-  const url = latestConnectLink || `${TELEGRAM_BOT_URL}?start=${currentQueueKey}`;
-  const newTab = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!newTab) {
-    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }
-  try {
-    const token = url.split('start=')[1];
-    if (token) {
-      await fetch(MARK_TOKEN_USED, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ queueKey: currentQueueKey, token, tenantId: TENANT_ID })
-      });
+/* ========================================
+   TENANT RESOLUTION
+   ======================================== */
+async function resolveTenant() {
+  const slug = getSlugFromUrl();
+  state.slug = slug;
+
+  if (slug) {
+    try {
+      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`);
+      if (res.ok) {
+        const data = await res.json();
+        state.tenantId = data?.tenantId || data?.tenant || slug;
+
+        // Apply theme
+        if (data?.config?.theme?.color) {
+          document.documentElement.style.setProperty('--primary-hex', data.config.theme.color);
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', data.config.theme.color);
+        }
+        if (data?.config?.displayName) {
+          $('displayName').textContent = data.config.displayName;
+        }
+      } else {
+        state.tenantId = slug;
+      }
+    } catch (e) {
+      console.warn('[QJ] tenant fetch failed, using slug as id');
+      state.tenantId = slug;
     }
-  } catch (e) {}
-  setTimeout(()=>{ obFinish && (obFinish.disabled = false); obFinishContent && (obFinishContent.innerHTML = '✅ Opened!'); setTimeout(closeModal, 1200); }, 400);
+  }
 }
 
-/* modal helpers */
-function showSlide(idx) {
-  slides.forEach(s => s.classList.remove('active'));
-  stepDots.forEach(d => d.classList.remove('active'));
-  const slide = document.querySelector(`[data-slide="${idx}"]`);
-  if (slide) slide.classList.add('active');
-  if (typeof idx === 'number' && stepDots[idx]) stepDots[idx].classList.add('active');
-  if (idx === 2) window.generateLinkForTenant && window.generateLinkForTenant();
+function tenantPath(sub) {
+  if (!state.tenantId) return sub;
+  return `tenants/${encodeURIComponent(state.tenantId)}/${sub}`;
 }
-function openModal() { obModal.classList.add('show'); if (isTelegramConnected) showSlide('connected'); else showSlide(0); }
-function closeModal() { obModal.classList.remove('show'); }
 
-if (obNext) obNext.onclick = () => showSlide(1);
-if (obNext2) obNext2.onclick = () => showSlide(2);
-if (obBack1) obBack1.onclick = () => showSlide(0);
-if (obBack2) obBack2.onclick = () => showSlide(1);
-if (obSkip) obSkip.onclick = () => { localStorage.setItem('qj_modal_skipped_' + currentQueueKey, 'true'); closeModal(); };
-if (obDone) obDone.onclick = closeModal;
-if (obModal) obModal.onclick = (e) => { if (e.target === obModal) closeModal(); };
-if (obFinish) obFinish.onclick = openTelegram;
-if (connectMainBtn) connectMainBtn.onclick = openModal;
-if (connectMiniBtn) connectMiniBtn.onclick = openModal;
-const miniGameBtn = document.getElementById('miniGame');
-if (miniGameBtn) miniGameBtn.onclick = () => { const q = currentQueueKey ? `?queueId=${encodeURIComponent(currentQueueKey)}&slug=${encodeURIComponent(TENANT_SLUG||'')}` : ''; window.location.assign(`game.html${q}`); };
+/* ========================================
+   FIREBASE INIT
+   ======================================== */
+async function initFirebase() {
+  let cfg = CONFIG.firebase;
 
-/* ---------------------------
-   showAd (tenant-aware)
-   --------------------------- */
+  // Try tenant-specific config
+  if (state.slug) {
+    try {
+      const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`);
+      if (res.ok) {
+        const j = await res.json();
+        const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
+        if (tenantCfg?.databaseURL && !tenantCfg.databaseURL.includes('demo.firebaseio.com')) {
+          cfg = tenantCfg;
+        }
+      }
+    } catch (e) { /* use default */ }
+  }
+
+  if (!getApps().length) firebaseApp = initializeApp(cfg);
+  else firebaseApp = getApps()[0];
+  db = getDatabase(firebaseApp);
+}
+
+/* ========================================
+   PATH RESOLUTION WITH RETRY
+   ======================================== */
+async function probePath(path) {
+  if (!db) return false;
+  try {
+    const snap = await get(ref(db, path));
+    return snap?.exists?.() ?? false;
+  } catch { return false; }
+}
+
+async function findPath(candidates) {
+  for (const p of candidates) {
+    if (await probePath(p)) return p;
+  }
+  return candidates[0]; // fallback
+}
+
+async function chooseQueuePath(queueKey) {
+  return findPath([
+    tenantPath(`queue/${queueKey}`),
+    tenantPath(`queues/${queueKey}`),
+    tenantPath(`public/queue/${queueKey}`),
+    `queue/${queueKey}`,
+    `queues/${queueKey}`,
+    queueKey
+  ]);
+}
+
+async function chooseCounterPath(counterId) {
+  return findPath([
+    tenantPath(`counters/${counterId}`),
+    `counters/${counterId}`,
+    tenantPath(`public/counters/${counterId}`)
+  ]);
+}
+
+async function chooseSettingsPath(key) {
+  return findPath([
+    tenantPath(`settings/${key}`),
+    `settings/${key}`,
+    tenantPath(`public/config/theme/${key}`)
+  ]);
+}
+
+/* ========================================
+   TELEGRAM UI STATE
+   ======================================== */
+function setTelegramUI(connected) {
+  state.isTgConnected = connected;
+  const t = I18N[state.lang];
+  const tgCta = $('tgCta');
+  const btn = $('btnConnect');
+
+  if (connected) {
+    tgCta.classList.add('connected');
+    $('tgTitle').textContent = t.tg_title_connected;
+    $('tgDesc').textContent = t.tg_desc_connected;
+    btn.textContent = '✅ Connected';
+    btn.disabled = true;
+    btn.classList.remove('pulse');
+    btn.classList.add('btn-connected');
+    $('bannerWarning').classList.add('hidden');
+    $('bannerSuccess').classList.remove('hidden');
+  } else {
+    tgCta.classList.remove('connected');
+    $('tgTitle').textContent = t.tg_title;
+    $('tgDesc').textContent = t.tg_desc;
+    btn.textContent = t.connect_btn;
+    btn.disabled = false;
+    btn.classList.add('pulse');
+    btn.classList.remove('btn-connected');
+    $('bannerWarning').classList.remove('hidden');
+    $('bannerSuccess').classList.add('hidden');
+  }
+}
+
+/* ========================================
+   PROGRESS & RENDER
+   ======================================== */
+function renderData() {
+  const d = state.data || state.cachedData;
+  if (!d) return;
+
+  const t = I18N[state.lang];
+
+  // Ticket number
+  const ticket = d.queueId || d.ticketNumber || d.ticket || d.number || '—';
+  $('yourNumber').textContent = ticket;
+
+  // People ahead
+  const ahead = d._computedAhead ?? d.peopleAhead ?? null;
+
+  if (ahead !== null && ahead !== undefined) {
+    $('peopleAhead').textContent = ahead;
+    $('estimatedWait').textContent = ahead === 0 ? t.next : formatMinutes(ahead * state.avgServiceTime);
+  }
+
+  // Progress bar
+  const status = String(d.status || '').toLowerCase();
+  const fill = $('progressFill');
+  const caption = $('progressCaption');
+
+  if (status === 'called' || status === 'serving' || status === 'your_turn') {
+    fill.style.width = '100%';
+    caption.textContent = t.your_turn;
+    caption.style.color = '#10b981';
+  } else if (ahead === 0) {
+    // You're next — NOT 100%. Show 95% to indicate imminent but not done
+    fill.style.width = '95%';
+    caption.textContent = '🎯 ' + t.next;
+    caption.style.color = 'var(--primary-hex)';
+  } else if (ahead !== null && ahead > 0) {
+    const pct = Math.max(5, Math.min(90, 100 - (ahead / CONFIG.maxAhead * 100)));
+    fill.style.width = `${pct}%`;
+    caption.textContent = ahead === 1 ? t.people_1 : `${ahead} ${t.people_ahead.toLowerCase()}`;
+    caption.style.color = 'var(--text-muted)';
+  } else {
+    fill.style.width = '8%';
+    caption.textContent = t.loading;
+    caption.style.color = 'var(--text-muted)';
+  }
+
+  // Telegram state
+  const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id);
+  setTelegramUI(hasTg);
+}
+
+/* ========================================
+   REDIRECT TO TURN
+   ======================================== */
+function redirectToTurn() {
+  if (state.isRedirecting) return;
+  state.isRedirecting = true;
+  const fill = $('progressFill');
+  const caption = $('progressCaption');
+  fill.style.width = '100%';
+  caption.textContent = I18N[state.lang].your_turn;
+  caption.style.color = '#10b981';
+
+  setTimeout(() => {
+    window.location.href = `your_turn.html?queueId=${encodeURIComponent(state.queueId)}&slug=${encodeURIComponent(state.slug || '')}`;
+  }, 600);
+}
+
+/* ========================================
+   QUEUE WATCHER WITH RETRY
+   ======================================== */
+let retryTimer = null;
+
+async function startQueueWatcher() {
+  if (!db || !state.queueId) return;
+
+  // Clean up previous
+  if (qRef) { off(qRef); qRef = null; }
+  clearTimeout(retryTimer);
+
+  const path = await chooseQueuePath(state.queueId);
+  console.log('[QJ] Watching queue at:', path);
+  qRef = ref(db, path);
+
+  onValue(qRef, (snap) => {
+    if (!snap?.exists?.()) {
+      handleMissingQueue();
+      return;
+    }
+
+    // Reset retry on success
+    state.retryCount = 0;
+
+    const data = snap.val();
+    state.data = data;
+    localStorage.setItem('qj_last_data', JSON.stringify(data));
+    localStorage.setItem('qj_last_queueId', state.queueId);
+
+    // Check if called/serving → redirect
+    const st = String(data.status || '').toLowerCase();
+    if (st === 'called' || st === 'serving' || st === 'your_turn' || data.called === true || data.notifiedAt || data.calledAt) {
+      redirectToTurn();
+      return;
+    }
+
+    // Attach counter watcher
+    const cid = data.counterId || data.counter || data.counterAssigned;
+    if (cid && cid !== currentCounterId) {
+      if (counterRef) off(counterRef);
+      currentCounterId = cid;
+      watchCounter(cid);
+    } else {
+      computeAhead(data);
+    }
+
+    // Auto-open modal if Telegram not connected and not skipped
+    const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id);
+    if (!hasTg && !$('obModal').classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + state.queueId)) {
+      openModal();
+    }
+
+    renderData();
+  });
+}
+
+function handleMissingQueue() {
+  state.retryCount++;
+  const delays = CONFIG.retryDelays;
+
+  if (state.retryCount <= delays.length) {
+    const delay = delays[state.retryCount - 1];
+    console.warn(`[QJ] Queue not found, retry ${state.retryCount}/${delays.length} in ${delay}ms`);
+    showError(I18N[state.lang].not_found);
+    retryTimer = setTimeout(() => startQueueWatcher(), delay);
+  } else {
+    // Final delay before redirect
+    console.warn('[QJ] Queue not found after retries, redirecting in', CONFIG.redirectDelay, 'ms');
+    setTimeout(() => {
+      window.location.href = state.slug ? `index.html?error=not_found&slug=${encodeURIComponent(state.slug)}` : 'index.html?error=not_found';
+    }, CONFIG.redirectDelay);
+  }
+}
+
+/* ========================================
+   COUNTER WATCHER
+   ======================================== */
+async function watchCounter(counterId) {
+  const path = await chooseCounterPath(counterId);
+  counterRef = ref(db, path);
+
+  onValue(counterRef, (snap) => {
+    if (!snap?.exists?.()) return;
+    const cData = snap.val();
+    const serving = cData.nowServing || cData.serving || cData.now;
+    $('nowServing').textContent = formatServingNumber(serving) || '—';
+
+    if (state.data) {
+      computeAhead(state.data, serving);
+      renderData();
+    }
+  });
+}
+
+function formatServingNumber(raw) {
+  if (raw == null) return null;
+  const ticket = state.data?.queueId || state.data?.ticketNumber || state.data?.ticket || state.data?.number || '';
+  const prefix = String(ticket).replace(/\d+$/, '').trim();
+  const num = extractNumber(raw);
+  if (num === null) return String(raw);
+  const len = String(ticket).match(/(\d+)$/)?.[1]?.length || String(num).length;
+  return prefix ? `${prefix} ${String(num).padStart(len, '0')}` : String(num);
+}
+
+function computeAhead(data, servingRaw) {
+  const myNum = extractNumber(data.queueId || data.ticketNumber || data.ticket || data.number);
+  const servNum = servingRaw != null ? extractNumber(servingRaw) : extractNumber($('nowServing').textContent);
+
+  if (myNum !== null && servNum !== null) {
+    if (servNum >= myNum) {
+      data._computedAhead = 0;
+      if (servNum === myNum) redirectToTurn();
+    } else {
+      data._computedAhead = myNum - servNum;
+    }
+  } else {
+    data._computedAhead = data.peopleAhead ?? null;
+  }
+}
+
+/* ========================================
+   LOGO & SETTINGS LOADERS
+   ======================================== */
+async function loadLogo() {
+  if (!db) return;
+  try {
+    const p = await chooseSettingsPath('logo');
+    const snap = await get(ref(db, p));
+    if (snap?.exists?.()) {
+      const url = snap.val();
+      if (url) {
+        const img = $('logoImg');
+        img.src = String(url);
+        img.onload = () => { $('logoText').classList.add('hidden'); img.classList.remove('hidden'); };
+      }
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+async function loadAvgServiceTime() {
+  if (!db) return;
+  try {
+    const candidates = [tenantPath('analytics/serviceEvents'), 'analytics/serviceEvents'];
+    for (const p of candidates) {
+      const snap = await get(ref(db, p)).catch(() => null);
+      if (snap?.exists?.()) {
+        const events = snap.val();
+        const times = [];
+        for (const k in events) {
+          const ms = events[k]?.serviceMs;
+          if (ms > 0) { const m = ms / 60000; if (m <= 120) times.push(m); }
+        }
+        if (times.length) {
+          state.avgServiceTime = Math.max(1, Math.round(times.reduce((a, b) => a + b, 0) / times.length));
+        }
+        break;
+      }
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+async function watchAds() {
+  if (!db) return;
+  try {
+    const p = await chooseSettingsPath('adImage');
+    adRef = ref(db, p);
+    onValue(adRef, (snap) => {
+      const url = snap?.exists?.() ? snap.val() : null;
+      showAd(url);
+    });
+  } catch (e) { /* non-critical */ }
+}
+
 function showAd(url) {
-  adContainer.innerHTML = '';
-  if (!url) { adPanel.style.display = 'none'; return; }
-  const u = String(url).trim();
-  if (!u) { adPanel.style.display = 'none'; return; }
-  adPanel.style.display = 'none';
-  const isDataVideo = /^data:video\//i.test(u);
-  const isBlobUrl = /^blob:/i.test(u);
-  const isDirectVideo = /\.(mp4|webm|ogg|mov)(?:[?#].*)?$/i.test(u);
-  const isYouTubeOrVimeo = /youtube\.com|youtu\.be|vimeo\.com/i.test(u);
+  const panel = $('adPanel');
+  const container = $('adContainer');
+  container.innerHTML = '';
+  if (!url) { panel.classList.add('hidden'); return; }
 
-  if (isYouTubeOrVimeo) {
+  const u = String(url).trim();
+  if (!u) { panel.classList.add('hidden'); return; }
+
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(u)) {
     let embedSrc = u;
     try {
-      if (/youtube\.com\/watch\?v=/.test(u) || /youtube\.com\/shorts\//.test(u)) {
-        const urlObj = new URL(u);
-        const vid = urlObj.searchParams.get('v') || (u.match(/\/shorts\/([^?#]+)/) || [])[1];
+      if (/youtube\.com\/watch\?v=/.test(u)) {
+        const vid = new URL(u).searchParams.get('v');
         if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1`;
       } else if (/youtu\.be\//.test(u)) {
         const id = u.split('youtu.be/')[1].split(/[?#]/)[0];
         embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
-      } else if (/vimeo\.com/.test(u)) {
-        const id = u.split('/').pop().split(/[?#]/)[0];
-        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
       }
     } catch (e) {}
-    adContainer.innerHTML = `<div style="position:relative;padding-top:56.25%;"><iframe src="${embedSrc}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px;overflow:hidden"></iframe></div>`;
-    adPanel.style.display = 'block';
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px"></iframe></div>`;
+    panel.classList.remove('hidden');
     return;
   }
 
-  if (isDataVideo || isBlobUrl || isDirectVideo) {
-    const video = document.createElement('video');
-    video.src = u;
-    video.className = 'ad-media';
-    video.autoplay = true; video.muted = true; video.loop = true; video.playsInline = true; video.setAttribute('playsinline',''); video.controls = false; video.style.borderRadius = '12px';
-    let loaded=false;
-    video.addEventListener('loadedmetadata', ()=>{ loaded=true; adPanel.style.display='block'; });
-    video.addEventListener('error', (ev)=>{ if(!loaded) adPanel.style.display='none'; console.warn('ad video load error', ev); });
-    adContainer.appendChild(video);
-    video.play().catch(()=>{});
+  if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(u) || /^data:video\//i.test(u) || /^blob:/i.test(u)) {
+    const v = document.createElement('video');
+    v.src = u; v.className = 'ad-media'; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
+    v.addEventListener('loadedmetadata', () => panel.classList.remove('hidden'));
+    v.addEventListener('error', () => panel.classList.add('hidden'));
+    container.appendChild(v);
+    v.play().catch(() => {});
     return;
   }
 
   const img = document.createElement('img');
-  img.src = u; img.className = 'ad-media'; img.alt='Ad';
-  img.onload = ()=>{ adPanel.style.display='block'; };
-  img.onerror = (e)=>{ adPanel.style.display='none'; console.warn('Ad image failed to load', e); };
-  adContainer.appendChild(img);
+  img.src = u; img.className = 'ad-media'; img.alt = 'Ad';
+  img.onload = () => panel.classList.remove('hidden');
+  img.onerror = () => panel.classList.add('hidden');
+  container.appendChild(img);
 }
 
-/* ---------------------------
-   Logo loader (tenant-aware)
-   --------------------------- */
-async function loadLogo() {
+/* ========================================
+   TELEGRAM LINK GENERATION
+   ======================================== */
+async function generateLink() {
+  if (state.linkGenerating || state.latestConnectLink) return;
+  state.linkGenerating = true;
+  const btn = $('obFinish');
+  const content = $('obFinishContent');
+  const statusText = $('obStatusText');
+
+  btn.disabled = true;
+  content.innerHTML = '<span class="spinner"></span> Generating...';
+  statusText.textContent = 'Creating secure link...';
+
   try {
-    const p = await chooseSettingsPath('logo') || tenantPath('public/config/theme/logo');
-    const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
-    if (snap && typeof snap.exists === 'function' && snap.exists()) {
-      const url = snap.val();
-      if (url) {
-        logoImg.src = String(url);
-        logoImg.onload = ()=>{ logoText.style.display='none'; logoImg.style.display='block'; };
-      }
-    } else {
-      // also try settings.mainTitle as a displayName fallback
-      try {
-        const settingsPath = await chooseSettingsPath('mainTitle');
-        const sSnap = db ? await get(ref(db, settingsPath)).catch(()=>null) : null;
-        if (sSnap && typeof sSnap.exists === 'function' && sSnap.exists()) {
-          const title = sSnap.val();
-          if (title) displayNameEl.textContent = title;
-        }
-      } catch(e){}
-      // also try theme.logo in public/config
-      try {
-        const cfgPath = tenantPath('public/config');
-        const cfgSnap = db ? await get(ref(db, cfgPath)).catch(()=>null) : null;
-        if (cfgSnap && typeof cfgSnap.exists === 'function' && cfgSnap.exists()) {
-          const cfg = cfgSnap.val();
-          if (cfg && cfg.theme && cfg.theme.logo) {
-            logoImg.src = String(cfg.theme.logo);
-            logoImg.onload = ()=>{ logoText.style.display='none'; logoImg.style.display='block'; };
-          }
-        }
-      } catch(e){}
-    }
-  } catch (e) { console.warn('loadLogo error', e); }
-}
+    const payload = { queueKey: state.queueId };
+    if (state.tenantId) payload.tenantId = state.tenantId;
+    if (state.slug) payload.slug = state.slug;
 
-/* ---------------------------
-   Avg service time loader
-   --------------------------- */
-async function loadAvgServiceTime() {
-  try {
-    const p = await chooseAnalyticsPath();
-    if (!p || !db) return;
-    const snap = await get(ref(db, p)).catch(()=>null);
-    if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
-    const events = snap.val();
-    const times = [];
-    for (const k in events) {
-      const e = events[k];
-      if (e && e.serviceMs && e.serviceMs > 0) {
-        const min = e.serviceMs / 60000;
-        if (min <= 120) times.push(min);
-      }
-    }
-    if (times.length > 0) {
-      const sum = times.reduce((a,b)=>a+b,0);
-      avgServiceTime = Math.max(1, Math.round(sum / times.length));
-    }
-  } catch (e) { console.warn('loadAvgServiceTime error', e); }
-}
+    const res = await fetch(CONFIG.endpoints.createLink, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-/* ---------------------------
-   computeEstimates (tenant-aware)
-   --------------------------- */
-async function computeEstimates() {
-  if (!currentQueueData || redirecting) return;
-  const myTicket = currentQueueData.queueId || currentQueueData.ticketNumber || currentQueueData.ticket || currentQueueData.number || '—';
-  const myNum = extractNumber(myTicket);
-  const myStatus = String(currentQueueData.status || '').toLowerCase();
-
-  if (myStatus === 'called' || myStatus === 'serving' || myStatus === 'your_turn') return redirectToTurn();
-  if (currentQueueData.called === true || currentQueueData.notifiedAt || currentQueueData.calledAt) return redirectToTurn();
-
-  let servingNum = null;
-  const counterId = currentQueueData.counterId || currentQueueData.counter || currentQueueData.counterAssigned;
-  if (counterId && db) {
-    try {
-      const cp = await chooseCounterPath(counterId);
-      const cSnap = await get(ref(db, cp)).catch(()=>null);
-      if (cSnap && typeof cSnap.exists === 'function' && cSnap.exists()) {
-        const counterData = cSnap.val();
-        servingNum = extractNumber(counterData.nowServing || counterData.serving || counterData.now);
-        const rawServingNum = extractNumber(counterData.nowServing || counterData.serving || counterData.now) || '';
-        const ticketDigits = String(myTicket || '').match(/(\d+)$/);
-        const len = ticketDigits ? ticketDigits[1].length : (String(rawServingNum).length || 3);
-        const prefix = (counterData.prefix || '').toString();
-        const ticketPrefix = String(myTicket || '').replace(/\d+$/,'').trim();
-        const formattedServing = ticketPrefix ? `${ticketPrefix} ${String(rawServingNum).padStart(len,'0')}` : (prefix ? prefix+String(rawServingNum).padStart(len,'0') : String(rawServingNum));
-        nowServingEl.textContent = formattedServing || '—';
-      }
-    } catch (e) { console.warn('[STATUS] counter read failed', e); }
+    if (!res.ok) throw new Error('API error');
+    const j = await res.json();
+    state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
+  } catch (e) {
+    console.warn('[QJ] Link generation failed, using fallback');
   }
 
-  let peopleAhead = 0;
-  if (myNum !== null && servingNum !== null) {
-    peopleAhead = myNum - servingNum;
-    peopleAhead = Math.max(0, peopleAhead);
-    if (servingNum === myNum) return redirectToTurn();
-    if (servingNum > myNum) peopleAhead = 0;
-  } else if (myNum === null) {
-    peopleAhead = 0;
-  } else {
-    // fallback: count tenant/demo queue entries older than my timestamp
-    try {
-      const candidates = [
-        tenantPath('queue'),
-        tenantPath('queues'),
-        tenantPath('public/queue'),
-        tenantPath('public/queues'),
-        'queue',
-        'queues'
-      ];
-      let all = null;
-      for (const p of candidates) {
-        try {
-          const snap = db ? await get(ref(db, p)).catch(()=>null) : null;
-          if (snap && typeof snap.exists === 'function' && snap.exists()) { all = snap.val(); break; }
-        } catch (e) { console.warn('[STATUS] fallback candidates read failed', p, e); }
-      }
-      if (all) {
-        const myTime = currentQueueData.timestamp || currentQueueData.createdAt || 0;
-        for (const k in all) {
-          const t = all[k];
-          if (!t || String(t.status || '').toLowerCase() !== 'waiting') continue;
-          if (counterId && String(t.counterId || t.counter || '') !== String(counterId)) continue;
-          if (Number(t.timestamp || t.createdAt || 0) < Number(myTime)) peopleAhead++;
-        }
-      }
-    } catch (e) { console.warn('[STATUS] fallback count failed', e); }
+  if (!state.latestConnectLink) {
+    const token = state.data?.telegramToken || state.data?.token || state.queueId;
+    state.latestConnectLink = `${CONFIG.telegramBotUrl}?start=${token}`;
   }
 
-  peopleAheadEl.textContent = peopleAhead;
-  const estMin = peopleAhead * avgServiceTime;
-  estimatedWaitEl.textContent = formatMinutes(estMin);
-
-  let progressPct;
-  if (peopleAhead <= 0) progressPct = 100;
-  else if (peopleAhead >= MAX_AHEAD) progressPct = 5;
-  else progressPct = Math.round(100 - (peopleAhead / MAX_AHEAD) * 95);
-  updateProgress(progressPct, peopleAhead, myStatus);
+  statusText.textContent = 'Ready! Tap below to open Telegram.';
+  btn.disabled = false;
+  content.innerHTML = '🚀 Open Telegram';
+  state.linkGenerating = false;
 }
 
-/* ---------------------------
-   redirectToTurn
-   --------------------------- */
-function redirectToTurn() {
-  if (redirecting) return;
-  redirecting = true;
-  console.log('[STATUS] Redirecting to your_turn.html with queueKey:', currentQueueKey);
-  updateProgress(100,0,'serving');
-  setTimeout(()=>{ window.location.href = `your_turn.html?queueId=${encodeURIComponent(currentQueueKey)}&slug=${encodeURIComponent(TENANT_SLUG||'')}`; }, 600);
+async function openTelegram() {
+  if (state.linkGenerating) return;
+  const btn = $('obFinish');
+  const content = $('obFinishContent');
+  btn.disabled = true;
+  content.innerHTML = '<span class="spinner"></span> Opening...';
+
+  const url = state.latestConnectLink || `${CONFIG.telegramBotUrl}?start=${state.queueId}`;
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  // Mark token used (fire-and-forget)
+  try {
+    const token = url.split('start=')[1];
+    if (token) {
+      fetch(CONFIG.endpoints.markTokenUsed, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queueKey: state.queueId, token, tenantId: state.tenantId })
+      }).catch(() => {});
+    }
+  } catch (e) {}
+
+  setTimeout(() => {
+    btn.disabled = false;
+    content.innerHTML = '✅ Opened!';
+    setTimeout(closeModal, 1200);
+  }, 400);
 }
 
-/* ---------------------------
-   Initialization and watchers
-   --------------------------- */
-document.addEventListener('DOMContentLoaded', async () => {
-  // read queue id from url
+/* ========================================
+   MODAL HELPERS
+   ======================================== */
+function showSlide(idx) {
+  document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.step-dot').forEach(d => d.classList.remove('active'));
+  const slide = document.querySelector(`[data-slide="${idx}"]`);
+  if (slide) slide.classList.add('active');
+  if (typeof idx === 'number') {
+    const dots = document.querySelectorAll('.step-dot');
+    if (dots[idx]) dots[idx].classList.add('active');
+  }
+  if (idx === 2) generateLink();
+}
+
+function openModal() {
+  const modal = $('obModal');
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+  if (state.isTgConnected) showSlide('connected');
+  else showSlide(0);
+}
+
+function closeModal() {
+  const modal = $('obModal');
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// Modal button bindings
+$('obNext').onclick = () => showSlide(1);
+$('obNext2').onclick = () => showSlide(2);
+$('obBack1').onclick = () => showSlide(0);
+$('obBack2').onclick = () => showSlide(1);
+$('obSkip').onclick = () => { localStorage.setItem('qj_modal_skipped_' + state.queueId, 'true'); closeModal(); };
+$('obDone').onclick = closeModal;
+$('obFinish').onclick = openTelegram;
+$('obModal').onclick = (e) => { if (e.target === $('obModal')) closeModal(); };
+$('btnConnect').onclick = openModal;
+
+/* ========================================
+   VISIBILITY CHANGE HANDLER
+   ======================================== */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    console.log('[QJ] Tab became visible, re-attaching watcher');
+    startQueueWatcher();
+  }
+});
+
+/* ========================================
+   HYDRATE FROM CACHE (zero-flicker)
+   ======================================== */
+function hydrateFromCache() {
+  try {
+    const cached = localStorage.getItem('qj_last_data');
+    const cachedId = localStorage.getItem('qj_last_queueId');
+    if (cached && cachedId === state.queueId) {
+      state.cachedData = JSON.parse(cached);
+      state.data = state.cachedData;
+      renderData();
+    }
+  } catch (e) { /* corrupted cache, ignore */ }
+}
+
+/* ========================================
+   INITIALIZATION
+   ======================================== */
+async function init() {
+  // Parse queue ID
   const params = new URLSearchParams(window.location.search);
-  const queueKey = params.get('queueId') || params.get('queueid') || params.get('qid') || params.get('id');
-  if (!queueKey) {
-    showError('Queue ID missing. Redirecting...');
-    setTimeout(()=>{ window.location.href = (getSlugFromUrl() ? `${getSlugFromUrl()}/index.html` : 'index.html'); }, 1500);
+  state.queueId = params.get('queueId') || params.get('queueid') || params.get('qid') || params.get('id');
+  state.slug = getSlugFromUrl();
+
+  if (!state.queueId) {
+    showError('Queue ID missing.');
+    setTimeout(() => { window.location.href = 'index.html'; }, 2000);
     return;
   }
-  currentQueueKey = queueKey;
-  console.log('[STATUS] Initialized with queueKey:', queueKey);
 
-  // Resolve tenant and init firebase
-  await resolveTenantAndInitFirebase();
+  // 1) Hydrate from cache immediately (no flicker)
+  setLang(state.lang);
+  hydrateFromCache();
 
-  // Load tenant-scoped assets
-  await Promise.all([ loadLogo(), loadAvgServiceTime() ]);
+  // 2) Resolve tenant + init Firebase
+  await resolveTenant();
+  await initFirebase();
 
-  // Attach queue watcher using tenant-aware path selection
-  try {
-    const chosenPath = await chooseQueuePath(currentQueueKey);
-    console.log('[STATUS] chosenPath for queue watch ->', chosenPath);
+  // 3) Load assets in parallel
+  await Promise.all([loadLogo(), loadAvgServiceTime()]);
 
-    if (!db) {
-      showError('Realtime DB not available');
-      return;
-    }
+  // 4) Start real-time watcher
+  await startQueueWatcher();
 
-    qRef = ref(db, chosenPath);
+  // 5) Watch ads
+  watchAds();
 
-    // quick existence check before binding long-lived onValue (helps debugging)
-    try {
-      const qSnap = await get(qRef).catch(()=>null);
-      const exists = qSnap && (typeof qSnap.exists === 'function' ? qSnap.exists() : !!qSnap);
-      console.log('[STATUS] quick check:', chosenPath, 'exists=', exists);
-      if (!exists) {
-        // probe some legacy/common candidates for diagnostics
-        const legacyCandidates = [
-          `queue/${currentQueueKey}`,
-          `queues/${currentQueueKey}`,
-          tenantPath(`queue/${currentQueueKey}`),
-          tenantPath(`public/queues/${currentQueueKey}`)
-        ];
-        for (const p of legacyCandidates) {
-          try {
-            const snap = await get(ref(db, p)).catch(()=>null);
-            const ex = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-            console.log('[STATUS] legacy probe', p, 'exists=', ex);
-          } catch (e) { console.warn('legacy probe failed', p, e); }
-        }
-      }
-    } catch (e) {
-      console.warn('[STATUS] quick existence check failed', e);
-    }
-
-    onValue(qRef, (snap) => {
-      if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
-        showError('Queue not found. Redirecting...');
-        setTimeout(()=>{ window.location.href = (TENANT_SLUG ? `${TENANT_SLUG}/index.html` : 'index.html'); }, 1500);
-        return;
-      }
-
-      currentQueueData = snap.val();
-      console.log('[STATUS] Queue data updated:', currentQueueData);
-
-      const ticket = currentQueueData.queueId || currentQueueData.ticketNumber || currentQueueData.ticket || currentQueueData.number || '—';
-      yourNumberEl.textContent = ticket;
-
-      // telegram connection detection (tenant-scoped or demo)
-      const connected = Boolean(currentQueueData.telegramConnected || currentQueueData.tgConnected || currentQueueData.telegramChatId || currentQueueData.telegram_chat_id);
-      setTelegramUI(connected);
-
-      if (!connected && !obModal.classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + currentQueueKey)) openModal();
-
-      // attach counter watcher tenant/demo-scoped
-      const cid = currentQueueData.counterId || currentQueueData.counter || currentQueueData.counterAssigned;
-      if (cid && cid !== currentCounterId) {
-        if (counterRef) off(counterRef);
-        currentCounterId = cid;
-        (async ()=> {
-          const cp = await chooseCounterPath(cid);
-          counterRef = ref(db, cp);
-          onValue(counterRef, (cSnap)=>{ console.log('[STATUS] Counter data updated'); computeEstimates(); });
-          computeEstimates();
-        })();
-      } else {
-        computeEstimates();
-      }
-    });
-  } catch (e) {
-    console.error('Queue watch failed', e);
-    showError('Failed to watch queue.');
-  }
-
-  // Watch tenant-scoped ads / settings.adImage (demo uses settings)
-  try {
-    const adPath = await chooseSettingsPath('adImage') || tenantPath('public/config/ads/adImage') || tenantPath('settings/adImage');
-    adRef = ref(db, adPath);
-    onValue(adRef, (snap) => showAd(snap && typeof snap.exists === 'function' && snap.exists() ? snap.val() : null));
-  } catch (e) { console.warn('ad watch failed', e); }
-
-  // Watch analytics changes tenant-scoped
-  try {
-    const aPath = await chooseAnalyticsPath();
-    analyticsRef = ref(db, aPath);
-    onValue(analyticsRef, async () => {
-      await loadAvgServiceTime();
-      computeEstimates();
-    });
-  } catch (e) { console.warn('analytics watch failed', e); }
-
-  // cleanup on unload
-  window.addEventListener('beforeunload', ()=>{
+  // 6) Cleanup on unload
+  window.addEventListener('beforeunload', () => {
     if (qRef) off(qRef);
     if (counterRef) off(counterRef);
     if (adRef) off(adRef);
-    if (analyticsRef) off(analyticsRef);
   });
+}
+
+init().catch(e => {
+  console.error('[QJ] Init failed:', e);
+  showError('Something went wrong. Please refresh.');
 });
 </script>
-
 </body>
 </html>

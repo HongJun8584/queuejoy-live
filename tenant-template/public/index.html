@@ -15,6 +15,9 @@
     .fade-in { animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1); }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
     .db-image { max-height: 180px; object-fit: cover; }
+    .media-cover { width:100%; height:180px; object-fit:cover; display:block }
+    .logo-small { width:48px; height:48px; object-fit:cover; border-radius:9999px }
+    .logo-center { width:80px; height:80px; object-fit:cover; border-radius:9999px }
   </style>
 
   <!-- Firebase v10 (module) -->
@@ -60,7 +63,7 @@
       } catch (e) { return null; }
     }
 
-    // Returns a tenant-scoped DatabaseReference factory
+    // tenantRef factory
     function tenantRefFactory(dbInstance) {
       return function tenantRef(relPath = '') {
         relPath = String(relPath || '').replace(/^\/+/, '');
@@ -93,12 +96,63 @@
       throw lastErr || new Error('Transaction failed after retries');
     }
 
-    // ---------- Startup: resolve slug -> tenantId, init Firebase, boot ----------
+    // ---------- Media helpers ----------
+    function isVideoUrl(url) {
+      return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith('data:video/');
+    }
+    function isImageUrl(url) {
+      return /\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(url) || url.startsWith('data:image/');
+    }
+
+    function createMediaElement(url, { classes = '', autoplay = false, muted = true, loop = true, playsinline = true } = {}) {
+      if (!url) return null;
+      if (isVideoUrl(url)) {
+        const v = document.createElement('video');
+        if (playsinline) v.setAttribute('playsinline','');
+        if (autoplay) v.setAttribute('autoplay','');
+        if (loop) v.setAttribute('loop','');
+        if (muted) v.muted = true;
+        v.preload = 'metadata';
+        v.src = url;
+        v.className = classes || '';
+        v.playsInline = !!playsinline;
+        v.setAttribute('draggable','false');
+        return v;
+      }
+      if (isImageUrl(url)) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'media';
+        img.className = classes || '';
+        img.setAttribute('draggable','false');
+        return img;
+      }
+      // fallback to text
+      const span = document.createElement('span');
+      span.textContent = url;
+      return span;
+    }
+
+    // Small utility to safely pick first non-null config value from multiple keys (supports nested via dot)
+    function pickCfg(cfg, ...keys) {
+      const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
+      for (const k of keys) {
+        if (!k) continue;
+        const parts = k.split('.');
+        let cur = cfg;
+        for (const p of parts) { if (!cur) break; cur = cur[p]; }
+        const val = pick(cur);
+        if (val !== null) return val;
+      }
+      return null;
+    }
+
+    // ---------- Startup ----------
     document.addEventListener('DOMContentLoaded', async () => {
       // DOM refs
       const siteTitleEl = document.getElementById('siteTitle');
       const siteLogoEl = document.getElementById('siteLogo');
-      const centerLogoImg = document.getElementById('centerLogo');
+      const centerLogoEl = document.getElementById('centerLogo');
       const centerIcon = document.getElementById('centerIcon');
       const mainHeading = document.getElementById('mainHeading');
       const introText = document.getElementById('introText');
@@ -113,17 +167,19 @@
       const smallTopTextEl = document.getElementById('smallTopText');
       const adContainer = document.getElementById('adContainer');
 
-      // extract slug from ?slug= only (explicit)
+      // allow user to click anytime (user requested: don't disable button by default)
+      getNumberBtn.disabled = false;
+
+      // extract slug
       const slug = getSlugFromQuery();
       if (!slug) {
-        showFatal('Missing slug — please open the page with ?slug=your-tenant-slug');
+        showFatal('Missing slug — open as ?slug=your-tenant-slug');
         return;
       }
       window.__TENANT_SLUG = slug;
 
       // Resolve tenant via Netlify function
       let tenantId = null;
-      let tenantPublicConfig = null;
       try {
         const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
         if (!res.ok) {
@@ -133,197 +189,159 @@
         }
         const j = await res.json();
         tenantId = j.tenantId || null;
-        tenantPublicConfig = j.config || j.public || null;
+        const tenantPublicConfig = j.config || j.public || {};
         if (!tenantId && tenantPublicConfig && tenantPublicConfig.tenantId) tenantId = tenantPublicConfig.tenantId;
-        if (!tenantId) tenantId = slug; // fallback legacy
+        if (!tenantId) tenantId = slug;
         window.__TENANT_ID = tenantId;
-        window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
+        // seed config from server response (so UI can show something quickly)
+        window.__TENANT_PUBLIC_CONFIG = Object.assign({}, tenantPublicConfig || {});
       } catch (e) {
         showFatal('Failed to resolve tenant: ' + String(e && e.message ? e.message : e));
         return;
       }
 
-      // Initialize Firebase client
+      // Initialize Firebase
       let app, db;
       try {
         app = initializeApp(siteFirebaseConfig);
         db = getDatabase(app);
-        window._db = db; // debug hook
+        window._db = db;
       } catch (e) {
-        showFatal('Failed to initialize Firebase client: ' + String(e && e.message ? e.message : e));
+        showFatal('Failed to init Firebase: ' + String(e && e.message ? e.message : e));
         return;
       }
 
       const tenantRef = tenantRefFactory(db);
 
-      // ---------- Real-time caches & listeners ----------
-      let countersCache = {};    // { counterId: { ... } }
+      // caches
+      let countersCache = {};
       let countersLoaded = false;
-      let settingsCache = {};    // the tenant's public/config object
+      let settingsCache = {};
 
-      // helper to compute active counters list from cache
-      function getActiveCountersFromCache() {
-        const raw = [];
-        for (const id in countersCache) {
-          if (!Object.prototype.hasOwnProperty.call(countersCache, id)) continue;
-          const val = countersCache[id] || {};
-          const activeRaw = val.active;
-          const active =
-            activeRaw === undefined ||
-            activeRaw === null ||
-            activeRaw === true ||
-            activeRaw === 'true' ||
-            activeRaw === 1 ||
-            activeRaw === '1' ||
-            String(activeRaw).toLowerCase() === 'yes' ||
-            String(activeRaw).toLowerCase() === 'y';
-          raw.push({ id, ...val, _active: !!active });
-        }
-        const activeList = raw.filter(c => c && c._active);
-        activeList.sort((a, b) => {
-          const ao = (a.order !== undefined && a.order !== '' && a.order !== null) ? Number(a.order) : Number.POSITIVE_INFINITY;
-          const bo = (b.order !== undefined && b.order !== '' && b.order !== null) ? Number(b.order) : Number.POSITIVE_INFINITY;
-          if (ao !== bo) return ao - bo;
-          const ai = a.id, bi = b.id;
-          if (!isNaN(Number(ai)) && !isNaN(Number(bi))) return Number(ai) - Number(bi);
-          return String(ai).localeCompare(String(bi), undefined, { numeric: true, sensitivity: 'base' });
-        });
-        return activeList;
-      }
-
-      // Button enabled only after countersLoaded is true
-      function updateGetNumberButtonState() {
-        try {
-          const actives = getActiveCountersFromCache();
-          if (!countersLoaded) {
-            getNumberBtn.disabled = true;
-            return;
-          }
-          getNumberBtn.disabled = !(actives && actives.length > 0);
-        } catch (e) {
-          console.error('updateGetNumberButtonState error', e);
-          getNumberBtn.disabled = false;
-        }
-      }
-
-      // counters listener (tenant-scoped, realtime)
+      // counters listener
       try {
         const countersRef = tenantRef('counters');
         onValue(countersRef, snap => {
           countersCache = {};
-          if (snap && typeof snap.forEach === 'function') {
-            snap.forEach(ch => {
-              countersCache[ch.key] = ch.val();
-            });
-          } else if (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) {
-            const obj = snap.val() || {};
-            Object.keys(obj).forEach(k => countersCache[k] = obj[k]);
-          }
+          if (snap && typeof snap.forEach === 'function') snap.forEach(ch => countersCache[ch.key] = ch.val());
+          else if (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) Object.assign(countersCache, snap.val() || {});
           countersLoaded = true;
-          updateGetNumberButtonState();
-        }, err => {
-          console.warn('counters listener failed', err);
-        });
-      } catch (e) {
-        console.warn('counters listener setup failed', e);
-      }
+          // do not disable button here (user asked), but we keep internal flag
+          console.debug('counters loaded', Object.keys(countersCache).length);
+        }, err => console.warn('counters listener failed', err));
+      } catch (e) { console.warn('counters listener setup failed', e); }
 
-      // Helper to read first matching key from config with many common names
-      function pickCfg(cfg, ...keys) {
-        const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
-        for (const k of keys) {
-          if (!k) continue;
-          const parts = k.split('.');
-          let cur = cfg;
-          for (const p of parts) {
-            if (!cur) break;
-            cur = cur[p];
-          }
-          const val = pick(cur);
-          if (val !== null) return val;
+      // Helper: render logo/media into container — supports image/gif/video
+      function renderLogo(container, url, classes) {
+        container.innerHTML = '';
+        if (!url) return container.classList.add('hidden');
+        const el = createMediaElement(url, { classes });
+        if (!el) return container.classList.add('hidden');
+        // For videos, we lazy-play only when visible
+        if (el.tagName === 'VIDEO') {
+          el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'metadata';
+          el.setAttribute('aria-hidden','true');
+          // attempt to play but ignore errors
+          el.play().catch(()=>{});
         }
-        return null;
+        container.appendChild(el);
+        container.classList.remove('hidden');
       }
 
-      // settings (public/config) listener (tenant-scoped, realtime)
+      // settings listener — tenant-scoped /public/config
       try {
         const settingsRef = tenantRef('public/config');
         onValue(settingsRef, snap => {
           try {
             settingsCache = (snap && typeof snap.val === 'function' && snap.exists && snap.exists()) ? snap.val() : {};
+            // merge into global config (server seed + realtime updates)
             window.__TENANT_PUBLIC_CONFIG = Object.assign({}, window.__TENANT_PUBLIC_CONFIG || {}, settingsCache || {});
 
             const cfg = window.__TENANT_PUBLIC_CONFIG || {};
 
-            // Apply theme color if present
+            // theme color
             const themeColor = pickCfg(cfg, 'theme.color', 'themeColor', 'themeColorHex');
             if (themeColor) document.documentElement.style.setProperty('--theme-color', themeColor);
 
-            // Title / site name
+            // title
             const siteTitle = pickCfg(cfg, 'displayName', 'name', 'siteTitle', 'title', 'mainTitle');
-            if (siteTitle) {
-              siteTitleEl.textContent = siteTitle;
-              document.title = `${siteTitle} - Digital Queue System`;
-            } else {
-              const fallback = pickCfg(cfg, 'mainTitle', 'name');
-              siteTitleEl.textContent = fallback || 'Queue Joy';
-              document.title = siteTitleEl.textContent + ' - Digital Queue System';
-            }
+            if (siteTitle) { siteTitleEl.textContent = siteTitle; document.title = `${siteTitle} - Digital Queue System`; }
+            else { siteTitleEl.textContent = 'Queue Joy'; document.title = 'Queue Joy - Digital Queue System'; }
 
-            // small text on top
+            // small top text
             const smallTop = pickCfg(cfg, 'smallTextOnTop', 'smallTopText', 'smallTop');
             if (smallTop && smallTopTextEl) smallTopTextEl.textContent = smallTop;
 
-            // logo — check multiple possible locations
-            const logoUrl = pickCfg(cfg, 'logoUrl', 'logo', 'theme.logo', 'theme.logoUrl', 'branding.logo');
-            if (logoUrl) {
-              centerLogoImg.src = logoUrl; centerLogoImg.classList.remove('hidden'); centerIcon.classList.add('hidden');
-              siteLogoEl.src = logoUrl; siteLogoEl.classList.remove('hidden');
-            } else {
-              centerLogoImg.src = ''; centerLogoImg.classList.add('hidden'); centerIcon.classList.remove('hidden');
-              siteLogoEl.src = ''; siteLogoEl.classList.add('hidden');
-            }
+            // logos (support image/gif/video) — prefer explicit keys
+            const topLogo = pickCfg(cfg, 'logoUrl', 'logo', 'theme.logo', 'branding.logo');
+            const centerLogo = pickCfg(cfg, 'centerLogoUrl', 'centerLogo', 'logo', 'theme.logo');
+            renderLogo(siteLogoEl, topLogo, 'logo-small');
+            renderLogo(centerLogoEl, centerLogo, 'logo-center');
+            if (!centerLogo) centerIcon.classList.remove('hidden'); else centerIcon.classList.add('hidden');
 
-            // main heading, intro and button text — try many common keys
+            // heading, intro, button text
             const heading = pickCfg(cfg, 'titleinmiddle', 'titleInMiddle', 'ctaTitle', 'heading', 'mainHeading');
             mainHeading.textContent = heading || 'Get your queue number';
-
             const intro = pickCfg(cfg, 'introText', 'description', 'smallTextOnTop', 'subtitle');
             introText.textContent = intro || 'Real-time queueing system. Mobile-friendly. No app needed.';
-
             const cta = pickCfg(cfg, 'ctaText', 'cta', 'buttonText', 'getNumberText');
             btnText.textContent = '🎫 ' + (cta || 'Get your queue number');
 
-            // Advertisement handling
+            // Advertisement handling — single source only (ad.video or ad.image or adImage)
             adContainer.innerHTML = '';
-            const adImage = pickCfg(cfg, 'adImage', 'ad.image', 'adImageUrl');
-            if (adImage) {
-              const url = String(adImage).trim();
-              const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(url) || url.startsWith('data:video/');
-              if (isVideo) {
-                const videoEl = document.createElement('video');
-                videoEl.setAttribute('playsinline','');
-                videoEl.setAttribute('autoplay','');
-                videoEl.setAttribute('loop','');
-                videoEl.setAttribute('muted','');
-                videoEl.setAttribute('preload','metadata');
-                videoEl.className = 'w-full object-cover db-image';
-                videoEl.src = url;
-                adContainer.appendChild(videoEl);
-                videoEl.play().catch(()=>videoEl.setAttribute('controls',''));
-              } else {
-                const imgEl = document.createElement('img');
-                imgEl.src = url;
-                imgEl.alt = 'Advertisement';
-                imgEl.className = 'w-full object-cover db-image';
-                adContainer.appendChild(imgEl);
-              }
+            const adVideo = pickCfg(cfg, 'ad.video', 'adVideo', 'adVideoUrl');
+            const adImage = pickCfg(cfg, 'ad.image', 'adImage', 'adImageUrl', 'adImageUrl');
+            const adLink = pickCfg(cfg, 'ad.link', 'adUrl', 'adHref', 'adLink');
+            window.__TENANT_PUBLIC_CONFIG._ad = { adVideo, adImage, adLink };
+
+            // create placeholder element — we will lazy load actual media when visible
+            if (adVideo || adImage) {
+              const placeholder = document.createElement('div');
+              placeholder.className = 'w-full';
+              placeholder.style.minHeight = '180px';
+              adContainer.appendChild(placeholder);
               adContainer.classList.remove('hidden');
               noAd.classList.add('hidden');
+
+              // set link target
+              if (adLink) adLinkEl.href = adLink; else adLinkEl.href = '#';
+
+              // lazy load when in viewport
+              const io = new IntersectionObserver((entries, obs) => {
+                entries.forEach(entry => {
+                  if (!entry.isIntersecting) return;
+                  // load media
+                  if (adVideo) {
+                    const v = createMediaElement(adVideo, { classes: 'media-cover', autoplay: true, muted: true, loop: true });
+                    if (v) {
+                      v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'metadata';
+                      v.setAttribute('controls', ''); // show controls as fallback when autoplay blocked
+                      v.addEventListener('ended', () => { try { v.currentTime = 0; v.play().catch(()=>{}); } catch(e){} });
+                      // ensure autoplay muted
+                      v.autoplay = true;
+                      entry.target.innerHTML = '';
+                      entry.target.appendChild(v);
+                      v.play().catch(()=>{});
+                    }
+                  } else if (adImage) {
+                    const img = createMediaElement(adImage, { classes: 'media-cover' });
+                    if (img) { entry.target.innerHTML = ''; entry.target.appendChild(img); }
+                  }
+                  obs.disconnect();
+                });
+              }, { rootMargin: '200px' });
+              io.observe(placeholder);
+
+              // clicking ad container should navigate to adLink (external allowed)
+              adLinkEl.addEventListener('click', (ev) => {
+                const href = adLinkEl.getAttribute('href') || '';
+                if (!href || href === '#') { ev.preventDefault(); return; }
+                // allow navigation
+              });
             } else {
-              adContainer.innerHTML = '';
               adContainer.classList.add('hidden');
               noAd.classList.remove('hidden');
+              adLinkEl.href = '#';
             }
 
             const adText = pickCfg(cfg, 'adText', 'ad.text');
@@ -332,16 +350,9 @@
 
           } catch (e) {
             console.warn('apply settings to UI failed', e);
-          } finally {
-            // After settings apply, refresh button state (counters may already be loaded)
-            updateGetNumberButtonState();
           }
-        }, err => {
-          console.warn('settings read failed', err);
-        });
-      } catch (e) {
-        console.warn('settings listener setup failed', e);
-      }
+        }, err => console.warn('settings read failed', err));
+      } catch (e) { console.warn('settings listener setup failed', e); }
 
       // UI helpers
       function showError(msg) {
@@ -352,7 +363,8 @@
         try { successMessage.querySelector('p').textContent = msg; successMessage.classList.remove('hidden'); errorMessage.classList.add('hidden'); setTimeout(()=>successMessage.classList.add('hidden'),6000); } catch(e){}
       }
       function setLoading(flag) {
-        getNumberBtn.disabled = flag;
+        // during loading disable to prevent double submits; but don't permanently disable based on counters
+        getNumberBtn.disabled = !!flag;
         btnText.classList.toggle('hidden', flag);
         btnSpinner.classList.toggle('hidden', !flag);
         getNumberBtn.setAttribute('aria-busy', String(flag));
@@ -369,127 +381,78 @@
             console.info('Auto-redirecting to local status page ->', target);
             window.location.href = target;
           }
-        } catch (e) {
-          console.warn('autoRedirect check failed', e);
-        }
+        } catch (e) { console.warn('autoRedirect check failed', e); }
       })();
 
-      // Core: getQueueNumber
+      // getQueueNumber core
       async function getQueueNumber() {
         setLoading(true);
         try {
-          // Use the realtime cache first
-          const activeCounters = getActiveCountersFromCache();
-          // If counters not loaded yet, try a one-off get to avoid waiting
-          if ((!activeCounters || activeCounters.length === 0) && !countersLoaded) {
+          // refresh counters if not loaded (one-off)
+          if (!countersLoaded) {
             const snap = await get(tenantRef('counters'));
-            if (snap && snap.exists && typeof snap.forEach === 'function') {
-              countersCache = {};
-              snap.forEach(ch => countersCache[ch.key] = ch.val());
-            } else if (snap && snap.exists && typeof snap.val === 'function') {
-              const obj = snap.val() || {};
-              Object.keys(obj).forEach(k => countersCache[k] = obj[k]);
-            }
+            if (snap && snap.exists && typeof snap.forEach === 'function') { countersCache = {}; snap.forEach(ch => countersCache[ch.key] = ch.val()); }
+            else if (snap && snap.exists && typeof snap.val === 'function') countersCache = snap.val() || {};
             countersLoaded = true;
-            updateGetNumberButtonState();
           }
 
-          const finalActive = getActiveCountersFromCache();
-          if (!finalActive || finalActive.length === 0) {
-            showError('No active counters available right now.');
+          const activeCounters = Object.keys(countersCache).filter(k => {
+            const v = countersCache[k];
+            if (!v) return false;
+            const activeRaw = v.active;
+            if (activeRaw === undefined || activeRaw === null) return true; // default active
+            const s = String(activeRaw).toLowerCase();
+            return activeRaw === true || s === 'true' || s === '1' || s === 'yes' || s === 'y' || activeRaw === 1;
+          }).map(id => ({ id, ...(countersCache[id]||{}) }));
+
+          if (!activeCounters || activeCounters.length === 0) {
+            // per your requirement: do not disable button — but show a helpful error
+            showError('No active counters right now. Please ask staff to open a counter.');
             return;
           }
 
-          // round-robin index (atomic), tenant-scoped
+          // round-robin index (atomic)
           const rrRef = tenantRef('settings/lastCounterIndex');
-          const rrResult = await runTxWithRetries(rrRef, cur => {
-            const ncur = Number(cur) || 0;
-            return ncur + 1;
-          }, 8);
+          const rrResult = await runTxWithRetries(rrRef, cur => (Number(cur)||0) + 1, 8);
+          if (!rrResult || rrResult.committed !== true) throw new Error('Round-robin tx failed');
+          const globalCounter = Number(rrResult.snapshot && rrResult.snapshot.val());
+          if (!Number.isFinite(globalCounter)) throw new Error('Invalid round-robin value');
 
-          if (!rrResult || rrResult.committed !== true) {
-            throw new Error('Round-robin transaction failed to commit.');
-          }
-
-          const rrVal = rrResult.snapshot && rrResult.snapshot.val();
-          const globalCounter = Number(rrVal);
-          if (!Number.isFinite(globalCounter)) {
-            throw new Error('Invalid round-robin counter value returned.');
-          }
-
-          const n = finalActive.length;
+          const n = activeCounters.length;
           const index = ((globalCounter - 1) % n + n) % n;
-          let chosen = finalActive[index];
-          if (!chosen) {
-            console.warn('Round-robin: chosen counter missing for index, falling back to first active counter', { globalCounter, index, n });
-            chosen = finalActive[0];
-          }
+          let chosen = activeCounters[index] || activeCounters[0];
 
           // increment per-counter lastIssued
           const lastIssuedRef = tenantRef(`counters/${chosen.id}/lastIssued`);
-          const lastIssuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur) || 0) + 1, 8);
-          if (!lastIssuedTx || lastIssuedTx.committed !== true) {
-            throw new Error('Failed to increment counter issued number.');
-          }
+          const lastIssuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur)||0) + 1, 8);
+          if (!lastIssuedTx || lastIssuedTx.committed !== true) throw new Error('Failed to increment lastIssued');
 
           const nextNumber = Number(lastIssuedTx.snapshot && lastIssuedTx.snapshot.val());
-          if (!Number.isFinite(nextNumber)) throw new Error('Invalid nextNumber from counter transaction.');
+          if (!Number.isFinite(nextNumber)) throw new Error('Invalid nextNumber');
 
           const prefix = (chosen.prefix && String(chosen.prefix)) || 'Q';
-          const queueId = `${prefix}${String(nextNumber).padStart(3, '0')}`;
+          const queueId = `${prefix}${String(nextNumber).padStart(3,'0')}`;
 
-          // push queue entry (use push key as the queueKey that status.html expects)
+          // push queue entry
           const newNode = push(tenantRef('queue'));
-          await set(newNode, {
-            counterId: chosen.id,
-            queueId,
-            timestamp: Date.now(),
-            status: 'waiting'
-          });
+          await set(newNode, { counterId: chosen.id, queueId, timestamp: Date.now(), status: 'waiting' });
 
-          // persist lastQueueId and slug for auto-redirect
-          try {
-            sessionStorage.setItem('lastQueueId', newNode.key);
-            sessionStorage.setItem('lastTenantSlug', slug);
-          } catch (e) { /* ignore */ }
+          try { sessionStorage.setItem('lastQueueId', newNode.key); sessionStorage.setItem('lastTenantSlug', slug); } catch(e){}
 
           showSuccess(`You're number ${queueId}`);
-
-          // important: redirect using the RTDB push key (newNode.key) and include slug and tenantId
-          setTimeout(() => {
+          setTimeout(()=>{
             const target = `status.html?queueId=${encodeURIComponent(newNode.key)}&slug=${encodeURIComponent(slug)}&tenantId=${encodeURIComponent(tenantId)}`;
-            console.info('Redirecting to status page ->', target);
             window.location.href = target;
-          }, 750);
+          }, 700);
 
         } catch (err) {
           console.error('getQueueNumber error', err);
-          showError(err && err.message ? err.message : 'Failed to get queue number. Try again.');
-        } finally {
-          setLoading(false);
-        }
+          showError(err && err.message ? err.message : 'Failed to get queue number.');
+        } finally { setLoading(false); }
       }
-
-      // Prevent accidental external navigation via ad link
-      adLinkEl.addEventListener('click', (ev) => {
-        const href = adLinkEl.getAttribute('href') || '';
-        if (!href || href === '#') { ev.preventDefault(); return; }
-        try {
-          const u = new URL(href, window.location.href);
-          if (u.origin !== window.location.origin) {
-            ev.preventDefault();
-            console.warn('Blocked external navigation to', href);
-          }
-        } catch (e) {
-          ev.preventDefault();
-        }
-      });
 
       // wire button
       getNumberBtn.addEventListener('click', e => { e.preventDefault(); getQueueNumber(); });
-
-      // initial UI state: disable until counters known (will be enabled by listener)
-      getNumberBtn.disabled = true;
 
     }); // DOMContentLoaded end
   </script>
@@ -500,7 +463,7 @@
   <!-- Header -->
   <header class="w-full max-w-3xl mb-6">
     <div class="bg-white rounded-2xl shadow-md p-4 flex items-center gap-4">
-      <img id="siteLogo" src="" alt="Site logo" class="w-12 h-12 rounded-full hidden object-cover border" />
+      <div id="siteLogo" class="hidden"></div>
       <div class="flex-1 text-left">
         <h1 id="siteTitle" class="text-lg font-bold text-gray-800">Queue Joy</h1>
         <p id="smallTopText" class="text-xs text-gray-500">Digital Queue System</p>
@@ -513,7 +476,7 @@
   <main class="w-full max-w-3xl flex flex-col items-center gap-8">
     <section class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-6 text-center fade-in relative">
       <div class="mx-auto">
-        <img id="centerLogo" class="w-20 h-20 rounded-full object-cover hidden mx-auto shadow-sm border" alt="center logo"/>
+        <div id="centerLogo" class="hidden"></div>
         <div id="centerIcon" class="w-20 h-20 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
           <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path>
@@ -545,9 +508,7 @@
     <aside class="w-full max-w-md bg-white rounded-xl shadow-lg p-3">
       <p class="text-xs text-gray-500 text-center mb-2">Advertisement</p>
       <a id="adLink" href="#" class="block relative">
-        <div id="adContainer" class="w-full rounded-lg shadow-md overflow-hidden">
-          <!-- ad content (img/video) will be injected here dynamically -->
-        </div>
+        <div id="adContainer" class="w-full rounded-lg shadow-md overflow-hidden"></div>
       </a>
       <div id="noAd" class="text-center text-gray-400 text-sm py-6">No advertisement available</div>
       <div id="adText" class="text-xs text-gray-600 text-center mt-2 hidden"></div>
