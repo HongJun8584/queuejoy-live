@@ -5,21 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#8b5cf6" />
   <title>Queue Joy - Digital Queue System</title>
+
   <style>
     :root{
       --theme-color:#8b5cf6;
-      --theme-color-2:#a78bfa;
-      --bg-1:#f8fafc;
-      --bg-2:#f5f3ff;
-      --bg-3:#fff7ed;
+      --bg:#f8fafc;
+      --card:#ffffff;
       --text:#0f172a;
       --muted:#64748b;
-      --card:#ffffff;
-      --border:rgba(15, 23, 42, .08);
-      --shadow:0 18px 50px rgba(15,23,42,.08);
-      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --border:rgba(15,23,42,.08);
+      --shadow:0 16px 40px rgba(15,23,42,.08);
       --radius:24px;
-      --radius-sm:18px;
       --max:980px;
       --ease:cubic-bezier(.2,.9,.2,1);
     }
@@ -32,29 +28,28 @@
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color:var(--text);
       background:
-        radial-gradient(1000px 500px at 10% 0%, rgba(139,92,246,.10), transparent 45%),
-        radial-gradient(800px 420px at 100% 0%, rgba(251,146,60,.09), transparent 42%),
-        linear-gradient(180deg, var(--bg-1), #ffffff 55%, #fcfcff);
+        radial-gradient(900px 420px at 10% 0%, rgba(139,92,246,.10), transparent 45%),
+        radial-gradient(900px 420px at 100% 0%, rgba(251,146,60,.08), transparent 40%),
+        linear-gradient(180deg, #f8fafc 0%, #ffffff 55%, #fcfcff 100%);
     }
 
     a { color:inherit; text-decoration:none; }
+    button { font:inherit; }
     button, a { -webkit-tap-highlight-color: transparent; }
     img, video { display:block; max-width:100%; }
-    button { font:inherit; }
 
     .shell{
       width:100%;
       max-width:var(--max);
       margin:0 auto;
-      padding:18px 16px 36px;
+      padding:16px 16px 36px;
     }
 
     .topbar{
       position:sticky;
       top:0;
-      z-index:30;
+      z-index:20;
       padding-top:12px;
-      padding-bottom:12px;
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
@@ -63,40 +58,41 @@
       background:rgba(255,255,255,.88);
       border:1px solid var(--border);
       border-radius:28px;
-      box-shadow:var(--shadow-soft);
+      box-shadow:0 10px 24px rgba(15,23,42,.06);
       padding:14px 16px;
       display:flex;
       align-items:center;
       gap:14px;
     }
 
-    .brand-logo-wrap{
+    .logo-box{
       width:44px;
       height:44px;
       border-radius:16px;
-      background:linear-gradient(135deg, rgba(139,92,246,.12), rgba(251,146,60,.10));
-      border:1px solid rgba(139,92,246,.12);
+      overflow:hidden;
+      flex:0 0 auto;
       display:grid;
       place-items:center;
-      flex:0 0 auto;
-      overflow:hidden;
-      position:relative;
+      background:linear-gradient(135deg, rgba(139,92,246,.12), rgba(59,130,246,.08));
+      border:1px solid rgba(139,92,246,.14);
     }
 
-    .brand-logo-wrap img,
-    .brand-logo-wrap video{
+    .logo-box img,
+    .logo-box video,
+    .center-logo img,
+    .center-logo video{
       width:100%;
       height:100%;
       object-fit:contain;
       object-position:center;
     }
 
-    .brand-meta{
+    .brand{
       min-width:0;
-      flex:1 1 auto;
+      flex:1;
     }
 
-    .brand-title{
+    .brand h1{
       margin:0;
       font-size:1.02rem;
       line-height:1.2;
@@ -107,7 +103,7 @@
       text-overflow:ellipsis;
     }
 
-    .brand-subtitle{
+    .brand p{
       margin:4px 0 0;
       font-size:.82rem;
       color:var(--muted);
@@ -116,86 +112,49 @@
       text-overflow:ellipsis;
     }
 
-    .status-chip{
+    .chip{
       flex:0 0 auto;
       display:inline-flex;
       align-items:center;
       gap:8px;
       padding:10px 12px;
       border-radius:999px;
-      border:1px solid rgba(15,23,42,.08);
       background:#fff;
+      border:1px solid rgba(15,23,42,.08);
       font-size:.78rem;
       color:#334155;
-      box-shadow:0 4px 12px rgba(15,23,42,.04);
     }
 
-    .status-dot{
+    .dot{
       width:9px;
       height:9px;
       border-radius:999px;
       background:#cbd5e1;
-      box-shadow:0 0 0 6px rgba(203,213,225,.20);
-      flex:0 0 auto;
+      box-shadow:0 0 0 6px rgba(203,213,225,.2);
     }
-    .status-chip.live .status-dot{ background:#22c55e; box-shadow:0 0 0 6px rgba(34,197,94,.15); }
-    .status-chip.sync .status-dot{ background:#f59e0b; box-shadow:0 0 0 6px rgba(245,158,11,.14); }
-    .status-chip.error .status-dot{ background:#ef4444; box-shadow:0 0 0 6px rgba(239,68,68,.12); }
+    .chip.live .dot{ background:#22c55e; box-shadow:0 0 0 6px rgba(34,197,94,.14); }
+    .chip.sync .dot{ background:#f59e0b; box-shadow:0 0 0 6px rgba(245,158,11,.14); }
+    .chip.error .dot{ background:#ef4444; box-shadow:0 0 0 6px rgba(239,68,68,.12); }
 
     .grid{
       display:grid;
-      grid-template-columns: 1.65fr .95fr;
+      grid-template-columns:1.65fr .95fr;
       gap:18px;
       align-items:start;
       margin-top:16px;
     }
 
-    .hero-card,
-    .ad-card,
-    .panel-card{
-      background:rgba(255,255,255,.90);
+    .card{
+      background:rgba(255,255,255,.92);
       border:1px solid var(--border);
       border-radius:var(--radius);
       box-shadow:var(--shadow);
       overflow:hidden;
     }
 
-    .hero-card{
+    .hero{
       padding:28px 22px 22px;
       position:relative;
-      isolation:isolate;
-    }
-
-    .hero-card::before{
-      content:"";
-      position:absolute;
-      inset:auto -10% -30% auto;
-      width:280px;
-      height:280px;
-      background:radial-gradient(circle at center, rgba(139,92,246,.13), transparent 60%);
-      z-index:-1;
-      pointer-events:none;
-    }
-
-    .hero-topline{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      margin-bottom:22px;
-    }
-
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:999px;
-      background:rgba(248,250,252,.95);
-      border:1px solid rgba(15,23,42,.08);
-      color:#475569;
-      font-size:.78rem;
-      font-weight:700;
     }
 
     .hero-center{
@@ -206,32 +165,23 @@
       gap:18px;
     }
 
-    .center-logo-wrap{
+    .center-logo{
       width:96px;
       height:96px;
       border-radius:30px;
+      overflow:hidden;
       display:grid;
       place-items:center;
       background:linear-gradient(135deg, rgba(139,92,246,.12), rgba(59,130,246,.08));
       border:1px solid rgba(139,92,246,.14);
       box-shadow:0 12px 30px rgba(139,92,246,.10);
-      overflow:hidden;
-      position:relative;
-      flex:0 0 auto;
     }
 
-    .center-logo-wrap img,
-    .center-logo-wrap video{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      object-position:center;
-    }
-
-    .fallback-mark{
+    .fallback{
       width:42px;
       height:42px;
       color:var(--theme-color);
+      flex:0 0 auto;
     }
 
     .headline{
@@ -250,34 +200,28 @@
       max-width:46ch;
     }
 
-    .cta-wrap{
-      width:100%;
-      margin-top:4px;
-    }
-
-    .cta-button{
+    .btn{
       width:100%;
       border:0;
+      min-height:58px;
       padding:16px 18px;
       border-radius:22px;
       color:#fff;
       font-weight:800;
       font-size:1.02rem;
-      letter-spacing:-0.01em;
       cursor:pointer;
-      background:linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, #ffffff 30%));
+      background:linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 68%, #ffffff 32%));
       box-shadow:0 16px 32px color-mix(in srgb, var(--theme-color) 28%, transparent);
-      transition:transform .18s var(--ease), filter .18s var(--ease), opacity .18s var(--ease);
+      transition:transform .18s var(--ease), opacity .18s var(--ease), filter .18s var(--ease);
       display:flex;
       align-items:center;
       justify-content:center;
       gap:10px;
-      min-height:58px;
     }
 
-    .cta-button:hover{ transform:translateY(-1px); filter:saturate(1.05); }
-    .cta-button:active{ transform:translateY(0); }
-    .cta-button:disabled{ cursor:not-allowed; opacity:.72; transform:none; }
+    .btn:hover{ transform:translateY(-1px); filter:saturate(1.05); }
+    .btn:active{ transform:translateY(0); }
+    .btn:disabled{ opacity:.7; cursor:not-allowed; transform:none; }
 
     .spinner{
       width:18px;
@@ -286,9 +230,7 @@
       border:2px solid rgba(255,255,255,.35);
       border-top-color:#fff;
       animation:spin .8s linear infinite;
-      flex:0 0 auto;
     }
-
     @keyframes spin { to { transform:rotate(360deg); } }
 
     .notice{
@@ -300,42 +242,23 @@
       display:none;
       border:1px solid transparent;
     }
-
     .notice.show{ display:block; }
-    .notice.error{
-      background:#fff1f2;
-      border-color:#fecdd3;
-      color:#be123c;
-    }
-    .notice.success{
-      background:#f0fdf4;
-      border-color:#bbf7d0;
-      color:#15803d;
-    }
-    .notice.info{
-      background:#eff6ff;
-      border-color:#bfdbfe;
-      color:#1d4ed8;
-    }
+    .notice.error{ background:#fff1f2; border-color:#fecdd3; color:#be123c; }
+    .notice.success{ background:#f0fdf4; border-color:#bbf7d0; color:#15803d; }
+    .notice.info{ background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
 
-    .hero-foot{
+    .foot{
       margin-top:16px;
       display:flex;
       justify-content:space-between;
       gap:12px;
       flex-wrap:wrap;
-      align-items:center;
       color:#64748b;
       font-size:.82rem;
     }
+    .foot strong{ color:#334155; }
 
-    .hero-foot strong{
-      color:#334155;
-    }
-
-    .ad-card{
-      position:sticky;
-      top:94px;
+    .ad{
       padding:14px;
     }
 
@@ -348,16 +271,16 @@
       color:#64748b;
     }
 
-    .ad-media-shell{
+    .ad-shell{
       border-radius:22px;
       overflow:hidden;
-      background:linear-gradient(180deg, rgba(248,250,252,.95), rgba(255,255,255,.95));
+      background:#f8fafc;
       border:1px solid rgba(15,23,42,.08);
       min-height:190px;
       position:relative;
     }
 
-    .ad-media-shell a{
+    .ad-shell a{
       display:block;
       width:100%;
       height:100%;
@@ -370,11 +293,6 @@
       object-fit:cover;
       object-position:center;
       background:#f8fafc;
-    }
-
-    .ad-media.video{
-      width:100%;
-      height:auto;
     }
 
     .ad-empty{
@@ -402,16 +320,17 @@
       font-size:.88rem;
       color:#334155;
       line-height:1.55;
-      min-height:1.55em;
       word-break:break-word;
     }
 
-    .ad-link-meta{
+    .meta{
       margin:8px 6px 0;
       font-size:.77rem;
       color:#94a3b8;
       word-break:break-all;
     }
+
+    .hidden{ display:none !important; }
 
     .skeleton{
       position:relative;
@@ -419,54 +338,30 @@
       background:#eef2ff;
       border-radius:16px;
     }
-
     .skeleton::after{
       content:"";
       position:absolute;
       inset:0;
       transform:translateX(-100%);
       background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
-      animation:shimmer 1.25s infinite;
+      animation:shimmer 1.2s infinite;
     }
-
     @keyframes shimmer { 100% { transform:translateX(100%); } }
-
-    .skeleton-line{
-      height:14px;
-      margin:10px 0;
-    }
-
-    .skeleton-circle{
-      width:96px;
-      height:96px;
-      border-radius:30px;
-      margin:0 auto;
-    }
-
-    .skeleton-btn{
-      height:58px;
-      border-radius:22px;
-      margin-top:6px;
-    }
-
-    .hidden{ display:none !important; }
 
     @media (max-width: 860px){
       .grid{ grid-template-columns:1fr; }
-      .ad-card{ position:relative; top:auto; }
-      .hero-card{ padding:22px 16px 18px; }
-      .header-card{ padding:12px 14px; }
-      .status-chip{ display:none; }
+      .chip{ display:none; }
+      .ad{ position:relative; top:auto; }
     }
 
     @media (max-width: 520px){
       .shell{ padding:12px 12px 28px; }
-      .header-card{ border-radius:22px; }
-      .hero-card, .ad-card{ border-radius:22px; }
-      .center-logo-wrap{ width:88px; height:88px; border-radius:26px; }
+      .header-card, .card{ border-radius:22px; }
+      .hero{ padding:22px 16px 18px; }
+      .center-logo{ width:88px; height:88px; border-radius:26px; }
       .headline{ font-size:clamp(1.5rem, 7vw, 2rem); }
       .lead{ font-size:.96rem; }
-      .cta-button{ font-size:1rem; }
+      .btn{ font-size:1rem; }
     }
 
     :focus-visible{
@@ -498,8 +393,6 @@
       appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
     };
 
-    const DEFAULT_THEME = "#8b5cf6";
-
     const state = {
       slug: null,
       tenantId: null,
@@ -507,63 +400,51 @@
       tenantReady: false,
       configReady: false,
       countersReady: false,
-      syncingStartedAt: performance.now(),
-      seedConfig: {},
-      liveConfig: {},
-      mergedConfig: {},
+      config: {},
       counters: {},
       activeCounters: [],
-      isLoadingJoin: false
+      isJoining: false
     };
 
     const el = {};
 
-    function $(id) {
-      return document.getElementById(id);
+    function $(id){ return document.getElementById(id); }
+
+    function showFatal(msg){
+      console.error(msg);
+      const d = document.createElement("div");
+      d.style.cssText = "position:fixed;inset:12px 12px auto 12px;z-index:99999;padding:14px 16px;border-radius:16px;background:#fff1f2;border:1px solid #fecdd3;color:#b91c1c;font:700 14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 16px 40px rgba(15,23,42,.12)";
+      d.textContent = "Error: " + msg;
+      document.body.appendChild(d);
     }
 
-    function showFatal(message) {
-      console.error(message);
-      const node = document.createElement("div");
-      node.style.cssText = "position:fixed;inset:12px 12px auto 12px;z-index:99999;padding:14px 16px;border-radius:16px;background:#fff1f2;border:1px solid #fecdd3;color:#b91c1c;font:700 14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 16px 40px rgba(15,23,42,.12)";
-      node.textContent = "Error: " + message;
-      document.body.appendChild(node);
-    }
-
-    function getSlugFromQuery() {
-      try {
+    function getSlug(){
+      try{
         const qp = new URLSearchParams(location.search);
-        const slug = qp.get("slug");
-        return slug ? String(slug).trim() : null;
-      } catch {
+        return (qp.get("slug") || "").trim() || null;
+      }catch{
         return null;
       }
     }
 
-    function normalizeText(v) {
-      if (v === null || v === undefined) return "";
-      return String(v).trim();
+    function safeText(v){
+      return v === null || v === undefined ? "" : String(v).trim();
     }
 
-    function safePick(cfg, ...keys) {
-      for (const key of keys) {
+    function pick(cfg, ...keys){
+      for (const key of keys){
         if (!key) continue;
         const parts = key.split(".");
         let cur = cfg;
-        for (const part of parts) {
-          if (!cur || typeof cur !== "object") {
-            cur = undefined;
-            break;
-          }
+        for (const part of parts){
+          if (!cur || typeof cur !== "object") { cur = undefined; break; }
           cur = cur[part];
         }
-        if (cur !== null && cur !== undefined) {
-          if (typeof cur === "string") {
+        if (cur !== null && cur !== undefined){
+          if (typeof cur === "string"){
             const s = cur.trim();
             if (s) return s;
-          } else if (typeof cur === "number" || typeof cur === "boolean") {
-            return cur;
-          } else if (Array.isArray(cur) || typeof cur === "object") {
+          } else if (typeof cur === "number" || typeof cur === "boolean"){
             return cur;
           }
         }
@@ -571,136 +452,54 @@
       return null;
     }
 
-    function mergeConfig(seed, live) {
-      const merged = { ...(seed || {}), ...(live || {}) };
-      merged.theme = { ...((seed && seed.theme) || {}), ...((live && live.theme) || {}) };
-      merged.ad = { ...((seed && seed.ad) || {}), ...((live && live.ad) || {}) };
-      return merged;
+    function isSafeHttpUrl(value){
+      if (!value) return null;
+      try{
+        const u = new URL(String(value), location.href);
+        return (u.protocol === "http:" || u.protocol === "https:") ? u.toString() : null;
+      }catch{
+        return null;
+      }
     }
 
-    function setThemeColor(color) {
-      const v = (typeof color === "string" && color.trim()) ? color.trim() : DEFAULT_THEME;
-      document.documentElement.style.setProperty("--theme-color", v);
-      document.documentElement.style.setProperty("--theme-color-2", v);
-      const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute("content", v);
-    }
-
-    function createMedia(url, { className = "", autoplay = false, muted = true, loop = true, playsInline = true, controls = false } = {}) {
+    function createMedia(url, { className = "", autoplay = false, muted = true, loop = true, controls = false } = {}){
       if (!url) return null;
       const lower = String(url).toLowerCase();
       const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/.test(lower) || lower.startsWith("data:video/");
       const isImage = /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/.test(lower) || lower.startsWith("data:image/");
 
-      if (isVideo) {
+      if (isVideo){
         const v = document.createElement("video");
         v.src = url;
         v.className = className;
-        v.preload = "metadata";
         v.autoplay = !!autoplay;
         v.muted = !!muted;
         v.loop = !!loop;
-        v.playsInline = !!playsInline;
-        if (controls) v.controls = true;
+        v.playsInline = true;
+        v.preload = "metadata";
         v.setAttribute("playsinline", "");
-        v.setAttribute("draggable", "false");
+        if (controls) v.controls = true;
         return v;
       }
 
-      if (isImage) {
+      if (isImage){
         const img = document.createElement("img");
         img.src = url;
-        img.alt = "media";
+        img.className = className;
         img.loading = "lazy";
         img.decoding = "async";
-        img.className = className;
-        img.setAttribute("draggable", "false");
+        img.alt = "media";
         return img;
       }
 
       return null;
     }
 
-    function isSafeHttpUrl(value) {
-      if (!value) return null;
-      try {
-        const url = new URL(String(value), location.href);
-        if (url.protocol === "http:" || url.protocol === "https:") return url.toString();
-        return null;
-      } catch {
-        return null;
-      }
-    }
-
-    function showStatus(kind, text) {
-      el.statusChip.classList.remove("live", "sync", "error");
-      if (kind) el.statusChip.classList.add(kind);
-      el.statusText.textContent = text;
-    }
-
-    function showNotice(kind, text) {
-      el.notice.className = "notice show " + kind;
-      el.notice.textContent = text;
-    }
-
-    function clearNotice() {
-      el.notice.className = "notice";
-      el.notice.textContent = "";
-    }
-
-    function setJoinLoading(flag) {
-      state.isLoadingJoin = !!flag;
-      el.joinBtn.disabled = !!flag;
-      el.btnText.classList.toggle("hidden", !!flag);
-      el.spinner.classList.toggle("hidden", !flag);
-      el.joinBtn.setAttribute("aria-busy", String(!!flag));
-    }
-
-    function renderTopLogo(url) {
-      el.topLogoWrap.innerHTML = "";
-      if (!url) {
-        el.topLogoWrap.appendChild(makeFallbackIcon(24));
-        return;
-      }
-      const media = createMedia(url, {
-        className: "brand-media",
-        autoplay: false,
-        muted: true,
-        loop: true,
-        playsInline: true
-      });
-      if (!media) {
-        el.topLogoWrap.appendChild(makeFallbackIcon(24));
-        return;
-      }
-      el.topLogoWrap.appendChild(media);
-    }
-
-    function renderCenterLogo(url) {
-      el.centerLogoWrap.innerHTML = "";
-      if (!url) {
-        el.centerLogoWrap.appendChild(makeFallbackIcon(42));
-        return;
-      }
-      const media = createMedia(url, {
-        className: "brand-media",
-        autoplay: false,
-        muted: true,
-        loop: true,
-        playsInline: true
-      });
-      if (!media) {
-        el.centerLogoWrap.appendChild(makeFallbackIcon(42));
-        return;
-      }
-      el.centerLogoWrap.appendChild(media);
-    }
-
-    function makeFallbackIcon(size = 24) {
+    function fallbackIcon(size = 24){
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 24 24");
       svg.setAttribute("aria-hidden", "true");
-      svg.classList.add("fallback-mark");
+      svg.classList.add("fallback");
       svg.style.width = size + "px";
       svg.style.height = size + "px";
       svg.innerHTML = `
@@ -709,137 +508,153 @@
       return svg;
     }
 
-    function normalizeActive(value) {
-      if (value === undefined || value === null) return true;
-      if (typeof value === "boolean") return value;
-      if (typeof value === "number") return value !== 0;
-      const s = String(value).trim().toLowerCase();
-      if (["true", "1", "yes", "y", "on", "active"].includes(s)) return true;
-      if (["false", "0", "no", "n", "off", "inactive"].includes(s)) return false;
+    function normalizeActive(v){
+      if (v === undefined || v === null) return true;
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number") return v !== 0;
+      const s = String(v).trim().toLowerCase();
+      if (["true","1","yes","y","on","active"].includes(s)) return true;
+      if (["false","0","no","n","off","inactive"].includes(s)) return false;
       return true;
     }
 
-    function getCountersLoadedStateText() {
-      if (!state.tenantReady) return "Loading tenant data...";
-      if (!state.countersReady) return "Syncing counters...";
-      if (state.activeCounters.length > 0) return "Ready / Live";
-      return "Ready / Live";
+    function setThemeColor(color){
+      const c = (typeof color === "string" && color.trim()) ? color.trim() : "#8b5cf6";
+      document.documentElement.style.setProperty("--theme-color", c);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", c);
     }
 
-    function updateStatusChip() {
-      if (!state.tenantReady) {
-        showStatus("sync", "Loading tenant data...");
-        return;
-      }
-      if (!state.countersReady) {
-        showStatus("sync", "Syncing counters...");
-        return;
-      }
-      if (state.activeCounters.length > 0) {
-        showStatus("live", `Ready / Live • ${state.activeCounters.length} active counter${state.activeCounters.length === 1 ? "" : "s"}`);
-      } else {
-        showStatus("error", "Ready / Live • No active counters");
-      }
+    function showChip(kind, text){
+      el.statusChip.classList.remove("live","sync","error");
+      if (kind) el.statusChip.classList.add(kind);
+      el.statusText.textContent = text;
     }
 
-    function applyMergedConfig() {
-      const cfg = state.mergedConfig || {};
+    function notice(kind, text){
+      el.notice.className = "notice show " + kind;
+      el.notice.textContent = text;
+    }
 
-      const themeColor = safePick(cfg, "theme.color", "themeColor", "themeColorHex") || DEFAULT_THEME;
+    function clearNotice(){
+      el.notice.className = "notice";
+      el.notice.textContent = "";
+    }
+
+    function setJoining(flag){
+      state.isJoining = !!flag;
+      el.joinBtn.disabled = !!flag;
+      el.btnText.classList.toggle("hidden", !!flag);
+      el.spinner.classList.toggle("hidden", !flag);
+      el.joinBtn.setAttribute("aria-busy", String(!!flag));
+    }
+
+    function renderLogo(host, url, size){
+      host.innerHTML = "";
+      const media = createMedia(url, { className: "logo-media" });
+      if (!media){
+        host.appendChild(fallbackIcon(size));
+        return;
+      }
+      host.appendChild(media);
+    }
+
+    function applyConfig(){
+      const cfg = state.config || {};
+
+      const themeColor = pick(cfg, "theme.color", "themeColor", "themeColorHex") || "#8b5cf6";
+      const siteTitle = pick(cfg, "displayName", "name", "siteTitle", "title", "mainTitle") || "Queue Joy";
+      const topText = pick(cfg, "smallTextOnTop", "smallTopText", "smallTop") || "Digital Queue System";
+      const heading = pick(cfg, "mainHeading", "titleinmiddle", "titleInMiddle", "ctaTitle", "heading") || "Get your queue number";
+      const intro = pick(cfg, "description", "introText", "subtitle") || "Real-time queueing system. Mobile-friendly. No app needed.";
+      const buttonText = pick(cfg, "buttonText", "ctaText", "cta", "getNumberText") || "Get your queue number";
+      const logoUrl = pick(cfg, "logoUrl", "logo", "theme.logo", "branding.logo");
+      const centerLogoUrl = pick(cfg, "centerLogoUrl", "centerLogo", "theme.centerLogo");
+      const adVideo = pick(cfg, "ad.video", "adVideo", "adVideoUrl");
+      const adImage = pick(cfg, "ad.image", "adImage", "adImageUrl");
+      const adLink = pick(cfg, "ad.link", "adUrl", "adHref", "adLink");
+      const adText = pick(cfg, "adText", "ad.text") || "";
+      const timezone = pick(cfg, "timezone") || "";
+
       setThemeColor(themeColor);
-
-      const siteTitle = safePick(cfg, "displayName", "name", "siteTitle", "mainTitle", "title") || "Queue Joy";
-      const topText = safePick(cfg, "smallTextOnTop", "smallTopText", "smallTop") || "Digital Queue System";
-      const heading = safePick(cfg, "mainHeading", "titleinmiddle", "titleInMiddle", "ctaTitle", "heading") || "Get your queue number";
-      const description = safePick(cfg, "description", "introText", "subtitle", "smallTextOnTop") || "Real-time queueing system. Mobile-friendly. No app needed.";
-      const buttonText = safePick(cfg, "buttonText", "ctaText", "cta", "getNumberText") || "Get your queue number";
-      const logoUrl = safePick(cfg, "logoUrl", "logo", "theme.logo", "branding.logo");
-      const centerLogoUrl = safePick(cfg, "centerLogoUrl", "centerLogo", "theme.centerLogo");
-      const adText = safePick(cfg, "adText", "ad.text") || "";
-      const adVideo = safePick(cfg, "ad.video", "adVideo", "adVideoUrl");
-      const adImage = safePick(cfg, "ad.image", "adImage", "adImageUrl");
-      const adLink = safePick(cfg, "ad.link", "adUrl", "adHref", "adLink");
-      const timezone = safePick(cfg, "timezone") || "";
-
       el.siteTitle.textContent = siteTitle;
       el.smallTopText.textContent = topText;
       el.mainHeading.textContent = heading;
-      el.introText.textContent = description;
+      el.introText.textContent = intro;
       el.btnText.textContent = "🎫 " + buttonText;
-      el.timezoneText.textContent = timezone ? `Timezone: ${timezone}` : " ";
-      renderTopLogo(logoUrl);
-      renderCenterLogo(centerLogoUrl);
+      el.timezoneText.textContent = timezone ? `Timezone: ${timezone}` : "";
+      renderLogo(el.topLogo, logoUrl, 24);
+      renderLogo(el.centerLogo, centerLogoUrl, 42);
       renderAd({ adVideo, adImage, adLink, adText });
     }
 
-    function renderAd({ adVideo, adImage, adLink, adText }) {
+    function renderAd({ adVideo, adImage, adLink, adText }){
       el.adMediaHost.innerHTML = "";
-      el.adLink.removeAttribute("href");
-      el.adLink.removeAttribute("target");
-      el.adLink.removeAttribute("rel");
-
       const safeLink = isSafeHttpUrl(adLink);
-      if (safeLink) {
+
+      el.adLink.classList.toggle("disabled", !safeLink);
+      if (safeLink){
         el.adLink.href = safeLink;
         el.adLink.target = "_blank";
         el.adLink.rel = "noopener noreferrer";
-        el.adLink.classList.remove("disabled");
+        el.adLink.removeAttribute("aria-disabled");
       } else {
         el.adLink.href = "#";
-        el.adLink.classList.add("disabled");
+        el.adLink.removeAttribute("target");
+        el.adLink.removeAttribute("rel");
+        el.adLink.setAttribute("aria-disabled", "true");
       }
 
-      const chosenMedia = adVideo || adImage;
-      if (!chosenMedia) {
+      const mediaSrc = adVideo || adImage;
+      if (!mediaSrc){
         el.adEmpty.classList.remove("hidden");
         el.adCaption.textContent = adText || "";
         el.adCaption.classList.toggle("hidden", !adText);
         el.adLinkMeta.textContent = "";
+        el.adLinkMeta.classList.add("hidden");
         return;
       }
 
       el.adEmpty.classList.add("hidden");
 
-      const placeholder = document.createElement("div");
-      placeholder.className = "ad-media-shell";
-      placeholder.style.minHeight = "190px";
-      placeholder.innerHTML = '<div class="ad-empty"><div class="skeleton skeleton-line" style="width:74%;height:14px;margin:0 auto 10px;"></div><div class="skeleton skeleton-line" style="width:42%;height:14px;margin:0 auto;"></div></div>';
-      el.adMediaHost.appendChild(placeholder);
+      const shell = document.createElement("div");
+      shell.className = "ad-shell";
+      shell.innerHTML = '<div class="ad-empty"><div class="skeleton" style="width:74%;height:14px;margin:0 auto 10px;"></div><div class="skeleton" style="width:42%;height:14px;margin:0 auto;"></div></div>';
+      el.adMediaHost.appendChild(shell);
 
       const load = () => {
-        const media = createMedia(adVideo || adImage, {
-          className: adVideo ? "ad-media video" : "ad-media",
+        shell.innerHTML = "";
+        const media = createMedia(mediaSrc, {
+          className: adVideo ? "ad-media" : "ad-media",
           autoplay: !!adVideo,
           muted: true,
           loop: true,
-          playsInline: true,
           controls: false
-        });
+        }) || document.createElement("div");
 
-        placeholder.innerHTML = "";
-        if (safeLink) {
-          const link = document.createElement("a");
-          link.href = safeLink;
-          link.target = "_blank";
-          link.rel = "noopener noreferrer";
-          link.appendChild(media || buildAdFallback());
-          placeholder.appendChild(link);
+        if (safeLink){
+          const a = document.createElement("a");
+          a.href = safeLink;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.appendChild(media);
+          shell.appendChild(a);
         } else {
-          placeholder.appendChild(media || buildAdFallback());
+          shell.appendChild(media);
         }
       };
 
-      if ("IntersectionObserver" in window) {
+      if ("IntersectionObserver" in window){
         const obs = new IntersectionObserver((entries, observer) => {
-          for (const entry of entries) {
-            if (entry.isIntersecting) {
+          for (const entry of entries){
+            if (entry.isIntersecting){
               observer.disconnect();
               load();
               break;
             }
           }
-        }, { rootMargin: "160px" });
-        obs.observe(placeholder);
+        }, { rootMargin: "150px" });
+        obs.observe(shell);
       } else {
         load();
       }
@@ -850,133 +665,94 @@
       el.adLinkMeta.classList.toggle("hidden", !safeLink);
     }
 
-    function buildAdFallback() {
-      const wrap = document.createElement("div");
-      wrap.className = "ad-empty";
-      wrap.innerHTML = `
-        <div>
-          <div class="icon">${makeFallbackIcon(24).outerHTML}</div>
-          <div style="font-weight:800;color:#334155;margin-bottom:4px;">Advertisement</div>
-          <div style="font-size:.9rem;">Content is available, but this media could not be rendered.</div>
-        </div>
-      `;
-      return wrap;
-    }
-
-    function tenantRef(path = "") {
-      if (!state.db) throw new Error("Database not ready");
+    function tenantRef(path = ""){
+      if (!state.db) throw new Error("Firebase not ready");
       const clean = String(path || "").replace(/^\/+/, "");
-      const base = `tenants/${state.tenantId}`;
-      return clean ? ref(state.db, `${base}/${clean}`) : ref(state.db, base);
+      return clean ? ref(state.db, `tenants/${state.tenantId}/${clean}`) : ref(state.db, `tenants/${state.tenantId}`);
     }
 
-    async function runTxWithRetries(pathRef, updater, maxRetries = 6) {
+    async function runTxWithRetries(pathRef, updater, maxRetries = 6){
       let lastErr = null;
-      for (let i = 1; i <= maxRetries; i++) {
-        try {
-          const result = await runTransaction(pathRef, updater, { applyLocally: false });
+      for (let i = 1; i <= maxRetries; i++){
+        try{
+          const result = await runTransaction(pathRef, updater, { applyLocally:false });
           if (result && result.committed) return result;
           lastErr = new Error(`Transaction not committed (attempt ${i})`);
-        } catch (err) {
+        }catch(err){
           lastErr = err;
-          console.warn("transaction attempt failed", err);
         }
         await new Promise(r => setTimeout(r, 90 * Math.pow(2, i - 1) + Math.floor(Math.random() * 80)));
       }
-      throw lastErr || new Error("Transaction failed after retries");
+      throw lastErr || new Error("Transaction failed");
     }
 
-    function getActiveCountersFromCache() {
+    function getActiveCounters(){
       const list = [];
-      for (const [id, value] of Object.entries(state.counters || {})) {
+      for (const [id, value] of Object.entries(state.counters || {})){
         if (!value || typeof value !== "object") continue;
-        if (normalizeActive(value.active)) {
-          list.push({ id, ...value });
-        }
+        if (normalizeActive(value.active)) list.push({ id, ...value });
       }
-
       list.sort((a, b) => {
         const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
         const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
         if (ao !== bo) return ao - bo;
         return String(a.id).localeCompare(String(b.id));
       });
-
       return list;
     }
 
-    async function ensureCountersLoaded() {
-      if (!state.countersReady) {
-        showNotice("info", "Syncing counters...");
-        return false;
-      }
-      return true;
-    }
-
-    async function autoRedirectIfWaiting() {
-      try {
+    async function autoRedirectIfWaiting(){
+      try{
         const lastQueueId = sessionStorage.getItem("lastQueueId");
         if (!lastQueueId) return;
-
         const snap = await get(child(tenantRef("queue"), lastQueueId));
         const data = snap && typeof snap.val === "function" ? snap.val() : null;
-        if (data && String(data.status || "").toLowerCase() === "waiting") {
+        if (data && String(data.status || "").toLowerCase() === "waiting"){
           location.href = `status.html?queueId=${encodeURIComponent(lastQueueId)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
         }
-      } catch (err) {
-        console.warn("auto redirect check failed", err);
+      }catch(err){
+        console.warn(err);
       }
     }
 
-    async function getQueueNumber() {
-      setJoinLoading(true);
+    async function getQueueNumber(){
+      setJoining(true);
       clearNotice();
 
-      try {
-        if (!(await ensureCountersLoaded())) return;
+      try{
+        if (!state.countersReady){
+          notice("info", "Syncing counters...");
+          return;
+        }
 
-        const activeCounters = getActiveCountersFromCache();
+        const activeCounters = getActiveCounters();
         state.activeCounters = activeCounters;
-        updateStatusChip();
 
-        if (!activeCounters.length) {
-          showNotice("error", "No active counters right now. Please ask staff to open a counter.");
+        if (!activeCounters.length){
+          notice("error", "No active counters right now. Please ask staff to open a counter.");
           return;
         }
 
         const rrRef = tenantRef("queueState/lastCounterIndex");
         const rrResult = await runTxWithRetries(rrRef, cur => (Number(cur) || 0) + 1, 8);
-        if (!rrResult || rrResult.committed !== true) {
-          throw new Error("Round-robin transaction failed.");
-        }
-
         const rrVal = Number(rrResult.snapshot && rrResult.snapshot.val());
-        if (!Number.isFinite(rrVal)) {
-          throw new Error("Invalid round-robin value.");
-        }
+        if (!Number.isFinite(rrVal)) throw new Error("Invalid round-robin value.");
 
         const index = ((rrVal - 1) % activeCounters.length + activeCounters.length) % activeCounters.length;
-        let chosen = activeCounters[index] || activeCounters[0];
-
-        if (!chosen) {
-          throw new Error("No counter could be selected.");
-        }
+        const chosen = activeCounters[index] || activeCounters[0];
+        if (!chosen) throw new Error("No counter selected.");
 
         const lastIssuedRef = tenantRef(`counters/${chosen.id}/lastIssued`);
-        const issuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur) || 0) + 1, 8);
-        if (!issuedTx || issuedTx.committed !== true) {
-          throw new Error("Failed to increment counter number.");
-        }
+        const lastIssuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur) || 0) + 1, 8);
+        const nextNumber = Number(lastIssuedTx.snapshot && lastIssuedTx.snapshot.val());
+        if (!Number.isFinite(nextNumber) || nextNumber < 1) throw new Error("Invalid ticket number.");
 
-        const nextNumber = Number(issuedTx.snapshot && issuedTx.snapshot.val());
-        if (!Number.isFinite(nextNumber) || nextNumber < 1) {
-          throw new Error("Invalid issued number.");
-        }
-
-        const prefix = normalizeText(chosen.prefix) || "Q";
+        const prefix = safeText(chosen.prefix) || "Q";
         const queueId = `${prefix}${String(nextNumber).padStart(3, "0")}`;
         const now = Date.now();
-        const queueEntry = {
+
+        const node = push(tenantRef("queue"));
+        await set(node, {
           counterId: chosen.id,
           queueId,
           prefix,
@@ -985,60 +761,45 @@
           createdAt: now,
           updatedAt: now,
           status: "waiting"
-        };
+        });
 
-        const newNode = push(tenantRef("queue"));
-        await set(newNode, queueEntry);
-
-        try {
-          sessionStorage.setItem("lastQueueId", newNode.key);
+        try{
+          sessionStorage.setItem("lastQueueId", node.key);
           sessionStorage.setItem("lastTenantSlug", state.slug);
-        } catch {}
+        }catch{}
 
-        showNotice("success", `You're number ${queueId}`);
-
+        notice("success", `You're number ${queueId}`);
         setTimeout(() => {
-          location.href = `status.html?queueId=${encodeURIComponent(newNode.key)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
+          location.href = `status.html?queueId=${encodeURIComponent(node.key)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
         }, 650);
 
-      } catch (err) {
-        console.error("getQueueNumber error", err);
-        showNotice("error", err && err.message ? err.message : "Failed to get queue number.");
-      } finally {
-        setJoinLoading(false);
+      }catch(err){
+        console.error(err);
+        notice("error", err && err.message ? err.message : "Failed to get queue number.");
+      }finally{
+        setJoining(false);
       }
     }
 
-    function wireEvents() {
+    function wireEvents(){
       el.joinBtn.addEventListener("click", e => {
         e.preventDefault();
         getQueueNumber();
       });
 
-      el.adLink.addEventListener("click", (ev) => {
+      el.adLink.addEventListener("click", ev => {
         const href = el.adLink.getAttribute("href") || "";
-        if (!href || href === "#") {
-          ev.preventDefault();
-          return;
-        }
-        try {
-          const url = new URL(href, location.href);
-          if (url.protocol !== "http:" && url.protocol !== "https:") {
-            ev.preventDefault();
-          }
-        } catch {
-          ev.preventDefault();
-        }
+        if (!href || href === "#") ev.preventDefault();
       });
     }
 
-    async function boot() {
+    async function boot(){
       el.siteTitle = $("siteTitle");
       el.smallTopText = $("smallTopText");
       el.statusChip = $("statusChip");
       el.statusText = $("statusText");
-      el.topLogoWrap = $("topLogoWrap");
-      el.centerLogoWrap = $("centerLogoWrap");
+      el.topLogo = $("topLogo");
+      el.centerLogo = $("centerLogo");
       el.mainHeading = $("mainHeading");
       el.introText = $("introText");
       el.joinBtn = $("joinBtn");
@@ -1054,128 +815,93 @@
 
       wireEvents();
 
-      state.slug = getSlugFromQuery();
-      if (!state.slug) {
-        showFatal("Missing slug. Open this page with ?slug=your-tenant-slug");
-        showStatus("error", "Tenant missing");
-        showNotice("error", "Missing slug. Please open the page with ?slug=your-tenant-slug");
+      state.slug = getSlug();
+      if (!state.slug){
+        showChip("error", "Tenant missing");
+        notice("error", "Missing slug. Open this page with ?slug=your-tenant-slug");
         return;
       }
+
+      showChip("sync", "Loading tenant data...");
+      notice("info", "Loading tenant data...");
+
+      let tenantResp;
+      try{
+        tenantResp = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(state.slug)}`, { cache:"no-store" });
+      }catch{
+        showChip("error", "Tenant lookup failed");
+        notice("error", "Failed to resolve tenant.");
+        return;
+      }
+
+      if (!tenantResp.ok){
+        showChip("error", "Tenant lookup failed");
+        notice("error", "Failed to resolve tenant.");
+        return;
+      }
+
+      const tenantJson = await tenantResp.json().catch(() => ({}));
+      state.tenantId = tenantJson.tenantId || tenantJson.id || state.slug;
       window.__TENANT_SLUG = state.slug;
-
-      showStatus("sync", "Loading tenant data...");
-      showNotice("info", "Loading tenant data...");
-
-      let tenantResponse;
-      try {
-        tenantResponse = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(state.slug)}`, { cache: "no-store" });
-      } catch (err) {
-        showFatal("Failed to resolve tenant.");
-        showNotice("error", "Failed to resolve tenant.");
-        showStatus("error", "Tenant lookup failed");
-        return;
-      }
-
-      if (!tenantResponse.ok) {
-        const txt = await tenantResponse.text().catch(() => "");
-        showFatal(`Tenant lookup failed (${tenantResponse.status}) ${txt ? `: ${txt}` : ""}`);
-        showNotice("error", "Tenant lookup failed.");
-        showStatus("error", "Tenant lookup failed");
-        return;
-      }
-
-      const tenantJson = await tenantResponse.json().catch(() => ({}));
-      state.tenantId = tenantJson.tenantId || tenantJson.id || tenantJson.tenant || state.slug;
       window.__TENANT_ID = state.tenantId;
 
-      state.seedConfig = tenantJson.config || tenantJson.public || tenantJson.publicConfig || {};
-      state.configReady = true;
-
-      try {
+      try{
         const app = initializeApp(siteFirebaseConfig);
         state.db = getDatabase(app);
-      } catch (err) {
+      }catch(err){
         showFatal("Failed to initialize Firebase.");
-        showStatus("error", "Firebase init failed");
-        showNotice("error", "Failed to initialize Firebase.");
+        showChip("error", "Firebase init failed");
+        notice("error", "Failed to initialize Firebase.");
         return;
       }
 
-      applyMergedConfig();
-      showStatus("sync", "Syncing counters...");
+      state.tenantReady = true;
+      state.configReady = true;
+      showChip("sync", "Syncing counters...");
+      notice("info", "Syncing counters...");
 
       const cfgRef = tenantRef("public/config");
       onValue(cfgRef, snap => {
-        const live = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
-        state.liveConfig = live;
-        state.mergedConfig = mergeConfig(state.seedConfig, state.liveConfig);
-        applyMergedConfig();
-        updateStatusChip();
-        if (!state.countersReady) {
-          showNotice("info", "Syncing counters...");
-        } else if (state.activeCounters.length > 0) {
-          clearNotice();
-        }
+        state.config = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
+        applyConfig();
       }, err => {
         console.warn("config listener failed", err);
-        showNotice("error", "Could not read live business settings.");
-        showStatus("error", "Config sync failed");
+        showChip("error", "Config sync failed");
+        notice("error", "Could not read live business settings.");
       });
 
       const countersRef = tenantRef("counters");
       onValue(countersRef, snap => {
-        const nextCounters = {};
-        if (snap && typeof snap.forEach === "function") {
+        const next = {};
+        if (snap && typeof snap.forEach === "function"){
           snap.forEach(childSnap => {
-            nextCounters[childSnap.key] = childSnap.val();
+            next[childSnap.key] = childSnap.val();
           });
-        } else if (snap && typeof snap.val === "function") {
-          const value = snap.val();
-          if (value && typeof value === "object") {
-            Object.assign(nextCounters, value);
-          }
+        } else if (snap && typeof snap.val === "function"){
+          Object.assign(next, snap.val() || {});
         }
 
-        state.counters = nextCounters;
+        state.counters = next;
         state.countersReady = true;
-        state.activeCounters = getActiveCountersFromCache();
+        state.activeCounters = getActiveCounters();
 
-        updateStatusChip();
-
-        if (state.activeCounters.length > 0) {
-          if (el.notice.classList.contains("show") && el.notice.classList.contains("info")) {
-            clearNotice();
-          }
+        if (state.activeCounters.length > 0){
+          showChip("live", `Ready / Live • ${state.activeCounters.length} active counter${state.activeCounters.length === 1 ? "" : "s"}`);
+          clearNotice();
         } else {
-          showNotice("error", "No active counters right now. Please ask staff to open a counter.");
+          showChip("error", "Ready / Live • No active counters");
+          notice("error", "No active counters right now. Please ask staff to open a counter.");
         }
       }, err => {
         console.warn("counters listener failed", err);
         state.countersReady = true;
         state.activeCounters = [];
-        updateStatusChip();
-        showNotice("error", "Could not sync counters.");
+        showChip("error", "Counters sync failed");
+        notice("error", "Could not sync counters.");
       });
 
-      showNotice("info", "Syncing counters...");
+      applyConfig();
       await autoRedirectIfWaiting();
-
-      const readyTick = () => {
-        if (!state.countersReady) {
-          showStatus("sync", "Syncing counters...");
-        } else if (state.activeCounters.length > 0) {
-          showStatus("live", `Ready / Live • ${state.activeCounters.length} active counter${state.activeCounters.length === 1 ? "" : "s"}`);
-          if (!el.notice.classList.contains("show") || el.notice.classList.contains("info")) {
-            clearNotice();
-          }
-        } else {
-          showStatus("error", "Ready / Live • No active counters");
-        }
-      };
-
-      readyTick();
-      window.addEventListener("focus", readyTick);
-      document.addEventListener("visibilitychange", readyTick);
     }
 
     document.addEventListener("DOMContentLoaded", boot);
@@ -1185,17 +911,17 @@
   <div class="topbar">
     <div class="shell">
       <header class="header-card">
-        <div id="topLogoWrap" class="brand-logo-wrap" aria-label="Business logo">
-          <svg class="fallback-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <div id="topLogo" class="logo-box" aria-label="Business logo">
+          <svg class="fallback" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2Zm0 3.2A6.8 6.8 0 1 0 18.8 12 6.81 6.81 0 0 0 12 5.2Zm-.8 2.1h1.6v6h-1.6v-6Zm0 7.4h1.6v1.6h-1.6v-1.6Z"/>
           </svg>
         </div>
-        <div class="brand-meta">
-          <h1 id="siteTitle" class="brand-title">Queue Joy</h1>
-          <p id="smallTopText" class="brand-subtitle">Digital Queue System</p>
+        <div class="brand">
+          <h1 id="siteTitle">Queue Joy</h1>
+          <p id="smallTopText">Digital Queue System</p>
         </div>
-        <div id="statusChip" class="status-chip sync" aria-live="polite">
-          <span class="status-dot"></span>
+        <div id="statusChip" class="chip sync" aria-live="polite">
+          <span class="dot"></span>
           <span id="statusText">Loading tenant data...</span>
         </div>
       </header>
@@ -1204,15 +930,10 @@
 
   <main class="shell">
     <div class="grid">
-      <section class="hero-card" aria-labelledby="mainHeading">
-        <div class="hero-topline">
-          <span class="pill">Tenant-aware queue join</span>
-          <span class="pill" id="timezoneText"> </span>
-        </div>
-
+      <section class="card hero">
         <div class="hero-center">
-          <div id="centerLogoWrap" class="center-logo-wrap" aria-label="Center logo">
-            <svg class="fallback-mark" viewBox="0 0 24 24" aria-hidden="true">
+          <div id="centerLogo" class="center-logo" aria-label="Center logo">
+            <svg class="fallback" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2Zm0 3.2A6.8 6.8 0 1 0 18.8 12 6.81 6.81 0 0 0 12 5.2Zm-.8 2.1h1.6v6h-1.6v-6Zm0 7.4h1.6v1.6h-1.6v-1.6Z"/>
             </svg>
           </div>
@@ -1222,43 +943,41 @@
             <p id="introText" class="lead">Real-time queueing system. Mobile-friendly. No app needed.</p>
           </div>
 
-          <div class="cta-wrap">
-            <button id="joinBtn" class="cta-button" type="button">
-              <span id="btnText">🎫 Get your queue number</span>
-              <span id="spinner" class="spinner hidden" aria-hidden="true"></span>
-            </button>
-          </div>
+          <button id="joinBtn" class="btn" type="button">
+            <span id="btnText">🎫 Get your queue number</span>
+            <span id="spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
 
           <div id="notice" class="notice" role="status" aria-live="polite"></div>
         </div>
 
-        <div class="hero-foot">
+        <div class="foot">
           <div><strong>Fast live sync</strong> with tenant config and counters.</div>
-          <div><strong>Secure redirect</strong> to your status page after join.</div>
+          <div><strong>Secure redirect</strong> to status.html after join.</div>
         </div>
       </section>
 
-      <aside class="ad-card" aria-label="Advertisement section">
+      <aside class="card ad" aria-label="Advertisement section">
         <div class="section-title">Advertisement</div>
 
-        <a id="adLink" href="#" target="_blank" rel="noopener noreferrer" class="block">
-          <div id="adMediaHost" class="ad-media-shell">
+        <a id="adLink" href="#" target="_blank" rel="noopener noreferrer">
+          <div id="adMediaHost" class="ad-shell">
             <div id="adEmpty" class="ad-empty">
               <div>
                 <div class="icon">
-                  <svg class="fallback-mark" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg class="fallback" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="currentColor" d="M4 5a2 2 0 0 1 2-2h5v2H6v14h12v-5h2v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm9-1h7v7h-2V7.41l-7.29 7.3-1.42-1.42L16.59 6H13V4Z"/>
                   </svg>
                 </div>
                 <div style="font-weight:800;color:#334155;margin-bottom:4px;">No advertisement available</div>
-                <div style="font-size:.9rem;">This space will show live ad content when configured.</div>
+                <div style="font-size:.9rem;">This area will show live ad content when configured.</div>
               </div>
             </div>
           </div>
         </a>
 
         <div id="adCaption" class="ad-caption hidden"></div>
-        <div id="adLinkMeta" class="ad-link-meta hidden"></div>
+        <div id="adLinkMeta" class="meta hidden"></div>
       </aside>
     </div>
   </main>
