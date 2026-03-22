@@ -3,460 +3,67 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#8b5cf6" />
   <title>Queue Joy - Digital Queue System</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
   <style>
-    :root{
-      --bg-1:#f8fafc;
-      --bg-2:#f5f3ff;
-      --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748b;
-      --border:rgba(15,23,42,.08);
-      --shadow:0 18px 50px rgba(15,23,42,.10);
-      --shadow-soft:0 10px 30px rgba(15,23,42,.08);
-      --radius:22px;
-      --theme:#8b5cf6;
-      --theme-dark:#6d28d9;
-      --theme-soft:rgba(139,92,246,.14);
-      --good:#16a34a;
-      --bad:#dc2626;
-      --warn:#d97706;
+    :root {
+      --card-radius: 1rem;
+      --theme-color: #8b5cf6;
+      --theme-color-dark: #6d28d9;
     }
 
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0}
-    body{
-      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      color:var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(139,92,246,.10), transparent 24%),
-        radial-gradient(circle at top right, rgba(236,72,153,.08), transparent 18%),
-        linear-gradient(180deg,var(--bg-1),var(--bg-2));
-      min-height:100vh;
-      -webkit-font-smoothing:antialiased;
-      text-rendering:optimizeLegibility;
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
     }
 
-    .page{
-      width:min(980px, calc(100% - 32px));
-      margin:24px auto 40px;
-      display:grid;
-      gap:18px;
+    .fade-in {
+      animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1);
     }
 
-    .card{
-      background:rgba(255,255,255,.88);
-      backdrop-filter: blur(10px);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px) }
+      to { opacity: 1; transform: translateY(0) }
     }
 
-    .header{
-      padding:16px 18px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:14px;
+    .db-image { max-height: 180px; object-fit: cover; }
+    .media-cover { width:100%; height:180px; object-fit:cover; display:block }
+
+    #siteLogo,
+    #centerLogo {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(139,92,246,0.10), rgba(59,130,246,0.08));
+      border: 1px solid rgba(139,92,246,0.12);
     }
 
-    .brand{
-      display:flex;
-      align-items:center;
-      gap:14px;
-      min-width:0;
+    #siteLogo {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
     }
 
-    .logo-slot{
-      flex:0 0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      overflow:hidden;
-      background:linear-gradient(135deg, rgba(139,92,246,.10), rgba(59,130,246,.08));
-      border:1px solid rgba(139,92,246,.12);
-      color:var(--theme);
+    #centerLogo {
+      width: 80px;
+      height: 80px;
+      border-radius: 9999px;
     }
 
-    .logo-small{
-      width:48px;height:48px;border-radius:14px;
+    .logo-media {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
     }
 
-    .logo-center{
-      width:88px;height:88px;border-radius:999px;
-    }
+    .logo-small { width:48px; height:48px; object-fit:contain; border-radius:16px }
+    .logo-center { width:80px; height:80px; object-fit:contain; border-radius:9999px }
 
-    .logo-media{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      display:block;
-    }
-
-    .brand-copy{
-      min-width:0;
-    }
-
-    .brand-title{
-      font-size:clamp(1rem, 1.3vw, 1.3rem);
-      font-weight:800;
-      line-height:1.1;
-      letter-spacing:-.02em;
-      margin:0;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .brand-subtitle{
-      margin:.25rem 0 0;
-      font-size:.86rem;
-      color:var(--muted);
-      line-height:1.2;
-    }
-
-    .status-chip{
-      flex:0 0 auto;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:999px;
-      font-size:.82rem;
-      font-weight:700;
-      color:#334155;
-      background:#f8fafc;
-      border:1px solid var(--border);
-      white-space:nowrap;
-    }
-
-    .status-dot{
-      width:9px;height:9px;border-radius:999px;background:var(--warn);
-      box-shadow:0 0 0 5px rgba(217,119,6,.12);
-      flex:0 0 auto;
-    }
-
-    .status-chip.live .status-dot{
-      background:var(--good);
-      box-shadow:0 0 0 5px rgba(22,163,74,.12);
-    }
-    .status-chip.error .status-dot{
-      background:var(--bad);
-      box-shadow:0 0 0 5px rgba(220,38,38,.12);
-    }
-
-    .hero{
-      padding:26px;
-      display:grid;
-      gap:18px;
-      text-align:center;
-    }
-
-    .hero-top{
-      display:grid;
-      place-items:center;
-      gap:14px;
-    }
-
-    .center-fallback{
-      width:88px;height:88px;border-radius:999px;
-      display:grid;place-items:center;
-      background:linear-gradient(135deg, var(--theme), var(--theme-dark));
-      color:#fff;
-      box-shadow:0 16px 34px rgba(139,92,246,.30);
-    }
-
-    .hero-title{
-      font-size:clamp(1.8rem, 4vw, 2.65rem);
-      line-height:1.04;
-      font-weight:800;
-      letter-spacing:-.03em;
-      margin:0;
-    }
-
-    .hero-text{
-      margin:0 auto;
-      max-width:42rem;
-      font-size:1rem;
-      line-height:1.65;
-      color:var(--muted);
-    }
-
-    .cta-wrap{
-      display:grid;
-      gap:10px;
-      justify-items:center;
-      margin-top:2px;
-    }
-
-    .cta-btn{
-      appearance:none;
-      border:none;
-      border-radius:18px;
-      padding:15px 22px;
-      min-height:58px;
-      width:min(100%, 420px);
-      cursor:pointer;
-      color:#fff;
-      font-size:1.02rem;
-      font-weight:800;
-      letter-spacing:-.01em;
-      background:linear-gradient(135deg, var(--theme), var(--theme-dark));
-      box-shadow:0 16px 30px rgba(139,92,246,.28);
-      transition:transform .16s ease, box-shadow .16s ease, opacity .16s ease, filter .16s ease;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-    }
-    .cta-btn:hover{transform:translateY(-1px);box-shadow:0 20px 40px rgba(139,92,246,.34)}
-    .cta-btn:active{transform:translateY(0px) scale(.99);filter:saturate(.95)}
-    .cta-btn:disabled{opacity:.72;cursor:not-allowed;transform:none}
-
-    .cta-spinner{
-      width:18px;height:18px;border-radius:50%;
-      border:2.5px solid rgba(255,255,255,.30);
-      border-top-color:#fff;
-      animation:spin .7s linear infinite;
-      display:none;
-    }
-    .cta-btn.loading .cta-spinner{display:inline-block}
-    .cta-btn.loading .cta-label{opacity:.95}
-    @keyframes spin { to { transform:rotate(360deg)} }
-
-    .hero-meta{
-      display:flex;
-      flex-wrap:wrap;
-      justify-content:center;
-      gap:10px;
-      margin-top:2px;
-      color:var(--muted);
-      font-size:.88rem;
-    }
-
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:8px 12px;
-      border-radius:999px;
-      background:#fff;
-      border:1px solid var(--border);
-      box-shadow:var(--shadow-soft);
-    }
-
-    .pill strong{color:var(--text)}
-
-    .message{
-      display:none;
-      margin:0 auto;
-      width:min(100%, 540px);
-      padding:12px 14px;
-      border-radius:14px;
-      font-size:.92rem;
-      line-height:1.45;
-      text-align:left;
-      border:1px solid transparent;
-    }
-    .message.show{display:block}
-    .message.error{
-      background:#fef2f2;
-      color:#991b1b;
-      border-color:#fecaca;
-    }
-    .message.success{
-      background:#f0fdf4;
-      color:#166534;
-      border-color:#bbf7d0;
-    }
-    .message.info{
-      background:#eff6ff;
-      color:#1e3a8a;
-      border-color:#bfdbfe;
-    }
-
-    .ad-card{
-      padding:16px;
-      display:grid;
-      gap:10px;
-    }
-
-    .ad-head{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      color:var(--muted);
-      font-size:.84rem;
-    }
-
-    .ad-stage{
-      position:relative;
-      min-height:180px;
-      border-radius:18px;
-      overflow:hidden;
-      background:
-        linear-gradient(180deg, rgba(248,250,252,.96), rgba(241,245,249,.96));
-      border:1px solid rgba(15,23,42,.06);
-      display:grid;
-      place-items:center;
-    }
-
-    .ad-stage a{
-      width:100%;
-      height:100%;
-      display:block;
-      text-decoration:none;
-      color:inherit;
-    }
-
-    .ad-media{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-      background:#fff;
-    }
-
-    .ad-empty{
-      display:grid;
-      place-items:center;
-      text-align:center;
-      color:#94a3b8;
-      padding:20px;
-      gap:10px;
-    }
-
-    .ad-empty svg{opacity:.8}
-
-    .ad-text{
-      font-size:.92rem;
-      line-height:1.5;
-      color:#475569;
-      text-align:center;
-      margin:0;
-      padding:0 8px 4px;
-    }
-
-    .loading-skeleton{
-      position:relative;
-      overflow:hidden;
-      background:linear-gradient(90deg, #eef2f7 0%, #f8fafc 50%, #eef2f7 100%);
-      background-size:200% 100%;
-      animation:shimmer 1.25s infinite linear;
-    }
-    @keyframes shimmer{
-      0%{background-position:200% 0}
-      100%{background-position:-200% 0}
-    }
-
-    .skeleton-line{height:14px;border-radius:999px}
-    .skeleton-circle{border-radius:999px}
-
-    .skeleton-header{
-      display:grid;
-      grid-template-columns:48px 1fr auto;
-      gap:12px;
-      align-items:center;
-    }
-
-    .skeleton-main{
-      display:grid;
-      gap:12px;
-      place-items:center;
-      padding:8px 0;
-    }
-
-    .skeleton-actions{
-      display:grid;
-      gap:12px;
-      place-items:center;
-    }
-
-    .toast-stack{
-      position:fixed;
-      top:14px;
-      right:14px;
-      z-index:9999;
-      display:grid;
-      gap:10px;
-      pointer-events:none;
-    }
-
-    .toast{
-      pointer-events:auto;
-      min-width:min(360px, calc(100vw - 28px));
-      max-width:420px;
-      padding:12px 14px;
-      border-radius:14px;
-      box-shadow:var(--shadow);
-      border:1px solid var(--border);
-      background:#fff;
-      color:var(--text);
-      display:flex;
-      align-items:flex-start;
-      gap:10px;
-      animation:toastIn .18s ease-out;
-    }
-    @keyframes toastIn{
-      from{transform:translateY(-8px);opacity:0}
-      to{transform:translateY(0);opacity:1}
-    }
-
-    .toast strong{display:block;font-size:.92rem;margin-bottom:2px}
-    .toast p{margin:0;color:var(--muted);font-size:.88rem;line-height:1.4}
-    .toast .badge{
-      width:10px;height:10px;border-radius:999px;margin-top:5px;flex:0 0 auto;
-      background:var(--theme);
-    }
-    .toast.success .badge{background:var(--good)}
-    .toast.error .badge{background:var(--bad)}
-    .toast.info .badge{background:var(--theme)}
-
-    .qa-badge{
-      position:fixed;
-      right:12px;
-      bottom:12px;
-      z-index:9998;
-      background:#111827;
-      color:#fff;
-      padding:8px 12px;
-      border-radius:999px;
-      font-size:12px;
-      display:none;
-      box-shadow:var(--shadow);
-      opacity:.94;
-      max-width:calc(100vw - 24px);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .tiny{
-      font-size:.78rem;
-      color:var(--muted);
-      line-height:1.3;
-    }
-
-    .hidden{display:none !important}
-
-    @media (max-width: 640px){
-      .page{width:calc(100% - 20px); margin:10px auto 28px; gap:12px;}
-      .header{padding:14px}
-      .hero{padding:20px 16px}
-      .ad-card{padding:14px}
-      .brand-title{font-size:1rem}
-      .hero-title{font-size:1.75rem}
-      .cta-btn{width:100%; min-height:54px}
-      .status-chip{font-size:.78rem; padding:9px 10px}
-      .logo-small{width:44px;height:44px}
-      .logo-center{width:80px;height:80px}
+    .sync-hint {
+      min-height: 18px;
     }
   </style>
 
@@ -465,14 +72,15 @@
     import {
       getDatabase,
       ref,
-      get,
       set,
+      get,
+      child,
       push,
       onValue,
       runTransaction
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    const firebaseConfig = {
+    const siteFirebaseConfig = {
       apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
       authDomain: "queue-joy-aa21b.firebaseapp.com",
       databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -482,56 +90,46 @@
       appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
     };
 
-    const $ = (id) => document.getElementById(id);
-
     const state = {
       slug: "",
       tenantId: "",
-      seedConfig: {},
-      liveConfig: {},
-      config: {},
+      seedRaw: {},
+      liveRaw: {},
+      config: null,
       counters: {},
       countersLoaded: false,
       joining: false,
       db: null
     };
 
+    const $ = (id) => document.getElementById(id);
+
     function showFatal(msg) {
       console.error(msg);
-      showMessage("error", msg, 8000);
+      const el = document.createElement('div');
+      el.style = 'background:#fee;padding:12px;color:#900;font-weight:700;position:fixed;left:8px;right:8px;top:8px;z-index:9999;border:1px solid #fca5a5;border-radius:10px';
+      el.innerText = 'ERROR: ' + msg;
+      document.body ? document.body.prepend(el) : document.documentElement.appendChild(el);
     }
 
-    function showMessage(type, msg, ms = 4000) {
-      const box = $("messageBox");
-      box.className = `message show ${type}`;
-      box.textContent = msg;
-      if (box._timer) clearTimeout(box._timer);
-      if (ms > 0) {
-        box._timer = setTimeout(() => {
-          box.className = "message";
-          box.textContent = "";
-        }, ms);
+    function showMessage(type, msg, ms = 5000) {
+      const el = $("messageBox");
+      el.className = `hidden p-3 rounded-lg border text-sm`;
+      if (type === "error") {
+        el.className = "p-3 bg-red-50 border border-red-200 rounded-lg";
+        el.innerHTML = `<p class="text-red-600 text-sm">${escapeHtml(msg)}</p>`;
+      } else if (type === "success") {
+        el.className = "p-3 bg-green-50 border border-green-200 rounded-lg";
+        el.innerHTML = `<p class="text-green-600 text-sm">${escapeHtml(msg)}</p>`;
+      } else {
+        el.className = "p-3 bg-blue-50 border border-blue-200 rounded-lg";
+        el.innerHTML = `<p class="text-blue-700 text-sm">${escapeHtml(msg)}</p>`;
       }
-    }
-
-    function toast(type, title, text) {
-      const stack = $("toastStack");
-      const el = document.createElement("div");
-      el.className = `toast ${type}`;
-      el.innerHTML = `
-        <span class="badge"></span>
-        <div>
-          <strong>${escapeHtml(title)}</strong>
-          <p>${escapeHtml(text)}</p>
-        </div>
-      `;
-      stack.appendChild(el);
-      setTimeout(() => {
-        el.style.transition = "opacity .18s ease, transform .18s ease";
-        el.style.opacity = "0";
-        el.style.transform = "translateY(-6px)";
-        setTimeout(() => el.remove(), 220);
-      }, 3500);
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => {
+        el.className = "hidden p-3 rounded-lg border text-sm";
+        el.innerHTML = "";
+      }, ms);
     }
 
     function escapeHtml(v) {
@@ -543,36 +141,120 @@
     }
 
     function getSlugFromQuery() {
-      const qp = new URLSearchParams(location.search);
-      const s = qp.get("slug");
-      if (s && String(s).trim()) return String(s).trim();
-      const path = location.pathname.replace(/^\/+|\/+$/g, "");
-      const parts = path.split("/").filter(Boolean);
-      if (parts.length && !parts[0].includes(".")) return parts[0];
+      try {
+        const qp = new URLSearchParams(window.location.search);
+        const s = qp.get('slug');
+        if (s && String(s).trim()) return String(s).trim();
+      } catch (e) {}
+
+      try {
+        const path = window.location.pathname.replace(/^\/+|\/+$/g, "");
+        const parts = path.split("/").filter(Boolean);
+        if (parts.length > 0 && !parts[0].includes(".")) return parts[0];
+      } catch (e) {}
+
       return null;
     }
 
-    function tenantRef(db, relPath = "") {
-      relPath = String(relPath || "").replace(/^\/+/, "");
-      const base = `tenants/${state.tenantId}`;
-      return ref(db, relPath ? `${base}/${relPath}` : base);
+    function tenantRefFactory(dbInstance) {
+      return function tenantRef(relPath = '') {
+        relPath = String(relPath || '').replace(/^\/+/, '');
+        const tenantId = window.__TENANT_ID || state.tenantId || null;
+        const slug = window.__TENANT_SLUG || state.slug || null;
+        if (!tenantId && !slug) throw new Error('tenantRef requires TENANT_ID or TENANT_SLUG to be set');
+        const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
+        return relPath ? ref(dbInstance, `${base}/${relPath}`) : ref(dbInstance, base);
+      };
     }
 
-    function pick(obj, ...keys) {
-      for (const key of keys) {
-        if (!key) continue;
-        const parts = String(key).split(".");
-        let cur = obj;
-        let ok = true;
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function runTxWithRetries(pathRef, updater, maxRetries = 6) {
+      let lastErr = null;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await runTransaction(pathRef, updater, { applyLocally: false });
+          if (result && result.committed) return result;
+          lastErr = new Error(`Transaction not committed (attempt ${attempt})`);
+        } catch (err) {
+          lastErr = err;
+          console.warn(`[tx] attempt ${attempt} failed`, err);
+        }
+        const backoff = 100 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 120);
+        await sleep(backoff);
+      }
+      throw lastErr || new Error('Transaction failed after retries');
+    }
+
+    function isVideoUrl(url) {
+      return /\.(mp4|webm|ogg)(\?.*)?$/i.test(String(url || '')) || String(url || '').startsWith('data:video/');
+    }
+
+    function isImageUrl(url) {
+      return /\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(String(url || '')) || String(url || '').startsWith('data:image/');
+    }
+
+    function createMediaElement(url, { classes = '', autoplay = false, muted = true, loop = true, playsinline = true } = {}) {
+      if (!url) return null;
+      if (isVideoUrl(url)) {
+        const v = document.createElement('video');
+        if (playsinline) v.setAttribute('playsinline', '');
+        if (autoplay) v.setAttribute('autoplay', '');
+        if (loop) v.setAttribute('loop', '');
+        if (muted) v.muted = true;
+        v.preload = 'metadata';
+        v.src = url;
+        v.className = classes || '';
+        v.playsInline = !!playsinline;
+        v.setAttribute('draggable', 'false');
+        return v;
+      }
+      if (isImageUrl(url)) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'media';
+        img.className = classes || '';
+        img.setAttribute('draggable', 'false');
+        return img;
+      }
+      const span = document.createElement('span');
+      span.textContent = url;
+      return span;
+    }
+
+    function deepMerge(base = {}, extra = {}) {
+      const out = Array.isArray(base) ? [...base] : { ...base };
+      for (const [key, val] of Object.entries(extra || {})) {
+        if (
+          val &&
+          typeof val === 'object' &&
+          !Array.isArray(val) &&
+          out[key] &&
+          typeof out[key] === 'object' &&
+          !Array.isArray(out[key])
+        ) {
+          out[key] = deepMerge(out[key], val);
+        } else {
+          out[key] = val;
+        }
+      }
+      return out;
+    }
+
+    function pickCfg(cfg, ...keys) {
+      const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
+      for (const k of keys) {
+        if (!k) continue;
+        const parts = k.split('.');
+        let cur = cfg;
         for (const p of parts) {
-          if (cur == null || typeof cur !== "object" || !(p in cur)) {
-            ok = false;
-            break;
-          }
+          if (!cur || typeof cur !== 'object') { cur = null; break; }
           cur = cur[p];
         }
-        if (!ok || cur == null || cur === "") continue;
-        return cur;
+        const val = pick(cur);
+        if (val !== null) return val;
       }
       return null;
     }
@@ -581,9 +263,7 @@
       if (typeof hex !== "string") return fallback;
       const s = hex.trim();
       if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return fallback;
-      if (s.length === 4) {
-        return "#" + s.slice(1).split("").map(ch => ch + ch).join("");
-      }
+      if (s.length === 4) return "#" + s.slice(1).split("").map(ch => ch + ch).join("");
       return s;
     }
 
@@ -608,418 +288,410 @@
 
     function normalizeBool(val, defaultValue = true) {
       if (val === undefined || val === null) return defaultValue;
-      if (typeof val === "boolean") return val;
-      if (typeof val === "number") return val !== 0;
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'number') return val !== 0;
       const s = String(val).trim().toLowerCase();
       if (["true", "1", "yes", "y", "on", "active"].includes(s)) return true;
       if (["false", "0", "no", "n", "off", "inactive"].includes(s)) return false;
       return defaultValue;
     }
 
-    function isSafeHttpUrl(raw) {
-      if (!raw || typeof raw !== "string") return false;
-      const s = raw.trim();
-      if (/^(javascript|data|vbscript):/i.test(s)) return false;
-      try {
-        const u = new URL(s, location.href);
-        return u.protocol === "http:" || u.protocol === "https:";
-      } catch {
-        return false;
-      }
-    }
-
-    function isVideoUrl(url) {
-      return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url || "") || String(url || "").startsWith("data:video/");
-    }
-
-    function isImageUrl(url) {
-      return /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url || "") || String(url || "").startsWith("data:image/");
-    }
-
-    function createMediaEl(url, kind = "auto") {
-      if (!url) return null;
-      const useVideo = kind === "video" || (kind === "auto" && isVideoUrl(url));
-      if (useVideo) {
-        const v = document.createElement("video");
-        v.src = url;
-        v.autoplay = true;
-        v.muted = true;
-        v.loop = true;
-        v.playsInline = true;
-        v.preload = "metadata";
-        v.className = "ad-media";
-        v.setAttribute("controls", "");
-        return v;
-      }
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = "media";
-      img.className = "ad-media";
-      img.loading = "lazy";
-      return img;
-    }
-
     function normalizeConfig(raw = {}) {
       const cfg = raw || {};
-      const theme = normalizeColor(
-        pick(cfg, "theme.color", "themeColor", "themeColorHex", "primaryColor"),
-        "#8b5cf6"
-      );
       return {
-        displayName: pick(cfg, "displayName", "name", "siteTitle", "mainTitle", "title") || "Queue Joy",
-        smallTextOnTop: pick(cfg, "smallTextOnTop", "smallTopText", "smallTop") || "Digital Queue System",
-        logoUrl: pick(cfg, "logoUrl", "logo", "theme.logo", "branding.logo") || "",
-        centerLogoUrl: pick(cfg, "centerLogoUrl", "centerLogo") || "",
-        theme: { color: theme },
-        mainHeading: pick(cfg, "mainHeading", "titleinmiddle", "titleInMiddle", "ctaTitle", "heading") || "Get your queue number",
-        description: pick(cfg, "description", "introText", "subtitle") || "Real-time queueing system. Mobile-friendly. No app needed.",
-        buttonText: pick(cfg, "buttonText", "ctaText", "cta", "getNumberText") || "Get your queue number",
-        ad: {
-          video: pick(cfg, "ad.video", "adVideo", "adVideoUrl") || "",
-          image: pick(cfg, "ad.image", "adImage", "adImageUrl") || "",
-          link: pick(cfg, "ad.link", "adUrl", "adHref", "adLink") || ""
+        displayName: pickCfg(cfg, 'displayName', 'name', 'siteTitle', 'mainTitle', 'title') || 'Queue Joy',
+        smallTextOnTop: pickCfg(cfg, 'smallTextOnTop', 'smallTopText', 'smallTop') || 'Digital Queue System',
+        logoUrl: pickCfg(cfg, 'logoUrl', 'logo', 'theme.logo', 'branding.logo') || '',
+        centerLogoUrl: pickCfg(cfg, 'centerLogoUrl', 'centerLogo', 'logo') || '',
+        theme: {
+          color: normalizeColor(
+            pickCfg(cfg, 'theme.color', 'themeColor', 'themeColorHex', 'primaryColor'),
+            "#8b5cf6"
+          )
         },
-        adText: pick(cfg, "adText", "ad.text") || "",
-        timezone: pick(cfg, "timezone") || "UTC"
+        mainHeading: pickCfg(cfg, 'mainHeading', 'titleinmiddle', 'titleInMiddle', 'ctaTitle', 'heading') || 'Get your queue number',
+        description: pickCfg(cfg, 'description', 'introText', 'subtitle') || 'Real-time queueing system. Mobile-friendly. No app needed.',
+        buttonText: pickCfg(cfg, 'buttonText', 'ctaText', 'cta', 'getNumberText') || 'Get your queue number',
+        ad: {
+          video: pickCfg(cfg, 'ad.video', 'adVideo', 'adVideoUrl') || '',
+          image: pickCfg(cfg, 'ad.image', 'adImage', 'adImageUrl') || '',
+          link: pickCfg(cfg, 'ad.link', 'adUrl', 'adHref', 'adLink') || ''
+        },
+        adText: pickCfg(cfg, 'adText', 'ad.text') || '',
+        timezone: pickCfg(cfg, 'timezone') || 'UTC'
       };
     }
 
-    function setStatus(kind, text) {
-      const chip = $("statusChip");
-      chip.classList.remove("live", "error");
-      if (kind === "live") chip.classList.add("live");
-      if (kind === "error") chip.classList.add("error");
-      $("statusText").textContent = text;
-      $("statusText2").textContent = text;
-    }
-
-    function renderLogo(slot, url, sizeClass, fallbackIconHtml) {
-      slot.innerHTML = "";
+    function renderLogo(slot, url, fallbackHtml, { hideWhenEmpty = false } = {}) {
+      slot.innerHTML = '';
       if (!url) {
-        slot.classList.add("logo-slot");
-        slot.innerHTML = fallbackIconHtml;
+        if (hideWhenEmpty) {
+          slot.classList.add('hidden');
+          return;
+        }
+        slot.classList.remove('hidden');
+        slot.innerHTML = fallbackHtml;
         return;
       }
-      const el = createMediaEl(url, isVideoUrl(url) ? "video" : "image");
+      const el = createMediaElement(url, { classes: 'logo-media', autoplay: false, muted: true, loop: true });
       if (!el) {
-        slot.innerHTML = fallbackIconHtml;
+        if (hideWhenEmpty) {
+          slot.classList.add('hidden');
+          return;
+        }
+        slot.classList.remove('hidden');
+        slot.innerHTML = fallbackHtml;
         return;
       }
-      el.classList.add("logo-media");
-      if (el.tagName === "VIDEO") {
+      if (el.tagName === 'VIDEO') {
         el.muted = true;
         el.loop = true;
         el.playsInline = true;
-        el.preload = "metadata";
-        el.setAttribute("aria-hidden", "true");
+        el.preload = 'metadata';
+        el.setAttribute('aria-hidden', 'true');
         el.play().catch(() => {});
       }
-      slot.className = `logo-slot ${sizeClass}`;
+      slot.classList.remove('hidden');
       slot.appendChild(el);
     }
 
     function applyTheme(color) {
       const theme = normalizeColor(color, "#8b5cf6");
-      document.documentElement.style.setProperty("--theme", theme);
-      document.documentElement.style.setProperty("--theme-dark", shade(theme, -0.18));
-      document.documentElement.style.setProperty("--theme-soft", `${theme}22`);
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme);
-      $("getNumberBtn").style.background = `linear-gradient(135deg, ${theme}, ${shade(theme, 0.20)})`;
-      $("getNumberBtn").style.boxShadow = `0 16px 30px ${theme}33`;
-      $("centerFallback").style.background = `linear-gradient(135deg, ${theme}, ${shade(theme, -0.18)})`;
+      document.documentElement.style.setProperty('--theme-color', theme);
+      document.documentElement.style.setProperty('--theme-color-dark', shade(theme, -0.18));
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme);
+
+      const btn = $('getNumberBtn');
+      btn.style.background = `linear-gradient(135deg, ${theme}, ${shade(theme, 0.20)})`;
+      btn.style.boxShadow = `0 16px 30px ${theme}33`;
+
+      const centerFallback = $('centerFallback');
+      if (centerFallback) centerFallback.style.background = `linear-gradient(135deg, ${theme}, ${shade(theme, -0.18)})`;
     }
 
-    function renderConfig() {
-      const cfg = state.config;
-      document.title = `${cfg.displayName} - Digital Queue System`;
-      $("siteTitle").textContent = cfg.displayName;
-      $("smallTopText").textContent = cfg.smallTextOnTop;
-      $("mainHeading").textContent = cfg.mainHeading;
-      $("introText").textContent = cfg.description;
-      $("btnText").textContent = `🎫 ${cfg.buttonText}`;
-      $("adText").textContent = cfg.adText || "";
-      $("adText").classList.toggle("hidden", !cfg.adText);
-      applyTheme(cfg.theme.color);
-
-      renderLogo(
-        $("siteLogoSlot"),
-        cfg.logoUrl,
-        "logo-small",
-        `<div style="width:100%;height:100%;display:grid;place-items:center;color:var(--theme)">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/>
-          </svg>
-        </div>`
-      );
-
-      renderLogo(
-        $("centerLogoSlot"),
-        cfg.centerLogoUrl,
-        "logo-center",
-        `<div id="centerFallback" class="center-fallback" aria-hidden="true">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 0 0-2 2v3a2 2 0 1 1 0 4v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 1 1 0-4V7a2 2 0 0 0-2-2H5z"/>
-          </svg>
-        </div>`
-      );
-
-      $("centerIconWrap").classList.toggle("hidden", !!cfg.centerLogoUrl);
-
-      const adUrl = cfg.ad.video || cfg.ad.image;
-      const adLink = cfg.ad.link;
-      const stage = $("adStage");
-      const adAnchor = $("adAnchor");
-
-      stage.innerHTML = "";
-      if (adUrl) {
-        const placeholder = document.createElement("div");
-        placeholder.className = "ad-empty";
-        placeholder.style.minHeight = "180px";
-        placeholder.innerHTML = `<div class="loading-skeleton" style="width:100%;height:180px;border-radius:18px"></div>`;
-        stage.appendChild(placeholder);
-
-        const loadAd = () => {
-          stage.innerHTML = "";
-          const media = createMediaEl(adUrl, cfg.ad.video ? "video" : "image");
-          if (!media) {
-            stage.innerHTML = `<div class="ad-empty">
-              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
-                <path d="M3.27 6.96 12 12l8.73-5.04M12 22V12"/>
-              </svg>
-              <div>Ad could not be loaded</div>
-            </div>`;
-            return;
-          }
-          if (media.tagName === "VIDEO") {
-            media.muted = true;
-            media.loop = true;
-            media.playsInline = true;
-            media.preload = "metadata";
-            media.setAttribute("controls", "");
-            media.style.objectFit = "cover";
-            media.addEventListener("error", () => {
-              stage.innerHTML = `<div class="ad-empty"><div>Ad video failed to load</div></div>`;
-            });
-          } else {
-            media.loading = "lazy";
-            media.style.objectFit = "cover";
-            media.addEventListener("error", () => {
-              stage.innerHTML = `<div class="ad-empty"><div>Ad image failed to load</div></div>`;
-            });
-          }
-          const wrap = document.createElement(adLink && isSafeHttpUrl(adLink) ? "a" : "div");
-          if (wrap.tagName === "A") {
-            wrap.href = adLink;
-            wrap.target = "_blank";
-            wrap.rel = "noopener noreferrer";
-          }
-          wrap.style.display = "block";
-          wrap.style.width = "100%";
-          wrap.style.height = "100%";
-          wrap.appendChild(media);
-          stage.appendChild(wrap);
-          if (media.tagName === "VIDEO") media.play().catch(() => {});
-        };
-
-        if ("IntersectionObserver" in window) {
-          const io = new IntersectionObserver((entries, obs) => {
-            if (entries.some(e => e.isIntersecting)) {
-              obs.disconnect();
-              loadAd();
-            }
-          }, { rootMargin: "180px" });
-          io.observe(stage);
-        } else {
-          loadAd();
-        }
-      } else {
-        stage.innerHTML = `
-          <div class="ad-empty">
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
-            </svg>
-            <div>No advertisement available</div>
-          </div>`;
-      }
-
-      if (adLink && isSafeHttpUrl(adLink) && adUrl) {
-        adAnchor.href = adLink;
-        adAnchor.target = "_blank";
-        adAnchor.rel = "noopener noreferrer";
-        adAnchor.style.pointerEvents = "auto";
-      } else {
-        adAnchor.removeAttribute("href");
-        adAnchor.removeAttribute("target");
-        adAnchor.removeAttribute("rel");
-        adAnchor.style.pointerEvents = "none";
-      }
-
-      $("loadingBar").style.width = "100%";
-      $("loadingBar").style.opacity = "0";
+    function setSyncHint(text) {
+      const el = $('syncHint');
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('hidden', !text);
     }
 
-    function normalizeCounters(raw) {
-      const out = {};
-      if (!raw) return out;
-      for (const [id, val] of Object.entries(raw)) out[id] = val || {};
-      return out;
-    }
-
-    function normalizeActive(val) {
-      return normalizeBool(val, true);
+    function setLoading(flag) {
+      state.joining = !!flag;
+      const btn = $('getNumberBtn');
+      btn.disabled = !!flag;
+      btn.classList.toggle('opacity-95', !flag);
+      btn.classList.toggle('cursor-wait', !!flag);
+      $('btnText').classList.toggle('hidden', flag);
+      $('btnSpinner').classList.toggle('hidden', !flag);
+      btn.setAttribute('aria-busy', String(!!flag));
     }
 
     function getActiveCounters() {
-      const arr = Object.entries(state.counters).map(([id, v]) => ({
+      const arr = Object.entries(state.counters || {}).map(([id, v]) => ({
         id,
-        ...v,
-        _active: normalizeActive(v?.active)
+        ...(v || {}),
+        _active: normalizeBool(v?.active, true)
       })).filter(c => c._active);
 
       arr.sort((a, b) => {
         const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : Number.POSITIVE_INFINITY;
         const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : Number.POSITIVE_INFINITY;
         if (ao !== bo) return ao - bo;
-        return String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { numeric: true, sensitivity: "base" });
+        return String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { numeric: true, sensitivity: 'base' });
       });
 
       return arr;
     }
 
-    function updateLiveMeta() {
-      if (!state.countersLoaded) {
-        $("syncStatus").textContent = "Syncing counters...";
-        setStatus("", "Syncing counters...");
-        return;
-      }
-
+    function updateMetaState() {
       const active = getActiveCounters();
-      if (!active.length) {
-        $("syncStatus").textContent = "Counters loaded";
-        setStatus("error", "No active counters right now");
+      if (!state.countersLoaded) {
+        setSyncHint('Syncing counters...');
+      } else if (!active.length) {
+        setSyncHint('Counters loaded');
       } else {
-        $("syncStatus").textContent = `${active.length} counters available`;
-        setStatus("live", `${active.length} counters available`);
+        setSyncHint(`${active.length} counters available`);
       }
     }
 
-    function setJoining(joining) {
-      state.joining = joining;
-      const btn = $("getNumberBtn");
-      btn.classList.toggle("loading", joining);
-      btn.disabled = joining;
-      $("statusLine").textContent = joining ? "Generating your number..." : $("statusLine").dataset.base || "Ready";
+    function renderConfig() {
+      const cfg = state.config || normalizeConfig(state.seedRaw);
+
+      document.title = `${cfg.displayName} - Digital Queue System`;
+      $('siteTitle').textContent = cfg.displayName;
+      $('smallTopText').textContent = cfg.smallTextOnTop;
+      $('mainHeading').textContent = cfg.mainHeading;
+      $('introText').textContent = cfg.description;
+      $('btnText').textContent = `🎫 ${cfg.buttonText}`;
+      $('adText').textContent = cfg.adText || '';
+      $('adText').classList.toggle('hidden', !cfg.adText);
+
+      applyTheme(cfg.theme.color);
+
+      renderLogo(
+        $('siteLogo'),
+        cfg.logoUrl,
+        `<div style="width:100%;height:100%;display:grid;place-items:center;color:var(--theme-color)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/>
+          </svg>
+        </div>`
+      );
+
+      const centerLogoEl = $('centerLogo');
+      const centerIcon = $('centerIcon');
+
+      if (cfg.centerLogoUrl) {
+        renderLogo(
+          centerLogoEl,
+          cfg.centerLogoUrl,
+          `<div class="w-full h-full"></div>`,
+          { hideWhenEmpty: false }
+        );
+        centerIcon.classList.add('hidden');
+      } else {
+        centerLogoEl.classList.add('hidden');
+        centerIcon.classList.remove('hidden');
+      }
+
+      const adStage = $('adStage');
+      const adAnchor = $('adAnchor');
+      const adUrl = cfg.ad.video || cfg.ad.image;
+      const adLink = cfg.ad.link;
+
+      if (window.__adObserver) {
+        try { window.__adObserver.disconnect(); } catch (e) {}
+        window.__adObserver = null;
+      }
+
+      adStage.innerHTML = '';
+      if (adUrl) {
+        const loading = document.createElement('div');
+        loading.className = 'loading-skeleton';
+        loading.style.width = '100%';
+        loading.style.height = '180px';
+        loading.style.borderRadius = '18px';
+        adStage.appendChild(loading);
+
+        const loadAd = () => {
+          adStage.innerHTML = '';
+          const media = createMediaElement(adUrl, { classes: 'media-cover', autoplay: true, muted: true, loop: true });
+          if (!media) {
+            adStage.innerHTML = `
+              <div class="ad-empty">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
+                </svg>
+                <div>Ad could not be loaded</div>
+              </div>`;
+            return;
+          }
+
+          if (media.tagName === 'VIDEO') {
+            media.muted = true;
+            media.loop = true;
+            media.playsInline = true;
+            media.preload = 'metadata';
+            media.setAttribute('controls', '');
+            media.style.objectFit = 'cover';
+            media.addEventListener('error', () => {
+              adStage.innerHTML = `<div class="ad-empty"><div>Ad video failed to load</div></div>`;
+            });
+            media.play().catch(() => {});
+          } else {
+            media.loading = 'lazy';
+            media.style.objectFit = 'cover';
+            media.addEventListener('error', () => {
+              adStage.innerHTML = `<div class="ad-empty"><div>Ad image failed to load</div></div>`;
+            });
+          }
+
+          let wrap;
+          if (isSafeHttpUrl(adLink)) {
+            wrap = document.createElement('a');
+            wrap.href = adLink;
+            wrap.target = '_blank';
+            wrap.rel = 'noopener noreferrer';
+          } else {
+            wrap = document.createElement('div');
+          }
+
+          wrap.style.display = 'block';
+          wrap.style.width = '100%';
+          wrap.style.height = '100%';
+          wrap.appendChild(media);
+          adStage.appendChild(wrap);
+        };
+
+        if ('IntersectionObserver' in window) {
+          const io = new IntersectionObserver((entries, obs) => {
+            if (entries.some(e => e.isIntersecting)) {
+              obs.disconnect();
+              loadAd();
+            }
+          }, { rootMargin: '160px' });
+          io.observe(adStage);
+          window.__adObserver = io;
+        } else {
+          loadAd();
+        }
+
+        adAnchor.style.pointerEvents = isSafeHttpUrl(adLink) ? 'auto' : 'none';
+      } else {
+        adStage.innerHTML = `
+          <div class="ad-empty">
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
+            </svg>
+            <div>No advertisement available</div>
+          </div>`;
+        adAnchor.removeAttribute('href');
+        adAnchor.removeAttribute('target');
+        adAnchor.removeAttribute('rel');
+        adAnchor.style.pointerEvents = 'none';
+      }
     }
 
     async function resolveTenantAndSeed() {
       state.slug = getSlugFromQuery();
       if (!state.slug) {
-        showFatal("Missing slug — open as ?slug=your-tenant-slug");
+        showFatal('Missing slug — open as ?slug=your-tenant-slug');
         return false;
       }
-
-      $("slugValue").textContent = state.slug;
-      $("qaBadge").style.display = "block";
+      window.__TENANT_SLUG = state.slug;
 
       let seedConfig = {};
       try {
-        const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(state.slug)}`, { cache: "no-store" });
+        const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(state.slug)}`, { cache: 'no-store' });
         if (res.ok) {
           const j = await res.json();
-          state.tenantId = j.tenantId || state.slug;
+          state.tenantId = j.tenantId || j.tenant || state.slug;
           seedConfig = j.config || j.public || {};
         } else {
           state.tenantId = state.slug;
           seedConfig = {};
         }
-      } catch {
+      } catch (e) {
         state.tenantId = state.slug;
         seedConfig = {};
       }
 
-      if (!state.tenantId) state.tenantId = state.slug;
-      $("tenantValue").textContent = `id:${state.tenantId}`;
+      window.__TENANT_ID = state.tenantId;
+      window.__TENANT_SLUG = state.slug;
+      $('slugValue').textContent = state.slug;
+      $('tenantValue').textContent = `id:${state.tenantId}`;
 
-      state.seedConfig = normalizeConfig(seedConfig);
-      state.config = state.seedConfig;
+      state.seedRaw = seedConfig || {};
+      state.config = normalizeConfig(state.seedRaw);
       renderConfig();
       return true;
     }
 
     async function initFirebase() {
-      const app = initializeApp(firebaseConfig);
+      const app = initializeApp(siteFirebaseConfig);
       state.db = getDatabase(app);
+      window._db = state.db;
     }
 
     async function warmLoadInitialData() {
-      const cfgRef = tenantRef(state.db, "public/config");
-      const ctrRef = tenantRef(state.db, "counters");
+      try {
+        const cfgRef = tenantRefFactory(state.db)('public/config');
+        const ctrRef = tenantRefFactory(state.db)('counters');
 
-      const [cfgSnap, ctrSnap] = await Promise.allSettled([get(cfgRef), get(ctrRef)]);
+        const [cfgSnap, ctrSnap] = await Promise.allSettled([get(cfgRef), get(ctrRef)]);
 
-      if (cfgSnap.status === "fulfilled" && cfgSnap.value && cfgSnap.value.exists && cfgSnap.value.exists()) {
-        state.liveConfig = normalizeConfig(cfgSnap.value.val() || {});
-        state.config = normalizeConfig({ ...state.seedConfig, ...state.liveConfig });
-        renderConfig();
-      }
+        if (cfgSnap.status === 'fulfilled' && cfgSnap.value && cfgSnap.value.exists && cfgSnap.value.exists()) {
+          state.liveRaw = cfgSnap.value.val() || {};
+          state.config = normalizeConfig(deepMerge(state.seedRaw, state.liveRaw));
+          renderConfig();
+        }
 
-      if (ctrSnap.status === "fulfilled" && ctrSnap.value) {
-        state.counters = normalizeCounters(ctrSnap.value.val ? ctrSnap.value.val() : {});
-        state.countersLoaded = true;
-        updateLiveMeta();
+        if (ctrSnap.status === 'fulfilled' && ctrSnap.value) {
+          state.counters = ctrSnap.value.exists && ctrSnap.value.exists() ? (ctrSnap.value.val() || {}) : {};
+          state.countersLoaded = true;
+          updateMetaState();
+        }
+      } catch (e) {
+        console.warn('warmLoadInitialData failed', e);
       }
     }
 
     function subscribeLive() {
-      const cfgRef = tenantRef(state.db, "public/config");
-      const ctrRef = tenantRef(state.db, "counters");
+      const tenantRef = tenantRefFactory(state.db);
 
-      onValue(cfgRef, (snap) => {
-        const live = snap && snap.exists && snap.exists() ? snap.val() || {} : {};
-        state.liveConfig = normalizeConfig(live);
-        state.config = normalizeConfig({ ...state.seedConfig, ...state.liveConfig });
+      onValue(tenantRef('public/config'), (snap) => {
+        const live = snap && snap.exists && snap.exists() ? (snap.val() || {}) : {};
+        state.liveRaw = live;
+        state.config = normalizeConfig(deepMerge(state.seedRaw, state.liveRaw));
         renderConfig();
-      }, (err) => {
-        console.warn("config listener failed", err);
-      });
+      }, (err) => console.warn('config listener failed', err));
 
-      onValue(ctrRef, (snap) => {
-        state.counters = normalizeCounters(snap && snap.exists && snap.exists() ? snap.val() || {} : {});
+      onValue(tenantRef('counters'), (snap) => {
+        state.counters = snap && snap.exists && snap.exists() ? (snap.val() || {}) : {};
         state.countersLoaded = true;
-        updateLiveMeta();
-      }, (err) => {
-        console.warn("counters listener failed", err);
-      });
+        updateMetaState();
+      }, (err) => console.warn('counters listener failed', err));
     }
 
-    async function runTxWithRetries(pathRef, updater, maxRetries = 6) {
-      let lastErr = null;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const result = await runTransaction(pathRef, updater, { applyLocally: false });
-          if (result && result.committed) return result;
-          lastErr = new Error(`Transaction not committed (attempt ${attempt})`);
-        } catch (err) {
-          lastErr = err;
-          console.warn(`[tx] attempt ${attempt} failed`, err);
-        }
-        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 120)));
+    function refreshMetaText() {
+      if (!state.countersLoaded) {
+        $('syncHint').textContent = 'Loading tenant data...';
+        return;
       }
-      throw lastErr || new Error("Transaction failed after retries");
+      const active = getActiveCounters();
+      if (!active.length) {
+        $('syncHint').textContent = 'Counters loaded';
+      } else {
+        $('syncHint').textContent = `${active.length} counters available`;
+      }
+    }
+
+    function getActiveCounters() {
+      const arr = Object.entries(state.counters || {}).map(([id, v]) => ({
+        id,
+        ...(v || {}),
+        _active: normalizeBool(v?.active, true)
+      })).filter(c => c._active);
+
+      arr.sort((a, b) => {
+        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : Number.POSITIVE_INFINITY;
+        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : Number.POSITIVE_INFINITY;
+        if (ao !== bo) return ao - bo;
+        return String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      return arr;
+    }
+
+    function updateMetaState() {
+      refreshMetaText();
+    }
+
+    async function warmLoadCountersOnly() {
+      try {
+        const snap = await get(tenantRefFactory(state.db)('counters'));
+        state.counters = snap && snap.exists && snap.exists() ? (snap.val() || {}) : {};
+        state.countersLoaded = true;
+        updateMetaState();
+        return true;
+      } catch (e) {
+        console.warn('warmLoadCountersOnly failed', e);
+        return false;
+      }
     }
 
     async function autoRedirectIfNeeded() {
       try {
-        const lastQueueId = sessionStorage.getItem("lastQueueId");
+        const lastQueueId = sessionStorage.getItem('lastQueueId');
         if (!lastQueueId) return;
         const snap = await get(ref(state.db, `tenants/${state.tenantId}/queue/${lastQueueId}`));
-        if (snap.exists() && snap.val()?.status === "waiting") {
+        if (snap.exists() && snap.val()?.status === 'waiting') {
           const target = `${location.origin}/status.html?queueId=${encodeURIComponent(lastQueueId)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
           location.href = target;
         }
       } catch (e) {
-        console.warn("auto redirect check failed", e);
+        console.warn('auto redirect check failed', e);
       }
     }
 
@@ -1027,44 +699,46 @@
       if (state.joining) return;
 
       if (!state.countersLoaded) {
-        showMessage("info", "Syncing counters... please wait a moment.");
-        toast("info", "Syncing", "Counters are still loading.");
-        return;
+        showMessage('info', 'Syncing counters...');
+        $('syncHint').textContent = 'Syncing counters...';
+        const ok = await warmLoadCountersOnly();
+        if (!ok) {
+          showMessage('error', 'Unable to load counters right now.');
+          return;
+        }
       }
 
       const activeCounters = getActiveCounters();
       if (!activeCounters.length) {
-        showMessage("error", "No active counters right now. Please ask staff to open a counter.");
-        toast("error", "No active counters", "All counters are currently closed.");
+        showMessage('error', 'No active counters right now. Please ask staff to open a counter.');
         return;
       }
 
-      setJoining(true);
-      showMessage("info", "Generating your queue number...");
+      state.joining = true;
+      setLoading(true);
       try {
-        const rrRef = tenantRef(state.db, "queueState/lastCounterIndex");
+        const rrRef = ref(state.db, `tenants/${state.tenantId}/queueState/lastCounterIndex`);
         const rrResult = await runTxWithRetries(rrRef, cur => (Number(cur) || 0) + 1, 8);
-        if (!rrResult || rrResult.committed !== true) throw new Error("Round-robin transaction failed");
+        if (!rrResult || rrResult.committed !== true) throw new Error('Round-robin transaction failed');
         const rrVal = Number(rrResult.snapshot && rrResult.snapshot.val());
-        if (!Number.isFinite(rrVal)) throw new Error("Invalid round-robin value");
+        if (!Number.isFinite(rrVal)) throw new Error('Invalid round-robin value');
 
         const index = ((rrVal - 1) % activeCounters.length + activeCounters.length) % activeCounters.length;
         const chosen = activeCounters[index] || activeCounters[0];
-        if (!chosen) throw new Error("No counter could be selected");
+        if (!chosen) throw new Error('No counter could be selected');
 
-        const lastIssuedRef = tenantRef(state.db, `counters/${chosen.id}/lastIssued`);
+        const lastIssuedRef = ref(state.db, `tenants/${state.tenantId}/counters/${chosen.id}/lastIssued`);
         const lastIssuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur) || 0) + 1, 8);
-        if (!lastIssuedTx || lastIssuedTx.committed !== true) throw new Error("Failed to increment counter number");
+        if (!lastIssuedTx || lastIssuedTx.committed !== true) throw new Error('Failed to increment counter number');
 
         const nextNumber = Number(lastIssuedTx.snapshot && lastIssuedTx.snapshot.val());
-        if (!Number.isFinite(nextNumber) || nextNumber < 1) throw new Error("Invalid queue number");
+        if (!Number.isFinite(nextNumber) || nextNumber < 1) throw new Error('Invalid queue number');
 
-        const prefix = String(chosen.prefix || "Q").trim() || "Q";
-        const queueId = `${prefix}${String(nextNumber).padStart(3, "0")}`;
+        const prefix = String(chosen.prefix || 'Q').trim() || 'Q';
+        const queueId = `${prefix}${String(nextNumber).padStart(3, '0')}`;
 
         const queueRef = push(ref(state.db, `tenants/${state.tenantId}/queue`));
         const now = Date.now();
-
         await set(queueRef, {
           counterId: chosen.id,
           queueId,
@@ -1073,161 +747,129 @@
           timestamp: now,
           createdAt: now,
           updatedAt: now,
-          status: "waiting",
+          status: 'waiting',
           slug: state.slug,
           tenantId: state.tenantId
         });
 
         try {
-          sessionStorage.setItem("lastQueueId", queueRef.key);
-        } catch {}
+          sessionStorage.setItem('lastQueueId', queueRef.key);
+        } catch (e) {}
 
-        showMessage("success", `You're number ${queueId}`);
-        toast("success", "Queue number issued", queueId);
-
+        showMessage('success', `You're number ${queueId}`);
         setTimeout(() => {
           const target = `${location.origin}/status.html?queueId=${encodeURIComponent(queueRef.key)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
           location.href = target;
         }, 650);
       } catch (err) {
-        console.error(err);
-        showMessage("error", err?.message || "Failed to get queue number.");
-        toast("error", "Queue number failed", err?.message || "Please try again.");
+        console.error('getQueueNumber error', err);
+        showMessage('error', err?.message || 'Failed to get queue number.');
       } finally {
-        setJoining(false);
+        state.joining = false;
+        setLoading(false);
       }
     }
 
-    function bindSafeAdClick() {
-      const adAnchor = $("adAnchor");
-      adAnchor.addEventListener("click", (ev) => {
-        const href = adAnchor.getAttribute("href") || "";
+    document.addEventListener('DOMContentLoaded', async () => {
+      const slug = getSlugFromQuery();
+      if (!slug) {
+        showFatal('Missing slug — open as ?slug=your-tenant-slug');
+        return;
+      }
+
+      $('getNumberBtn').disabled = false;
+      $('syncHint').textContent = 'Loading tenant data...';
+
+      if (!(await resolveTenantAndSeed())) return;
+      await initFirebase();
+
+      warmLoadInitialData();   // fire-and-forget for speed
+      subscribeLive();         // live updates
+      await autoRedirectIfNeeded();
+
+      updateMetaState();
+      setTimeout(() => {
+        if (!state.countersLoaded) $('syncHint').textContent = 'Syncing counters...';
+      }, 250);
+
+      $('getNumberBtn').addEventListener('click', e => {
+        e.preventDefault();
+        getQueueNumber();
+      });
+
+      // keep ad links safe but allow valid http(s) links
+      $('adAnchor').addEventListener('click', (ev) => {
+        const href = $('adAnchor').getAttribute('href') || '';
         if (!href) {
           ev.preventDefault();
           return;
         }
         try {
           const u = new URL(href, location.href);
-          if (!(u.protocol === "http:" || u.protocol === "https:")) {
-            ev.preventDefault();
-          }
+          if (!(u.protocol === 'http:' || u.protocol === 'https:')) ev.preventDefault();
         } catch {
           ev.preventDefault();
         }
       });
-    }
+    });
 
-    async function main() {
-      $("loadingBar").style.opacity = "1";
-      $("loadingBar").style.width = "22%";
-      setStatus("", "Loading tenant data...");
-      $("statusLine").dataset.base = "Ready";
-      $("statusLine").textContent = "Loading tenant data...";
-      $("syncStatus").textContent = "Loading tenant data...";
-
-      if (!(await resolveTenantAndSeed())) return;
-
-      $("loadingBar").style.width = "45%";
-      await initFirebase();
-
-      $("loadingBar").style.width = "68%";
-      await warmLoadInitialData();
-
-      bindSafeAdClick();
-      subscribeLive();
-      await autoRedirectIfNeeded();
-
-      $("loadingBar").style.width = "100%";
-      $("loadingBar").style.opacity = "0";
-      $("statusLine").textContent = "Ready";
-      $("statusLine").dataset.base = "Ready";
-      updateLiveMeta();
-      toast("info", "Live", "Tenant data is ready.");
-    }
-
-    document.addEventListener("DOMContentLoaded", main);
-
-    // expose for button
     window.getQueueNumber = getQueueNumber;
   </script>
 </head>
 
-<body>
-  <div class="toast-stack" id="toastStack"></div>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-rose-50 flex flex-col items-center p-6 pb-20">
 
-  <div class="qa-badge" id="qaBadge"><span style="opacity:.8">slug</span> <strong id="slugValue" style="margin-left:6px">—</strong> <span style="opacity:.5;margin:0 8px">•</span> <span id="tenantValue">—</span></div>
-
-  <div class="page">
-    <div class="card header">
-      <div class="brand">
-        <div class="logo-slot logo-small" id="siteLogoSlot" aria-hidden="true">
-          <div style="width:100%;height:100%;display:grid;place-items:center;color:var(--theme)">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/>
-            </svg>
-          </div>
-        </div>
-        <div class="brand-copy">
-          <h1 id="siteTitle" class="brand-title">Queue Joy</h1>
-          <p id="smallTopText" class="brand-subtitle">Digital Queue System</p>
-        </div>
+  <header class="w-full max-w-3xl mb-6">
+    <div class="bg-white rounded-2xl shadow-md p-4 flex items-center gap-4">
+      <div id="siteLogo" class="hidden"></div>
+      <div class="flex-1 text-left">
+        <h1 id="siteTitle" class="text-lg font-bold text-gray-800">Queue Joy</h1>
+        <p id="smallTopText" class="text-xs text-gray-500">Digital Queue System</p>
       </div>
-      <div id="statusChip" class="status-chip">
-        <span class="status-dot"></span>
-        <span id="statusText">Loading tenant data...</span>
-      </div>
+      <div class="text-right text-xs text-gray-400">Powered by Queue Joy</div>
     </div>
+  </header>
 
-    <div class="card hero">
-      <div class="hero-top">
-        <div id="centerIconWrap" class="logo-slot logo-center" aria-hidden="true">
-          <div id="centerFallback" class="center-fallback">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 0 0-2 2v3a2 2 0 1 1 0 4v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 1 1 0-4V7a2 2 0 0 0-2-2H5z"/>
-            </svg>
-          </div>
-        </div>
-        <div id="centerLogoSlot" class="logo-slot logo-center hidden" aria-hidden="true"></div>
-      </div>
-
-      <div>
-        <h2 id="mainHeading" class="hero-title">Get your queue number</h2>
-        <p id="introText" class="hero-text">Real-time queueing system. Mobile-friendly. No app needed.</p>
-      </div>
-
-      <div class="cta-wrap">
-        <button id="getNumberBtn" class="cta-btn" type="button" aria-label="Get your queue number">
-          <span class="cta-spinner" aria-hidden="true"></span>
-          <span class="cta-label" id="btnText">🎫 Get your queue number</span>
-        </button>
-        <div class="hero-meta">
-          <span class="pill"><strong id="syncStatus">Syncing counters...</strong></span>
-          <span class="pill"><strong id="statusLine" data-base="Ready">Ready</strong></span>
+  <main class="w-full max-w-3xl flex flex-col items-center gap-8">
+    <section class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-6 text-center fade-in relative">
+      <div class="mx-auto">
+        <div id="centerLogo" class="hidden"></div>
+        <div id="centerIcon" class="w-20 h-20 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
+          <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path>
+          </svg>
         </div>
       </div>
 
-      <div id="messageBox" class="message"></div>
-    </div>
-
-    <div class="card ad-card">
-      <div class="ad-head">
-        <span>Advertisement</span>
-        <span class="tiny">Tenant-scoped media</span>
+      <div class="space-y-2">
+        <h2 id="mainHeading" class="text-2xl font-bold text-gray-800">Get your queue number</h2>
+        <p id="introText" class="text-gray-600">Real-time queueing system. Mobile-friendly. No app needed.</p>
       </div>
-      <a id="adAnchor" href="#" target="_blank" rel="noopener noreferrer" style="display:block;text-decoration:none;color:inherit">
-        <div id="adStage" class="ad-stage">
-          <div class="ad-empty">
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
-            </svg>
-            <div>Loading advertisement...</div>
-          </div>
-        </div>
+
+      <button id="getNumberBtn" class="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-400 text-white font-semibold rounded-2xl shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed" type="button">
+        <span id="btnText">🎫 Get your queue number</span>
+        <span id="btnSpinner" class="hidden inline-flex items-center ml-2">
+          <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          Getting your number...
+        </span>
+      </button>
+
+      <p id="syncHint" class="sync-hint text-xs text-gray-400 text-center hidden"></p>
+
+      <div id="messageBox" class="hidden p-3 rounded-lg border text-sm"></div>
+    </section>
+
+    <aside class="w-full max-w-md bg-white rounded-xl shadow-lg p-3">
+      <p class="text-xs text-gray-500 text-center mb-2">Advertisement</p>
+      <a id="adAnchor" href="#" class="block relative" target="_blank" rel="noopener noreferrer">
+        <div id="adStage" class="w-full rounded-lg shadow-md overflow-hidden"></div>
       </a>
-      <p id="adText" class="ad-text hidden"></p>
-    </div>
-  </div>
-
-  <div id="loadingBar" style="position:fixed;left:0;top:0;height:3px;width:0;opacity:0;background:linear-gradient(90deg,var(--theme),var(--theme-dark));box-shadow:0 0 24px rgba(139,92,246,.35);transition:width .22s ease,opacity .22s ease;z-index:9999"></div>
+      <div id="noAd" class="text-center text-gray-400 text-sm py-6 hidden">No advertisement available</div>
+      <div id="adText" class="text-xs text-gray-600 text-center mt-2 hidden"></div>
+    </aside>
+  </main>
 </body>
 </html>
