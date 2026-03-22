@@ -1,1391 +1,1251 @@
 <!doctype html>
 <html lang="en">
-<!--
-  QueueJoy Admin Panel — Tenant-Aware Single-File SPA
-  =====================================================
-  Usage: /admin.html?slug=your-tenant-slug
-  
-  Required env vars (server-side / Netlify):
-    FIREBASE_DATABASE_URL — Firebase RTDB URL
-    ANNOUNCE_SECRET (optional) — protects announce endpoint
-    TELEGRAM_BOT_TOKEN (fallback) — bot token if not in tenant DB
-
-  All reads/writes are tenant-scoped: /tenants/{tenantId}/...
-  No global /settings writes. Canonical config at tenants/{tenantId}/public/config.
-
-  CANONICAL CONFIG SCHEMA (the ONLY write target):
-  {
-    createdAt, updatedAt, displayName, smallTextOnTop, logoUrl, centerLogoUrl,
-    theme: { color }, mainHeading, description, buttonText,
-    ad: { video, image, link }, adText, timezone
-  }
--->
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>QueueJoy Admin Panel</title>
-  <meta name="description" content="QueueJoy tenant admin panel — manage queues, settings, analytics, and announcements."/>
+  <title>QueueJoy Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
   <style>
+    :root{--primary:#667eea;--primary2:#764ba2;--bg:#0f172a;--card:rgba(255,255,255,0.06);--card-solid:#1e293b;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;--radius:14px}
     *{margin:0;padding:0;box-sizing:border-box}
-    :root{
-      --brand-1:#667eea;--brand-2:#764ba2;
-      --gradient:linear-gradient(135deg,var(--brand-1) 0%,var(--brand-2) 100%);
-      --glass:rgba(255,255,255,0.96);--glass-border:rgba(255,255,255,0.35);
-      --text:#111827;--text-muted:#6b7280;--text-light:#9ca3af;
-      --green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;
-      --radius:16px;--radius-sm:10px;--sidebar-w:280px;
-      --shadow:0 20px 60px rgba(0,0,0,0.12);--shadow-sm:0 4px 16px rgba(0,0,0,0.08);
-    }
-    body{font-family:'Inter',system-ui,sans-serif;background:var(--gradient);min-height:100vh;-webkit-font-smoothing:antialiased;color:var(--text);overflow-x:hidden}
-    #loginOverlay{position:fixed;inset:0;background:var(--gradient);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px}
-    .login-card{background:var(--glass);border-radius:24px;padding:40px;width:100%;max-width:420px;box-shadow:var(--shadow);text-align:center}
-    .login-card h1{font-size:28px;font-weight:900;margin-bottom:6px}
-    .login-card p{color:var(--text-muted);font-size:14px;margin-bottom:24px}
-    .login-card .login-input{width:100%;padding:14px 16px;border-radius:var(--radius-sm);border:2px solid #e5e7eb;font-size:15px;margin-bottom:12px;outline:none;transition:border .2s}
-    .login-card .login-input:focus{border-color:var(--brand-1)}
-    .login-card .login-btn{width:100%;padding:14px;background:var(--gradient);color:white;font-weight:700;font-size:16px;border:none;border-radius:var(--radius-sm);cursor:pointer;box-shadow:0 8px 30px rgba(102,126,234,0.3);transition:transform .15s}
-    .login-card .login-btn:hover{transform:translateY(-1px)}
-    .login-card .login-btn:disabled{opacity:.6;cursor:not-allowed}
-    .login-error{color:var(--red);font-size:13px;font-weight:600;margin-top:8px;min-height:20px}
-    #slugErrorOverlay{position:fixed;inset:0;background:var(--gradient);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px}
-    .slug-error-card{background:var(--glass);border-radius:24px;padding:40px;max-width:560px;width:100%;box-shadow:var(--shadow);text-align:center}
-    .slug-error-card h2{color:var(--red);font-size:24px;font-weight:800;margin-bottom:12px}
-    .slug-error-card code{background:#f3f4f6;padding:4px 10px;border-radius:6px;font-size:14px;font-weight:600}
-    .glass-card{background:var(--glass);backdrop-filter:blur(18px);border-radius:var(--radius);border:1px solid var(--glass-border);box-shadow:var(--shadow)}
-    .sidebar{position:fixed;left:0;top:0;height:100vh;width:var(--sidebar-w);background:linear-gradient(180deg,rgba(102,126,234,0.98),rgba(118,75,162,0.98));backdrop-filter:blur(10px);z-index:1000;box-shadow:4px 0 30px rgba(0,0,0,0.2);transition:transform .28s ease;display:flex;flex-direction:column}
-    .sidebar-header{padding:20px 24px;border-bottom:1px solid rgba(255,255,255,0.12);flex-shrink:0}
-    .sidebar-nav{flex:1;overflow-y:auto;padding:12px 0}
-    .sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,0.12);flex-shrink:0}
-    .sidebar-item{display:flex;gap:12px;align-items:center;padding:12px 18px;margin:4px 12px;border-radius:12px;color:white;font-weight:600;font-size:14px;cursor:pointer;transition:all .18s ease;user-select:none}
-    .sidebar-item:hover{transform:translateX(4px);background:rgba(255,255,255,0.08)}
-    .sidebar-item.active{background:rgba(255,255,255,0.15);box-shadow:0 6px 20px rgba(0,0,0,0.08)}
-    .sidebar-item svg{width:20px;height:20px;flex-shrink:0}
-    .sidebar-section{color:rgba(255,255,255,0.5);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;padding:16px 30px 6px;user-select:none}
-    .main-content{margin-left:var(--sidebar-w);padding:28px 32px;transition:margin-left .28s ease;min-height:100vh}
-    @media(max-width:1024px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.main-content{margin-left:0;padding:20px 16px}#mobileMenuBtn{display:flex!important}}
-    #mobileMenuBtn{display:none;position:fixed;top:16px;left:16px;z-index:900;padding:10px;border-radius:var(--radius-sm);background:var(--gradient);color:white;border:none;box-shadow:var(--shadow-sm);cursor:pointer;align-items:center;justify-content:center}
-    .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-    .page-header h2{color:white;font-size:26px;font-weight:800}
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
-    .stat-card{padding:18px;position:relative;overflow:hidden}
-    .stat-card .stat-label{color:var(--text-muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-    .stat-card .stat-value{font-size:28px;font-weight:800;margin-top:4px}
-    .stat-card .stat-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;color:white}
-    .btn-primary{background:var(--gradient);color:white;padding:12px 20px;border-radius:12px;font-weight:700;border:none;cursor:pointer;box-shadow:0 8px 30px rgba(102,126,234,0.25);font-size:14px;transition:all .15s}
-    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 36px rgba(102,126,234,0.35)}
-    .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
-    .btn-secondary{background:#f3f4f6;color:var(--text);padding:10px 16px;border-radius:var(--radius-sm);font-weight:700;border:2px solid #e5e7eb;cursor:pointer;font-size:13px;transition:all .15s}
-    .btn-secondary:hover{border-color:var(--brand-1);color:var(--brand-1)}
-    .btn-danger{background:var(--red);color:white;padding:10px 16px;border-radius:var(--radius-sm);font-weight:700;border:none;cursor:pointer;font-size:13px}
-    .btn-success{background:var(--green);color:white;padding:10px 16px;border-radius:var(--radius-sm);font-weight:700;border:none;cursor:pointer;font-size:13px}
-    .input-field{width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:2px solid #e5e7eb;font-size:14px;outline:none;transition:border .2s;font-family:inherit}
-    .input-field:focus{border-color:var(--brand-1)}
-    .field-label{display:block;color:var(--text-muted);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;margin-top:16px}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+    /* Sidebar */
+    .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .25s ease}
+    .sidebar-brand{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+    .sidebar-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
+    .sidebar-brand h1{font-size:18px;font-weight:800;color:#fff}
+    .sidebar-brand small{font-size:11px;color:var(--text-muted)}
+    .sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
+    .nav-item{display:flex;gap:10px;align-items:center;padding:11px 20px;margin:2px 10px;border-radius:10px;color:var(--text-muted);font-weight:600;font-size:13px;cursor:pointer;transition:all .15s}
+    .nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04)}
+    .nav-item.active{color:#fff;background:linear-gradient(135deg,rgba(102,126,234,0.2),rgba(118,75,162,0.15));border:1px solid rgba(102,126,234,0.2)}
+    .nav-item .icon{width:18px;text-align:center}
+    .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--text-light)}
+    /* Main */
+    .main{margin-left:260px;min-height:100vh;transition:margin-left .25s}
+    .topbar{position:sticky;top:0;z-index:50;background:rgba(15,23,42,0.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center}
+    .topbar h2{font-size:18px;font-weight:700}
+    .topbar-actions{display:flex;gap:8px;align-items:center}
+    .content{padding:24px 28px}
+    /* Cards */
+    .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .card-header{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+    /* Buttons */
+    .btn{padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+    .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.25)}
+    .btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border)}
+    .btn-secondary:hover{background:rgba(255,255,255,0.1);color:#fff}
+    .btn-secondary.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
+    .btn-danger{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+    .btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
+    /* Inputs */
+    .input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;font-family:inherit;transition:border-color .15s}
+    .input:focus{outline:none;border-color:var(--primary)}
+    textarea.input{resize:vertical;min-height:60px}
+    select.input{appearance:auto}
+    .field-label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.5px}
     .field-label:first-child{margin-top:0}
-    .toast{position:fixed;top:20px;right:20px;padding:14px 20px;border-radius:var(--radius-sm);font-weight:700;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.14);animation:slideIn .28s ease;font-size:14px;max-width:360px}
-    .toast.success{background:var(--green);color:white}
-    .toast.error{background:var(--red);color:white}
-    .toast.info{background:var(--brand-1);color:white}
-    @keyframes slideIn{from{transform:translateX(200px);opacity:0}to{transform:translateX(0);opacity:1}}
-    .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:white;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .preview-thumb{width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:2px solid #e5e7eb}
-    .file-upload-btn{padding:10px 16px;background:#f3f4f6;color:var(--brand-1);border-radius:var(--radius-sm);cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:6px;font-size:13px;transition:background .15s}
-    .file-upload-btn:hover{background:#e5e7eb}
-    .file-upload-btn input{position:absolute;left:-9999px}
-    .metric-badge{display:inline-block;padding:6px 12px;border-radius:8px;font-weight:700;color:white;font-size:13px;margin:4px}
-    .tab-bar{display:flex;gap:4px;background:#f3f4f6;padding:4px;border-radius:var(--radius-sm);margin-bottom:20px;flex-wrap:wrap}
-    .tab-btn{padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:none;cursor:pointer;background:transparent;color:var(--text-muted);transition:all .15s}
-    .tab-btn.active{background:white;color:var(--text);box-shadow:var(--shadow-sm)}
-
-    /* Phone Preview — based on index.html */
-    .phone-frame{width:280px;height:560px;border-radius:36px;border:6px solid #1f2937;background:linear-gradient(to br,#faf5ff,#fff1f2,#f8fafc);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.25);position:relative;flex-shrink:0}
-    .phone-notch{width:120px;height:24px;background:#1f2937;border-radius:0 0 16px 16px;margin:0 auto;position:relative;z-index:1}
-    .phone-screen{height:calc(100% - 24px);overflow-y:auto;position:relative;padding:0}
-    .phone-header{padding:12px 16px;display:flex;align-items:center;gap:10px}
-    .phone-header-logo{width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #e5e7eb}
-    .phone-header-title{font-size:14px;font-weight:700;color:#1f2937}
-    .phone-header-sub{font-size:10px;color:#6b7280}
-    .phone-main{padding:0 16px;text-align:center}
-    .phone-center-logo{width:56px;height:56px;border-radius:50%;object-fit:cover;margin:12px auto 8px;border:2px solid #e5e7eb;display:block}
-    .phone-center-icon{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:12px auto 8px;color:white;font-size:22px}
-    .phone-heading{font-size:16px;font-weight:800;color:#1f2937;margin:6px 0 4px}
-    .phone-desc{font-size:11px;color:#6b7280;margin-bottom:12px}
-    .phone-cta{display:block;width:100%;padding:12px;border-radius:14px;text-align:center;color:white;font-weight:700;font-size:13px;border:none;cursor:default;margin-bottom:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
-    .phone-ad-section{margin:8px 0;border-radius:10px;overflow:hidden;background:white;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
-    .phone-ad-label{font-size:9px;color:#9ca3af;text-align:center;padding:4px}
-    .phone-ad-media{width:100%;max-height:100px;object-fit:cover}
-    .phone-ad-text{font-size:10px;color:#6b7280;text-align:center;padding:4px 8px}
-    .phone-sample{margin:12px 0;padding:10px;background:#f9fafb;border-radius:8px;text-align:center}
-    .phone-sample-num{font-size:20px;font-weight:800}
-    .phone-sample-sub{font-size:9px;color:#9ca3af;margin-top:2px}
-    .phone-powered{font-size:9px;color:#d1d5db;text-align:center;padding:8px}
-
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:20px}
-    .modal-overlay.active{display:flex}
-    .modal-card{background:white;border-radius:var(--radius);padding:28px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow)}
-    .data-table{width:100%;border-collapse:collapse;font-size:13px}
-    .data-table th{text-align:left;padding:10px 12px;border-bottom:2px solid #e5e7eb;color:var(--text-muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
-    .data-table td{padding:10px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
-    .data-table tr:hover td{background:#fafafa}
+    /* Stats grid */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+    .stat-card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden}
+    .stat-card .stat-label{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px}
+    .stat-card .stat-value{font-size:26px;font-weight:800}
+    .stat-card .stat-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+    /* Badge */
     .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
-    .badge-green{background:#dcfce7;color:#065f46}
-    .badge-red{background:#fee2e2;color:#991b1b}
-    .badge-blue{background:#dbeafe;color:#1e40af}
-    .badge-amber{background:#fef3c7;color:#92400e}
-    .badge-gray{background:#f3f4f6;color:#374151}
-    .badge-violet{background:#ede9fe;color:#5b21b6}
-    .view-section{display:none}
-    .view-section.active{display:block}
-    .settings-layout{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
-    @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.phone-frame{display:none}}
-    .color-swatch{width:40px;height:40px;border-radius:10px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;overflow:hidden;position:relative}
-    .color-swatch input[type=color]{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);border:none;cursor:pointer;padding:0}
-    .toggle{position:relative;display:inline-block;width:44px;height:24px}
-    .toggle input{opacity:0;width:0;height:0}
-    .toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:24px;transition:.2s;cursor:pointer}
-    .toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}
-    .toggle input:checked+.toggle-slider{background:var(--brand-1)}
-    .toggle input:checked+.toggle-slider::before{transform:translateX(20px)}
-    ::-webkit-scrollbar{width:6px}
-    ::-webkit-scrollbar-track{background:transparent}
-    ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px}
-    #tenantBadge{position:fixed;right:12px;bottom:12px;background:#1f2937;color:white;padding:8px 14px;border-radius:var(--radius-sm);font-size:11px;z-index:9000;opacity:.92;display:none;font-weight:600}
-    .target-option{padding:10px 14px;border:2px solid #e5e7eb;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;transition:all .15s}
-    .target-option.selected{border-color:var(--brand-1);background:#eef2ff}
-    .export-btn{padding:8px 14px;background:#f3f4f6;border:2px solid #e5e7eb;border-radius:var(--radius-sm);font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-    .export-btn:hover{border-color:var(--brand-1)}
-    .audit-entry{padding:10px 14px;border-left:3px solid var(--brand-1);background:#fafafa;border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin-bottom:8px;font-size:13px}
-    .audit-entry .audit-time{color:var(--text-muted);font-size:11px;font-weight:600}
-    .counter-card{padding:16px;border:2px solid #e5e7eb;border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;transition:border .15s}
-    .counter-card:hover{border-color:var(--brand-1)}
-    .counter-active{border-left:4px solid var(--green)}
-    .counter-inactive{border-left:4px solid var(--text-light)}
-    .empty-state{text-align:center;padding:40px 20px;color:var(--text-muted)}
-    .empty-state p{font-size:14px;margin-top:8px}
+    .badge-green{background:rgba(16,185,129,0.15);color:var(--green)}
+    .badge-red{background:rgba(239,68,68,0.15);color:var(--red)}
+    .badge-blue{background:rgba(59,130,246,0.15);color:var(--blue)}
+    .badge-violet{background:rgba(139,92,246,0.15);color:var(--violet)}
+    .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber)}
+    /* Toast */
+    .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .3s ease}
+    .toast-success{background:var(--green);color:#fff}
+    .toast-error{background:var(--red);color:#fff}
+    @keyframes toastIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+    /* Spinner */
+    .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* Tab views */
+    .view{display:none}.view.active{display:block}
+    /* Grid */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    /* Auth overlay */
+    .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+    .auth-card{background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:36px;width:100%;max-width:400px;text-align:center}
+    .auth-card h2{font-size:22px;font-weight:800;margin-bottom:6px}
+    .auth-card p{color:var(--text-muted);font-size:13px;margin-bottom:20px}
+    /* Phone preview */
+    .phone-frame{width:280px;height:560px;border-radius:36px;border:3px solid #334155;background:#fff;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+    .phone-notch{width:120px;height:24px;background:#334155;border-radius:0 0 14px 14px;margin:0 auto}
+    .phone-screen{height:100%;overflow-y:auto;font-family:'Inter',sans-serif;color:#111}
+    .phone-screen *{font-family:inherit}
+    /* Target option */
+    .target-opt{padding:8px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:all .15s}
+    .target-opt:hover{border-color:var(--primary)}
+    .target-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
+    /* File upload btn */
+    .file-btn{padding:8px 14px;background:rgba(102,126,234,0.1);color:var(--primary);border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;display:inline-block;border:1px solid rgba(102,126,234,0.2)}
+    .file-btn:hover{background:rgba(102,126,234,0.2)}
+    .file-btn input[type=file]{position:absolute;left:-9999px}
+    /* Audit entry */
+    .audit-entry{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+    .audit-entry:last-child{border-bottom:none}
+    .audit-time{font-size:11px;color:var(--text-light)}
+    /* Counter row */
+    .counter-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02)}
+    .counter-row .counter-name{font-weight:700;font-size:14px}
+    .counter-row .counter-meta{font-size:12px;color:var(--text-muted)}
+    /* Preview media */
+    .preview-media{max-width:140px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-top:6px}
+    /* Chart container */
+    .chart-wrap{position:relative;height:280px}
+    /* Responsive */
+    @media(max-width:1024px){
+      .sidebar{transform:translateX(-100%)}
+      .sidebar.open{transform:translateX(0)}
+      .main{margin-left:0}
+      .grid-2{grid-template-columns:1fr}
+      .mobile-menu{display:flex!important}
+    }
+    @media(min-width:1025px){.mobile-menu{display:none!important}}
+    /* Fade in */
+    .fade-in{animation:fadeIn .35s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   </style>
 </head>
 <body>
 
-<!-- LOGIN OVERLAY -->
-<div id="loginOverlay">
-  <div class="login-card">
+<!-- Auth Overlay -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
     <div style="font-size:48px;margin-bottom:12px">🎫</div>
-    <h1>QueueJoy Admin</h1>
-    <p>Sign in to manage your queue system</p>
-    <input type="email" id="loginEmail" class="login-input" placeholder="Email address" autocomplete="email"/>
-    <input type="password" id="loginPassword" class="login-input" placeholder="Password" autocomplete="current-password"/>
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:13px;color:var(--text-muted);cursor:pointer">
-      <input type="checkbox" id="loginRemember" checked/> Remember me
-    </label>
-    <button id="loginBtn" class="login-btn">Sign In</button>
-    <div id="loginError" class="login-error"></div>
-  </div>
-</div>
-
-<!-- SLUG ERROR OVERLAY -->
-<div id="slugErrorOverlay">
-  <div class="slug-error-card">
-    <div style="font-size:48px;margin-bottom:12px">⚠️</div>
-    <h2>Invalid URL Format</h2>
-    <p style="color:var(--text-muted);margin:12px 0" id="slugErrorMsg"></p>
-    <p style="margin-top:16px;font-size:14px;color:var(--text-muted)">Correct format:</p>
-    <code id="slugErrorCorrectUrl"></code>
-    <div style="margin-top:20px">
-      <button class="btn-primary" id="slugErrorRedirectBtn">Go to correct URL</button>
-    </div>
-  </div>
-</div>
-
-<!-- TENANT BADGE -->
-<div id="tenantBadge"><span id="tenantBadgeSlug"></span><span id="tenantBadgeId" style="margin-left:8px;opacity:.7"></span></div>
-
-<!-- MOBILE MENU BTN -->
-<button id="mobileMenuBtn">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-</button>
-
-<!-- SIDEBAR -->
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <div style="display:flex;align-items:center;gap:12px">
-      <div style="width:44px;height:44px;background:rgba(255,255,255,0.14);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;color:white">🎫</div>
-      <div>
-        <div style="color:white;font-size:18px;font-weight:800" id="sidebarTitle">QueueJoy</div>
-        <div style="color:rgba(255,255,255,0.7);font-size:12px" id="sidebarSubtitle">Admin Panel</div>
+    <h2>QueueJoy Admin</h2>
+    <p>Sign in to manage your business</p>
+    <div style="text-align:left">
+      <label class="field-label" style="margin-top:0">Email</label>
+      <input class="input" id="authEmail" type="email" placeholder="admin@example.com"/>
+      <label class="field-label">Password</label>
+      <input class="input" id="authPassword" type="password" placeholder="••••••••"/>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="authRemember" checked/><label for="authRemember" style="font-size:12px;color:var(--text-muted)">Remember me</label>
       </div>
     </div>
+    <button class="btn btn-primary" id="authSignInBtn" style="width:100%;margin-top:16px;padding:12px">
+      <span id="authBtnText">Sign In</span>
+      <span id="authBtnSpinner" style="display:none"><span class="spinner"></span>Signing in...</span>
+    </button>
+    <div id="authError" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.1);color:var(--red);font-size:12px;font-weight:600"></div>
   </div>
-  <div class="sidebar-nav">
-    <div class="sidebar-section">Main</div>
-    <div class="sidebar-item active" data-view="dashboard">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Dashboard
-    </div>
-    <div class="sidebar-item" data-view="settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Business Settings
-    </div>
-    <div class="sidebar-item" data-view="counters">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-      Counters
-    </div>
-    <div class="sidebar-section">Insights</div>
-    <div class="sidebar-item" data-view="analytics">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-      Analytics
-    </div>
-    <div class="sidebar-section">Engage</div>
-    <div class="sidebar-item" data-view="announcements">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
-      Announcements
-    </div>
-    <div class="sidebar-section">System</div>
-    <div class="sidebar-item" data-view="audit">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      Audit Logs
-    </div>
-    <div class="sidebar-item" data-view="account">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      Account
-    </div>
+</div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-brand-icon">🎫</div>
+    <div><h1 id="sidebarTitle">QueueJoy</h1><small id="sidebarSub">Admin Panel</small></div>
   </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" data-view="dashboard"><span class="icon">🏠</span>Dashboard</div>
+    <div class="nav-item" data-view="settings"><span class="icon">⚙️</span>Business Settings</div>
+    <div class="nav-item" data-view="counters"><span class="icon">🏪</span>Counters</div>
+    <div class="nav-item" data-view="analytics"><span class="icon">📊</span>Analytics</div>
+    <div class="nav-item" data-view="announcements"><span class="icon">📢</span>Announcements</div>
+    <div class="nav-item" data-view="audit"><span class="icon">📋</span>Audit Logs</div>
+    <div class="nav-item" data-view="account"><span class="icon">👤</span>Account</div>
+  </nav>
   <div class="sidebar-footer">
-    <div class="sidebar-item" id="signOutBtn" style="margin:0;padding:10px 14px;opacity:.8">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      Sign Out
-    </div>
+    <div id="sidebarSlug" style="word-break:break-all"></div>
   </div>
 </aside>
 
-<!-- MAIN CONTENT -->
-<main class="main-content" id="mainContent" style="display:none">
+<!-- Mobile menu -->
+<button class="mobile-menu" id="mobileMenuBtn" style="position:fixed;top:14px;left:14px;z-index:200;padding:10px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:none;cursor:pointer">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
 
-  <!-- DASHBOARD -->
-  <section id="view-dashboard" class="view-section active">
-    <div style="max-width:1400px;margin:0 auto">
-      <div class="page-header">
-        <h2>📊 Dashboard</h2>
-        <button class="btn-primary" id="saveAllBtn">💾 Save All</button>
+<!-- Main -->
+<div class="main" id="mainArea" style="display:none">
+  <!-- Topbar -->
+  <div class="topbar">
+    <h2 id="topbarTitle">Dashboard</h2>
+    <div class="topbar-actions">
+      <button class="btn btn-primary btn-sm" id="savePublishBtn">💾 Save &amp; Publish</button>
+      <button class="btn btn-secondary btn-sm" id="signOutBtn">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- ===== DASHBOARD ===== -->
+    <div class="view active" id="view-dashboard">
+      <div class="stats-grid" id="dashStats">
+        <div class="stat-card"><div class="stat-label">Total Queues</div><div class="stat-value" id="dTotalQ" style="color:var(--primary)">0</div><div class="stat-icon" style="background:rgba(102,126,234,0.1)">📊</div></div>
+        <div class="stat-card"><div class="stat-label">Waiting</div><div class="stat-value" id="dWaiting" style="color:var(--blue)">0</div><div class="stat-icon" style="background:rgba(59,130,246,0.1)">⏳</div></div>
+        <div class="stat-card"><div class="stat-label">Serving</div><div class="stat-value" id="dServing" style="color:var(--violet)">0</div><div class="stat-icon" style="background:rgba(139,92,246,0.1)">🎫</div></div>
+        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value" id="dCompleted" style="color:var(--green)">0</div><div class="stat-icon" style="background:rgba(16,185,129,0.1)">✅</div></div>
+        <div class="stat-card"><div class="stat-label">Cancelled</div><div class="stat-value" id="dCancelled" style="color:var(--text-light)">0</div><div class="stat-icon" style="background:rgba(100,116,139,0.1)">❌</div></div>
+        <div class="stat-card"><div class="stat-label">Active Counters</div><div class="stat-value" id="dCounters" style="color:var(--amber)">0</div><div class="stat-icon" style="background:rgba(245,158,11,0.1)">🏪</div></div>
       </div>
-      <div class="stats-grid" id="dashboardStats">
-        <div class="glass-card stat-card"><p class="stat-label">Total Queues</p><div class="stat-value" id="totalQueues" style="color:var(--brand-1)">0</div><div class="stat-icon" style="background:var(--gradient)">📊</div></div>
-        <div class="glass-card stat-card"><p class="stat-label">Waiting</p><div class="stat-value" id="dashWaiting" style="color:var(--violet)">0</div><div class="stat-icon" style="background:linear-gradient(135deg,var(--violet),var(--pink))">🎫</div></div>
-        <div class="glass-card stat-card"><p class="stat-label">Today's Queues</p><div class="stat-value" id="todayQueues" style="color:var(--green)">0</div><div class="stat-icon" style="background:linear-gradient(135deg,var(--green),#059669)">📈</div></div>
-        <div class="glass-card stat-card"><p class="stat-label">Active Counters</p><div class="stat-value" id="activeCounters" style="color:var(--amber)">0</div><div class="stat-icon" style="background:linear-gradient(135deg,var(--amber),#d97706)">🏪</div></div>
-      </div>
-      <!-- Quick Announcement -->
-      <div class="glass-card" style="padding:22px;margin-bottom:20px">
-        <h3 style="font-weight:800;margin-bottom:14px">📢 Quick Announcement</h3>
-        <textarea id="dashAnnouncementMsg" class="input-field" rows="3" placeholder="Type your announcement message..."></textarea>
-        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <button class="btn-primary" id="dashSendAnnouncementBtn">📱 Send to All</button>
-          <span class="badge badge-gray" id="dashSubscriberCount">0 subscribers</span>
-        </div>
-        <div id="dashAnnouncementResult" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:13px;font-weight:600"></div>
-      </div>
-      <!-- Recent Activity -->
-      <div class="glass-card" style="padding:22px">
-        <h3 style="font-weight:800;margin-bottom:14px">🕐 Recent Queue Activity</h3>
-        <div id="recentActivity" style="color:var(--text-muted);font-size:13px">Loading...</div>
+      <div class="card">
+        <div class="card-header">Avg Service Time (from serviceEvents)</div>
+        <div style="font-size:28px;font-weight:800;color:var(--primary)" id="dAvgService">— min</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Based on <span id="dEventCount">0</span> service events</div>
       </div>
     </div>
-  </section>
 
-  <!-- BUSINESS SETTINGS -->
-  <section id="view-settings" class="view-section">
-    <div style="max-width:1400px;margin:0 auto">
-      <div class="page-header">
-        <h2>⚙️ Business Settings</h2>
-        <div style="display:flex;gap:10px">
-          <button class="btn-secondary" id="settingsSaveBtn">💾 Save Draft</button>
-          <button class="btn-primary" id="settingsPublishBtn">🚀 Save & Publish</button>
-        </div>
-      </div>
-      <div class="settings-layout">
-        <div>
-          <!-- Basic Info -->
-          <div class="glass-card" style="padding:22px;margin-bottom:16px">
-            <h3 style="font-weight:800;margin-bottom:4px">📋 Basic Info</h3>
-            <label class="field-label">Display Name</label>
-            <input id="cfg-displayName" class="input-field" placeholder="e.g., My Café"/>
+    <!-- ===== SETTINGS ===== -->
+    <div class="view" id="view-settings">
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <!-- Settings form -->
+        <div style="flex:1;min-width:320px">
+          <div class="card fade-in">
+            <div class="card-header">Business Identity</div>
+            <label class="field-label" style="margin-top:0">Display Name</label>
+            <input class="input" id="cfgDisplayName" placeholder="e.g., My Café"/>
             <label class="field-label">Small Text on Top</label>
-            <input id="cfg-smallTextOnTop" class="input-field" placeholder="e.g., Digital Queue System"/>
+            <input class="input" id="cfgSmallTextOnTop" placeholder="e.g., Queue Joy"/>
+            <label class="field-label">Main Heading</label>
+            <input class="input" id="cfgMainHeading" placeholder="e.g., ICE CREAM"/>
+            <label class="field-label">Description</label>
+            <textarea class="input" id="cfgDescription" rows="2" placeholder="Real-time queueing system..."></textarea>
+            <label class="field-label">Button Text</label>
+            <input class="input" id="cfgButtonText" placeholder="e.g., Get your queue number"/>
+            <label class="field-label">Ad Text</label>
+            <input class="input" id="cfgAdText" placeholder="Advertisement text..."/>
+            <label class="field-label">Ad Link</label>
+            <input class="input" id="cfgAdLink" placeholder="https://..."/>
             <label class="field-label">Timezone</label>
-            <select id="cfg-timezone" class="input-field">
-              <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (MYT)</option>
-              <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-              <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+            <select class="input" id="cfgTimezone">
+              <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (GMT+8)</option>
+              <option value="UTC">UTC</option>
               <option value="America/New_York">America/New_York (EST)</option>
               <option value="Europe/London">Europe/London (GMT)</option>
-              <option value="UTC">UTC</option>
+              <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
+              <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
             </select>
           </div>
 
-          <!-- Content -->
-          <div class="glass-card" style="padding:22px;margin-bottom:16px">
-            <h3 style="font-weight:800;margin-bottom:4px">💬 Content</h3>
-            <label class="field-label">Main Heading</label>
-            <input id="cfg-mainHeading" class="input-field" placeholder="e.g., Get your queue number"/>
-            <label class="field-label">Description</label>
-            <textarea id="cfg-description" class="input-field" rows="2" placeholder="e.g., Real-time queueing system. Mobile-friendly."></textarea>
-            <label class="field-label">Button Text</label>
-            <input id="cfg-buttonText" class="input-field" placeholder="e.g., 🎫 Get your queue number"/>
+          <div class="card fade-in" style="margin-top:16px">
+            <div class="card-header">Theme &amp; Media</div>
+            <label class="field-label" style="margin-top:0">Primary Color</label>
+            <div style="display:flex;gap:10px;align-items:center">
+              <input type="color" id="cfgColor" value="#8b5cf6" style="width:48px;height:40px;border:none;border-radius:8px;cursor:pointer"/>
+              <span id="cfgColorHex" style="font-size:13px;color:var(--text-muted)">#8b5cf6</span>
+            </div>
+
+            <label class="field-label">Top Logo</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="file-btn">🖼️ Upload<input type="file" id="cfgLogoFile" accept="image/*"/></label>
+              <span id="cfgLogoName" style="font-size:11px;color:var(--text-light)"></span>
+            </div>
+            <div id="cfgLogoPreview"></div>
+
+            <label class="field-label">Center Logo</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="file-btn">🖼️ Upload<input type="file" id="cfgCenterLogoFile" accept="image/*"/></label>
+              <span id="cfgCenterLogoName" style="font-size:11px;color:var(--text-light)"></span>
+            </div>
+            <div id="cfgCenterLogoPreview"></div>
+
+            <label class="field-label">Ad Media (Image/GIF/Video)</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="file-btn">📎 Upload<input type="file" id="cfgAdMediaFile" accept="image/*,video/*"/></label>
+              <span id="cfgAdMediaName" style="font-size:11px;color:var(--text-light)"></span>
+            </div>
+            <div id="cfgAdMediaPreview"></div>
           </div>
 
-          <!-- Theme -->
-          <div class="glass-card" style="padding:22px;margin-bottom:16px">
-            <h3 style="font-weight:800;margin-bottom:4px">🎨 Theme</h3>
-            <div style="display:flex;gap:16px;align-items:center;margin-top:12px">
-              <div>
-                <label class="field-label" style="margin-top:0">Primary Color</label>
-                <div class="color-swatch"><input type="color" id="cfg-themeColor" value="#8b5cf6"/></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Logos -->
-          <div class="glass-card" style="padding:22px;margin-bottom:16px">
-            <h3 style="font-weight:800;margin-bottom:12px">🖼️ Logos</h3>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-              <div>
-                <label class="field-label" style="margin-top:0">Top Logo (logoUrl)</label>
-                <div id="logoUrlPreview" style="margin-bottom:8px"></div>
-                <label class="file-upload-btn">📎 Upload<input type="file" id="logoUrlFile" accept="image/*"/></label>
-              </div>
-              <div>
-                <label class="field-label" style="margin-top:0">Center Logo (centerLogoUrl)</label>
-                <div id="centerLogoUrlPreview" style="margin-bottom:8px"></div>
-                <label class="file-upload-btn">📎 Upload<input type="file" id="centerLogoUrlFile" accept="image/*"/></label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Ad Media -->
-          <div class="glass-card" style="padding:22px;margin-bottom:16px">
-            <h3 style="font-weight:800;margin-bottom:12px">📺 Advertisement</h3>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-              <div>
-                <label class="field-label" style="margin-top:0">Ad Image</label>
-                <div id="adImagePreview" style="margin-bottom:8px"></div>
-                <label class="file-upload-btn">📎 Upload Image<input type="file" id="adImageFile" accept="image/*"/></label>
-              </div>
-              <div>
-                <label class="field-label" style="margin-top:0">Ad Video</label>
-                <div id="adVideoPreview" style="margin-bottom:8px"></div>
-                <label class="file-upload-btn">📎 Upload Video<input type="file" id="adVideoFile" accept="video/*"/></label>
-              </div>
-            </div>
-            <label class="field-label">Ad Link URL</label>
-            <input id="cfg-adLink" class="input-field" placeholder="e.g., https://example.com/promo"/>
-            <label class="field-label">Ad Text</label>
-            <input id="cfg-adText" class="input-field" placeholder="e.g., Check out our latest offer!"/>
-            <p style="margin-top:8px;font-size:11px;color:var(--text-muted)">Max 10MB per file. Images: jpg, png, webp, gif. Videos: mp4, webm.</p>
+          <div style="margin-top:16px;display:flex;gap:10px">
+            <button class="btn btn-primary" id="settingsSaveBtn">💾 Save &amp; Publish</button>
           </div>
         </div>
 
-        <!-- PHONE PREVIEW -->
-        <div style="position:sticky;top:28px">
-          <h4 style="color:white;font-weight:700;margin-bottom:12px;text-align:center;font-size:13px;text-transform:uppercase;letter-spacing:1px">Live Preview</h4>
-          <div class="phone-frame" id="phonePreview">
+        <!-- Phone Preview -->
+        <div style="flex-shrink:0">
+          <div style="text-align:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Live Preview</div>
+          <div class="phone-frame" id="phoneFrame">
             <div class="phone-notch"></div>
             <div class="phone-screen" id="phoneScreen">
-              <!-- Header (mirrors index.html header) -->
-              <div class="phone-header" id="phoneHeaderBar">
-                <img id="phoneTopLogo" class="phone-header-logo" src="" alt="" style="display:none"/>
-                <div style="flex:1">
-                  <div id="phoneHeaderTitle" class="phone-header-title">Queue Joy</div>
-                  <div id="phoneHeaderSub" class="phone-header-sub">Digital Queue System</div>
-                </div>
-                <div style="font-size:8px;color:#d1d5db">Powered by<br>Queue Joy</div>
-              </div>
-              <!-- Main card area -->
-              <div class="phone-main">
-                <img id="phoneCenterLogo" class="phone-center-logo" src="" alt="" style="display:none"/>
-                <div id="phoneCenterIcon" class="phone-center-icon" style="background:linear-gradient(135deg,#7c3aed,#6366f1)">
-                  <svg width="24" height="24" fill="none" stroke="white" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
-                </div>
-                <div id="phoneMainHeading" class="phone-heading">Get your queue number</div>
-                <div id="phoneDescription" class="phone-desc">Real-time queueing system. Mobile-friendly. No app needed.</div>
-                <button id="phoneCTA" class="phone-cta" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)">🎫 Get your queue number</button>
-                <!-- Sample ticket -->
-                <div class="phone-sample">
-                  <div class="phone-sample-num" id="phoneSampleNum" style="color:#7c3aed">A-001</div>
-                  <div class="phone-sample-sub">Sample ticket</div>
-                </div>
-              </div>
-              <!-- Ad section -->
-              <div style="padding:0 16px 8px">
-                <div class="phone-ad-section" id="phoneAdSection" style="display:none">
-                  <div class="phone-ad-label">Advertisement</div>
-                  <div id="phoneAdMedia"></div>
-                  <div id="phoneAdText" class="phone-ad-text"></div>
-                </div>
-              </div>
-              <div class="phone-powered">Powered by Queue Joy</div>
+              <!-- Rendered dynamically -->
             </div>
           </div>
-          <div style="text-align:center;margin-top:10px">
-            <button class="btn-secondary" id="phoneOrientationBtn" style="font-size:11px;padding:6px 12px">↔️ Toggle Size</button>
-          </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- COUNTERS -->
-  <section id="view-counters" class="view-section">
-    <div style="max-width:900px;margin:0 auto">
-      <div class="page-header"><h2>🏪 Counters</h2><button class="btn-primary" id="addCounterBtn">+ Add Counter</button></div>
-      <div class="glass-card" style="padding:22px"><div id="countersList"><p style="color:var(--text-muted);font-size:14px">Loading counters...</p></div></div>
-    </div>
-  </section>
-
-  <!-- ANALYTICS -->
-  <section id="view-analytics" class="view-section">
-    <div style="max-width:1400px;margin:0 auto">
-      <div class="page-header">
-        <h2>📊 Analytics</h2>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <select id="analyticsRange" class="input-field" style="width:auto;padding:8px 12px;font-size:13px">
-            <option value="7">Last 7 days</option>
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-          </select>
-          <button class="export-btn" id="exportCsvBtn">📥 Export CSV</button>
-        </div>
+    <!-- ===== COUNTERS ===== -->
+    <div class="view" id="view-counters">
+      <div class="card fade-in">
+        <div class="card-header">Counters <button class="btn btn-primary btn-sm" id="addCounterBtn">+ Add Counter</button></div>
+        <div id="countersList"></div>
+        <div id="countersEmpty" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No counters configured.</div>
       </div>
-      <!-- Service time stats from serviceEvents -->
+      <!-- Add counter form -->
+      <div class="card fade-in" style="margin-top:16px;display:none" id="addCounterForm">
+        <div class="card-header">New Counter</div>
+        <label class="field-label" style="margin-top:0">Name</label>
+        <input class="input" id="newCounterName" placeholder="e.g., Counter A"/>
+        <label class="field-label">Prefix</label>
+        <input class="input" id="newCounterPrefix" placeholder="e.g., A" maxlength="5"/>
+        <button class="btn btn-primary" id="createCounterBtn" style="margin-top:12px">Create Counter</button>
+      </div>
+    </div>
+
+    <!-- ===== ANALYTICS ===== -->
+    <div class="view" id="view-analytics">
       <div class="stats-grid">
-        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(139,92,246,.95),rgba(139,92,246,.8));color:white">
-          <p class="stat-label" style="color:rgba(255,255,255,.85)">Completed (Served)</p>
-          <div class="stat-value" id="anTotalServed" style="color:white">0</div>
-        </div>
-        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(102,126,234,.95),rgba(102,126,234,.8));color:white">
-          <p class="stat-label" style="color:rgba(255,255,255,.85)">Avg Service Time</p>
-          <div class="stat-value" style="color:white"><span id="anAvgWait">0</span> min</div>
-        </div>
-        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(236,72,153,.95),rgba(236,72,153,.8));color:white">
-          <p class="stat-label" style="color:rgba(255,255,255,.85)">Active Counters</p>
-          <div class="stat-value" id="anCounters" style="color:white">0</div>
-        </div>
-        <div class="glass-card stat-card" style="background:linear-gradient(135deg,rgba(16,185,129,.95),rgba(16,185,129,.8));color:white">
-          <p class="stat-label" style="color:rgba(255,255,255,.85)">Median Service</p>
-          <div class="stat-value" style="color:white"><span id="anMedianWait">0</span> min</div>
-        </div>
+        <div class="stat-card"><div class="stat-label">Total Served</div><div class="stat-value" id="aTotalServed" style="color:var(--green)">0</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Service Time</div><div class="stat-value" style="color:var(--primary)"><span id="aAvgMs">0</span> min</div></div>
+        <div class="stat-card"><div class="stat-label">Median</div><div class="stat-value" style="color:var(--violet)"><span id="aMedian">0</span> min</div></div>
+        <div class="stat-card"><div class="stat-label">P90</div><div class="stat-value" style="color:var(--pink)"><span id="aP90">0</span> min</div></div>
       </div>
-      <!-- Queue Status Breakdown -->
-      <div class="glass-card" style="padding:20px;margin-bottom:16px">
-        <h4 style="font-weight:800;margin-bottom:14px">Queue Status Breakdown</h4>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">Queue Status Breakdown</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;text-align:center">
-          <div><div id="anCompleted" style="font-size:28px;font-weight:800;color:var(--green)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Completed</p></div>
-          <div><div id="anWaiting" style="font-size:28px;font-weight:800;color:var(--blue)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Waiting</p></div>
-          <div><div id="anServing" style="font-size:28px;font-weight:800;color:var(--violet)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Serving</p></div>
-          <div><div id="anCancelled" style="font-size:28px;font-weight:800;color:var(--text-muted)">0</div><p style="font-size:12px;color:var(--text-muted);font-weight:600">Cancelled</p></div>
+          <div><div id="aCompleted" style="font-size:26px;font-weight:800;color:var(--green)">0</div><div style="font-size:12px;color:var(--text-muted)">Completed</div></div>
+          <div><div id="aWaiting" style="font-size:26px;font-weight:800;color:var(--blue)">0</div><div style="font-size:12px;color:var(--text-muted)">Waiting</div></div>
+          <div><div id="aServing" style="font-size:26px;font-weight:800;color:var(--violet)">0</div><div style="font-size:12px;color:var(--text-muted)">Serving</div></div>
+          <div><div id="aCancelled" style="font-size:26px;font-weight:800;color:var(--text-light)">0</div><div style="font-size:12px;color:var(--text-muted)">Cancelled</div></div>
         </div>
       </div>
-      <!-- Service Time Analysis (from serviceEvents ONLY) -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">
-        <div class="glass-card" style="padding:20px">
-          <h4 style="font-weight:800;margin-bottom:12px">⏱️ Service Time Analysis <span style="font-size:11px;color:var(--text-light);font-weight:500">(from serviceEvents)</span></h4>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">AVERAGE</p><div id="anWaitAvg" style="font-size:20px;font-weight:800;color:var(--brand-1)">—</div></div>
-            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">MEDIAN</p><div id="anWaitMedian" style="font-size:20px;font-weight:800;color:var(--violet)">—</div></div>
-            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">90TH PCTL</p><div id="anWait90" style="font-size:20px;font-weight:800;color:var(--pink)">—</div></div>
-            <div><p style="font-size:11px;color:var(--text-muted);font-weight:700">LONGEST</p><div id="anWaitMax" style="font-size:20px;font-weight:800;color:var(--amber)">—</div></div>
-          </div>
+
+      <div class="grid-2" style="margin-bottom:16px">
+        <div class="card">
+          <div class="card-header">Queue Trend (7 Days)</div>
+          <div class="chart-wrap"><canvas id="queueTrendChart"></canvas></div>
         </div>
-        <div class="glass-card" style="padding:20px">
-          <h4 style="font-weight:800;margin-bottom:12px">🕐 Busiest Hours</h4>
-          <div id="busiestHours" style="display:flex;flex-wrap:wrap;gap:6px"><span style="color:var(--text-muted);font-size:13px">No data</span></div>
+        <div class="card">
+          <div class="card-header">Counter Performance</div>
+          <div class="chart-wrap"><canvas id="counterPerfChart"></canvas></div>
         </div>
       </div>
-      <!-- Charts -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px;margin-bottom:16px">
-        <div class="glass-card" style="padding:20px"><h4 style="font-weight:800;margin-bottom:12px">Queue Trend</h4><div style="height:300px;position:relative"><canvas id="trendChart"></canvas></div></div>
-        <div class="glass-card" style="padding:20px"><h4 style="font-weight:800;margin-bottom:12px">Counter Performance</h4><div style="height:300px;position:relative"><canvas id="perfChart"></canvas></div></div>
-      </div>
-      <!-- Raw Events -->
-      <div class="glass-card" style="padding:20px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h4 style="font-weight:800">📋 Service Events <span style="font-size:11px;color:var(--text-light);font-weight:500">(from tenant serviceEvents)</span></h4>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-secondary" id="eventsPrev" style="padding:6px 10px;font-size:12px">← Prev</button>
-            <span id="eventsPageInfo" style="font-size:12px;color:var(--text-muted);font-weight:600">Page 1</span>
-            <button class="btn-secondary" id="eventsNext" style="padding:6px 10px;font-size:12px">Next →</button>
-          </div>
-        </div>
-        <div style="overflow-x:auto">
-          <table class="data-table" id="eventsTable">
-            <thead><tr><th>Event ID</th><th>Counter</th><th>Service Time</th><th>Timestamp</th></tr></thead>
-            <tbody id="eventsBody"><tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Loading...</td></tr></tbody>
-          </table>
-        </div>
+
+      <div class="card">
+        <div class="card-header">Service Events (Raw) <button class="btn btn-secondary btn-sm" id="exportCsvBtn">📥 Export CSV</button></div>
+        <div id="rawEventsTable" style="overflow-x:auto;font-size:13px"></div>
       </div>
     </div>
-  </section>
 
-  <!-- ANNOUNCEMENTS (container only — logic in announce.js) -->
-  <section id="view-announcements" class="view-section">
-    <div style="max-width:900px;margin:0 auto">
-      <div class="page-header"><h2>📢 Announcements</h2></div>
+    <!-- ===== ANNOUNCEMENTS ===== -->
+    <div class="view" id="view-announcements">
       <div id="announceContainer"></div>
     </div>
-  </section>
 
-  <!-- AUDIT LOGS -->
-  <section id="view-audit" class="view-section">
-    <div style="max-width:900px;margin:0 auto">
-      <div class="page-header"><h2>📝 Audit Logs</h2></div>
-      <div class="glass-card" style="padding:22px"><div id="auditLogsList" style="font-size:13px;color:var(--text-muted)">Loading...</div></div>
-    </div>
-  </section>
-
-  <!-- ACCOUNT -->
-  <section id="view-account" class="view-section">
-    <div style="max-width:600px;margin:0 auto">
-      <div class="page-header"><h2>👤 Account</h2></div>
-      <div class="glass-card" style="padding:22px">
-        <label class="field-label">Signed in as</label>
-        <p id="accountEmail" style="font-size:16px;font-weight:700;margin-bottom:16px">—</p>
-        <label class="field-label">Tenant ID</label>
-        <p id="accountTenantId" style="font-size:14px;font-weight:600;color:var(--text-muted);word-break:break-all">—</p>
-        <label class="field-label">Tenant Slug</label>
-        <p id="accountSlug" style="font-size:14px;font-weight:600;color:var(--text-muted)">—</p>
-        <div style="margin-top:24px"><button class="btn-danger" id="accountSignOutBtn">Sign Out</button></div>
+    <!-- ===== AUDIT ===== -->
+    <div class="view" id="view-audit">
+      <div class="card fade-in">
+        <div class="card-header">Audit Logs</div>
+        <div id="auditList"></div>
+        <div id="auditEmpty" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No audit logs yet.</div>
       </div>
     </div>
-  </section>
 
-</main>
-
-<!-- ADD COUNTER MODAL -->
-<div id="addCounterModal" class="modal-overlay">
-  <div class="modal-card" style="max-width:420px">
-    <h3 style="font-weight:800;margin-bottom:16px">Add Counter</h3>
-    <label class="field-label">Counter Name</label>
-    <input id="newCounterName" class="input-field" placeholder="e.g., Counter A"/>
-    <label class="field-label">Prefix</label>
-    <input id="newCounterPrefix" class="input-field" placeholder="e.g., A" maxlength="5"/>
-    <div style="display:flex;gap:10px;margin-top:20px">
-      <button class="btn-primary" id="createCounterBtn" style="flex:1">Create</button>
-      <button class="btn-secondary" id="cancelCounterBtn">Cancel</button>
+    <!-- ===== ACCOUNT ===== -->
+    <div class="view" id="view-account">
+      <div class="card fade-in" style="max-width:480px">
+        <div class="card-header">Account</div>
+        <div style="margin-bottom:12px"><span class="field-label" style="margin:0">Email</span><div id="accountEmail" style="font-size:14px;margin-top:4px">—</div></div>
+        <div style="margin-bottom:12px"><span class="field-label" style="margin:0">Tenant ID</span><div id="accountTenantId" style="font-size:14px;margin-top:4px;word-break:break-all">—</div></div>
+        <div style="margin-bottom:12px"><span class="field-label" style="margin:0">Slug</span><div id="accountSlug" style="font-size:14px;margin-top:4px">—</div></div>
+        <button class="btn btn-danger" id="accountSignOut" style="margin-top:8px">Sign Out</button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Load announce.js module -->
-<script src="announce.js"></script>
-
 <script type="module">
-// ========== Firebase Modular SDK ==========
-import{initializeApp}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-import{getAuth,signInWithEmailAndPassword,signOut as fbSignOut,onAuthStateChanged,setPersistence,browserLocalPersistence,browserSessionPersistence}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-import{getDatabase,ref,onValue,get,set,update,push,remove,child}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
-import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js';
+// ============================================================
+// QueueJoy Admin — Single File, Tenant-Aware, Production-Ready
+// ============================================================
+// Required env: Firebase config (hardcoded below for this project)
+// Access: admin.html?slug=your-tenant-slug
+// Canonical settings path: tenants/{tenantId}/public/config
+// Analytics path: tenants/{tenantId}/analytics/serviceEvents
+// ============================================================
 
-const firebaseConfig={
-  apiKey:"AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
-  authDomain:"queue-joy-aa21b.firebaseapp.com",
-  databaseURL:"https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:"queue-joy-aa21b",
-  storageBucket:"queue-joy-aa21b.appspot.com",
-  messagingSenderId:"950240394209",
-  appId:"1:950240394209:web:78d4f2471d2d89ac91f0a0"
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import { getDatabase, ref, onValue, get, set, update, push, child } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+  authDomain: "queue-joy-aa21b.firebaseapp.com",
+  databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "queue-joy-aa21b",
+  storageBucket: "queue-joy-aa21b.appspot.com",
+  messagingSenderId: "950240394209",
+  appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
 };
 
-// ========== Helpers ==========
-function showToast(msg,type='success',ms=3000){const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),ms)}
-function formatDate(ts){if(!ts)return'—';const d=new Date(ts);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
-function parseTimestamp(ts){if(ts==null)return null;let n=typeof ts==='number'?ts:Number(ts);if(Number.isNaN(n)){const d=Date.parse(ts);if(Number.isNaN(d))return null;n=d}if(n<1230768000000||n>Date.now()+365*864e5)return null;return n}
-function isToday(ts){const p=parseTimestamp(ts);if(!p)return false;const d=new Date(p),t=new Date();return d.toDateString()===t.toDateString()}
-function genId(p=''){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
-function formatHour(h){if(h==null)return'—';if(h===0)return'12AM';if(h<12)return h+'AM';if(h===12)return'12PM';return(h-12)+'PM'}
-const fileToBase64=f=>new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=j;fr.readAsDataURL(f)});
-
-/**
- * normalizeStatus — normalize queue status to lowercase canonical form
- * Treats served/done/completed as 'completed'
- */
-function normalizeStatus(s){
-  const st=(s||'waiting').toString().toLowerCase().trim();
-  if(st==='served'||st==='done'||st==='completed')return'completed';
-  return st; // waiting, serving, cancelled
+// ===== Helpers =====
+const $ = id => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
+function showToast(msg, type='success', ms=3000) {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), ms);
 }
-
-/**
- * computeStats — compute avg, median, p90, max from an array of numbers (in minutes)
- */
-function computeStats(arr){
-  if(!arr.length)return{average:0,median:0,p90:0,longest:0};
-  const s=arr.slice().sort((a,b)=>a-b);
-  const avg=Math.round(s.reduce((a,b)=>a+b,0)/s.length*10)/10;
-  const med=s.length%2?s[Math.floor(s.length/2)]:Math.round((s[s.length/2-1]+s[s.length/2])/2*10)/10;
-  return{average:avg,median:med,p90:Math.round(s[Math.floor(s.length*.9)]*10)/10,longest:s[s.length-1]}
+function formatDate(ts) {
+  if (!ts) return '—';
+  try { return new Date(ts).toLocaleString(); } catch { return '—'; }
 }
-
-/**
- * getServiceDurationsMinutes — extract serviceMs from serviceEvents, convert to minutes
- * THIS is the ONLY source of truth for service time analytics (matching status.html)
- */
-function getServiceDurationsMinutes(serviceEvents){
-  return serviceEvents
-    .map(e=>{
-      const ms=typeof e==='object'?e.serviceMs:e;
-      if(typeof ms!=='number'||ms<=0)return null;
-      return Math.round(ms/60000*10)/10;
-    })
-    .filter(v=>v!=null&&v<1440); // cap at 24h
+function genId(prefix='') { return prefix + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
+function fileToDataUrl(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
 }
-
-/**
- * getQueueStatusCounts — count waiting, serving, cancelled, completed from queue data
- */
-function getQueueStatusCounts(queues){
-  const counts={waiting:0,serving:0,cancelled:0,completed:0};
-  queues.forEach(q=>{
-    const s=normalizeStatus(q.status);
-    if(counts[s]!==undefined)counts[s]++;
+function detectMediaType(file) {
+  if (!file) return 'unknown';
+  if (file.type === 'image/gif') return 'gif';
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('audio/')) return 'audio';
+  return 'unknown';
+}
+function createMediaPreview(src, container, mediaType) {
+  container.innerHTML = '';
+  if (!src) return;
+  const isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || src.match(/\.(mp4|webm|mov)/i)));
+  if (isVideo) {
+    const v = document.createElement('video');
+    v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+    v.className = 'preview-media'; v.style.maxWidth = '200px';
+    container.appendChild(v);
+  } else {
+    const img = document.createElement('img');
+    img.src = src; img.className = 'preview-media';
+    container.appendChild(img);
+  }
+}
+// Compress image before storing (max 800px wide, JPEG quality 0.7)
+function compressImage(file, maxW=800, quality=0.7) {
+  return new Promise(resolve => {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+      // Don't compress GIFs or non-images
+      fileToDataUrl(file).then(resolve);
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); fileToDataUrl(file).then(resolve); };
+    img.src = url;
   });
-  return counts;
 }
 
-/**
- * getQueueTrendByDay — group queue entries by date for chart
- */
-function getQueueTrendByDay(queues,rangeDays){
-  const today=new Date();today.setHours(0,0,0,0);
-  const days=[];
-  for(let i=rangeDays-1;i>=0;i--){
-    const d=new Date(today);d.setDate(d.getDate()-i);
-    const start=d.getTime(),end=start+864e5;
-    const count=queues.filter(q=>q.timestamp>=start&&q.timestamp<end).length;
-    days.push({label:d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),count});
-  }
-  return days;
-}
-
-/**
- * getCounterPerformance — group by counterId, prefer serviceEvents, fallback to queue
- */
-function getCounterPerformance(serviceEvents,queues){
-  const cs={};
-  // First try serviceEvents
-  if(serviceEvents.length){
-    serviceEvents.forEach(e=>{
-      if(!e||typeof e!=='object')return;
-      const k=e.counter||e.counterId||'unknown';
-      cs[k]=(cs[k]||0)+1;
-    });
-  }
-  // If no counter data from serviceEvents, use queues
-  if(!Object.keys(cs).length){
-    queues.forEach(q=>{if(q.counterId)cs[q.counterId]=(cs[q.counterId]||0)+1});
-  }
-  return cs;
-}
-
-// ========== Slug Resolution ==========
-function getSlug(){
-  const params=new URLSearchParams(location.search);
-  let slug=params.get('slug')||params.get('tenant')||params.get('tenantSlug');
-  if(slug)return slug.trim();
-  const path=location.pathname.replace(/^\/+|\/+$/g,'');
-  const parts=path.split('/');
-  if(parts.length>=2){
-    const slugPart=parts.find(p=>!p.includes('.')&&p!=='admin');
-    if(slugPart){
-      const correctUrl=`${location.origin}/admin.html?slug=${encodeURIComponent(slugPart)}`;
-      document.getElementById('slugErrorMsg').textContent=`It looks like you're trying to access tenant "${slugPart}" but the URL format is incorrect.`;
-      document.getElementById('slugErrorCorrectUrl').textContent=correctUrl;
-      document.getElementById('slugErrorRedirectBtn').onclick=()=>location.href=correctUrl;
-      document.getElementById('slugErrorOverlay').style.display='flex';
+// ===== Slug resolution =====
+function getSlug() {
+  const p = new URLSearchParams(window.location.search);
+  const s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
+  if (s && s.trim()) return s.trim();
+  // Check path segments (handle /admin.html/some-slug → redirect)
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  // If path is like admin.html/some-slug, extract slug and redirect
+  if (path.length >= 2 && path[0].includes('admin')) {
+    const slug = path[1];
+    if (slug && !slug.includes('.')) {
+      window.location.href = window.location.origin + '/admin.html?slug=' + encodeURIComponent(slug);
       return null;
     }
   }
-  if(parts.length===1&&parts[0]&&!parts[0].includes('.'))return parts[0];
   return null;
 }
 
-async function resolveTenant(slug){
-  const res=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`,{cache:'no-store'});
-  if(!res.ok)throw new Error(`Tenant lookup failed (${res.status})`);
-  return res.json();
-}
-
-// ========== BOOT ==========
-const slug=getSlug();
-if(!slug&&document.getElementById('slugErrorOverlay').style.display!=='flex'){
-  document.getElementById('slugErrorMsg').textContent='No tenant slug provided. Please add ?slug=your-tenant to the URL.';
-  document.getElementById('slugErrorCorrectUrl').textContent=`${location.origin}/admin.html?slug=your-tenant`;
-  document.getElementById('slugErrorRedirectBtn').onclick=()=>{};
-  document.getElementById('slugErrorOverlay').style.display='flex';
-}
-if(slug)boot();
-
-async function boot(){
-  const app=initializeApp(firebaseConfig);
-  const auth=getAuth(app);
-  const db=getDatabase(app);
-  const storage=getStorage(app);
-
-  let tenantId=null;
-  try{
-    const info=await resolveTenant(slug);
-    tenantId=info.tenantId||info.tenant||slug;
-  }catch(e){
-    console.warn('Tenant resolve failed, using slug as tenantId',e);
-    tenantId=slug;
+// ===== Boot =====
+async function boot() {
+  const slug = getSlug();
+  if (!slug) {
+    $('authOverlay').innerHTML = `<div class="auth-card"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h2>Missing Tenant Slug</h2><p style="margin-bottom:12px">Access the admin with a valid slug:</p><code style="display:block;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;word-break:break-all;margin-bottom:12px">${window.location.origin}/admin.html?slug=your-slug</code><p style="font-size:11px;color:var(--text-light)">If you used <code>/admin.html/your-slug</code>, use <code>?slug=your-slug</code> instead.</p></div>`;
+    return;
   }
-  window.__TENANT_ID=tenantId;
-  window.__TENANT_SLUG=slug;
 
-  document.getElementById('tenantBadge').style.display='block';
-  document.getElementById('tenantBadgeSlug').textContent=slug;
-  document.getElementById('tenantBadgeId').textContent='id:'+tenantId;
+  // Resolve tenant
+  let tenantId = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
+  try {
+    const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+    if (res.ok) {
+      const j = await res.json();
+      tenantId = j.tenantId || j.tenant || tenantId;
+    }
+  } catch {}
 
-  /** tRef — create a ref under tenants/{tenantId}/{path} */
-  function tRef(p=''){p=String(p||'').replace(/^\/+/,'');return p?ref(db,`tenants/${tenantId}/${p}`):ref(db,`tenants/${tenantId}`)}
+  window.__TENANT_SLUG = slug;
+  window.__TENANT_ID = tenantId;
 
-  /**
-   * bootstrapTenant — create missing tenant paths with defaults.
-   * Called once after auth, ensures all paths exist.
-   */
-  async function bootstrapTenant(){
-    const paths={
-      'public/config':{createdAt:Date.now(),updatedAt:Date.now(),displayName:'',theme:{color:'#8b5cf6'}},
-      'queue':{},
-      'counters':{},
-      'analytics/serviceEvents':{},
-      'audit':{},
-      'announcement/chatIds':{},
-      'integrations/telegram/connected':{},
-      'integrations/telegram/sentAnnouncements':{}
+  // Init Firebase
+  const app = initializeApp(FIREBASE_CONFIG);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  // Tenant ref helper
+  function tRef(path = '') {
+    path = String(path || '').replace(/^\/+/, '');
+    const base = `tenants/${tenantId}`;
+    return path ? ref(db, `${base}/${path}`) : ref(db, base);
+  }
+
+  // Write audit log
+  async function writeAudit(action, details = {}) {
+    try {
+      const auditRef = push(tRef('audit'));
+      await set(auditRef, { action, details, by: auth.currentUser?.email || 'unknown', ts: Date.now() });
+    } catch {}
+  }
+
+  // ===== Auto-bootstrap missing tenant paths =====
+  async function bootstrapTenant() {
+    const paths = {
+      'public/config': { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, theme: { color: '#8b5cf6' }, timezone: 'Asia/Kuala_Lumpur', buttonText: 'Get your queue number', description: 'Real-time queueing system' },
+      'queue': {},
+      'counters': {},
+      'analytics/serviceEvents': {},
+      'audit': {},
+      'announcement/chatIds': {},
+      'integrations/telegram/connected': {},
+      'integrations/telegram/sentAnnouncements': {}
     };
-    for(const[path,defaultVal]of Object.entries(paths)){
-      try{
-        const snap=await get(tRef(path));
-        if(!snap.exists())await set(tRef(path),defaultVal);
-      }catch(e){console.warn('Bootstrap path failed:',path,e)}
+    for (const [path, defaultVal] of Object.entries(paths)) {
+      try {
+        const snap = await get(tRef(path));
+        if (!snap.exists()) await set(tRef(path), defaultVal);
+      } catch {}
     }
   }
 
-  // ===== AUTH =====
-  const loginOverlay=document.getElementById('loginOverlay');
-  const loginBtn=document.getElementById('loginBtn');
-  const loginEmail=document.getElementById('loginEmail');
-  const loginPassword=document.getElementById('loginPassword');
-  const loginRemember=document.getElementById('loginRemember');
-  const loginError=document.getElementById('loginError');
+  // ===== State =====
+  let currentConfig = {};
+  let queueData = [];
+  let serviceEventsData = [];
+  let countersData = {};
+  let pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+  let queueTrendChart = null;
+  let counterPerfChart = null;
 
-  loginBtn.addEventListener('click',async()=>{
-    loginError.textContent='';
-    const email=loginEmail.value.trim(),pass=loginPassword.value;
-    if(!email||!pass){loginError.textContent='Email and password required';return}
-    loginBtn.disabled=true;loginBtn.textContent='Signing in...';
-    try{
-      await setPersistence(auth,loginRemember.checked?browserLocalPersistence:browserSessionPersistence);
-      await signInWithEmailAndPassword(auth,email,pass);
-    }catch(e){
-      loginError.textContent=e.code==='auth/invalid-credential'?'Invalid email or password':e.message;
-      loginBtn.disabled=false;loginBtn.textContent='Sign In';
+  // ===== Auth =====
+  $('authSignInBtn').onclick = async () => {
+    const email = $('authEmail').value.trim();
+    const pw = $('authPassword').value;
+    if (!email || !pw) { $('authError').style.display = 'block'; $('authError').textContent = 'Enter email and password'; return; }
+    $('authSignInBtn').disabled = true;
+    $('authBtnText').style.display = 'none';
+    $('authBtnSpinner').style.display = 'inline';
+    $('authError').style.display = 'none';
+    try {
+      const remember = $('authRemember').checked;
+      await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+      await signInWithEmailAndPassword(auth, email, pw);
+    } catch (e) {
+      $('authError').style.display = 'block';
+      $('authError').textContent = e.message || 'Sign in failed';
+    } finally {
+      $('authSignInBtn').disabled = false;
+      $('authBtnText').style.display = 'inline';
+      $('authBtnSpinner').style.display = 'none';
+    }
+  };
+  $('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') $('authSignInBtn').click(); });
+
+  function doSignOut() { signOut(auth); }
+  $('signOutBtn').onclick = doSignOut;
+  $('accountSignOut').onclick = doSignOut;
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      $('authOverlay').style.display = 'none';
+      $('mainArea').style.display = 'block';
+      $('accountEmail').textContent = user.email;
+      $('accountTenantId').textContent = tenantId;
+      $('accountSlug').textContent = slug;
+      $('sidebarSlug').innerHTML = `<small style="opacity:.7">slug:</small> <strong>${slug}</strong>`;
+      initApp();
+      writeAudit('login');
+    } else {
+      $('authOverlay').style.display = 'flex';
+      $('mainArea').style.display = 'none';
     }
   });
-  loginPassword.addEventListener('keydown',e=>{if(e.key==='Enter')loginBtn.click()});
 
-  onAuthStateChanged(auth,user=>{
-    if(user){
-      loginOverlay.style.display='none';
-      document.getElementById('mainContent').style.display='block';
-      document.getElementById('accountEmail').textContent=user.email;
-      document.getElementById('accountTenantId').textContent=tenantId;
-      document.getElementById('accountSlug').textContent=slug;
-      initAdmin(db,storage,auth,user);
-    }else{
-      loginOverlay.style.display='flex';
-      document.getElementById('mainContent').style.display='none';
-    }
+  // ===== Navigation =====
+  $$('.nav-item[data-view]').forEach(item => {
+    item.addEventListener('click', () => {
+      $$('.nav-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const v = item.dataset.view;
+      $$('.view').forEach(el => el.classList.remove('active'));
+      $('view-' + v)?.classList.add('active');
+      $('topbarTitle').textContent = item.textContent.trim();
+      if (v === 'analytics') initCharts();
+      if (window.innerWidth <= 1024) $('sidebar').classList.remove('open');
+    });
   });
+  $('mobileMenuBtn').onclick = () => $('sidebar').classList.toggle('open');
 
-  const doSignOut=()=>fbSignOut(auth);
-  document.getElementById('signOutBtn').addEventListener('click',doSignOut);
-  document.getElementById('accountSignOutBtn').addEventListener('click',doSignOut);
-
-  // ===== NAV =====
-  const sidebar=document.getElementById('sidebar');
-  const mobileBtn=document.getElementById('mobileMenuBtn');
-  const navItems=document.querySelectorAll('.sidebar-item[data-view]');
-  const views=['dashboard','settings','counters','analytics','announcements','audit','account'];
-
-  function showView(v){
-    views.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.classList.toggle('active',id===v)});
-    navItems.forEach(i=>i.classList.toggle('active',i.dataset.view===v));
-    if(v==='analytics')initCharts();
-    if(window.innerWidth<=1024)sidebar.classList.remove('open');
+  // ===== Init app after auth =====
+  let appInitialized = false;
+  async function initApp() {
+    if (appInitialized) return;
+    appInitialized = true;
+    await bootstrapTenant();
+    setupListeners();
+    setupSettingsUI();
+    setupCountersUI();
+    setupAnnouncementsUI();
+    setupAuditUI();
   }
-  navItems.forEach(i=>i.addEventListener('click',()=>showView(i.dataset.view)));
-  mobileBtn.addEventListener('click',()=>sidebar.classList.toggle('open'));
-  function checkMobile(){mobileBtn.style.display=window.innerWidth<=1024?'flex':'none';if(window.innerWidth>1024)sidebar.classList.remove('open')}
-  checkMobile();window.addEventListener('resize',checkMobile);
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('addCounterModal').classList.remove('active')});
 
-  // ===== ADMIN INIT =====
-  let adminInitialized=false;
-  function initAdmin(db,storage,auth,user){
-    if(adminInitialized)return;
-    adminInitialized=true;
-
-    // Bootstrap tenant structure
-    bootstrapTenant();
-
-    // Audit helper
-    function writeAudit(action,details={}){
-      try{set(tRef(`audit/${genId('aud-')}`),{action,by:user.email,createdAt:Date.now(),details}).catch(()=>{})}catch(e){}
-    }
-    writeAudit('admin_login',{email:user.email});
-
-    // ========== SETTINGS ==========
-    /**
-     * Canonical config fields — these are the ONLY fields we write.
-     * Maps config key -> form element id
-     */
-    const CANONICAL_FIELDS={
-      displayName:'cfg-displayName',
-      smallTextOnTop:'cfg-smallTextOnTop',
-      timezone:'cfg-timezone',
-      mainHeading:'cfg-mainHeading',
-      description:'cfg-description',
-      buttonText:'cfg-buttonText',
-      adText:'cfg-adText'
-    };
-
-    let currentConfig={};
-    let uploadedMedia={logoUrl:null,centerLogoUrl:null,adImage:null,adVideo:null};
-
-    /**
-     * readConfigWithMigration — read canonical fields, with one-time
-     * migration from legacy aliases for display only.
-     */
-    function applyConfigToForm(cfg){
-      currentConfig={...cfg};
-      // Canonical fields
-      Object.entries(CANONICAL_FIELDS).forEach(([key,id])=>{
-        const el=document.getElementById(id);
-        if(!el)return;
-        // Try canonical first, then legacy aliases (read only)
-        let val=cfg[key];
-        if(!val&&key==='mainHeading')val=cfg.titleinmiddle||cfg.ctaTitle;
-        if(!val&&key==='description')val=cfg.introText;
-        if(!val&&key==='buttonText')val=cfg.ctaText;
-        if(!val&&key==='smallTextOnTop')val=cfg.smallTopText;
-        if(!val&&key==='displayName')val=cfg.mainTitle||cfg.name||cfg.siteTitle;
-        if(val)el.value=val;
-      });
-      // Theme color
-      if(cfg.theme?.color)document.getElementById('cfg-themeColor').value=cfg.theme.color;
-      // Ad link
-      if(cfg.ad?.link)document.getElementById('cfg-adLink').value=cfg.ad.link;
-      else if(cfg.adLink||cfg.adHref)document.getElementById('cfg-adLink').value=cfg.adLink||cfg.adHref||'';
-      // Ad text
-      if(cfg.adText)document.getElementById('cfg-adText').value=cfg.adText;
-
-      // Media previews
-      renderMediaPreview('logoUrlPreview',cfg.logoUrl||cfg.logo);
-      renderMediaPreview('centerLogoUrlPreview',cfg.centerLogoUrl||cfg.logoUrl);
-      renderMediaPreview('adImagePreview',cfg.ad?.image||cfg.adImage||cfg.adImageUrl);
-      renderMediaPreview('adVideoPreview',cfg.ad?.video||cfg.adVideo||cfg.adVideoUrl,'video');
-
-      updatePhonePreview(cfg);
+  // ===== Firebase listeners =====
+  function setupListeners() {
+    // Config listener
+    onValue(tRef('public/config'), snap => {
+      if (!snap.exists()) return;
+      currentConfig = snap.val() || {};
+      populateSettingsForm(currentConfig);
+      updatePhonePreview();
       // Update sidebar title
-      const dn=cfg.displayName||cfg.mainTitle||cfg.name||'';
-      if(dn){document.getElementById('sidebarTitle').textContent=dn;document.title=dn+' — Admin'}
-    }
-
-    function renderMediaPreview(containerId,url,forceType){
-      const c=document.getElementById(containerId);
-      if(!c)return;
-      c.innerHTML='';
-      if(!url)return;
-      const isVideo=forceType==='video'||/\.(mp4|webm|ogg)(\?|$)/i.test(url)||url.startsWith('data:video/');
-      if(isVideo){
-        const v=document.createElement('video');v.src=url;v.className='preview-thumb';v.muted=true;v.loop=true;v.autoplay=true;v.playsInline=true;c.appendChild(v);
-      }else{
-        const img=document.createElement('img');img.src=url;img.className='preview-thumb';c.appendChild(img);
-      }
-    }
-
-    // Listen to public/config (ONLY source of truth)
-    onValue(tRef('public/config'),snap=>{
-      if(snap.exists()){
-        applyConfigToForm(snap.val());
-      }else{
-        // One-time: try legacy 'settings' for migration display
-        get(tRef('settings')).then(ls=>{if(ls.exists())applyConfigToForm(ls.val())}).catch(()=>{});
+      if (currentConfig.displayName) {
+        $('sidebarTitle').textContent = currentConfig.displayName;
+        document.title = currentConfig.displayName + ' — Admin';
       }
     });
-
-    // ===== PHONE PREVIEW (mirrors index.html structure) =====
-    function updatePhonePreview(cfg){
-      const color=cfg.theme?.color||'#8b5cf6';
-      // Header
-      const topLogo=cfg.logoUrl||cfg.logo;
-      const topLogoEl=document.getElementById('phoneTopLogo');
-      if(topLogo){topLogoEl.src=topLogo;topLogoEl.style.display='block'}else{topLogoEl.style.display='none'}
-      document.getElementById('phoneHeaderTitle').textContent=cfg.displayName||cfg.mainTitle||cfg.name||'Queue Joy';
-      document.getElementById('phoneHeaderSub').textContent=cfg.smallTextOnTop||cfg.smallTopText||'Digital Queue System';
-
-      // Center logo
-      const centerUrl=cfg.centerLogoUrl||cfg.logoUrl||cfg.logo;
-      const centerLogoEl=document.getElementById('phoneCenterLogo');
-      const centerIconEl=document.getElementById('phoneCenterIcon');
-      if(centerUrl){centerLogoEl.src=centerUrl;centerLogoEl.style.display='block';centerIconEl.style.display='none'}
-      else{centerLogoEl.style.display='none';centerIconEl.style.display='flex';centerIconEl.style.background=`linear-gradient(135deg,${color},${adjustColor(color,30)})`}
-
-      // Main heading & description
-      document.getElementById('phoneMainHeading').textContent=cfg.mainHeading||cfg.titleinmiddle||cfg.ctaTitle||'Get your queue number';
-      document.getElementById('phoneDescription').textContent=cfg.description||cfg.introText||'Real-time queueing system. Mobile-friendly. No app needed.';
-
-      // CTA button
-      const cta=document.getElementById('phoneCTA');
-      cta.textContent=cfg.buttonText||cfg.ctaText||'🎫 Get your queue number';
-      cta.style.background=`linear-gradient(135deg,${color},${adjustColor(color,30)})`;
-
-      // Sample ticket color
-      document.getElementById('phoneSampleNum').style.color=color;
-
-      // Ad section
-      const adSection=document.getElementById('phoneAdSection');
-      const adImg=cfg.ad?.image||cfg.adImage||cfg.adImageUrl;
-      const adVid=cfg.ad?.video||cfg.adVideo||cfg.adVideoUrl;
-      const adMedia=adVid||adImg;
-      if(adMedia){
-        adSection.style.display='block';
-        const mediaC=document.getElementById('phoneAdMedia');
-        mediaC.innerHTML='';
-        if(adVid){
-          const v=document.createElement('video');v.src=adVid;v.autoplay=true;v.muted=true;v.loop=true;v.playsInline=true;v.className='phone-ad-media';mediaC.appendChild(v);
-        }else{
-          const img=document.createElement('img');img.src=adImg;img.className='phone-ad-media';img.alt='Ad';mediaC.appendChild(img);
-        }
-        document.getElementById('phoneAdText').textContent=cfg.adText||'';
-      }else{
-        adSection.style.display='none';
-      }
-
-      // Header bar border
-      document.getElementById('phoneHeaderBar').style.borderBottom=`2px solid ${color}`;
-    }
-
-    function adjustColor(hex,amt){
-      // Simple lighten
-      let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-      r=Math.min(255,r+amt);g=Math.min(255,g+amt);b=Math.min(255,b+amt);
-      return'#'+[r,g,b].map(c=>c.toString(16).padStart(2,'0')).join('');
-    }
-
-    // Live preview on input
-    let previewTimer=null;
-    function livePreview(){
-      clearTimeout(previewTimer);
-      previewTimer=setTimeout(()=>{
-        const cfg={...currentConfig};
-        Object.entries(CANONICAL_FIELDS).forEach(([k,id])=>{const el=document.getElementById(id);if(el)cfg[k]=el.value});
-        cfg.theme={...cfg.theme,color:document.getElementById('cfg-themeColor').value};
-        cfg.ad={...cfg.ad,link:document.getElementById('cfg-adLink').value};
-        cfg.adText=document.getElementById('cfg-adText').value;
-        updatePhonePreview(cfg);
-      },150);
-    }
-    Object.values(CANONICAL_FIELDS).forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',livePreview)});
-    ['cfg-themeColor','cfg-adLink'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el){el.addEventListener('change',livePreview);el.addEventListener('input',livePreview)}
-    });
-
-    // Phone orientation
-    let phoneWide=false;
-    document.getElementById('phoneOrientationBtn').addEventListener('click',()=>{
-      const frame=document.getElementById('phonePreview');
-      phoneWide=!phoneWide;
-      frame.style.width=phoneWide?'380px':'280px';
-      frame.style.height=phoneWide?'420px':'560px';
-    });
-
-    // ===== MEDIA UPLOADS =====
-    /**
-     * detectMediaType — returns 'image', 'gif', or 'video'
-     */
-    function detectMediaType(file){
-      if(file.type==='image/gif')return'gif';
-      if(file.type.startsWith('video/'))return'video';
-      return'image';
-    }
-
-    async function handleUpload(fileInput,configKey,previewContainerId){
-      const f=fileInput.files?.[0];if(!f)return;
-      if(f.size>10*1024*1024){showToast('File too large! Max 10MB','error');return}
-      const mediaType=detectMediaType(f);
-      const previewContainer=document.getElementById(previewContainerId);
-
-      // Immediate local preview using object URL (fast, no base64)
-      previewContainer.innerHTML='';
-      const objUrl=URL.createObjectURL(f);
-      if(mediaType==='video'){
-        const v=document.createElement('video');v.src=objUrl;v.className='preview-thumb';v.muted=true;v.loop=true;v.autoplay=true;v.playsInline=true;previewContainer.appendChild(v);
-      }else{
-        const img=document.createElement('img');img.src=objUrl;img.className='preview-thumb';previewContainer.appendChild(img);
-      }
-
-      try{
-        // Upload to Firebase Storage
-        const ext=f.name.split('.').pop()||'bin';
-        const ym=new Date().toISOString().slice(0,7).replace('-','');
-        const storagePath=`tenants/${tenantId}/assets/${ym}/${genId()}.${ext}`;
-        const storageRef=sRef(storage,storagePath);
-        showToast('Uploading...','info',2000);
-        await uploadBytes(storageRef,f);
-        const url=await getDownloadURL(storageRef);
-
-        // Write asset metadata
-        const assetId=genId('asset-');
-        await update(tRef('public/config'),{
-          [`assets/${assetId}`]:{url,storagePath,mime:f.type,size:f.size,createdAt:Date.now()},
-          updatedAt:Date.now()
-        });
-        uploadedMedia[configKey]=url;
-        showToast(`Uploaded successfully!`,'success');
-        livePreview();
-      }catch(e){
-        console.error('Upload failed',e);
-        // Fallback to base64
-        const b64=await fileToBase64(f);
-        uploadedMedia[configKey]=b64;
-        showToast('Uploaded locally (base64 fallback)','info');
-        livePreview();
-      }
-    }
-
-    document.getElementById('logoUrlFile').addEventListener('change',function(){handleUpload(this,'logoUrl','logoUrlPreview')});
-    document.getElementById('centerLogoUrlFile').addEventListener('change',function(){handleUpload(this,'centerLogoUrl','centerLogoUrlPreview')});
-    document.getElementById('adImageFile').addEventListener('change',function(){handleUpload(this,'adImage','adImagePreview')});
-    document.getElementById('adVideoFile').addEventListener('change',function(){handleUpload(this,'adVideo','adVideoPreview')});
-
-    // ===== SAVE SETTINGS =====
-    /**
-     * saveSettings — writes ONLY the canonical schema to public/config.
-     * NO legacy fields are written.
-     */
-    async function saveSettings(publish=true){
-      try{
-        const cfg={};
-        // Canonical text fields
-        Object.entries(CANONICAL_FIELDS).forEach(([k,id])=>{
-          const el=document.getElementById(id);
-          if(el)cfg[k]=el.value;
-        });
-        // Theme
-        cfg.theme={color:document.getElementById('cfg-themeColor').value};
-        // Ad
-        cfg.ad={
-          image:uploadedMedia.adImage||currentConfig.ad?.image||currentConfig.adImage||'',
-          video:uploadedMedia.adVideo||currentConfig.ad?.video||currentConfig.adVideo||'',
-          link:document.getElementById('cfg-adLink').value||''
-        };
-        // Logos
-        cfg.logoUrl=uploadedMedia.logoUrl||currentConfig.logoUrl||'';
-        cfg.centerLogoUrl=uploadedMedia.centerLogoUrl||currentConfig.centerLogoUrl||'';
-        // Timestamps
-        cfg.createdAt=currentConfig.createdAt||Date.now();
-        cfg.updatedAt=Date.now();
-        // Preserve assets
-        if(currentConfig.assets)cfg.assets=currentConfig.assets;
-
-        if(publish){
-          const snap=await get(tRef('public/config'));
-          if(!snap.exists()){
-            await set(tRef('public/config'),cfg);
-          }else{
-            await update(tRef('public/config'),cfg);
-          }
-          writeAudit('settings_published',{fields:Object.keys(cfg)});
-          showToast('Settings published!','success');
-        }else{
-          showToast('Draft saved locally','info');
-        }
-        uploadedMedia={logoUrl:null,centerLogoUrl:null,adImage:null,adVideo:null};
-      }catch(e){
-        console.error('Save failed',e);
-        showToast('Failed to save: '+e.message,'error');
-      }
-    }
-
-    document.getElementById('settingsPublishBtn').addEventListener('click',()=>saveSettings(true));
-    document.getElementById('settingsSaveBtn').addEventListener('click',()=>saveSettings(false));
-    document.getElementById('saveAllBtn').addEventListener('click',()=>saveSettings(true));
-
-    // ========== QUEUE & ANALYTICS DATA ==========
-    let allQueues=[];
-    /** 
-     * allServiceEvents — raw objects from tenants/{tenantId}/analytics/serviceEvents
-     * Each contains at minimum { serviceMs: number }
-     * This is the ONLY analytics source (matching status.html)
-     */
-    let allServiceEvents=[];
 
     // Queue listener
-    onValue(tRef('queue'),snap=>{
-      if(!snap.exists()){allQueues=[];updateDashboard();return}
-      allQueues=Object.entries(snap.val()||{}).map(([key,q])=>{
-        const ts=parseTimestamp(q.timestamp);
-        if(!ts)return null;
-        return{...q,_key:key,timestamp:ts,status:normalizeStatus(q.status)};
-      }).filter(Boolean);
-      updateDashboard();
+    onValue(tRef('queue'), snap => {
+      queueData = [];
+      if (snap.exists()) {
+        const obj = snap.val() || {};
+        queueData = Object.values(obj).map(q => {
+          const ts = q.timestamp ? (typeof q.timestamp === 'number' ? q.timestamp : Date.parse(q.timestamp)) : null;
+          return { ...q, timestamp: ts, status: String(q.status || 'waiting').toLowerCase() };
+        }).filter(q => q.timestamp && !isNaN(q.timestamp));
+      }
+      updateDashboardCounts();
+      updateAnalyticsCounts();
     });
 
-    // Service events listener — ONLY from tenant path (NO root fallback)
-    onValue(tRef('analytics/serviceEvents'),snap=>{
-      if(!snap.exists()){allServiceEvents=[];updateDashboard();return}
-      allServiceEvents=Object.entries(snap.val()||{}).map(([id,e])=>({_id:id,...(typeof e==='object'?e:{serviceMs:e})}));
-      updateDashboard();
+    // Service events listener (THE source of truth for analytics)
+    onValue(tRef('analytics/serviceEvents'), snap => {
+      serviceEventsData = [];
+      if (snap.exists()) {
+        const obj = snap.val() || {};
+        serviceEventsData = Object.values(obj).filter(e => e && typeof e.serviceMs === 'number');
+      }
+      updateDashboardCounts();
+      updateAnalyticsCounts();
+      updateAnalyticsCharts();
+      updateRawEventsTable();
     });
 
     // Counters listener
-    let allCounters={};
-    onValue(tRef('counters'),snap=>{
-      allCounters=snap.exists()?snap.val():{};
-      const active=Object.values(allCounters).filter(c=>c&&c.active).length;
-      document.getElementById('activeCounters').textContent=active;
-      document.getElementById('anCounters').textContent=active;
+    onValue(tRef('counters'), snap => {
+      countersData = snap.exists() ? (snap.val() || {}) : {};
       renderCounters();
+      const activeCount = Object.values(countersData).filter(c => c && c.active).length;
+      $('dCounters').textContent = activeCount;
     });
+  }
 
-    // ========== DASHBOARD UPDATE ==========
-    function updateDashboard(){
-      const q=allQueues;
-      const counts=getQueueStatusCounts(q);
+  // ===== Dashboard counts =====
+  function normalizeStatus(s) { return String(s || 'waiting').toLowerCase(); }
+  function isCompleted(s) { return ['served', 'done', 'completed'].includes(normalizeStatus(s)); }
 
-      document.getElementById('totalQueues').textContent=q.length;
-      document.getElementById('dashWaiting').textContent=counts.waiting;
-      document.getElementById('todayQueues').textContent=q.filter(x=>isToday(x.timestamp)).length;
+  function updateDashboardCounts() {
+    const waiting = queueData.filter(q => normalizeStatus(q.status) === 'waiting').length;
+    const serving = queueData.filter(q => normalizeStatus(q.status) === 'serving').length;
+    const cancelled = queueData.filter(q => normalizeStatus(q.status) === 'cancelled').length;
+    const completedQ = queueData.filter(q => isCompleted(q.status)).length;
+    // Total served = serviceEvents count (completed service records)
+    const totalServed = serviceEventsData.length || completedQ;
 
-      // Analytics — service time from serviceEvents ONLY
-      const durations=getServiceDurationsMinutes(allServiceEvents);
-      const stats=computeStats(durations);
+    $('dTotalQ').textContent = queueData.length;
+    $('dWaiting').textContent = waiting;
+    $('dServing').textContent = serving;
+    $('dCompleted').textContent = totalServed;
+    $('dCancelled').textContent = cancelled;
 
-      // Total served = completed queue items count
-      document.getElementById('anTotalServed').textContent=counts.completed;
-      document.getElementById('anCompleted').textContent=counts.completed;
-      document.getElementById('anWaiting').textContent=counts.waiting;
-      document.getElementById('anServing').textContent=counts.serving;
-      document.getElementById('anCancelled').textContent=counts.cancelled;
-
-      // Service time stats (from serviceEvents only)
-      if(durations.length){
-        document.getElementById('anAvgWait').textContent=stats.average;
-        document.getElementById('anMedianWait').textContent=stats.median;
-        document.getElementById('anWaitAvg').textContent=stats.average+' min';
-        document.getElementById('anWaitMedian').textContent=stats.median+' min';
-        document.getElementById('anWait90').textContent=stats.p90+' min';
-        document.getElementById('anWaitMax').textContent=stats.longest+' min';
-      }else{
-        ['anAvgWait','anMedianWait'].forEach(id=>document.getElementById(id).textContent='—');
-        ['anWaitAvg','anWaitMedian','anWait90','anWaitMax'].forEach(id=>document.getElementById(id).textContent='No data');
-      }
-
-      // Busiest hours (from queue timestamps)
-      const hourCounts=new Array(24).fill(0);
-      const week=Date.now()-7*864e5;
-      q.forEach(x=>{if(x.timestamp>=week)hourCounts[new Date(x.timestamp).getHours()]++});
-      const busiest=hourCounts.map((c,h)=>({hour:h,count:c})).filter(x=>x.count>0).sort((a,b)=>b.count-a.count).slice(0,5);
-      const bhC=document.getElementById('busiestHours');
-      bhC.innerHTML=busiest.length?'':'<span style="color:var(--text-muted);font-size:13px">No data</span>';
-      const colors=['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981'];
-      busiest.forEach((h,i)=>{const b=document.createElement('div');b.className='metric-badge';b.style.background=colors[i%5];b.textContent=`${formatHour(h.hour)}: ${h.count}`;bhC.appendChild(b)});
-
-      // Recent activity
-      const recent=q.slice().sort((a,b)=>b.timestamp-a.timestamp).slice(0,8);
-      const raC=document.getElementById('recentActivity');
-      if(!recent.length){raC.innerHTML='<div class="empty-state"><p>No queue activity yet.</p></div>';return}
-      raC.innerHTML=recent.map(q=>{
-        const badgeClass=q.status==='waiting'?'badge-blue':q.status==='serving'?'badge-amber':q.status==='cancelled'?'badge-red':'badge-green';
-        return`<div style="padding:8px 0;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center"><div><span style="font-weight:700">${q.queueId||q.counterId||'—'}</span> <span class="badge ${badgeClass}">${q.status}</span></div><span style="font-size:12px;color:var(--text-muted)">${formatDate(q.timestamp)}</span></div>`;
-      }).join('');
-
-      updateCharts();
-      updateEventsTable();
+    // Avg service time from serviceEvents only
+    if (serviceEventsData.length > 0) {
+      const avgMs = serviceEventsData.reduce((s, e) => s + e.serviceMs, 0) / serviceEventsData.length;
+      $('dAvgService').textContent = (avgMs / 60000).toFixed(1) + ' min';
+      $('dEventCount').textContent = serviceEventsData.length;
+    } else {
+      $('dAvgService').textContent = '— min';
+      $('dEventCount').textContent = '0';
     }
+  }
 
-    // ========== CHARTS ==========
-    let trendChart=null,perfChart=null;
-    function initCharts(){
-      if(trendChart)return;
-      const ctx1=document.getElementById('trendChart')?.getContext('2d');
-      const ctx2=document.getElementById('perfChart')?.getContext('2d');
-      if(!ctx1||!ctx2)return;
-      trendChart=new Chart(ctx1,{type:'line',data:{labels:[],datasets:[{label:'Queues',data:[],fill:true,tension:.35,borderColor:'#667eea',backgroundColor:'rgba(102,126,234,0.08)',borderWidth:2,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}}});
-      perfChart=new Chart(ctx2,{type:'bar',data:{labels:[],datasets:[{label:'Served',data:[],backgroundColor:['#667eea','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6'],borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}}});
-      updateCharts();
-    }
-
-    function updateCharts(){
-      if(!trendChart||!perfChart)return;
-      const range=parseInt(document.getElementById('analyticsRange')?.value||'7');
-
-      // Queue trend by day
-      const trend=getQueueTrendByDay(allQueues,range);
-      trendChart.data.labels=trend.map(d=>d.label);
-      trendChart.data.datasets[0].data=trend.map(d=>d.count);
-      trendChart.update();
-
-      // Counter performance
-      const cp=getCounterPerformance(allServiceEvents,allQueues);
-      perfChart.data.labels=Object.keys(cp);
-      perfChart.data.datasets[0].data=Object.values(cp);
-      perfChart.update();
-    }
-    document.getElementById('analyticsRange')?.addEventListener('change',()=>{updateCharts();updateEventsTable()});
-
-    // ========== EVENTS TABLE ==========
-    let eventsPage=0;const eventsPerPage=20;
-    function updateEventsTable(){
-      const events=[...allServiceEvents].sort((a,b)=>(b.timestamp||b.servedAt||0)-(a.timestamp||a.servedAt||0));
-      const total=events.length;
-      const pages=Math.max(1,Math.ceil(total/eventsPerPage));
-      eventsPage=Math.min(eventsPage,pages-1);
-      const start=eventsPage*eventsPerPage;
-      const slice=events.slice(start,start+eventsPerPage);
-      const tbody=document.getElementById('eventsBody');
-
-      if(!slice.length){
-        tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:30px">No service events recorded yet.</td></tr>';
-        document.getElementById('eventsPageInfo').textContent='Page 1 of 1';
-        return;
-      }
-      tbody.innerHTML=slice.map(e=>{
-        const serviceMin=typeof e.serviceMs==='number'?Math.round(e.serviceMs/60000*10)/10+'min':'—';
-        return`<tr><td style="font-family:monospace;font-size:11px">${e._id||'—'}</td><td>${e.counter||e.counterId||'—'}</td><td>${serviceMin}</td><td>${formatDate(e.timestamp||e.servedAt)}</td></tr>`;
-      }).join('');
-      document.getElementById('eventsPageInfo').textContent=`Page ${eventsPage+1} of ${pages}`;
-    }
-    document.getElementById('eventsPrev')?.addEventListener('click',()=>{if(eventsPage>0){eventsPage--;updateEventsTable()}});
-    document.getElementById('eventsNext')?.addEventListener('click',()=>{eventsPage++;updateEventsTable()});
-
-    // ========== CSV EXPORT ==========
-    document.getElementById('exportCsvBtn')?.addEventListener('click',()=>{
-      if(!allServiceEvents.length){showToast('No events to export','error');return}
-      const headers=['eventId','counter','serviceMs','timestamp'];
-      const rows=allServiceEvents.map(e=>[e._id||'',e.counter||e.counterId||'',e.serviceMs||'',e.timestamp||e.servedAt||''].join(','));
-      const csv=[headers.join(','),...rows].join('\n');
-      const blob=new Blob([csv],{type:'text/csv'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`analytics-${slug}-${new Date().toISOString().slice(0,10)}.csv`;a.click();
-      showToast('CSV exported!','success');
-    });
-
-    // ========== COUNTERS ==========
-    function renderCounters(){
-      const list=document.getElementById('countersList');
-      const entries=Object.entries(allCounters);
-      if(!entries.length){list.innerHTML='<div class="empty-state"><p>No counters yet. Click "Add Counter" to create one.</p></div>';return}
-      list.innerHTML=entries.map(([id,c])=>`
-        <div class="counter-card ${c.active?'counter-active':'counter-inactive'}">
-          <div>
-            <div style="font-weight:800;font-size:16px">${c.name||id}</div>
-            <div style="font-size:12px;color:var(--text-muted)">Prefix: <strong>${c.prefix||'—'}</strong> | Now Serving: <strong>${c.nowServing||0}</strong> | Last Issued: <strong>${c.lastIssued||0}</strong></div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <label class="toggle"><input type="checkbox" ${c.active?'checked':''} onchange="window.__toggleCounter('${id}',this.checked)"/><span class="toggle-slider"></span></label>
-          </div>
-        </div>
-      `).join('');
-    }
-    window.__toggleCounter=async(id,active)=>{
-      try{
-        await update(tRef(`counters/${id}`),{active});
-        writeAudit(active?'counter_activated':'counter_deactivated',{counterId:id});
-        showToast(`Counter ${active?'activated':'deactivated'}`);
-      }catch(e){showToast('Failed','error')}
+  // ===== Analytics =====
+  function computeStats(arr) {
+    if (!arr.length) return { avg: 0, median: 0, p90: 0, longest: 0 };
+    const xs = arr.slice().sort((a, b) => a - b);
+    const sum = xs.reduce((a, b) => a + b, 0);
+    return {
+      avg: Math.round(sum / xs.length),
+      median: xs.length % 2 ? xs[Math.floor(xs.length / 2)] : Math.round((xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2),
+      p90: xs[Math.floor(xs.length * 0.9)] || xs[xs.length - 1],
+      longest: xs[xs.length - 1]
     };
+  }
 
-    const addModal=document.getElementById('addCounterModal');
-    document.getElementById('addCounterBtn').addEventListener('click',()=>addModal.classList.add('active'));
-    document.getElementById('cancelCounterBtn').addEventListener('click',()=>addModal.classList.remove('active'));
-    document.getElementById('createCounterBtn').addEventListener('click',async()=>{
-      const name=document.getElementById('newCounterName').value.trim();
-      const prefix=document.getElementById('newCounterPrefix').value.trim().toUpperCase();
-      if(!name||!prefix){showToast('Name and prefix required','error');return}
-      try{
-        const id=genId('ctr-');
-        await set(tRef(`counters/${id}`),{name,prefix,active:true,lastIssued:0,nowServing:0,order:Object.keys(allCounters).length,createdAt:Date.now()});
-        writeAudit('counter_created',{id,name,prefix});
-        addModal.classList.remove('active');
-        document.getElementById('newCounterName').value='';
-        document.getElementById('newCounterPrefix').value='';
-        showToast('Counter created!');
-      }catch(e){showToast('Failed: '+e.message,'error')}
-    });
+  function updateAnalyticsCounts() {
+    const waiting = queueData.filter(q => normalizeStatus(q.status) === 'waiting').length;
+    const serving = queueData.filter(q => normalizeStatus(q.status) === 'serving').length;
+    const cancelled = queueData.filter(q => normalizeStatus(q.status) === 'cancelled').length;
+    const completedQ = queueData.filter(q => isCompleted(q.status)).length;
+    const totalServed = serviceEventsData.length || completedQ;
 
-    // ========== DASHBOARD QUICK ANNOUNCEMENT ==========
-    // Subscriber count for dashboard
-    let dashSubCount=0;
-    onValue(tRef('integrations/telegram/connected'),snap=>{
-      dashSubCount=snap.exists()?Object.keys(snap.val()||{}).length:0;
-      document.getElementById('dashSubscriberCount').textContent=dashSubCount+' subscribers';
-    });
-    onValue(tRef('announcement/chatIds'),snap=>{
-      if(dashSubCount===0&&snap.exists()){
-        dashSubCount=Object.keys(snap.val()||{}).length;
-        document.getElementById('dashSubscriberCount').textContent=dashSubCount+' subscribers';
-      }
-    });
+    $('aTotalServed').textContent = totalServed;
+    $('aCompleted').textContent = totalServed;
+    $('aWaiting').textContent = waiting;
+    $('aServing').textContent = serving;
+    $('aCancelled').textContent = cancelled;
 
-    document.getElementById('dashSendAnnouncementBtn').addEventListener('click',async()=>{
-      const btn=document.getElementById('dashSendAnnouncementBtn');
-      const msg=document.getElementById('dashAnnouncementMsg').value.trim();
-      const resultDiv=document.getElementById('dashAnnouncementResult');
-      if(!msg){showToast('Enter a message','error');return}
-      btn.disabled=true;btn.textContent='Sending...';
-      try{
-        const payload={slug,tenantId,message:msg,level:'info',target:{type:'all'}};
-        const res=await fetch('/.netlify/functions/announce',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-        const r=await res.json();
-        resultDiv.style.display='block';
-        if(r.success>0){
-          resultDiv.style.background='#dcfce7';resultDiv.style.color='#065f46';
-          resultDiv.textContent=`✅ Sent to ${r.success} recipient(s)`+(r.failed?` | ⚠️ ${r.failed} failed`:'');
-          document.getElementById('dashAnnouncementMsg').value='';
-          writeAudit('announcement_sent',{success:r.success,failed:r.failed});
-        }else{
-          resultDiv.style.background='#fee2e2';resultDiv.style.color='#991b1b';
-          resultDiv.textContent='⚠️ Failed: '+(r.error||'Unknown error');
-        }
-        setTimeout(()=>resultDiv.style.display='none',5000);
-      }catch(e){showToast(e.message||'Send failed','error')}
-      finally{btn.disabled=false;btn.textContent='📱 Send to All'}
-    });
+    // Wait stats from serviceEvents.serviceMs ONLY
+    const serviceMins = serviceEventsData.map(e => e.serviceMs / 60000);
+    const stats = computeStats(serviceMins);
+    $('aAvgMs').textContent = stats.avg.toFixed(1);
+    $('aMedian').textContent = stats.median.toFixed(1);
+    $('aP90').textContent = stats.p90.toFixed(1);
+  }
 
-    // ========== AUDIT LOGS ==========
-    onValue(tRef('audit'),snap=>{
-      const div=document.getElementById('auditLogsList');
-      if(!snap.exists()){div.innerHTML='<div class="empty-state"><p>No audit logs yet.</p></div>';return}
-      const entries=Object.entries(snap.val()||{}).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0)).slice(0,50);
-      div.innerHTML=entries.map(([id,e])=>`<div class="audit-entry"><div class="audit-time">${formatDate(e.createdAt)} — ${e.by||'system'}</div><div style="margin-top:2px;font-weight:700">${e.action}</div>${e.details?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${JSON.stringify(e.details).slice(0,120)}</div>`:''}</div>`).join('');
-    });
-
-    // ========== INIT ANNOUNCE MODULE ==========
-    if(window.__announceModule){
-      window.__announceModule.init({
-        tRef,get,onValue,set,update,genId,showToast,writeAudit,fileToBase64,formatDate,slug,tenantId
+  function initCharts() {
+    if (!$('queueTrendChart')) return;
+    if (!queueTrendChart) {
+      queueTrendChart = new Chart($('queueTrendChart').getContext('2d'), {
+        type: 'line', data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
       });
     }
+    if (!counterPerfChart) {
+      counterPerfChart = new Chart($('counterPerfChart').getContext('2d'), {
+        type: 'bar', data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
+      });
+    }
+    updateAnalyticsCharts();
+  }
 
-  } // end initAdmin
-} // end boot
+  function updateAnalyticsCharts() {
+    if (!queueTrendChart) return;
+    // Queue trend: 7 days from queue data
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const labels = [], counts = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const start = d.getTime(), end = start + 86400000;
+      labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+      counts.push(queueData.filter(q => q.timestamp >= start && q.timestamp < end).length);
+    }
+    queueTrendChart.data.labels = labels;
+    queueTrendChart.data.datasets[0].data = counts;
+    queueTrendChart.update();
+
+    // Counter performance from serviceEvents
+    const counterStats = {};
+    if (serviceEventsData.length > 0) {
+      serviceEventsData.forEach(e => {
+        const key = e.counter || e.counterId || 'unknown';
+        counterStats[key] = (counterStats[key] || 0) + 1;
+      });
+    } else {
+      queueData.forEach(q => {
+        if (q.counterId) counterStats[q.counterId] = (counterStats[q.counterId] || 0) + 1;
+      });
+    }
+    if (!counterPerfChart) return;
+    counterPerfChart.data.labels = Object.keys(counterStats);
+    counterPerfChart.data.datasets[0].data = Object.values(counterStats);
+    counterPerfChart.update();
+  }
+
+  function updateRawEventsTable() {
+    const container = $('rawEventsTable');
+    if (!serviceEventsData.length) {
+      container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events yet.</div>';
+      return;
+    }
+    const rows = serviceEventsData.slice(-50).reverse();
+    container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${e.counter || e.counterId || '—'}</td><td style="padding:8px">${e.serviceMs}</td><td style="padding:8px">${(e.serviceMs / 60000).toFixed(1)}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  // CSV export
+  $('exportCsvBtn').onclick = () => {
+    if (!serviceEventsData.length) { showToast('No events to export', 'error'); return; }
+    const header = 'counter,serviceMs,serviceMin\n';
+    const body = serviceEventsData.map(e => `${e.counter || e.counterId || ''},${e.serviceMs},${(e.serviceMs / 60000).toFixed(2)}`).join('\n');
+    const blob = new Blob([header + body], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `queuejoy-events-${slug}.csv`;
+    a.click();
+  };
+
+  // ===== Settings UI =====
+  function populateSettingsForm(cfg) {
+    // Map canonical fields, with migration fallback reads
+    $('cfgDisplayName').value = cfg.displayName || cfg.name || '';
+    $('cfgSmallTextOnTop').value = cfg.smallTextOnTop || cfg.smallTopText || '';
+    $('cfgMainHeading').value = cfg.mainHeading || cfg.mainTitle || cfg.titleinmiddle || '';
+    $('cfgDescription').value = cfg.description || cfg.introText || '';
+    $('cfgButtonText').value = cfg.buttonText || cfg.ctaText || cfg.ctaTitle || '';
+    $('cfgAdText').value = cfg.adText || '';
+    $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
+    $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
+
+    const color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
+    $('cfgColor').value = color;
+    $('cfgColorHex').textContent = color;
+
+    // Show existing media previews if no pending upload
+    const logoSrc = cfg.logoUrl || (cfg.theme && cfg.theme.logo) || cfg.logo || null;
+    if (logoSrc && !pendingUploads.logoUrl) createMediaPreview(logoSrc, $('cfgLogoPreview'));
+
+    const centerLogoSrc = cfg.centerLogoUrl || null;
+    if (centerLogoSrc && !pendingUploads.centerLogoUrl) createMediaPreview(centerLogoSrc, $('cfgCenterLogoPreview'));
+
+    const adImg = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || null;
+    const adVid = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || null;
+    if (!pendingUploads.adImage && !pendingUploads.adVideo) {
+      if (adVid) createMediaPreview(adVid, $('cfgAdMediaPreview'), 'video');
+      else if (adImg) createMediaPreview(adImg, $('cfgAdMediaPreview'));
+    }
+  }
+
+  function setupSettingsUI() {
+    $('cfgColor').oninput = (e) => { $('cfgColorHex').textContent = e.target.value; updatePhonePreview(); };
+
+    // Text field changes update phone preview live
+    ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(id => {
+      $(id).addEventListener('input', updatePhonePreview);
+    });
+
+    // Logo upload
+    $('cfgLogoFile').onchange = async (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
+      const data = await compressImage(f);
+      pendingUploads.logoUrl = data;
+      createMediaPreview(data, $('cfgLogoPreview'), detectMediaType(f));
+      $('cfgLogoName').textContent = f.name;
+      updatePhonePreview();
+      showToast('Logo ready (save to publish)', 'success', 1500);
+    };
+
+    // Center logo upload
+    $('cfgCenterLogoFile').onchange = async (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
+      const data = await compressImage(f);
+      pendingUploads.centerLogoUrl = data;
+      createMediaPreview(data, $('cfgCenterLogoPreview'), detectMediaType(f));
+      $('cfgCenterLogoName').textContent = f.name;
+      updatePhonePreview();
+      showToast('Center logo ready', 'success', 1500);
+    };
+
+    // Ad media upload
+    $('cfgAdMediaFile').onchange = async (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
+      const mtype = detectMediaType(f);
+      if (mtype === 'video') {
+        const data = await fileToDataUrl(f);
+        pendingUploads.adVideo = data;
+        pendingUploads.adImage = null;
+        createMediaPreview(data, $('cfgAdMediaPreview'), 'video');
+      } else {
+        const data = await compressImage(f);
+        pendingUploads.adImage = data;
+        pendingUploads.adVideo = null;
+        createMediaPreview(data, $('cfgAdMediaPreview'), mtype);
+      }
+      $('cfgAdMediaName').textContent = f.name;
+      updatePhonePreview();
+      showToast('Ad media ready', 'success', 1500);
+    };
+
+    // Save
+    $('settingsSaveBtn').onclick = saveSettings;
+    $('savePublishBtn').onclick = saveSettings;
+  }
+
+  async function saveSettings() {
+    const btn = $('settingsSaveBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Saving...';
+    try {
+      // Build canonical config — STRICT schema only
+      const newConfig = {
+        createdAt: currentConfig.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        displayName: $('cfgDisplayName').value || '',
+        smallTextOnTop: $('cfgSmallTextOnTop').value || '',
+        logoUrl: pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '',
+        centerLogoUrl: pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '',
+        theme: { color: $('cfgColor').value || '#8b5cf6' },
+        mainHeading: $('cfgMainHeading').value || '',
+        description: $('cfgDescription').value || '',
+        buttonText: $('cfgButtonText').value || '',
+        ad: {
+          video: pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl || '',
+          image: pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl || '',
+          link: $('cfgAdLink').value || ''
+        },
+        adText: $('cfgAdText').value || '',
+        timezone: $('cfgTimezone').value || 'Asia/Kuala_Lumpur'
+      };
+
+      // Write ONLY to canonical path
+      await set(tRef('public/config'), newConfig);
+      pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+      showToast('Settings published!');
+      writeAudit('settings_saved');
+    } catch (e) {
+      console.error('Save failed', e);
+      showToast('Save failed: ' + (e.message || e), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Save & Publish';
+    }
+  }
+
+  // ===== Phone Preview =====
+  function updatePhonePreview() {
+    const color = $('cfgColor')?.value || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6';
+    const displayName = $('cfgDisplayName')?.value || currentConfig.displayName || '';
+    const smallText = $('cfgSmallTextOnTop')?.value || currentConfig.smallTextOnTop || '';
+    const heading = $('cfgMainHeading')?.value || currentConfig.mainHeading || '';
+    const desc = $('cfgDescription')?.value || currentConfig.description || '';
+    const btnText = $('cfgButtonText')?.value || currentConfig.buttonText || 'Get your queue number';
+    const adText = $('cfgAdText')?.value || currentConfig.adText || '';
+
+    const logoSrc = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '';
+    const centerLogoSrc = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '';
+    const adImgSrc = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || '';
+    const adVidSrc = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || '';
+
+    const screen = $('phoneScreen');
+    screen.innerHTML = `
+      <div style="background:linear-gradient(135deg,${color},${color}dd);padding:16px;text-align:center">
+        ${smallText ? `<div style="font-size:9px;color:rgba(255,255,255,0.8);margin-bottom:4px">${esc(smallText)}</div>` : ''}
+        ${logoSrc ? `<img src="${logoSrc}" style="max-height:36px;max-width:120px;margin:0 auto 6px;display:block;border-radius:6px" onerror="this.style.display='none'"/>` : ''}
+        <div style="font-size:14px;font-weight:800;color:#fff">${esc(displayName) || 'Queue Joy'}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.7);margin-top:2px">Digital Queue System</div>
+      </div>
+      ${centerLogoSrc ? `<div style="text-align:center;padding:12px"><img src="${centerLogoSrc}" style="max-height:80px;max-width:160px;border-radius:10px" onerror="this.style.display='none'"/></div>` : ''}
+      <div style="padding:16px;text-align:center">
+        ${heading ? `<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">${esc(heading)}</div>` : ''}
+        <div style="font-size:11px;color:#6b7280;margin-bottom:12px">${esc(desc) || 'Real-time queueing system.'}</div>
+        <button style="background:${color};color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;width:100%;cursor:default">🎫 ${esc(btnText)}</button>
+      </div>
+      ${(adImgSrc || adVidSrc) ? `
+        <div style="padding:0 16px 12px">
+          <div style="font-size:9px;color:#9ca3af;margin-bottom:4px">${esc(adText) || 'Advertisement'}</div>
+          ${adVidSrc ? `<video src="${adVidSrc}" autoplay muted loop playsinline style="width:100%;border-radius:8px;max-height:100px;object-fit:cover"></video>` : `<img src="${adImgSrc}" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display='none'"/>`}
+        </div>
+      ` : ''}
+      <div style="text-align:center;padding:8px;font-size:8px;color:#d1d5db">Powered by Queue Joy</div>
+    `;
+  }
+  function esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  // ===== Counters =====
+  function setupCountersUI() {
+    $('addCounterBtn').onclick = () => {
+      $('addCounterForm').style.display = $('addCounterForm').style.display === 'none' ? 'block' : 'none';
+    };
+    $('createCounterBtn').onclick = async () => {
+      const name = $('newCounterName').value.trim();
+      const prefix = $('newCounterPrefix').value.trim().toUpperCase();
+      if (!name || !prefix) { showToast('Name and prefix required', 'error'); return; }
+      const id = 'counter-' + prefix.toLowerCase();
+      try {
+        await set(tRef(`counters/${id}`), { name, prefix, active: true, lastIssued: 0, nowServing: 0, order: Object.keys(countersData).length + 1 });
+        showToast('Counter created!');
+        writeAudit('counter_created', { name, prefix });
+        $('newCounterName').value = '';
+        $('newCounterPrefix').value = '';
+        $('addCounterForm').style.display = 'none';
+      } catch (e) {
+        showToast('Failed: ' + e.message, 'error');
+      }
+    };
+  }
+
+  function renderCounters() {
+    const list = $('countersList');
+    const entries = Object.entries(countersData);
+    $('countersEmpty').style.display = entries.length ? 'none' : 'block';
+    list.innerHTML = entries.map(([id, c]) => `
+      <div class="counter-row">
+        <div>
+          <div class="counter-name">${esc(c.name)} <span class="badge ${c.active ? 'badge-green' : 'badge-red'}">${c.active ? 'Active' : 'Inactive'}</span></div>
+          <div class="counter-meta">Prefix: ${esc(c.prefix)} · Now Serving: ${c.nowServing || 0} · Last Issued: ${c.lastIssued || 0}</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" data-toggle-counter="${id}">${c.active ? 'Deactivate' : 'Activate'}</button>
+      </div>
+    `).join('');
+    // Toggle handlers
+    list.querySelectorAll('[data-toggle-counter]').forEach(btn => {
+      btn.onclick = async () => {
+        const cid = btn.dataset.toggleCounter;
+        const current = countersData[cid];
+        if (!current) return;
+        try {
+          await update(tRef(`counters/${cid}`), { active: !current.active });
+          showToast(`Counter ${current.active ? 'deactivated' : 'activated'}`);
+          writeAudit('counter_toggled', { counter: cid, active: !current.active });
+        } catch (e) { showToast('Failed', 'error'); }
+      };
+    });
+  }
+
+  // ===== Announcements (embedded — full composer) =====
+  const ANN_TEMPLATES = [
+    { name: '🎉 Promotion', text: '🎉 *Special Promotion!*\n\nWe have an exciting deal for you today! Don\'t miss out on our limited-time offer.\n\nVisit us now!' },
+    { name: '🆕 New Product', text: '🆕 *New Product Alert!*\n\nWe\'re thrilled to introduce our latest addition. Come check it out!\n\nAvailable now.' },
+    { name: '📋 Notice', text: '📋 *Important Notice*\n\nPlease be informed of the following update regarding our services.\n\nThank you for your understanding.' },
+    { name: '🚨 Urgent', text: '🚨 *Urgent Update*\n\nThis is an important message that requires your immediate attention.\n\nPlease read carefully.' },
+    { name: '👋 Reminder', text: '👋 *Friendly Reminder*\n\nJust a quick reminder about our services. We look forward to seeing you!\n\nHave a great day!' },
+    { name: '🎄 Holiday', text: '🎄 *Holiday Update*\n\nWishing you a wonderful holiday season! Please note our updated hours.\n\nHappy holidays!' },
+    { name: '⏰ Delay', text: '⏰ *Service Delay Notice*\n\nWe apologize for any inconvenience. There is currently a slight delay.\n\nThank you for your patience.' },
+    { name: '💰 Offer', text: '💰 *Special Offer!*\n\nFor a limited time only — enjoy exclusive savings.\n\nHurry, offer ends soon!' }
+  ];
+  const ANN_FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
+
+  let annMediaFile = null;
+  let annMediaDataUrl = null;
+  let annTarget = { type: 'all' };
+  let subscriberCount = 0;
+
+  function setupAnnouncementsUI() {
+    const c = $('announceContainer');
+    c.innerHTML = `
+      <div class="card fade-in" style="margin-bottom:16px">
+        <div class="card-header">📢 Compose Announcement</div>
+        <label class="field-label" style="margin-top:0">Quick Templates</label>
+        <div id="annTemplates" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+          ${ANN_TEMPLATES.map((t, i) => `<button class="btn btn-secondary btn-sm" data-tpl="${i}">${t.name}</button>`).join('')}
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <label class="field-label" style="margin-top:0">Font</label>
+            <select id="annFont" class="input" style="width:150px;padding:8px">${ANN_FONTS.map(f => `<option value="${f}">${f}</option>`).join('')}</select>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="annBoldBtn" style="margin-top:18px;font-weight:900;font-size:14px" title="Bold selected text">B</button>
+        </div>
+        <label class="field-label">Message</label>
+        <textarea id="annComposer" class="input" rows="5" placeholder="Type your announcement here... Use *bold* for emphasis." style="line-height:1.6"></textarea>
+        <label class="field-label">Preview</label>
+        <div id="annPreview" style="padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border);font-size:14px;line-height:1.6;min-height:50px;white-space:pre-wrap;word-break:break-word;color:var(--text)"></div>
+        <label class="field-label">Attach Media</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label class="file-btn">📎 Choose File<input type="file" id="annMediaInput" accept="image/*,video/*,audio/*"/></label>
+          <span id="annMediaName" style="font-size:11px;color:var(--text-light)"></span>
+          <button class="btn btn-secondary btn-sm" id="annMediaClear" style="display:none">✕</button>
+        </div>
+        <p style="margin-top:4px;font-size:11px;color:var(--text-light)">Images, GIFs, videos, audio. Max 10MB.</p>
+        <div id="annMediaPreview" style="margin-top:8px"></div>
+        <label class="field-label">Target Audience</label>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div class="target-opt selected" data-target="all">🌍 All Subscribers</div>
+          <div class="target-opt" data-target="list">📋 Specific Chat IDs</div>
+        </div>
+        <div id="annTargetList" style="display:none;margin-bottom:12px">
+          <textarea id="annChatIds" class="input" rows="2" placeholder="Comma-separated chat IDs..."></textarea>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:10px">
+          <span class="badge badge-blue" id="annRecipients">Estimated: 0 recipients</span>
+          <button class="btn btn-primary" id="annSendBtn">📱 Send Now</button>
+        </div>
+        <div id="annResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-weight:600;font-size:13px"></div>
+      </div>
+      <div class="card fade-in">
+        <div class="card-header">📋 Send Log</div>
+        <div id="annSendLog" style="font-size:13px;color:var(--text-muted)">No announcements sent yet.</div>
+      </div>
+    `;
+    bindAnnounceEvents();
+    loadSubscriberCount();
+    loadSendLog();
+  }
+
+  function bindAnnounceEvents() {
+    // Templates
+    $('annTemplates').addEventListener('click', e => {
+      const btn = e.target.closest('[data-tpl]');
+      if (!btn) return;
+      $('annComposer').value = ANN_TEMPLATES[parseInt(btn.dataset.tpl)].text;
+      updateAnnPreview();
+    });
+    // Bold
+    $('annBoldBtn').onclick = () => {
+      const ta = $('annComposer');
+      const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+      if (s !== e) { ta.value = v.slice(0, s) + '*' + v.slice(s, e) + '*' + v.slice(e); }
+      else { ta.value = v.slice(0, s) + '**' + v.slice(s); ta.selectionStart = ta.selectionEnd = s + 1; }
+      ta.focus(); updateAnnPreview();
+    };
+    // Live preview
+    $('annComposer').addEventListener('input', updateAnnPreview);
+    $('annFont').addEventListener('change', updateAnnPreview);
+    // Media
+    $('annMediaInput').onchange = (e) => {
+      const f = e.target.files?.[0]; if (!f) return;
+      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
+      annMediaFile = f;
+      $('annMediaName').textContent = f.name + ' (' + (f.size / 1024).toFixed(0) + 'KB)';
+      $('annMediaClear').style.display = 'inline';
+      const prev = $('annMediaPreview'); prev.innerHTML = '';
+      const url = URL.createObjectURL(f);
+      if (f.type.startsWith('video/')) {
+        const v = document.createElement('video'); v.src = url; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true;
+        v.style.cssText = 'width:100%;max-width:280px;border-radius:10px'; prev.appendChild(v);
+      } else if (f.type.startsWith('audio/')) {
+        const a = document.createElement('audio'); a.src = url; a.controls = true; a.style.cssText = 'width:100%;max-width:280px'; prev.appendChild(a);
+      } else {
+        const img = document.createElement('img'); img.src = url; img.style.cssText = 'max-width:280px;width:100%;border-radius:10px'; prev.appendChild(img);
+      }
+      // Read as base64 for payload
+      const reader = new FileReader();
+      reader.onload = () => { annMediaDataUrl = reader.result; };
+      reader.readAsDataURL(f);
+    };
+    $('annMediaClear').onclick = () => {
+      annMediaFile = null; annMediaDataUrl = null;
+      $('annMediaInput').value = ''; $('annMediaName').textContent = '';
+      $('annMediaClear').style.display = 'none'; $('annMediaPreview').innerHTML = '';
+    };
+    // Targets
+    $$('.target-opt').forEach(opt => {
+      opt.addEventListener('click', () => {
+        $$('.target-opt').forEach(x => x.classList.remove('selected'));
+        opt.classList.add('selected');
+        annTarget.type = opt.dataset.target;
+        $('annTargetList').style.display = annTarget.type === 'list' ? 'block' : 'none';
+        updateRecipientCount();
+      });
+    });
+    // Send
+    $('annSendBtn').onclick = doAnnSend;
+  }
+
+  function updateAnnPreview() {
+    const raw = $('annComposer').value || '';
+    const font = $('annFont').value;
+    let html = esc(raw).replace(/\*([^*]+)\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+    const prev = $('annPreview');
+    prev.innerHTML = html || '<span style="color:var(--text-light)">Preview will appear here...</span>';
+    prev.style.fontFamily = font + ', sans-serif';
+  }
+
+  function loadSubscriberCount() {
+    onValue(tRef('integrations/telegram/connected'), snap => {
+      subscriberCount = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
+      updateRecipientCount();
+    });
+    onValue(tRef('announcement/chatIds'), snap => {
+      if (subscriberCount === 0 && snap.exists()) {
+        subscriberCount = Object.keys(snap.val() || {}).length;
+        updateRecipientCount();
+      }
+    });
+  }
+  function updateRecipientCount() {
+    $('annRecipients').textContent = annTarget.type === 'list' ? 'Custom list' : `Estimated: ${subscriberCount} recipients`;
+  }
+
+  async function doAnnSend() {
+    const message = $('annComposer').value.trim();
+    if (!message) { showToast('Enter a message', 'error'); return; }
+    const font = $('annFont').value;
+    const payload = { slug, tenantId, message, font, level: 'info', target: { ...annTarget } };
+    if (annTarget.type === 'list') {
+      const ids = ($('annChatIds')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!ids.length) { showToast('Enter chat IDs', 'error'); return; }
+      payload.target = { type: 'list', chatIds: ids };
+    }
+    // CRITICAL: Include media in payload
+    if (annMediaFile && annMediaDataUrl) {
+      payload.media = annMediaDataUrl;
+      payload.mediaType = annMediaFile.type;
+      payload.mediaName = annMediaFile.name;
+    }
+    const btn = $('annSendBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Sending...';
+    const resultDiv = $('annResult');
+    try {
+      const res = await fetch('/.netlify/functions/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const r = await res.json();
+      resultDiv.style.display = 'block';
+      if (r && r.success > 0) {
+        resultDiv.style.background = 'rgba(16,185,129,0.1)'; resultDiv.style.color = 'var(--green)';
+        resultDiv.innerHTML = `✅ Sent to ${r.success} recipient(s)` + (r.failed ? ` · ⚠️ ${r.failed} failed` : '');
+        $('annComposer').value = ''; $('annMediaClear')?.click(); updateAnnPreview();
+        writeAudit('announcement_sent', { success: r.success, failed: r.failed });
+        loadSendLog();
+      } else {
+        resultDiv.style.background = 'rgba(239,68,68,0.1)'; resultDiv.style.color = 'var(--red)';
+        resultDiv.textContent = '⚠️ ' + (r?.error || 'Failed to send');
+      }
+      setTimeout(() => resultDiv.style.display = 'none', 6000);
+    } catch (e) {
+      showToast(e.message || 'Error', 'error');
+    } finally {
+      btn.disabled = false; btn.innerHTML = '📱 Send Now';
+    }
+  }
+
+  function loadSendLog() {
+    get(tRef('integrations/telegram/sentAnnouncements')).then(snap => {
+      const logDiv = $('annSendLog');
+      if (!snap.exists()) { logDiv.innerHTML = '<div style="color:var(--text-muted)">No send logs yet.</div>'; return; }
+      const data = snap.val();
+      const announcements = Object.entries(data).slice(-10).reverse();
+      logDiv.innerHTML = announcements.map(([annId, chats]) => {
+        const chatEntries = Object.entries(chats || {});
+        const ok = chatEntries.filter(([, v]) => v.status === 'ok').length;
+        const fail = chatEntries.length - ok;
+        const ts = chatEntries[0]?.[1]?.ts;
+        return `<div class="audit-entry"><div class="audit-time">${formatDate(ts)} — ${annId}</div><div style="margin-top:4px"><span class="badge badge-green">${ok} sent</span> ${fail ? `<span class="badge badge-red">${fail} failed</span>` : ''}</div></div>`;
+      }).join('');
+    }).catch(() => {});
+  }
+
+  // ===== Audit =====
+  function setupAuditUI() {
+    onValue(tRef('audit'), snap => {
+      const list = $('auditList');
+      if (!snap.exists()) { $('auditEmpty').style.display = 'block'; list.innerHTML = ''; return; }
+      $('auditEmpty').style.display = 'none';
+      const entries = Object.values(snap.val() || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 50);
+      list.innerHTML = entries.map(e => `<div class="audit-entry"><div class="audit-time">${formatDate(e.ts)}</div><div>${esc(e.action)} <span style="color:var(--text-light);font-size:11px">by ${esc(e.by || '—')}</span></div></div>`).join('');
+    });
+  }
+
+  // Initial phone preview
+  updatePhonePreview();
+}
+
+boot().catch(e => {
+  console.error('Boot failed', e);
+  document.body.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444"><h2>Failed to start admin</h2><p>${e.message || e}</p></div>`;
+});
 </script>
 </body>
 </html>
