@@ -2,68 +2,476 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#8b5cf6" />
   <title>Queue Joy - Digital Queue System</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-
   <style>
-    :root {
-      --card-radius: 1rem;
-      --theme-color: #8b5cf6;
-      --theme-color-dark: #6d28d9;
+    :root{
+      --theme-color:#8b5cf6;
+      --theme-color-2:#a78bfa;
+      --bg-1:#f8fafc;
+      --bg-2:#f5f3ff;
+      --bg-3:#fff7ed;
+      --text:#0f172a;
+      --muted:#64748b;
+      --card:#ffffff;
+      --border:rgba(15, 23, 42, .08);
+      --shadow:0 18px 50px rgba(15,23,42,.08);
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --radius:24px;
+      --radius-sm:18px;
+      --max:980px;
+      --ease:cubic-bezier(.2,.9,.2,1);
     }
 
-    body {
-      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    * { box-sizing:border-box; }
+    html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1000px 500px at 10% 0%, rgba(139,92,246,.10), transparent 45%),
+        radial-gradient(800px 420px at 100% 0%, rgba(251,146,60,.09), transparent 42%),
+        linear-gradient(180deg, var(--bg-1), #ffffff 55%, #fcfcff);
     }
 
-    .fade-in {
-      animation: fadeIn 0.45s cubic-bezier(.2,.9,.2,1);
+    a { color:inherit; text-decoration:none; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    img, video { display:block; max-width:100%; }
+    button { font:inherit; }
+
+    .shell{
+      width:100%;
+      max-width:var(--max);
+      margin:0 auto;
+      padding:18px 16px 36px;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(12px) }
-      to { opacity: 1; transform: translateY(0) }
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:30;
+      padding-top:12px;
+      padding-bottom:12px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
     }
 
-    .db-image { max-height: 180px; object-fit: cover; }
-    .media-cover { width:100%; height:180px; object-fit:cover; display:block }
-
-    #siteLogo,
-    #centerLogo {
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      background: linear-gradient(135deg, rgba(139,92,246,0.10), rgba(59,130,246,0.08));
-      border: 1px solid rgba(139,92,246,0.12);
+    .header-card{
+      background:rgba(255,255,255,.88);
+      border:1px solid var(--border);
+      border-radius:28px;
+      box-shadow:var(--shadow-soft);
+      padding:14px 16px;
+      display:flex;
+      align-items:center;
+      gap:14px;
     }
 
-    #siteLogo {
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
+    .brand-logo-wrap{
+      width:44px;
+      height:44px;
+      border-radius:16px;
+      background:linear-gradient(135deg, rgba(139,92,246,.12), rgba(251,146,60,.10));
+      border:1px solid rgba(139,92,246,.12);
+      display:grid;
+      place-items:center;
+      flex:0 0 auto;
+      overflow:hidden;
+      position:relative;
     }
 
-    #centerLogo {
-      width: 80px;
-      height: 80px;
-      border-radius: 9999px;
+    .brand-logo-wrap img,
+    .brand-logo-wrap video{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      object-position:center;
     }
 
-    .logo-media {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: block;
+    .brand-meta{
+      min-width:0;
+      flex:1 1 auto;
     }
 
-    .logo-small { width:48px; height:48px; object-fit:contain; border-radius:16px }
-    .logo-center { width:80px; height:80px; object-fit:contain; border-radius:9999px }
+    .brand-title{
+      margin:0;
+      font-size:1.02rem;
+      line-height:1.2;
+      font-weight:800;
+      letter-spacing:-0.02em;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
 
-    .sync-hint {
-      min-height: 18px;
+    .brand-subtitle{
+      margin:4px 0 0;
+      font-size:.82rem;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .status-chip{
+      flex:0 0 auto;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid rgba(15,23,42,.08);
+      background:#fff;
+      font-size:.78rem;
+      color:#334155;
+      box-shadow:0 4px 12px rgba(15,23,42,.04);
+    }
+
+    .status-dot{
+      width:9px;
+      height:9px;
+      border-radius:999px;
+      background:#cbd5e1;
+      box-shadow:0 0 0 6px rgba(203,213,225,.20);
+      flex:0 0 auto;
+    }
+    .status-chip.live .status-dot{ background:#22c55e; box-shadow:0 0 0 6px rgba(34,197,94,.15); }
+    .status-chip.sync .status-dot{ background:#f59e0b; box-shadow:0 0 0 6px rgba(245,158,11,.14); }
+    .status-chip.error .status-dot{ background:#ef4444; box-shadow:0 0 0 6px rgba(239,68,68,.12); }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.65fr .95fr;
+      gap:18px;
+      align-items:start;
+      margin-top:16px;
+    }
+
+    .hero-card,
+    .ad-card,
+    .panel-card{
+      background:rgba(255,255,255,.90);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+
+    .hero-card{
+      padding:28px 22px 22px;
+      position:relative;
+      isolation:isolate;
+    }
+
+    .hero-card::before{
+      content:"";
+      position:absolute;
+      inset:auto -10% -30% auto;
+      width:280px;
+      height:280px;
+      background:radial-gradient(circle at center, rgba(139,92,246,.13), transparent 60%);
+      z-index:-1;
+      pointer-events:none;
+    }
+
+    .hero-topline{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:22px;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(248,250,252,.95);
+      border:1px solid rgba(15,23,42,.08);
+      color:#475569;
+      font-size:.78rem;
+      font-weight:700;
+    }
+
+    .hero-center{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+      gap:18px;
+    }
+
+    .center-logo-wrap{
+      width:96px;
+      height:96px;
+      border-radius:30px;
+      display:grid;
+      place-items:center;
+      background:linear-gradient(135deg, rgba(139,92,246,.12), rgba(59,130,246,.08));
+      border:1px solid rgba(139,92,246,.14);
+      box-shadow:0 12px 30px rgba(139,92,246,.10);
+      overflow:hidden;
+      position:relative;
+      flex:0 0 auto;
+    }
+
+    .center-logo-wrap img,
+    .center-logo-wrap video{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      object-position:center;
+    }
+
+    .fallback-mark{
+      width:42px;
+      height:42px;
+      color:var(--theme-color);
+    }
+
+    .headline{
+      margin:0;
+      font-size:clamp(1.55rem, 4vw, 2.6rem);
+      line-height:1.08;
+      letter-spacing:-0.04em;
+      font-weight:900;
+    }
+
+    .lead{
+      margin:0;
+      color:#475569;
+      font-size:1rem;
+      line-height:1.65;
+      max-width:46ch;
+    }
+
+    .cta-wrap{
+      width:100%;
+      margin-top:4px;
+    }
+
+    .cta-button{
+      width:100%;
+      border:0;
+      padding:16px 18px;
+      border-radius:22px;
+      color:#fff;
+      font-weight:800;
+      font-size:1.02rem;
+      letter-spacing:-0.01em;
+      cursor:pointer;
+      background:linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, #ffffff 30%));
+      box-shadow:0 16px 32px color-mix(in srgb, var(--theme-color) 28%, transparent);
+      transition:transform .18s var(--ease), filter .18s var(--ease), opacity .18s var(--ease);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      min-height:58px;
+    }
+
+    .cta-button:hover{ transform:translateY(-1px); filter:saturate(1.05); }
+    .cta-button:active{ transform:translateY(0); }
+    .cta-button:disabled{ cursor:not-allowed; opacity:.72; transform:none; }
+
+    .spinner{
+      width:18px;
+      height:18px;
+      border-radius:999px;
+      border:2px solid rgba(255,255,255,.35);
+      border-top-color:#fff;
+      animation:spin .8s linear infinite;
+      flex:0 0 auto;
+    }
+
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    .notice{
+      margin-top:14px;
+      padding:14px 15px;
+      border-radius:18px;
+      font-size:.93rem;
+      line-height:1.5;
+      display:none;
+      border:1px solid transparent;
+    }
+
+    .notice.show{ display:block; }
+    .notice.error{
+      background:#fff1f2;
+      border-color:#fecdd3;
+      color:#be123c;
+    }
+    .notice.success{
+      background:#f0fdf4;
+      border-color:#bbf7d0;
+      color:#15803d;
+    }
+    .notice.info{
+      background:#eff6ff;
+      border-color:#bfdbfe;
+      color:#1d4ed8;
+    }
+
+    .hero-foot{
+      margin-top:16px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+      color:#64748b;
+      font-size:.82rem;
+    }
+
+    .hero-foot strong{
+      color:#334155;
+    }
+
+    .ad-card{
+      position:sticky;
+      top:94px;
+      padding:14px;
+    }
+
+    .section-title{
+      margin:2px 4px 12px;
+      font-size:.82rem;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:#64748b;
+    }
+
+    .ad-media-shell{
+      border-radius:22px;
+      overflow:hidden;
+      background:linear-gradient(180deg, rgba(248,250,252,.95), rgba(255,255,255,.95));
+      border:1px solid rgba(15,23,42,.08);
+      min-height:190px;
+      position:relative;
+    }
+
+    .ad-media-shell a{
+      display:block;
+      width:100%;
+      height:100%;
+    }
+
+    .ad-media{
+      width:100%;
+      min-height:190px;
+      max-height:260px;
+      object-fit:cover;
+      object-position:center;
+      background:#f8fafc;
+    }
+
+    .ad-media.video{
+      width:100%;
+      height:auto;
+    }
+
+    .ad-empty{
+      min-height:190px;
+      display:grid;
+      place-items:center;
+      text-align:center;
+      padding:20px;
+      color:#64748b;
+    }
+
+    .ad-empty .icon{
+      width:54px;
+      height:54px;
+      border-radius:18px;
+      display:grid;
+      place-items:center;
+      margin:0 auto 12px;
+      background:rgba(139,92,246,.08);
+      color:var(--theme-color);
+    }
+
+    .ad-caption{
+      margin:12px 6px 2px;
+      font-size:.88rem;
+      color:#334155;
+      line-height:1.55;
+      min-height:1.55em;
+      word-break:break-word;
+    }
+
+    .ad-link-meta{
+      margin:8px 6px 0;
+      font-size:.77rem;
+      color:#94a3b8;
+      word-break:break-all;
+    }
+
+    .skeleton{
+      position:relative;
+      overflow:hidden;
+      background:#eef2ff;
+      border-radius:16px;
+    }
+
+    .skeleton::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      transform:translateX(-100%);
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+      animation:shimmer 1.25s infinite;
+    }
+
+    @keyframes shimmer { 100% { transform:translateX(100%); } }
+
+    .skeleton-line{
+      height:14px;
+      margin:10px 0;
+    }
+
+    .skeleton-circle{
+      width:96px;
+      height:96px;
+      border-radius:30px;
+      margin:0 auto;
+    }
+
+    .skeleton-btn{
+      height:58px;
+      border-radius:22px;
+      margin-top:6px;
+    }
+
+    .hidden{ display:none !important; }
+
+    @media (max-width: 860px){
+      .grid{ grid-template-columns:1fr; }
+      .ad-card{ position:relative; top:auto; }
+      .hero-card{ padding:22px 16px 18px; }
+      .header-card{ padding:12px 14px; }
+      .status-chip{ display:none; }
+    }
+
+    @media (max-width: 520px){
+      .shell{ padding:12px 12px 28px; }
+      .header-card{ border-radius:22px; }
+      .hero-card, .ad-card{ border-radius:22px; }
+      .center-logo-wrap{ width:88px; height:88px; border-radius:26px; }
+      .headline{ font-size:clamp(1.5rem, 7vw, 2rem); }
+      .lead{ font-size:.96rem; }
+      .cta-button{ font-size:1rem; }
+    }
+
+    :focus-visible{
+      outline:3px solid color-mix(in srgb, var(--theme-color) 38%, white);
+      outline-offset:2px;
     }
   </style>
 
@@ -90,786 +498,769 @@
       appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
     };
 
+    const DEFAULT_THEME = "#8b5cf6";
+
     const state = {
-      slug: "",
-      tenantId: "",
-      seedRaw: {},
-      liveRaw: {},
-      config: null,
+      slug: null,
+      tenantId: null,
+      db: null,
+      tenantReady: false,
+      configReady: false,
+      countersReady: false,
+      syncingStartedAt: performance.now(),
+      seedConfig: {},
+      liveConfig: {},
+      mergedConfig: {},
       counters: {},
-      countersLoaded: false,
-      joining: false,
-      db: null
+      activeCounters: [],
+      isLoadingJoin: false
     };
 
-    const $ = (id) => document.getElementById(id);
+    const el = {};
 
-    function showFatal(msg) {
-      console.error(msg);
-      const el = document.createElement('div');
-      el.style = 'background:#fee;padding:12px;color:#900;font-weight:700;position:fixed;left:8px;right:8px;top:8px;z-index:9999;border:1px solid #fca5a5;border-radius:10px';
-      el.innerText = 'ERROR: ' + msg;
-      document.body ? document.body.prepend(el) : document.documentElement.appendChild(el);
+    function $(id) {
+      return document.getElementById(id);
     }
 
-    function showMessage(type, msg, ms = 5000) {
-      const el = $("messageBox");
-      el.className = `hidden p-3 rounded-lg border text-sm`;
-      if (type === "error") {
-        el.className = "p-3 bg-red-50 border border-red-200 rounded-lg";
-        el.innerHTML = `<p class="text-red-600 text-sm">${escapeHtml(msg)}</p>`;
-      } else if (type === "success") {
-        el.className = "p-3 bg-green-50 border border-green-200 rounded-lg";
-        el.innerHTML = `<p class="text-green-600 text-sm">${escapeHtml(msg)}</p>`;
-      } else {
-        el.className = "p-3 bg-blue-50 border border-blue-200 rounded-lg";
-        el.innerHTML = `<p class="text-blue-700 text-sm">${escapeHtml(msg)}</p>`;
-      }
-      clearTimeout(el._timer);
-      el._timer = setTimeout(() => {
-        el.className = "hidden p-3 rounded-lg border text-sm";
-        el.innerHTML = "";
-      }, ms);
-    }
-
-    function escapeHtml(v) {
-      return String(v ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
+    function showFatal(message) {
+      console.error(message);
+      const node = document.createElement("div");
+      node.style.cssText = "position:fixed;inset:12px 12px auto 12px;z-index:99999;padding:14px 16px;border-radius:16px;background:#fff1f2;border:1px solid #fecdd3;color:#b91c1c;font:700 14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 16px 40px rgba(15,23,42,.12)";
+      node.textContent = "Error: " + message;
+      document.body.appendChild(node);
     }
 
     function getSlugFromQuery() {
       try {
-        const qp = new URLSearchParams(window.location.search);
-        const s = qp.get('slug');
-        if (s && String(s).trim()) return String(s).trim();
-      } catch (e) {}
+        const qp = new URLSearchParams(location.search);
+        const slug = qp.get("slug");
+        return slug ? String(slug).trim() : null;
+      } catch {
+        return null;
+      }
+    }
 
-      try {
-        const path = window.location.pathname.replace(/^\/+|\/+$/g, "");
-        const parts = path.split("/").filter(Boolean);
-        if (parts.length > 0 && !parts[0].includes(".")) return parts[0];
-      } catch (e) {}
+    function normalizeText(v) {
+      if (v === null || v === undefined) return "";
+      return String(v).trim();
+    }
+
+    function safePick(cfg, ...keys) {
+      for (const key of keys) {
+        if (!key) continue;
+        const parts = key.split(".");
+        let cur = cfg;
+        for (const part of parts) {
+          if (!cur || typeof cur !== "object") {
+            cur = undefined;
+            break;
+          }
+          cur = cur[part];
+        }
+        if (cur !== null && cur !== undefined) {
+          if (typeof cur === "string") {
+            const s = cur.trim();
+            if (s) return s;
+          } else if (typeof cur === "number" || typeof cur === "boolean") {
+            return cur;
+          } else if (Array.isArray(cur) || typeof cur === "object") {
+            return cur;
+          }
+        }
+      }
+      return null;
+    }
+
+    function mergeConfig(seed, live) {
+      const merged = { ...(seed || {}), ...(live || {}) };
+      merged.theme = { ...((seed && seed.theme) || {}), ...((live && live.theme) || {}) };
+      merged.ad = { ...((seed && seed.ad) || {}), ...((live && live.ad) || {}) };
+      return merged;
+    }
+
+    function setThemeColor(color) {
+      const v = (typeof color === "string" && color.trim()) ? color.trim() : DEFAULT_THEME;
+      document.documentElement.style.setProperty("--theme-color", v);
+      document.documentElement.style.setProperty("--theme-color-2", v);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", v);
+    }
+
+    function createMedia(url, { className = "", autoplay = false, muted = true, loop = true, playsInline = true, controls = false } = {}) {
+      if (!url) return null;
+      const lower = String(url).toLowerCase();
+      const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/.test(lower) || lower.startsWith("data:video/");
+      const isImage = /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/.test(lower) || lower.startsWith("data:image/");
+
+      if (isVideo) {
+        const v = document.createElement("video");
+        v.src = url;
+        v.className = className;
+        v.preload = "metadata";
+        v.autoplay = !!autoplay;
+        v.muted = !!muted;
+        v.loop = !!loop;
+        v.playsInline = !!playsInline;
+        if (controls) v.controls = true;
+        v.setAttribute("playsinline", "");
+        v.setAttribute("draggable", "false");
+        return v;
+      }
+
+      if (isImage) {
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = "media";
+        img.loading = "lazy";
+        img.decoding = "async";
+        img.className = className;
+        img.setAttribute("draggable", "false");
+        return img;
+      }
 
       return null;
     }
 
-    function tenantRefFactory(dbInstance) {
-      return function tenantRef(relPath = '') {
-        relPath = String(relPath || '').replace(/^\/+/, '');
-        const tenantId = window.__TENANT_ID || state.tenantId || null;
-        const slug = window.__TENANT_SLUG || state.slug || null;
-        if (!tenantId && !slug) throw new Error('tenantRef requires TENANT_ID or TENANT_SLUG to be set');
-        const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
-        return relPath ? ref(dbInstance, `${base}/${relPath}`) : ref(dbInstance, base);
-      };
+    function isSafeHttpUrl(value) {
+      if (!value) return null;
+      try {
+        const url = new URL(String(value), location.href);
+        if (url.protocol === "http:" || url.protocol === "https:") return url.toString();
+        return null;
+      } catch {
+        return null;
+      }
     }
 
-    function sleep(ms) {
-      return new Promise(r => setTimeout(r, ms));
+    function showStatus(kind, text) {
+      el.statusChip.classList.remove("live", "sync", "error");
+      if (kind) el.statusChip.classList.add(kind);
+      el.statusText.textContent = text;
+    }
+
+    function showNotice(kind, text) {
+      el.notice.className = "notice show " + kind;
+      el.notice.textContent = text;
+    }
+
+    function clearNotice() {
+      el.notice.className = "notice";
+      el.notice.textContent = "";
+    }
+
+    function setJoinLoading(flag) {
+      state.isLoadingJoin = !!flag;
+      el.joinBtn.disabled = !!flag;
+      el.btnText.classList.toggle("hidden", !!flag);
+      el.spinner.classList.toggle("hidden", !flag);
+      el.joinBtn.setAttribute("aria-busy", String(!!flag));
+    }
+
+    function renderTopLogo(url) {
+      el.topLogoWrap.innerHTML = "";
+      if (!url) {
+        el.topLogoWrap.appendChild(makeFallbackIcon(24));
+        return;
+      }
+      const media = createMedia(url, {
+        className: "brand-media",
+        autoplay: false,
+        muted: true,
+        loop: true,
+        playsInline: true
+      });
+      if (!media) {
+        el.topLogoWrap.appendChild(makeFallbackIcon(24));
+        return;
+      }
+      el.topLogoWrap.appendChild(media);
+    }
+
+    function renderCenterLogo(url) {
+      el.centerLogoWrap.innerHTML = "";
+      if (!url) {
+        el.centerLogoWrap.appendChild(makeFallbackIcon(42));
+        return;
+      }
+      const media = createMedia(url, {
+        className: "brand-media",
+        autoplay: false,
+        muted: true,
+        loop: true,
+        playsInline: true
+      });
+      if (!media) {
+        el.centerLogoWrap.appendChild(makeFallbackIcon(42));
+        return;
+      }
+      el.centerLogoWrap.appendChild(media);
+    }
+
+    function makeFallbackIcon(size = 24) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      svg.classList.add("fallback-mark");
+      svg.style.width = size + "px";
+      svg.style.height = size + "px";
+      svg.innerHTML = `
+        <path fill="currentColor" d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2Zm0 3.2A6.8 6.8 0 1 0 18.8 12 6.81 6.81 0 0 0 12 5.2Zm-.8 2.1h1.6v6h-1.6v-6Zm0 7.4h1.6v1.6h-1.6v-1.6Z"/>
+      `;
+      return svg;
+    }
+
+    function normalizeActive(value) {
+      if (value === undefined || value === null) return true;
+      if (typeof value === "boolean") return value;
+      if (typeof value === "number") return value !== 0;
+      const s = String(value).trim().toLowerCase();
+      if (["true", "1", "yes", "y", "on", "active"].includes(s)) return true;
+      if (["false", "0", "no", "n", "off", "inactive"].includes(s)) return false;
+      return true;
+    }
+
+    function getCountersLoadedStateText() {
+      if (!state.tenantReady) return "Loading tenant data...";
+      if (!state.countersReady) return "Syncing counters...";
+      if (state.activeCounters.length > 0) return "Ready / Live";
+      return "Ready / Live";
+    }
+
+    function updateStatusChip() {
+      if (!state.tenantReady) {
+        showStatus("sync", "Loading tenant data...");
+        return;
+      }
+      if (!state.countersReady) {
+        showStatus("sync", "Syncing counters...");
+        return;
+      }
+      if (state.activeCounters.length > 0) {
+        showStatus("live", `Ready / Live • ${state.activeCounters.length} active counter${state.activeCounters.length === 1 ? "" : "s"}`);
+      } else {
+        showStatus("error", "Ready / Live • No active counters");
+      }
+    }
+
+    function applyMergedConfig() {
+      const cfg = state.mergedConfig || {};
+
+      const themeColor = safePick(cfg, "theme.color", "themeColor", "themeColorHex") || DEFAULT_THEME;
+      setThemeColor(themeColor);
+
+      const siteTitle = safePick(cfg, "displayName", "name", "siteTitle", "mainTitle", "title") || "Queue Joy";
+      const topText = safePick(cfg, "smallTextOnTop", "smallTopText", "smallTop") || "Digital Queue System";
+      const heading = safePick(cfg, "mainHeading", "titleinmiddle", "titleInMiddle", "ctaTitle", "heading") || "Get your queue number";
+      const description = safePick(cfg, "description", "introText", "subtitle", "smallTextOnTop") || "Real-time queueing system. Mobile-friendly. No app needed.";
+      const buttonText = safePick(cfg, "buttonText", "ctaText", "cta", "getNumberText") || "Get your queue number";
+      const logoUrl = safePick(cfg, "logoUrl", "logo", "theme.logo", "branding.logo");
+      const centerLogoUrl = safePick(cfg, "centerLogoUrl", "centerLogo", "theme.centerLogo");
+      const adText = safePick(cfg, "adText", "ad.text") || "";
+      const adVideo = safePick(cfg, "ad.video", "adVideo", "adVideoUrl");
+      const adImage = safePick(cfg, "ad.image", "adImage", "adImageUrl");
+      const adLink = safePick(cfg, "ad.link", "adUrl", "adHref", "adLink");
+      const timezone = safePick(cfg, "timezone") || "";
+
+      el.siteTitle.textContent = siteTitle;
+      el.smallTopText.textContent = topText;
+      el.mainHeading.textContent = heading;
+      el.introText.textContent = description;
+      el.btnText.textContent = "🎫 " + buttonText;
+      el.timezoneText.textContent = timezone ? `Timezone: ${timezone}` : " ";
+      renderTopLogo(logoUrl);
+      renderCenterLogo(centerLogoUrl);
+      renderAd({ adVideo, adImage, adLink, adText });
+    }
+
+    function renderAd({ adVideo, adImage, adLink, adText }) {
+      el.adMediaHost.innerHTML = "";
+      el.adLink.removeAttribute("href");
+      el.adLink.removeAttribute("target");
+      el.adLink.removeAttribute("rel");
+
+      const safeLink = isSafeHttpUrl(adLink);
+      if (safeLink) {
+        el.adLink.href = safeLink;
+        el.adLink.target = "_blank";
+        el.adLink.rel = "noopener noreferrer";
+        el.adLink.classList.remove("disabled");
+      } else {
+        el.adLink.href = "#";
+        el.adLink.classList.add("disabled");
+      }
+
+      const chosenMedia = adVideo || adImage;
+      if (!chosenMedia) {
+        el.adEmpty.classList.remove("hidden");
+        el.adCaption.textContent = adText || "";
+        el.adCaption.classList.toggle("hidden", !adText);
+        el.adLinkMeta.textContent = "";
+        return;
+      }
+
+      el.adEmpty.classList.add("hidden");
+
+      const placeholder = document.createElement("div");
+      placeholder.className = "ad-media-shell";
+      placeholder.style.minHeight = "190px";
+      placeholder.innerHTML = '<div class="ad-empty"><div class="skeleton skeleton-line" style="width:74%;height:14px;margin:0 auto 10px;"></div><div class="skeleton skeleton-line" style="width:42%;height:14px;margin:0 auto;"></div></div>';
+      el.adMediaHost.appendChild(placeholder);
+
+      const load = () => {
+        const media = createMedia(adVideo || adImage, {
+          className: adVideo ? "ad-media video" : "ad-media",
+          autoplay: !!adVideo,
+          muted: true,
+          loop: true,
+          playsInline: true,
+          controls: false
+        });
+
+        placeholder.innerHTML = "";
+        if (safeLink) {
+          const link = document.createElement("a");
+          link.href = safeLink;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.appendChild(media || buildAdFallback());
+          placeholder.appendChild(link);
+        } else {
+          placeholder.appendChild(media || buildAdFallback());
+        }
+      };
+
+      if ("IntersectionObserver" in window) {
+        const obs = new IntersectionObserver((entries, observer) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              observer.disconnect();
+              load();
+              break;
+            }
+          }
+        }, { rootMargin: "160px" });
+        obs.observe(placeholder);
+      } else {
+        load();
+      }
+
+      el.adCaption.textContent = adText || "";
+      el.adCaption.classList.toggle("hidden", !adText);
+      el.adLinkMeta.textContent = safeLink || "";
+      el.adLinkMeta.classList.toggle("hidden", !safeLink);
+    }
+
+    function buildAdFallback() {
+      const wrap = document.createElement("div");
+      wrap.className = "ad-empty";
+      wrap.innerHTML = `
+        <div>
+          <div class="icon">${makeFallbackIcon(24).outerHTML}</div>
+          <div style="font-weight:800;color:#334155;margin-bottom:4px;">Advertisement</div>
+          <div style="font-size:.9rem;">Content is available, but this media could not be rendered.</div>
+        </div>
+      `;
+      return wrap;
+    }
+
+    function tenantRef(path = "") {
+      if (!state.db) throw new Error("Database not ready");
+      const clean = String(path || "").replace(/^\/+/, "");
+      const base = `tenants/${state.tenantId}`;
+      return clean ? ref(state.db, `${base}/${clean}`) : ref(state.db, base);
     }
 
     async function runTxWithRetries(pathRef, updater, maxRetries = 6) {
       let lastErr = null;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      for (let i = 1; i <= maxRetries; i++) {
         try {
           const result = await runTransaction(pathRef, updater, { applyLocally: false });
           if (result && result.committed) return result;
-          lastErr = new Error(`Transaction not committed (attempt ${attempt})`);
+          lastErr = new Error(`Transaction not committed (attempt ${i})`);
         } catch (err) {
           lastErr = err;
-          console.warn(`[tx] attempt ${attempt} failed`, err);
+          console.warn("transaction attempt failed", err);
         }
-        const backoff = 100 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 120);
-        await sleep(backoff);
+        await new Promise(r => setTimeout(r, 90 * Math.pow(2, i - 1) + Math.floor(Math.random() * 80)));
       }
-      throw lastErr || new Error('Transaction failed after retries');
+      throw lastErr || new Error("Transaction failed after retries");
     }
 
-    function isVideoUrl(url) {
-      return /\.(mp4|webm|ogg)(\?.*)?$/i.test(String(url || '')) || String(url || '').startsWith('data:video/');
-    }
-
-    function isImageUrl(url) {
-      return /\.(png|jpe?g|gif|svg|webp)(\?.*)?$/i.test(String(url || '')) || String(url || '').startsWith('data:image/');
-    }
-
-    function createMediaElement(url, { classes = '', autoplay = false, muted = true, loop = true, playsinline = true } = {}) {
-      if (!url) return null;
-      if (isVideoUrl(url)) {
-        const v = document.createElement('video');
-        if (playsinline) v.setAttribute('playsinline', '');
-        if (autoplay) v.setAttribute('autoplay', '');
-        if (loop) v.setAttribute('loop', '');
-        if (muted) v.muted = true;
-        v.preload = 'metadata';
-        v.src = url;
-        v.className = classes || '';
-        v.playsInline = !!playsinline;
-        v.setAttribute('draggable', 'false');
-        return v;
-      }
-      if (isImageUrl(url)) {
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = 'media';
-        img.className = classes || '';
-        img.setAttribute('draggable', 'false');
-        return img;
-      }
-      const span = document.createElement('span');
-      span.textContent = url;
-      return span;
-    }
-
-    function deepMerge(base = {}, extra = {}) {
-      const out = Array.isArray(base) ? [...base] : { ...base };
-      for (const [key, val] of Object.entries(extra || {})) {
-        if (
-          val &&
-          typeof val === 'object' &&
-          !Array.isArray(val) &&
-          out[key] &&
-          typeof out[key] === 'object' &&
-          !Array.isArray(out[key])
-        ) {
-          out[key] = deepMerge(out[key], val);
-        } else {
-          out[key] = val;
+    function getActiveCountersFromCache() {
+      const list = [];
+      for (const [id, value] of Object.entries(state.counters || {})) {
+        if (!value || typeof value !== "object") continue;
+        if (normalizeActive(value.active)) {
+          list.push({ id, ...value });
         }
       }
-      return out;
-    }
 
-    function pickCfg(cfg, ...keys) {
-      const pick = v => (typeof v === 'string' && v.trim()) ? v.trim() : (typeof v === 'number' || typeof v === 'boolean') ? v : null;
-      for (const k of keys) {
-        if (!k) continue;
-        const parts = k.split('.');
-        let cur = cfg;
-        for (const p of parts) {
-          if (!cur || typeof cur !== 'object') { cur = null; break; }
-          cur = cur[p];
-        }
-        const val = pick(cur);
-        if (val !== null) return val;
-      }
-      return null;
-    }
-
-    function normalizeColor(hex, fallback = "#8b5cf6") {
-      if (typeof hex !== "string") return fallback;
-      const s = hex.trim();
-      if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return fallback;
-      if (s.length === 4) return "#" + s.slice(1).split("").map(ch => ch + ch).join("");
-      return s;
-    }
-
-    function shade(hex, amount = 0.12) {
-      hex = normalizeColor(hex);
-      const n = parseInt(hex.slice(1), 16);
-      let r = (n >> 16) & 255;
-      let g = (n >> 8) & 255;
-      let b = n & 255;
-      const mix = (v) => Math.max(0, Math.min(255, Math.round(v)));
-      if (amount >= 0) {
-        r = mix(r + (255 - r) * amount);
-        g = mix(g + (255 - g) * amount);
-        b = mix(b + (255 - b) * amount);
-      } else {
-        r = mix(r * (1 + amount));
-        g = mix(g * (1 + amount));
-        b = mix(b * (1 + amount));
-      }
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-
-    function normalizeBool(val, defaultValue = true) {
-      if (val === undefined || val === null) return defaultValue;
-      if (typeof val === 'boolean') return val;
-      if (typeof val === 'number') return val !== 0;
-      const s = String(val).trim().toLowerCase();
-      if (["true", "1", "yes", "y", "on", "active"].includes(s)) return true;
-      if (["false", "0", "no", "n", "off", "inactive"].includes(s)) return false;
-      return defaultValue;
-    }
-
-    function normalizeConfig(raw = {}) {
-      const cfg = raw || {};
-      return {
-        displayName: pickCfg(cfg, 'displayName', 'name', 'siteTitle', 'mainTitle', 'title') || 'Queue Joy',
-        smallTextOnTop: pickCfg(cfg, 'smallTextOnTop', 'smallTopText', 'smallTop') || 'Digital Queue System',
-        logoUrl: pickCfg(cfg, 'logoUrl', 'logo', 'theme.logo', 'branding.logo') || '',
-        centerLogoUrl: pickCfg(cfg, 'centerLogoUrl', 'centerLogo', 'logo') || '',
-        theme: {
-          color: normalizeColor(
-            pickCfg(cfg, 'theme.color', 'themeColor', 'themeColorHex', 'primaryColor'),
-            "#8b5cf6"
-          )
-        },
-        mainHeading: pickCfg(cfg, 'mainHeading', 'titleinmiddle', 'titleInMiddle', 'ctaTitle', 'heading') || 'Get your queue number',
-        description: pickCfg(cfg, 'description', 'introText', 'subtitle') || 'Real-time queueing system. Mobile-friendly. No app needed.',
-        buttonText: pickCfg(cfg, 'buttonText', 'ctaText', 'cta', 'getNumberText') || 'Get your queue number',
-        ad: {
-          video: pickCfg(cfg, 'ad.video', 'adVideo', 'adVideoUrl') || '',
-          image: pickCfg(cfg, 'ad.image', 'adImage', 'adImageUrl') || '',
-          link: pickCfg(cfg, 'ad.link', 'adUrl', 'adHref', 'adLink') || ''
-        },
-        adText: pickCfg(cfg, 'adText', 'ad.text') || '',
-        timezone: pickCfg(cfg, 'timezone') || 'UTC'
-      };
-    }
-
-    function renderLogo(slot, url, fallbackHtml, { hideWhenEmpty = false } = {}) {
-      slot.innerHTML = '';
-      if (!url) {
-        if (hideWhenEmpty) {
-          slot.classList.add('hidden');
-          return;
-        }
-        slot.classList.remove('hidden');
-        slot.innerHTML = fallbackHtml;
-        return;
-      }
-      const el = createMediaElement(url, { classes: 'logo-media', autoplay: false, muted: true, loop: true });
-      if (!el) {
-        if (hideWhenEmpty) {
-          slot.classList.add('hidden');
-          return;
-        }
-        slot.classList.remove('hidden');
-        slot.innerHTML = fallbackHtml;
-        return;
-      }
-      if (el.tagName === 'VIDEO') {
-        el.muted = true;
-        el.loop = true;
-        el.playsInline = true;
-        el.preload = 'metadata';
-        el.setAttribute('aria-hidden', 'true');
-        el.play().catch(() => {});
-      }
-      slot.classList.remove('hidden');
-      slot.appendChild(el);
-    }
-
-    function applyTheme(color) {
-      const theme = normalizeColor(color, "#8b5cf6");
-      document.documentElement.style.setProperty('--theme-color', theme);
-      document.documentElement.style.setProperty('--theme-color-dark', shade(theme, -0.18));
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme);
-
-      const btn = $('getNumberBtn');
-      btn.style.background = `linear-gradient(135deg, ${theme}, ${shade(theme, 0.20)})`;
-      btn.style.boxShadow = `0 16px 30px ${theme}33`;
-
-      const centerFallback = $('centerFallback');
-      if (centerFallback) centerFallback.style.background = `linear-gradient(135deg, ${theme}, ${shade(theme, -0.18)})`;
-    }
-
-    function setSyncHint(text) {
-      const el = $('syncHint');
-      if (!el) return;
-      el.textContent = text || '';
-      el.classList.toggle('hidden', !text);
-    }
-
-    function setLoading(flag) {
-      state.joining = !!flag;
-      const btn = $('getNumberBtn');
-      btn.disabled = !!flag;
-      btn.classList.toggle('opacity-95', !flag);
-      btn.classList.toggle('cursor-wait', !!flag);
-      $('btnText').classList.toggle('hidden', flag);
-      $('btnSpinner').classList.toggle('hidden', !flag);
-      btn.setAttribute('aria-busy', String(!!flag));
-    }
-
-    function getActiveCounters() {
-      const arr = Object.entries(state.counters || {}).map(([id, v]) => ({
-        id,
-        ...(v || {}),
-        _active: normalizeBool(v?.active, true)
-      })).filter(c => c._active);
-
-      arr.sort((a, b) => {
-        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : Number.POSITIVE_INFINITY;
-        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : Number.POSITIVE_INFINITY;
+      list.sort((a, b) => {
+        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
+        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
         if (ao !== bo) return ao - bo;
-        return String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { numeric: true, sensitivity: 'base' });
+        return String(a.id).localeCompare(String(b.id));
       });
 
-      return arr;
+      return list;
     }
 
-    function updateMetaState() {
-      const active = getActiveCounters();
-      if (!state.countersLoaded) {
-        setSyncHint('Syncing counters...');
-      } else if (!active.length) {
-        setSyncHint('Counters loaded');
-      } else {
-        setSyncHint(`${active.length} counters available`);
-      }
-    }
-
-    function renderConfig() {
-      const cfg = state.config || normalizeConfig(state.seedRaw);
-
-      document.title = `${cfg.displayName} - Digital Queue System`;
-      $('siteTitle').textContent = cfg.displayName;
-      $('smallTopText').textContent = cfg.smallTextOnTop;
-      $('mainHeading').textContent = cfg.mainHeading;
-      $('introText').textContent = cfg.description;
-      $('btnText').textContent = `🎫 ${cfg.buttonText}`;
-      $('adText').textContent = cfg.adText || '';
-      $('adText').classList.toggle('hidden', !cfg.adText);
-
-      applyTheme(cfg.theme.color);
-
-      renderLogo(
-        $('siteLogo'),
-        cfg.logoUrl,
-        `<div style="width:100%;height:100%;display:grid;place-items:center;color:var(--theme-color)">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/>
-          </svg>
-        </div>`
-      );
-
-      const centerLogoEl = $('centerLogo');
-      const centerIcon = $('centerIcon');
-
-      if (cfg.centerLogoUrl) {
-        renderLogo(
-          centerLogoEl,
-          cfg.centerLogoUrl,
-          `<div class="w-full h-full"></div>`,
-          { hideWhenEmpty: false }
-        );
-        centerIcon.classList.add('hidden');
-      } else {
-        centerLogoEl.classList.add('hidden');
-        centerIcon.classList.remove('hidden');
-      }
-
-      const adStage = $('adStage');
-      const adAnchor = $('adAnchor');
-      const adUrl = cfg.ad.video || cfg.ad.image;
-      const adLink = cfg.ad.link;
-
-      if (window.__adObserver) {
-        try { window.__adObserver.disconnect(); } catch (e) {}
-        window.__adObserver = null;
-      }
-
-      adStage.innerHTML = '';
-      if (adUrl) {
-        const loading = document.createElement('div');
-        loading.className = 'loading-skeleton';
-        loading.style.width = '100%';
-        loading.style.height = '180px';
-        loading.style.borderRadius = '18px';
-        adStage.appendChild(loading);
-
-        const loadAd = () => {
-          adStage.innerHTML = '';
-          const media = createMediaElement(adUrl, { classes: 'media-cover', autoplay: true, muted: true, loop: true });
-          if (!media) {
-            adStage.innerHTML = `
-              <div class="ad-empty">
-                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
-                </svg>
-                <div>Ad could not be loaded</div>
-              </div>`;
-            return;
-          }
-
-          if (media.tagName === 'VIDEO') {
-            media.muted = true;
-            media.loop = true;
-            media.playsInline = true;
-            media.preload = 'metadata';
-            media.setAttribute('controls', '');
-            media.style.objectFit = 'cover';
-            media.addEventListener('error', () => {
-              adStage.innerHTML = `<div class="ad-empty"><div>Ad video failed to load</div></div>`;
-            });
-            media.play().catch(() => {});
-          } else {
-            media.loading = 'lazy';
-            media.style.objectFit = 'cover';
-            media.addEventListener('error', () => {
-              adStage.innerHTML = `<div class="ad-empty"><div>Ad image failed to load</div></div>`;
-            });
-          }
-
-          let wrap;
-          if (isSafeHttpUrl(adLink)) {
-            wrap = document.createElement('a');
-            wrap.href = adLink;
-            wrap.target = '_blank';
-            wrap.rel = 'noopener noreferrer';
-          } else {
-            wrap = document.createElement('div');
-          }
-
-          wrap.style.display = 'block';
-          wrap.style.width = '100%';
-          wrap.style.height = '100%';
-          wrap.appendChild(media);
-          adStage.appendChild(wrap);
-        };
-
-        if ('IntersectionObserver' in window) {
-          const io = new IntersectionObserver((entries, obs) => {
-            if (entries.some(e => e.isIntersecting)) {
-              obs.disconnect();
-              loadAd();
-            }
-          }, { rootMargin: '160px' });
-          io.observe(adStage);
-          window.__adObserver = io;
-        } else {
-          loadAd();
-        }
-
-        adAnchor.style.pointerEvents = isSafeHttpUrl(adLink) ? 'auto' : 'none';
-      } else {
-        adStage.innerHTML = `
-          <div class="ad-empty">
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 8v8a2 2 0 0 0 1 1.73l6 3.46a2 2 0 0 0 2 0l6-3.46A2 2 0 0 0 21 16z"/>
-            </svg>
-            <div>No advertisement available</div>
-          </div>`;
-        adAnchor.removeAttribute('href');
-        adAnchor.removeAttribute('target');
-        adAnchor.removeAttribute('rel');
-        adAnchor.style.pointerEvents = 'none';
-      }
-    }
-
-    async function resolveTenantAndSeed() {
-      state.slug = getSlugFromQuery();
-      if (!state.slug) {
-        showFatal('Missing slug — open as ?slug=your-tenant-slug');
+    async function ensureCountersLoaded() {
+      if (!state.countersReady) {
+        showNotice("info", "Syncing counters...");
         return false;
       }
-      window.__TENANT_SLUG = state.slug;
-
-      let seedConfig = {};
-      try {
-        const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(state.slug)}`, { cache: 'no-store' });
-        if (res.ok) {
-          const j = await res.json();
-          state.tenantId = j.tenantId || j.tenant || state.slug;
-          seedConfig = j.config || j.public || {};
-        } else {
-          state.tenantId = state.slug;
-          seedConfig = {};
-        }
-      } catch (e) {
-        state.tenantId = state.slug;
-        seedConfig = {};
-      }
-
-      window.__TENANT_ID = state.tenantId;
-      window.__TENANT_SLUG = state.slug;
-      $('slugValue').textContent = state.slug;
-      $('tenantValue').textContent = `id:${state.tenantId}`;
-
-      state.seedRaw = seedConfig || {};
-      state.config = normalizeConfig(state.seedRaw);
-      renderConfig();
       return true;
     }
 
-    async function initFirebase() {
-      const app = initializeApp(siteFirebaseConfig);
-      state.db = getDatabase(app);
-      window._db = state.db;
-    }
-
-    async function warmLoadInitialData() {
+    async function autoRedirectIfWaiting() {
       try {
-        const cfgRef = tenantRefFactory(state.db)('public/config');
-        const ctrRef = tenantRefFactory(state.db)('counters');
-
-        const [cfgSnap, ctrSnap] = await Promise.allSettled([get(cfgRef), get(ctrRef)]);
-
-        if (cfgSnap.status === 'fulfilled' && cfgSnap.value && cfgSnap.value.exists && cfgSnap.value.exists()) {
-          state.liveRaw = cfgSnap.value.val() || {};
-          state.config = normalizeConfig(deepMerge(state.seedRaw, state.liveRaw));
-          renderConfig();
-        }
-
-        if (ctrSnap.status === 'fulfilled' && ctrSnap.value) {
-          state.counters = ctrSnap.value.exists && ctrSnap.value.exists() ? (ctrSnap.value.val() || {}) : {};
-          state.countersLoaded = true;
-          updateMetaState();
-        }
-      } catch (e) {
-        console.warn('warmLoadInitialData failed', e);
-      }
-    }
-
-    function subscribeLive() {
-      const tenantRef = tenantRefFactory(state.db);
-
-      onValue(tenantRef('public/config'), (snap) => {
-        const live = snap && snap.exists && snap.exists() ? (snap.val() || {}) : {};
-        state.liveRaw = live;
-        state.config = normalizeConfig(deepMerge(state.seedRaw, state.liveRaw));
-        renderConfig();
-      }, (err) => console.warn('config listener failed', err));
-
-      onValue(tenantRef('counters'), (snap) => {
-        state.counters = snap && snap.exists && snap.exists() ? (snap.val() || {}) : {};
-        state.countersLoaded = true;
-        updateMetaState();
-      }, (err) => console.warn('counters listener failed', err));
-    }
-
-    function refreshMetaText() {
-      if (!state.countersLoaded) {
-        $('syncHint').textContent = 'Loading tenant data...';
-        return;
-      }
-      const active = getActiveCounters();
-      if (!active.length) {
-        $('syncHint').textContent = 'Counters loaded';
-      } else {
-        $('syncHint').textContent = `${active.length} counters available`;
-      }
-    }
-
-    function getActiveCounters() {
-      const arr = Object.entries(state.counters || {}).map(([id, v]) => ({
-        id,
-        ...(v || {}),
-        _active: normalizeBool(v?.active, true)
-      })).filter(c => c._active);
-
-      arr.sort((a, b) => {
-        const ao = Number.isFinite(Number(a.order)) ? Number(a.order) : Number.POSITIVE_INFINITY;
-        const bo = Number.isFinite(Number(b.order)) ? Number(b.order) : Number.POSITIVE_INFINITY;
-        if (ao !== bo) return ao - bo;
-        return String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { numeric: true, sensitivity: 'base' });
-      });
-
-      return arr;
-    }
-
-    function updateMetaState() {
-      refreshMetaText();
-    }
-
-    async function warmLoadCountersOnly() {
-      try {
-        const snap = await get(tenantRefFactory(state.db)('counters'));
-        state.counters = snap && snap.exists && snap.exists() ? (snap.val() || {}) : {};
-        state.countersLoaded = true;
-        updateMetaState();
-        return true;
-      } catch (e) {
-        console.warn('warmLoadCountersOnly failed', e);
-        return false;
-      }
-    }
-
-    async function autoRedirectIfNeeded() {
-      try {
-        const lastQueueId = sessionStorage.getItem('lastQueueId');
+        const lastQueueId = sessionStorage.getItem("lastQueueId");
         if (!lastQueueId) return;
-        const snap = await get(ref(state.db, `tenants/${state.tenantId}/queue/${lastQueueId}`));
-        if (snap.exists() && snap.val()?.status === 'waiting') {
-          const target = `${location.origin}/status.html?queueId=${encodeURIComponent(lastQueueId)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
-          location.href = target;
+
+        const snap = await get(child(tenantRef("queue"), lastQueueId));
+        const data = snap && typeof snap.val === "function" ? snap.val() : null;
+        if (data && String(data.status || "").toLowerCase() === "waiting") {
+          location.href = `status.html?queueId=${encodeURIComponent(lastQueueId)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
         }
-      } catch (e) {
-        console.warn('auto redirect check failed', e);
+      } catch (err) {
+        console.warn("auto redirect check failed", err);
       }
     }
 
     async function getQueueNumber() {
-      if (state.joining) return;
+      setJoinLoading(true);
+      clearNotice();
 
-      if (!state.countersLoaded) {
-        showMessage('info', 'Syncing counters...');
-        $('syncHint').textContent = 'Syncing counters...';
-        const ok = await warmLoadCountersOnly();
-        if (!ok) {
-          showMessage('error', 'Unable to load counters right now.');
+      try {
+        if (!(await ensureCountersLoaded())) return;
+
+        const activeCounters = getActiveCountersFromCache();
+        state.activeCounters = activeCounters;
+        updateStatusChip();
+
+        if (!activeCounters.length) {
+          showNotice("error", "No active counters right now. Please ask staff to open a counter.");
           return;
         }
-      }
 
-      const activeCounters = getActiveCounters();
-      if (!activeCounters.length) {
-        showMessage('error', 'No active counters right now. Please ask staff to open a counter.');
-        return;
-      }
-
-      state.joining = true;
-      setLoading(true);
-      try {
-        const rrRef = ref(state.db, `tenants/${state.tenantId}/queueState/lastCounterIndex`);
+        const rrRef = tenantRef("queueState/lastCounterIndex");
         const rrResult = await runTxWithRetries(rrRef, cur => (Number(cur) || 0) + 1, 8);
-        if (!rrResult || rrResult.committed !== true) throw new Error('Round-robin transaction failed');
+        if (!rrResult || rrResult.committed !== true) {
+          throw new Error("Round-robin transaction failed.");
+        }
+
         const rrVal = Number(rrResult.snapshot && rrResult.snapshot.val());
-        if (!Number.isFinite(rrVal)) throw new Error('Invalid round-robin value');
+        if (!Number.isFinite(rrVal)) {
+          throw new Error("Invalid round-robin value.");
+        }
 
         const index = ((rrVal - 1) % activeCounters.length + activeCounters.length) % activeCounters.length;
-        const chosen = activeCounters[index] || activeCounters[0];
-        if (!chosen) throw new Error('No counter could be selected');
+        let chosen = activeCounters[index] || activeCounters[0];
 
-        const lastIssuedRef = ref(state.db, `tenants/${state.tenantId}/counters/${chosen.id}/lastIssued`);
-        const lastIssuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur) || 0) + 1, 8);
-        if (!lastIssuedTx || lastIssuedTx.committed !== true) throw new Error('Failed to increment counter number');
+        if (!chosen) {
+          throw new Error("No counter could be selected.");
+        }
 
-        const nextNumber = Number(lastIssuedTx.snapshot && lastIssuedTx.snapshot.val());
-        if (!Number.isFinite(nextNumber) || nextNumber < 1) throw new Error('Invalid queue number');
+        const lastIssuedRef = tenantRef(`counters/${chosen.id}/lastIssued`);
+        const issuedTx = await runTxWithRetries(lastIssuedRef, cur => (Number(cur) || 0) + 1, 8);
+        if (!issuedTx || issuedTx.committed !== true) {
+          throw new Error("Failed to increment counter number.");
+        }
 
-        const prefix = String(chosen.prefix || 'Q').trim() || 'Q';
-        const queueId = `${prefix}${String(nextNumber).padStart(3, '0')}`;
+        const nextNumber = Number(issuedTx.snapshot && issuedTx.snapshot.val());
+        if (!Number.isFinite(nextNumber) || nextNumber < 1) {
+          throw new Error("Invalid issued number.");
+        }
 
-        const queueRef = push(ref(state.db, `tenants/${state.tenantId}/queue`));
+        const prefix = normalizeText(chosen.prefix) || "Q";
+        const queueId = `${prefix}${String(nextNumber).padStart(3, "0")}`;
         const now = Date.now();
-        await set(queueRef, {
+        const queueEntry = {
           counterId: chosen.id,
           queueId,
-          number: nextNumber,
           prefix,
+          number: nextNumber,
           timestamp: now,
           createdAt: now,
           updatedAt: now,
-          status: 'waiting',
-          slug: state.slug,
-          tenantId: state.tenantId
-        });
+          status: "waiting"
+        };
+
+        const newNode = push(tenantRef("queue"));
+        await set(newNode, queueEntry);
 
         try {
-          sessionStorage.setItem('lastQueueId', queueRef.key);
-        } catch (e) {}
+          sessionStorage.setItem("lastQueueId", newNode.key);
+          sessionStorage.setItem("lastTenantSlug", state.slug);
+        } catch {}
 
-        showMessage('success', `You're number ${queueId}`);
+        showNotice("success", `You're number ${queueId}`);
+
         setTimeout(() => {
-          const target = `${location.origin}/status.html?queueId=${encodeURIComponent(queueRef.key)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
-          location.href = target;
+          location.href = `status.html?queueId=${encodeURIComponent(newNode.key)}&slug=${encodeURIComponent(state.slug)}&tenantId=${encodeURIComponent(state.tenantId)}`;
         }, 650);
+
       } catch (err) {
-        console.error('getQueueNumber error', err);
-        showMessage('error', err?.message || 'Failed to get queue number.');
+        console.error("getQueueNumber error", err);
+        showNotice("error", err && err.message ? err.message : "Failed to get queue number.");
       } finally {
-        state.joining = false;
-        setLoading(false);
+        setJoinLoading(false);
       }
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      const slug = getSlugFromQuery();
-      if (!slug) {
-        showFatal('Missing slug — open as ?slug=your-tenant-slug');
-        return;
-      }
-
-      $('getNumberBtn').disabled = false;
-      $('syncHint').textContent = 'Loading tenant data...';
-
-      if (!(await resolveTenantAndSeed())) return;
-      await initFirebase();
-
-      warmLoadInitialData();   // fire-and-forget for speed
-      subscribeLive();         // live updates
-      await autoRedirectIfNeeded();
-
-      updateMetaState();
-      setTimeout(() => {
-        if (!state.countersLoaded) $('syncHint').textContent = 'Syncing counters...';
-      }, 250);
-
-      $('getNumberBtn').addEventListener('click', e => {
+    function wireEvents() {
+      el.joinBtn.addEventListener("click", e => {
         e.preventDefault();
         getQueueNumber();
       });
 
-      // keep ad links safe but allow valid http(s) links
-      $('adAnchor').addEventListener('click', (ev) => {
-        const href = $('adAnchor').getAttribute('href') || '';
-        if (!href) {
+      el.adLink.addEventListener("click", (ev) => {
+        const href = el.adLink.getAttribute("href") || "";
+        if (!href || href === "#") {
           ev.preventDefault();
           return;
         }
         try {
-          const u = new URL(href, location.href);
-          if (!(u.protocol === 'http:' || u.protocol === 'https:')) ev.preventDefault();
+          const url = new URL(href, location.href);
+          if (url.protocol !== "http:" && url.protocol !== "https:") {
+            ev.preventDefault();
+          }
         } catch {
           ev.preventDefault();
         }
       });
-    });
+    }
 
-    window.getQueueNumber = getQueueNumber;
+    async function boot() {
+      el.siteTitle = $("siteTitle");
+      el.smallTopText = $("smallTopText");
+      el.statusChip = $("statusChip");
+      el.statusText = $("statusText");
+      el.topLogoWrap = $("topLogoWrap");
+      el.centerLogoWrap = $("centerLogoWrap");
+      el.mainHeading = $("mainHeading");
+      el.introText = $("introText");
+      el.joinBtn = $("joinBtn");
+      el.btnText = $("btnText");
+      el.spinner = $("spinner");
+      el.notice = $("notice");
+      el.adMediaHost = $("adMediaHost");
+      el.adEmpty = $("adEmpty");
+      el.adCaption = $("adCaption");
+      el.adLink = $("adLink");
+      el.adLinkMeta = $("adLinkMeta");
+      el.timezoneText = $("timezoneText");
+
+      wireEvents();
+
+      state.slug = getSlugFromQuery();
+      if (!state.slug) {
+        showFatal("Missing slug. Open this page with ?slug=your-tenant-slug");
+        showStatus("error", "Tenant missing");
+        showNotice("error", "Missing slug. Please open the page with ?slug=your-tenant-slug");
+        return;
+      }
+      window.__TENANT_SLUG = state.slug;
+
+      showStatus("sync", "Loading tenant data...");
+      showNotice("info", "Loading tenant data...");
+
+      let tenantResponse;
+      try {
+        tenantResponse = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(state.slug)}`, { cache: "no-store" });
+      } catch (err) {
+        showFatal("Failed to resolve tenant.");
+        showNotice("error", "Failed to resolve tenant.");
+        showStatus("error", "Tenant lookup failed");
+        return;
+      }
+
+      if (!tenantResponse.ok) {
+        const txt = await tenantResponse.text().catch(() => "");
+        showFatal(`Tenant lookup failed (${tenantResponse.status}) ${txt ? `: ${txt}` : ""}`);
+        showNotice("error", "Tenant lookup failed.");
+        showStatus("error", "Tenant lookup failed");
+        return;
+      }
+
+      const tenantJson = await tenantResponse.json().catch(() => ({}));
+      state.tenantId = tenantJson.tenantId || tenantJson.id || tenantJson.tenant || state.slug;
+      window.__TENANT_ID = state.tenantId;
+
+      state.seedConfig = tenantJson.config || tenantJson.public || tenantJson.publicConfig || {};
+      state.configReady = true;
+
+      try {
+        const app = initializeApp(siteFirebaseConfig);
+        state.db = getDatabase(app);
+      } catch (err) {
+        showFatal("Failed to initialize Firebase.");
+        showStatus("error", "Firebase init failed");
+        showNotice("error", "Failed to initialize Firebase.");
+        return;
+      }
+
+      applyMergedConfig();
+      showStatus("sync", "Syncing counters...");
+
+      const cfgRef = tenantRef("public/config");
+      onValue(cfgRef, snap => {
+        const live = snap && typeof snap.val === "function" ? (snap.val() || {}) : {};
+        state.liveConfig = live;
+        state.mergedConfig = mergeConfig(state.seedConfig, state.liveConfig);
+        applyMergedConfig();
+        updateStatusChip();
+        if (!state.countersReady) {
+          showNotice("info", "Syncing counters...");
+        } else if (state.activeCounters.length > 0) {
+          clearNotice();
+        }
+      }, err => {
+        console.warn("config listener failed", err);
+        showNotice("error", "Could not read live business settings.");
+        showStatus("error", "Config sync failed");
+      });
+
+      const countersRef = tenantRef("counters");
+      onValue(countersRef, snap => {
+        const nextCounters = {};
+        if (snap && typeof snap.forEach === "function") {
+          snap.forEach(childSnap => {
+            nextCounters[childSnap.key] = childSnap.val();
+          });
+        } else if (snap && typeof snap.val === "function") {
+          const value = snap.val();
+          if (value && typeof value === "object") {
+            Object.assign(nextCounters, value);
+          }
+        }
+
+        state.counters = nextCounters;
+        state.countersReady = true;
+        state.activeCounters = getActiveCountersFromCache();
+
+        updateStatusChip();
+
+        if (state.activeCounters.length > 0) {
+          if (el.notice.classList.contains("show") && el.notice.classList.contains("info")) {
+            clearNotice();
+          }
+        } else {
+          showNotice("error", "No active counters right now. Please ask staff to open a counter.");
+        }
+      }, err => {
+        console.warn("counters listener failed", err);
+        state.countersReady = true;
+        state.activeCounters = [];
+        updateStatusChip();
+        showNotice("error", "Could not sync counters.");
+      });
+
+      showNotice("info", "Syncing counters...");
+      await autoRedirectIfWaiting();
+
+      const readyTick = () => {
+        if (!state.countersReady) {
+          showStatus("sync", "Syncing counters...");
+        } else if (state.activeCounters.length > 0) {
+          showStatus("live", `Ready / Live • ${state.activeCounters.length} active counter${state.activeCounters.length === 1 ? "" : "s"}`);
+          if (!el.notice.classList.contains("show") || el.notice.classList.contains("info")) {
+            clearNotice();
+          }
+        } else {
+          showStatus("error", "Ready / Live • No active counters");
+        }
+      };
+
+      readyTick();
+      window.addEventListener("focus", readyTick);
+      document.addEventListener("visibilitychange", readyTick);
+    }
+
+    document.addEventListener("DOMContentLoaded", boot);
   </script>
 </head>
-
-<body class="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-rose-50 flex flex-col items-center p-6 pb-20">
-
-  <header class="w-full max-w-3xl mb-6">
-    <div class="bg-white rounded-2xl shadow-md p-4 flex items-center gap-4">
-      <div id="siteLogo" class="hidden"></div>
-      <div class="flex-1 text-left">
-        <h1 id="siteTitle" class="text-lg font-bold text-gray-800">Queue Joy</h1>
-        <p id="smallTopText" class="text-xs text-gray-500">Digital Queue System</p>
-      </div>
-      <div class="text-right text-xs text-gray-400">Powered by Queue Joy</div>
-    </div>
-  </header>
-
-  <main class="w-full max-w-3xl flex flex-col items-center gap-8">
-    <section class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-6 text-center fade-in relative">
-      <div class="mx-auto">
-        <div id="centerLogo" class="hidden"></div>
-        <div id="centerIcon" class="w-20 h-20 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
-          <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"></path>
+<body>
+  <div class="topbar">
+    <div class="shell">
+      <header class="header-card">
+        <div id="topLogoWrap" class="brand-logo-wrap" aria-label="Business logo">
+          <svg class="fallback-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2Zm0 3.2A6.8 6.8 0 1 0 18.8 12 6.81 6.81 0 0 0 12 5.2Zm-.8 2.1h1.6v6h-1.6v-6Zm0 7.4h1.6v1.6h-1.6v-1.6Z"/>
           </svg>
         </div>
-      </div>
+        <div class="brand-meta">
+          <h1 id="siteTitle" class="brand-title">Queue Joy</h1>
+          <p id="smallTopText" class="brand-subtitle">Digital Queue System</p>
+        </div>
+        <div id="statusChip" class="status-chip sync" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="statusText">Loading tenant data...</span>
+        </div>
+      </header>
+    </div>
+  </div>
 
-      <div class="space-y-2">
-        <h2 id="mainHeading" class="text-2xl font-bold text-gray-800">Get your queue number</h2>
-        <p id="introText" class="text-gray-600">Real-time queueing system. Mobile-friendly. No app needed.</p>
-      </div>
+  <main class="shell">
+    <div class="grid">
+      <section class="hero-card" aria-labelledby="mainHeading">
+        <div class="hero-topline">
+          <span class="pill">Tenant-aware queue join</span>
+          <span class="pill" id="timezoneText"> </span>
+        </div>
 
-      <button id="getNumberBtn" class="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-400 text-white font-semibold rounded-2xl shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed" type="button">
-        <span id="btnText">🎫 Get your queue number</span>
-        <span id="btnSpinner" class="hidden inline-flex items-center ml-2">
-          <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-          </svg>
-          Getting your number...
-        </span>
-      </button>
+        <div class="hero-center">
+          <div id="centerLogoWrap" class="center-logo-wrap" aria-label="Center logo">
+            <svg class="fallback-mark" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2Zm0 3.2A6.8 6.8 0 1 0 18.8 12 6.81 6.81 0 0 0 12 5.2Zm-.8 2.1h1.6v6h-1.6v-6Zm0 7.4h1.6v1.6h-1.6v-1.6Z"/>
+            </svg>
+          </div>
 
-      <p id="syncHint" class="sync-hint text-xs text-gray-400 text-center hidden"></p>
+          <div>
+            <h2 id="mainHeading" class="headline">Get your queue number</h2>
+            <p id="introText" class="lead">Real-time queueing system. Mobile-friendly. No app needed.</p>
+          </div>
 
-      <div id="messageBox" class="hidden p-3 rounded-lg border text-sm"></div>
-    </section>
+          <div class="cta-wrap">
+            <button id="joinBtn" class="cta-button" type="button">
+              <span id="btnText">🎫 Get your queue number</span>
+              <span id="spinner" class="spinner hidden" aria-hidden="true"></span>
+            </button>
+          </div>
 
-    <aside class="w-full max-w-md bg-white rounded-xl shadow-lg p-3">
-      <p class="text-xs text-gray-500 text-center mb-2">Advertisement</p>
-      <a id="adAnchor" href="#" class="block relative" target="_blank" rel="noopener noreferrer">
-        <div id="adStage" class="w-full rounded-lg shadow-md overflow-hidden"></div>
-      </a>
-      <div id="noAd" class="text-center text-gray-400 text-sm py-6 hidden">No advertisement available</div>
-      <div id="adText" class="text-xs text-gray-600 text-center mt-2 hidden"></div>
-    </aside>
+          <div id="notice" class="notice" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="hero-foot">
+          <div><strong>Fast live sync</strong> with tenant config and counters.</div>
+          <div><strong>Secure redirect</strong> to your status page after join.</div>
+        </div>
+      </section>
+
+      <aside class="ad-card" aria-label="Advertisement section">
+        <div class="section-title">Advertisement</div>
+
+        <a id="adLink" href="#" target="_blank" rel="noopener noreferrer" class="block">
+          <div id="adMediaHost" class="ad-media-shell">
+            <div id="adEmpty" class="ad-empty">
+              <div>
+                <div class="icon">
+                  <svg class="fallback-mark" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M4 5a2 2 0 0 1 2-2h5v2H6v14h12v-5h2v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm9-1h7v7h-2V7.41l-7.29 7.3-1.42-1.42L16.59 6H13V4Z"/>
+                  </svg>
+                </div>
+                <div style="font-weight:800;color:#334155;margin-bottom:4px;">No advertisement available</div>
+                <div style="font-size:.9rem;">This space will show live ad content when configured.</div>
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <div id="adCaption" class="ad-caption hidden"></div>
+        <div id="adLinkMeta" class="ad-link-meta hidden"></div>
+      </aside>
+    </div>
   </main>
 </body>
 </html>
