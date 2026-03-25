@@ -13,6 +13,7 @@
 //   - Promise.allSettled parallel Telegram sends
 //   - Service analytics & series stats
 //   - Customizable Telegram inline buttons
+//   - Full analytics/serviceEvents with all required fields
 // ============================================================
 
 const fetch = globalThis.fetch || require('node-fetch');
@@ -325,6 +326,12 @@ async function fetchQueueAllTenant(adminDb, tenantId) {
 
 // ===== Analytics =====
 async function pushServiceEventTenant(adminDb, tenantId, evt) {
+  // Ensure serviceMs is always a number
+  if (evt.serviceMs === undefined || evt.serviceMs === null || isNaN(evt.serviceMs)) {
+    evt.serviceMs = 0;
+  }
+  evt.serviceMs = Number(evt.serviceMs);
+
   try {
     if (adminDb) {
       await adminDb.ref(`tenants/${tenantId}/analytics/serviceEvents`).push(evt);
@@ -388,6 +395,8 @@ exports.handler = async function (event) {
   const calledFullRaw = String(payload.calledFull || '').trim();
   const calledFull = normalizeNumber(calledFullRaw);
   const counterName = payload.counterName ? String(payload.counterName).trim() : '';
+  const counterId = payload.counterId ? String(payload.counterId).trim() : '';
+  const payloadSessionId = payload.sessionId ? String(payload.sessionId).trim() : '';
   const extraInlineButtons = Array.isArray(payload.inlineButtons) ? payload.inlineButtons : [];
 
   if (!calledFull) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'calledFull required' }) };
@@ -557,13 +566,31 @@ exports.handler = async function (event) {
       }
       if (ticket.ticketId) {
         const serviceMs = Math.max(0, now - createdMs);
-        firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/status`] = 'served';
-        firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/servedAt`] = now;
+
+        // Update queue status to 'completed' (not 'served')
+        firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/status`] = 'completed';
+        firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/completedAt`] = now;
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/serviceMs`] = serviceMs;
+        firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/updatedAt`] = now;
         markNotificationSent(adminDb, tenantId, ticket.ticketId, firebaseUpdates);
-        pushServiceEventTenant(adminDb, tenantId, {
-          ticketId: ticket.ticketId, requestedAt: createdMs, servedAt: now,
-          serviceMs, counter: counterName || null, series: ticket.series || calledSeries,
+
+        // Push analytics service event with ALL required fields
+        await pushServiceEventTenant(adminDb, tenantId, {
+          type: 'service_completed',
+          serviceMs: serviceMs,           // MUST be a number — critical
+          startedAt: createdMs,           // when the ticket was created/started
+          completedAt: now,               // when service was completed
+          timestamp: now,                 // event timestamp
+          counterId: counterId || '',     // counter ID
+          counter: counterName || '',     // counter name
+          queueId: ticket.ticketId,       // queue entry ID
+          queueNumber: theirNumber,       // the ticket number (e.g. COFFEE001)
+          tenantId: tenantId,
+          slug: slug || tenantId,
+          sessionId: payloadSessionId || '',
+          userAgent: payload.userAgent || 'server',
+          platform: payload.platform || 'netlify-function',
+          series: ticket.series || calledSeries,
         });
       }
       // Update stats
