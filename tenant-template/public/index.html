@@ -561,15 +561,13 @@ function showSuccess(queueNumber,queueKey){
 async function resolveTenantIdOnce(slug){
   const cacheKey=`qj_resolved_tenant:${slug}`;
   try{
-    const cached=sessionStorage.getItem(cacheKey);
-    if(cached&&typeof cached==='string'&&cached.trim()&&!cached.includes('/')){
-      return cached.trim();
-    }
+    sessionStorage.removeItem(cacheKey);
   }catch{}
 
-  const response=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`,{
+  const response=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`,{
     method:'GET',
-    credentials:'same-origin'
+    credentials:'same-origin',
+    cache:'no-store'
   });
 
   if(!response.ok){
@@ -577,7 +575,7 @@ async function resolveTenantIdOnce(slug){
   }
 
   const data=await response.json().catch(()=>null);
-  const tenantId=safeString(data?.tenantId||data?.tenant,'');
+  const tenantId=safeString(data?.tenantId||'','');
   if(!tenantId||tenantId.includes('/')){
     throw new Error('Invalid tenant returned');
   }
