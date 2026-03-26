@@ -1,18 +1,20 @@
 'use strict';
 
 /**
- * get-tenant.js - robust Netlify function (tenant slug -> tenantId via /slugs)
+ * get-tenant.js
  *
- * - CommonJS export (exports.handler) for Netlify lambdas
- * - Accepts slug via query ?slug=... or pathParameters or JSON body
- * - Admin access via x-master-key or ?master_key=... or x-admin-token / Authorization Bearer
- * - Returns sanitized public view for non-admin callers, full tenant for admin callers
- * - Safe fallback to TEST_PUBLIC_CONFIG / TEST_TENANT_SLUG when firebase-admin not configured
- * - In-memory cache with TTL (env GET_TENANT_CACHE_TTL_MS)
- * - Redacts secrets from configs returned to clients
+ * RTDB-only, tenant slug -> tenantId resolver.
+ * Public settings are read ONLY from:
+ *   tenants/{tenantId}/public/config
+ *
+ * Response shape for normal callers:
+ *   { tenantId, slug, source, config }
+ *
+ * Response shape for admin callers:
+ *   { tenantId, slug, tenant }
  */
 
-const DEFAULT_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const DEFAULT_CACHE_TTL_MS = 60 * 1000;
 
 const HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -20,309 +22,346 @@ const HEADERS = {
   'Content-Type': 'application/json'
 };
 
-function jsonResp(code, body) {
-  return { statusCode: code, headers: HEADERS, body: JSON.stringify(body) };
+function jsonResp(statusCode, body) {
+  return {
+    statusCode,
+    headers: HEADERS,
+    body: JSON.stringify(body)
+  };
 }
 
-function safeClone(o) {
-  try { return JSON.parse(JSON.stringify(o)); } catch (e) { return o || {}; }
+function trimString(v) {
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+function safeClone(v) {
+  try {
+    return JSON.parse(JSON.stringify(v));
+  } catch {
+    return v || {};
+  }
 }
 
 function redactSecrets(cfg) {
   if (!cfg || typeof cfg !== 'object') return cfg;
   const clone = safeClone(cfg);
-  const secrets = ['serviceAccount', 'privateKey', 'private_key', 'client_email', 'adminKey', 'secret', 'apiKey', '_internal', 'credentials', 'service_account', 'password', 'token'];
-  for (const k of secrets) if (k in clone) delete clone[k];
+  const secretKeys = [
+    'serviceAccount',
+    'privateKey',
+    'private_key',
+    'client_email',
+    'adminKey',
+    'secret',
+    'apiKey',
+    '_internal',
+    'credentials',
+    'service_account',
+    'password',
+    'token'
+  ];
+  for (const key of secretKeys) {
+    if (key in clone) delete clone[key];
+  }
   return clone;
 }
 
-function buildSafePublic(tenantObj) {
-  const safe = {};
-  try {
-    if (!tenantObj || typeof tenantObj !== 'object') return safe;
-    if (tenantObj.public && typeof tenantObj.public === 'object') {
-      Object.assign(safe, tenantObj.public);
-      if (tenantObj.public.config && typeof tenantObj.public.config === 'object') {
-        Object.assign(safe, tenantObj.public.config);
-      }
-    }
-    if (!Object.keys(safe).length && tenantObj.settings && typeof tenantObj.settings === 'object') {
-      Object.assign(safe, tenantObj.settings);
-    }
-    if (tenantObj.meta && typeof tenantObj.meta === 'object') {
-      safe.name = safe.name || tenantObj.meta.name || tenantObj.meta.displayName || null;
-      safe.slug = safe.slug || tenantObj.meta.slug || null;
-      if (tenantObj.meta.plan) safe.plan = tenantObj.meta.plan;
-      if (tenantObj.meta.branding) safe.branding = tenantObj.meta.branding;
-    }
-  } catch (e) {
-    console.warn('buildSafePublic warning:', e && e.message);
-  }
-  return safe;
+function paths() {
+  return {
+    basePath: (process.env.FIREBASE_PATH || process.env.TENANT_PATH || 'tenants').replace(/^\/+|\/+$/g, ''),
+    slugsPath: (process.env.SLUGS_PATH || process.env.SLUG_PATH || 'slugs').replace(/^\/+|\/+$/g, '')
+  };
 }
 
-/* ---------- Firebase admin init helper (robust) ---------- */
+const CACHE_TTL = (() => {
+  const n = parseInt(process.env.GET_TENANT_CACHE_TTL_MS || '', 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_CACHE_TTL_MS;
+})();
+const CACHE = new Map(); // slug -> { expiresAt, payload }
+
+function parseSlug(event) {
+  const qs = event.queryStringParameters || {};
+  let slug =
+    trimString(qs.slug) ||
+    trimString(qs.tenantSlug) ||
+    trimString(qs.tenant);
+
+  if (!slug && event.pathParameters && event.pathParameters.slug) {
+    slug = trimString(event.pathParameters.slug);
+  }
+
+  if (!slug && event.body) {
+    try {
+      const raw = event.isBase64Encoded
+        ? Buffer.from(event.body, 'base64').toString('utf8')
+        : event.body;
+      const parsed = JSON.parse(raw);
+      slug = trimString(parsed.slug);
+    } catch {
+      // ignore
+    }
+  }
+
+  return slug;
+}
+
+function parseIncomingKey(event) {
+  const qs = event.queryStringParameters || {};
+  return (
+    trimString(qs.master_key) ||
+    trimString(qs.masterKey) ||
+    trimString(event.headers?.['x-master-key']) ||
+    trimString(event.headers?.['X-Master-Key']) ||
+    ''
+  );
+}
+
+function parseAdminToken(event) {
+  const h = event.headers || {};
+  const direct =
+    trimString(h['x-admin-token']) ||
+    trimString(h['X-Admin-Token']);
+  if (direct) return direct;
+
+  const auth = trimString(h.authorization || h.Authorization || '');
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  return m ? trimString(m[1]) : '';
+}
+
 async function ensureAdmin() {
-  let admin = null;
+  let admin;
+
   try {
-    // prefer local helper if present, otherwise require firebase-admin
     const maybe = require('./lib/firebaseAdmin');
-    if (maybe && typeof maybe === 'object' && maybe.database) admin = maybe;
-    else if (maybe && typeof maybe === 'function') {
-      try { admin = maybe(); } catch (err) { admin = maybe; }
-    } else admin = null;
-  } catch (e) {
-    admin = null;
+    if (maybe && typeof maybe === 'object' && typeof maybe.database === 'function') {
+      admin = maybe;
+    } else if (typeof maybe === 'function') {
+      admin = await maybe();
+    }
+  } catch {
+    // ignore
   }
 
   if (!admin) {
-    try { admin = require('firebase-admin'); } catch (e) { throw new Error('firebase-admin module not available. Add firebase-admin dependency or provide ./lib/firebaseAdmin.'); }
+    try {
+      admin = require('firebase-admin');
+    } catch {
+      throw new Error('firebase-admin module not available');
+    }
   }
 
-  if (admin.apps && admin.apps.length && admin.database) return admin;
+  if (admin.apps && admin.apps.length) return admin;
 
-  const saRaw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || null;
-  const dbUrl = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || null;
+  const dbUrl =
+    process.env.FIREBASE_DATABASE_URL ||
+    process.env.FIREBASE_DB_URL ||
+    '';
+
+  const saRaw =
+    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    '';
+
   const initOptions = {};
   if (dbUrl) initOptions.databaseURL = dbUrl;
 
   if (saRaw) {
-    let saObj = null;
+    let saObj;
     try {
       if (/^[A-Za-z0-9+/=]+$/.test(saRaw) && saRaw.length % 4 === 0) {
         saObj = JSON.parse(Buffer.from(saRaw, 'base64').toString('utf8'));
       } else {
         saObj = JSON.parse(saRaw);
       }
-    } catch (e) {
-      throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT* env value. Must be JSON or base64-encoded JSON.');
+    } catch {
+      throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT* value');
     }
-    try {
-      admin.initializeApp({ credential: admin.credential.cert(saObj), ...initOptions });
-    } catch (e) {
-      if (!(admin.apps && admin.apps.length)) throw e;
-    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert(saObj),
+      ...initOptions
+    });
   } else {
-    try {
-      admin.initializeApp({ ...initOptions });
-    } catch (e) {
-      if (!(admin.apps && admin.apps.length)) {
-        throw new Error('Failed to initialize firebase-admin. Provide FIREBASE_SERVICE_ACCOUNT or set ADC in environment.');
-      }
-    }
+    admin.initializeApp(initOptions);
   }
 
   return admin;
 }
 
-/* ---------- Caching ---------- */
-const CACHE_TTL = (() => {
-  const v = parseInt(process.env.GET_TENANT_CACHE_TTL_MS || '', 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_CACHE_TTL_MS;
-})();
-const CACHE = new Map(); // slug -> { expiresAt, payload }
+async function readJsonAtRef(ref) {
+  const snap = typeof ref.get === 'function'
+    ? await ref.get().catch(() => null)
+    : await ref.once('value').catch(() => null);
 
-/* ---------- Helpers to parse incoming auth keys ---------- */
-function parseIncomingKey(event) {
-  const qs = event.queryStringParameters || {};
-  return qs.master_key || qs.masterKey || (event.headers && (event.headers['x-master-key'] || event.headers['X-Master-Key'])) || null;
+  if (!snap) return null;
+  const exists = typeof snap.exists === 'function' ? snap.exists() : snap.val() != null;
+  if (!exists) return null;
+
+  return typeof snap.val === 'function' ? snap.val() : snap;
 }
 
-function parseAdminToken(event) {
-  const h = event.headers || {};
-  if (h['x-admin-token'] || h['X-Admin-Token']) return h['x-admin-token'] || h['X-Admin-Token'];
-  if (h.authorization) {
-    const m = String(h.authorization).trim().match(/^Bearer\s+(.+)$/i);
-    if (m) return m[1];
-  }
-  return null;
-}
+async function resolveTenantIdFromSlug(admin, slug) {
+  const { basePath, slugsPath } = paths();
 
-/* ---------- Slug mapping (RTDB / Firestore flexible) ---------- */
-async function readSlugMapping(admin, slug) {
-  const slugsPath = (process.env.SLUGS_PATH || process.env.SLUG_PATH || 'slugs').replace(/^\/+|\/+$/g, '');
-  const rtdbPath = `${slugsPath}/${slug}`;
+  // 1) preferred path: slugs/{slug} -> tenantId
   try {
     if (typeof admin.database === 'function') {
       const db = admin.database();
-      const ref = db.ref(rtdbPath);
-      let snap = null;
-      if (typeof ref.get === 'function') snap = await ref.get().catch(()=>null);
-      else if (typeof ref.once === 'function') snap = await ref.once('value').catch(()=>null);
-      if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) {
-        const val = typeof snap.val === 'function' ? snap.val() : snap;
-        if (typeof val === 'string') return { tenantId: val, source: 'rtdb_value' };
-        if (val && typeof val === 'object' && val.tenantId) return { tenantId: val.tenantId, source: 'rtdb_obj' };
-      }
-    }
-  } catch (e) { /* ignore and fallthrough */ }
+      const mapSnap = await readJsonAtRef(db.ref(`${slugsPath}/${slug}`));
 
-  try {
-    if (typeof admin.firestore === 'function') {
-      const fs = admin.firestore();
-      const doc = await fs.collection(slugsPath).doc(slug).get().catch(()=>null);
-      if (doc && doc.exists) {
-        const data = doc.data();
-        if (!data) return null;
-        if (typeof data === 'string') return { tenantId: data, source: 'firestore_value' };
-        if (data.tenantId) return { tenantId: data.tenantId, source: 'firestore_obj' };
-        if (data.id && typeof data.id === 'string') return { tenantId: data.id, source: 'firestore_id' };
-      }
-    }
-  } catch (e) { /* ignore */ }
+      if (mapSnap) {
+        if (typeof mapSnap === 'string') {
+          const tenantId = trimString(mapSnap);
+          if (tenantId) return { tenantId, source: 'rtdb.slug.string' };
+        }
 
-  return null;
-}
-
-/* ---------- Read public config (RTDB/Firestore tolerant) ---------- */
-async function readTenantConfig(admin, tenantId) {
-  const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || 'tenants').replace(/^\/+|\/+$/g, '');
-  const publicPath = `${basePath}/${tenantId}/public/config`;
-  try {
-    if (typeof admin.firestore === 'function') {
-      const fs = admin.firestore();
-      const docRef = fs.collection(basePath).doc(tenantId).collection('public').doc('config');
-      const doc = await docRef.get().catch(()=>null);
-      if (doc && doc.exists) return { config: doc.data(), source: 'firestore.public.config' };
-      const tenantDoc = await fs.collection(basePath).doc(tenantId).get().catch(()=>null);
-      if (tenantDoc && tenantDoc.exists) {
-        const data = tenantDoc.data();
-        if (data && data.public && typeof data.public === 'object') {
-          if (data.public.config && typeof data.public.config === 'object') return { config: data.public.config, source: 'firestore.tenant.public.configField' };
-          return { config: data.public, source: 'firestore.tenant.public' };
+        if (typeof mapSnap === 'object') {
+          const tenantId = trimString(
+            mapSnap.tenantId ||
+            mapSnap.tenant ||
+            mapSnap.id ||
+            mapSnap.tenant_id ||
+            ''
+          );
+          if (tenantId) return { tenantId, source: 'rtdb.slug.object' };
         }
       }
     }
-  } catch (e) { /* ignore and fallback */ }
+  } catch {
+    // ignore
+  }
+
+  // 2) fallback: slug is already the tenantId
+  try {
+    if (typeof admin.database === 'function') {
+      const db = admin.database();
+      const directConfig = await readJsonAtRef(db.ref(`${basePath}/${slug}/public/config`));
+      if (directConfig) return { tenantId: slug, source: 'rtdb.direct-tenant' };
+    }
+  } catch {
+    // ignore
+  }
+
+  return { tenantId: null, source: null };
+}
+
+async function readPublicConfig(admin, tenantId) {
+  const { basePath } = paths();
 
   try {
     if (typeof admin.database === 'function') {
       const db = admin.database();
-      const ref = db.ref(publicPath);
-      if (typeof ref.get === 'function') {
-        const snap = await ref.get().catch(()=>null);
-        if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) return { config: typeof snap.val === 'function' ? snap.val() : snap, source: 'rtdb.public.config' };
-      } else if (typeof ref.once === 'function') {
-        const snap = await ref.once('value').catch(()=>null);
-        if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.val() != null)) return { config: typeof snap.val === 'function' ? snap.val() : snap, source: 'rtdb.public.config.once' };
-      }
+      const cfg = await readJsonAtRef(db.ref(`${basePath}/${tenantId}/public/config`));
+      if (cfg) return { config: cfg, source: 'rtdb.public.config' };
     }
-  } catch (e) { /* ignore */ }
+  } catch {
+    // ignore
+  }
 
   return null;
 }
 
-/* ---------- Handler ---------- */
-exports.handler = async function (event, context) {
+async function readFullTenant(admin, tenantId) {
+  const { basePath } = paths();
+
   try {
-    // Accept slug from query, pathParameters, or JSON body
-    let slug = null;
-    const qs = event.queryStringParameters || {};
-    slug = qs.slug || slug;
-    if (!slug && event.pathParameters && event.pathParameters.slug) slug = event.pathParameters.slug;
-    if (!slug && event.body) {
-      try {
-        const parsed = event.isBase64Encoded ? JSON.parse(Buffer.from(event.body, 'base64').toString('utf8')) : JSON.parse(event.body);
-        if (parsed && parsed.slug) slug = String(parsed.slug).trim();
-      } catch (e) { /* ignore parse errors */ }
+    if (typeof admin.database === 'function') {
+      const db = admin.database();
+      const tenant = await readJsonAtRef(db.ref(`${basePath}/${tenantId}`));
+      if (tenant) return tenant;
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
+exports.handler = async function (event) {
+  try {
+    const slug = parseSlug(event);
+    if (!slug) {
+      return jsonResp(400, { error: 'missing_slug' });
     }
 
-    if (!slug) return jsonResp(400, { error: 'missing slug param' });
-
-    // Cache fast-path
     const cached = CACHE.get(slug);
     if (cached && cached.expiresAt > Date.now()) {
-      return jsonResp(200, { source: 'cache', config: safeClone(cached.payload) });
+      return jsonResp(200, safeClone(cached.payload));
     }
 
-    // Init firebase-admin (robust)
-    const init = await (async () => {
-      try {
-        const a = await ensureAdmin();
-        return { ok: true, admin: a };
-      } catch (e) {
-        return { ok: false, reason: e && e.message ? e.message : String(e) };
-      }
-    })();
+    const admin = await ensureAdmin();
 
-    if (!init.ok || !init.admin) {
-      // env fallback for local/demo mode
-      const envDb = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || null;
-      const TEST_TENANT_ID = process.env.TEST_TENANT_ID || null;
-      const testPublic = (() => {
-        const raw = process.env.TEST_PUBLIC_CONFIG_BASE64 || process.env.TEST_PUBLIC_CONFIG || null;
-        if (!raw) return null;
-        try {
-          if (/^[A-Za-z0-9+/=]+$/.test(raw) && raw.length % 4 === 0) return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
-          return JSON.parse(raw);
-        } catch (e) { return null; }
-      })();
-      if (envDb) {
-        const cfg = Object.assign({ databaseURL: envDb }, testPublic ? testPublic : {});
-        const safeCfg = redactSecrets(cfg);
-        CACHE.set(slug, { expiresAt: Date.now() + CACHE_TTL, payload: safeCfg });
-        return jsonResp(200, { source: 'env.fallback', tenantId: TEST_TENANT_ID || null, config: safeClone(safeCfg) });
-      }
-      return jsonResp(500, { error: 'firebase_admin_unavailable', detail: init.reason || null });
-    }
-
-    const admin = init.admin;
-
-    // 1) try to find tenantId from slugs mapping
-    const mapping = await readSlugMapping(admin, slug);
-    let tenantId = mapping && mapping.tenantId ? mapping.tenantId : null;
-    const mapSource = mapping && mapping.source ? mapping.source : null;
-
-    // 2) read tenant config (search by tenantId if found, else try slug as id)
-    let configResult = null;
-    if (tenantId) {
-      configResult = await readTenantConfig(admin, tenantId);
-    } else {
-      configResult = await readTenantConfig(admin, slug);
-      if (configResult) tenantId = slug;
-    }
-
-    if (!configResult || !configResult.config) {
-      const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || 'tenants').replace(/^\/+|\/+$/g, '');
-      const slugsPath = (process.env.SLUGS_PATH || process.env.SLUG_PATH || 'slugs').replace(/^\/+|\/+$/g, '');
-      const tried = {
-        attemptedSlugLookup: { path: `${slugsPath}/${slug}`, foundTenantId: tenantId || null, mapSource },
-        attemptedConfigPaths: [
-          `${basePath}/${tenantId || slug}/public/config`,
-          `${basePath}/${tenantId || slug}`
-        ]
-      };
-      return jsonResp(404, { error: 'tenant not found', pathTried: tried });
-    }
-
-    // determine caller privileges
+    const MASTER_KEY = process.env.MASTER_API_KEY || process.env.MASTER_KEY || '';
+    const TEST_ADMIN_TOKEN = process.env.TEST_ADMIN_TOKEN || '';
     const incomingKey = parseIncomingKey(event);
-    const MASTER_KEY = process.env.MASTER_API_KEY || process.env.MASTER_KEY || null;
     const adminToken = parseAdminToken(event);
-    const isAdminCaller = (MASTER_KEY && incomingKey === MASTER_KEY) || (process.env.TEST_ADMIN_TOKEN && adminToken && adminToken === process.env.TEST_ADMIN_TOKEN);
+    const isAdminCaller =
+      (MASTER_KEY && incomingKey && incomingKey === MASTER_KEY) ||
+      (TEST_ADMIN_TOKEN && adminToken && adminToken === TEST_ADMIN_TOKEN);
+
+    const resolved = await resolveTenantIdFromSlug(admin, slug);
+    if (!resolved.tenantId) {
+      const { basePath, slugsPath } = paths();
+      return jsonResp(404, {
+        error: 'tenant_not_found',
+        message: 'Could not resolve tenantId from slug',
+        slug,
+        pathTried: {
+          slugMapping: `${slugsPath}/${slug}`,
+          directConfig: `${basePath}/${slug}/public/config`
+        }
+      });
+    }
 
     if (isAdminCaller) {
-      // read full tenant object (admin only)
-      try {
-        const basePath = (process.env.FIREBASE_PATH || process.env.TENANT_PATH || 'tenants').replace(/^\/+|\/+$/g, '');
-        const tenantRef = admin.database().ref(`${basePath}/${tenantId}`);
-        const tenantSnap = await tenantRef.once('value');
-        if (!tenantSnap || !tenantSnap.exists()) return jsonResp(404, { error: 'tenant_not_found', message: `no tenant node for id ${tenantId}` });
-        const tenant = tenantSnap.val();
-        return jsonResp(200, { tenantId, slug, tenant });
-      } catch (e) {
-        console.error('read full tenant failed:', e && (e.stack || e.message || e));
-        return jsonResp(500, { error: 'read_tenant_failed' });
+      const tenant = await readFullTenant(admin, resolved.tenantId);
+      if (!tenant) {
+        return jsonResp(404, {
+          error: 'tenant_not_found',
+          message: `No tenant node found for ${resolved.tenantId}`,
+          tenantId: resolved.tenantId,
+          slug
+        });
       }
+
+      const payload = {
+        tenantId: resolved.tenantId,
+        slug,
+        tenant
+      };
+
+      return jsonResp(200, payload);
     }
 
-    // safe public path
-    const safeCfg = redactSecrets(configResult.config);
-    CACHE.set(slug, { expiresAt: Date.now() + CACHE_TTL, payload: safeCfg });
-    return jsonResp(200, { source: configResult.source || 'unknown', tenantId: tenantId || null, config: safeClone(safeCfg) });
+    const cfgResult = await readPublicConfig(admin, resolved.tenantId);
+    if (!cfgResult || !cfgResult.config) {
+      const { basePath } = paths();
+      return jsonResp(404, {
+        error: 'config_not_found',
+        message: 'Public config not found at tenants/{tenantId}/public/config',
+        tenantId: resolved.tenantId,
+        slug,
+        pathTried: `${basePath}/${resolved.tenantId}/public/config`
+      });
+    }
 
+    const payload = {
+      tenantId: resolved.tenantId,
+      slug,
+      source: cfgResult.source || resolved.source || 'unknown',
+      config: redactSecrets(safeClone(cfgResult.config))
+    };
+
+    CACHE.set(slug, {
+      expiresAt: Date.now() + CACHE_TTL,
+      payload
+    });
+
+    return jsonResp(200, payload);
   } catch (err) {
     console.error('get-tenant error:', err && (err.stack || err.message || err));
-    return jsonResp(500, { error: 'internal_error', message: err && err.message ? err.message : 'internal error' });
+    return jsonResp(500, {
+      error: 'internal_error',
+      message: err && err.message ? err.message : 'internal error'
+    });
   }
 };
