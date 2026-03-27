@@ -1,5 +1,3 @@
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -192,7 +190,6 @@
 
     <div id="counters-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;"></div>
 
-    <!-- Popup History Panel -->
     <section id="popup-history-panel" class="popup-history-panel" style="display:none;">
       <div class="card">
         <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -360,6 +357,8 @@
   const db = getDatabase(app);
   const $ = (id) => document.getElementById(id);
 
+  const popupDedupeSet = new Set();
+
   const tenantState = {
     slug: '',
     tenantId: '',
@@ -387,12 +386,6 @@
     if (['cancel', 'cancelled', 'canceled'].includes(s)) return 'cancelled';
     return s;
   }
-  function isWaitingLike(q) { return normalizeStatus(q?.status) === 'waiting' || !normalizeStatus(q?.status); }
-  function isServingLike(q) { return normalizeStatus(q?.status) === 'serving'; }
-  function isCompletedLike(q) { return normalizeStatus(q?.status) === 'completed'; }
-  function isCancelledLike(q) { return normalizeStatus(q?.status) === 'cancelled'; }
-  function isCallableLike(q) { return !isCompletedLike(q) && !isCancelledLike(q); }
-
   function normalizePrefix(v) {
     return normalizeStr(v).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12);
   }
@@ -429,14 +422,6 @@
       return '—';
     }
   }
-  function formatDateTime(ts) {
-    if (!ts) return '—';
-    try {
-      return new Date(Number(ts)).toLocaleString();
-    } catch {
-      return '—';
-    }
-  }
   function tenantRef(path = '') {
     return ref(db, `tenants/${tenantState.tenantId}${path ? '/' + path : ''}`);
   }
@@ -460,6 +445,48 @@
     wrap.appendChild(el);
     const ms = duration === null ? tenantState.toastDurationMs : duration;
     if (ms > 0) setTimeout(() => { if (el.isConnected) el.remove(); }, ms);
+  }
+
+  function showCenterPopup(type, queueNumber, counterLabel, message) {
+    const shortKey = `${type}|${queueNumber}`;
+    if (popupDedupeSet.has(shortKey)) return;
+    popupDedupeSet.add(shortKey);
+    setTimeout(() => popupDedupeSet.delete(shortKey), 3000);
+
+    const root = $('popup-root');
+    if (!root) return;
+
+    const isCancel = type === 'queue_cancelled';
+    const badgeClass = isCancel ? 'cancel' : 'join';
+    const badgeIcon = isCancel
+      ? '<svg width="32" height="32" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+      : '<svg width="32" height="32" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+    const title = isCancel ? 'Queue Cancelled' : 'New Queue Entry';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    overlay.innerHTML = `
+      <div class="popup-card">
+        <div class="popup-badge ${badgeClass}">${badgeIcon}</div>
+        <h3 style="margin:0 0 6px;font-size:20px;font-weight:800">${escapeHtml(title)}</h3>
+        <div style="font-size:28px;font-weight:900;color:${isCancel ? '#dc2626' : '#4f46e5'};margin:8px 0">${escapeHtml(queueNumber)}</div>
+        <p style="margin:0 0 4px;color:var(--muted);font-size:14px;line-height:1.5">${escapeHtml(counterLabel)}</p>
+        <p style="margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.5">${escapeHtml(message)}</p>
+        <button class="btn ${isCancel ? 'btn-danger' : 'btn-primary'}" onclick="this.closest('.popup-overlay').remove()">Dismiss</button>
+      </div>
+    `;
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    root.appendChild(overlay);
+
+    setTimeout(() => {
+      if (overlay.isConnected) {
+        const card = overlay.querySelector('.popup-card');
+        if (card) card.classList.add('closing');
+        setTimeout(() => { if (overlay.isConnected) overlay.remove(); }, 200);
+      }
+    }, 8000);
   }
 
   function setConnectionStatus(connected) {
@@ -532,12 +559,10 @@
 
   function counterMatchesQueue(counter, q) {
     if (!counter || !q) return false;
-
     const cid = normalizeStr(counter.id);
     const qCounterIds = [
       q.counterId, q.counter, q.assignedCounterId, q.counterRef, q.counter_id
     ].map(normalizeStr).filter(Boolean);
-
     if (qCounterIds.includes(cid)) return true;
 
     const counterPrefix = normalizePrefix(counter.prefix);
@@ -548,7 +573,6 @@
     const qNames = [
       q.counterName, q.counterLabel, q.counterDisplay, q.assignedCounterName
     ].map(v => normalizeStr(v).toLowerCase()).filter(Boolean);
-
     if (counterName && qNames.some(n => n === counterName || n.includes(counterName) || counterName.includes(n))) return true;
 
     const numberPrefix = extractPrefixFromNumber(q.number || q.queueNumber || q.ticketNumber);
@@ -557,28 +581,31 @@
     return false;
   }
 
-  function sortByTimestamp(entries) {
+  function sortByCreatedAt(entries) {
     return entries.sort((a, b) => {
-      const ta = a.timestamp || a.createdAt || a.updatedAt || a.calledAt || a.completedAt || a.cancelledAt || 0;
-      const tb = b.timestamp || b.createdAt || b.updatedAt || b.calledAt || b.completedAt || b.cancelledAt || 0;
+      const ta = a.createdAt || a.timestamp || a.updatedAt || 0;
+      const tb = b.createdAt || b.timestamp || b.updatedAt || 0;
       return ta - tb;
     });
   }
 
-  function getQueueItemsForCounter(counter) {
+  function getWaitingItemsForCounter(counter) {
     const entries = Object.entries(tenantState.queue || {})
       .map(([id, q]) => ({ id, ...(q || {}) }))
-      .filter(q => isCallableLike(q) && (isWaitingLike(q) || isServingLike(q) || !normalizeStatus(q.status)));
+      .filter(q => {
+        const s = normalizeStatus(q.status);
+        return s === 'waiting' || (!s && !q.completedAt && !q.cancelledAt);
+      });
 
-    const matched = sortByTimestamp(entries.filter(q => counterMatchesQueue(counter, q)));
+    const matched = sortByCreatedAt(entries.filter(q => counterMatchesQueue(counter, q)));
     if (matched.length) return matched;
 
     const counters = getCounterList();
-    if (counters.length === 1) return sortByTimestamp(entries);
+    if (counters.length === 1) return sortByCreatedAt(entries);
 
     const prefix = normalizePrefix(counter.prefix);
     if (prefix) {
-      const prefixMatched = sortByTimestamp(entries.filter(q => {
+      const prefixMatched = sortByCreatedAt(entries.filter(q => {
         const qPrefix = normalizePrefix(q.counterPrefix || q.prefix || extractPrefixFromNumber(q.number));
         return qPrefix === prefix;
       }));
@@ -588,12 +615,18 @@
     return [];
   }
 
-  function getWaitingItemsForCounter(counter) {
-    return getQueueItemsForCounter(counter).filter(isWaitingLike);
-  }
-
   function getServingItemsForCounter(counter) {
-    return getQueueItemsForCounter(counter).filter(isServingLike);
+    const entries = Object.entries(tenantState.queue || {})
+      .map(([id, q]) => ({ id, ...(q || {}) }))
+      .filter(q => normalizeStatus(q.status) === 'serving');
+
+    const matched = sortByCreatedAt(entries.filter(q => counterMatchesQueue(counter, q)));
+    if (matched.length) return matched;
+
+    const counters = getCounterList();
+    if (counters.length === 1) return sortByCreatedAt(entries);
+
+    return [];
   }
 
   function getCurrentItemForCounter(counter) {
@@ -645,6 +678,18 @@
       });
     } catch (e) {
       console.warn('status log failed', e);
+    }
+  }
+
+  function pushPopupHistoryEvent(evt) {
+    tenantState.popupHistory.unshift(evt);
+    if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
+
+    try {
+      const eventId = push(tenantRef('audit/popupHistory')).key;
+      set(tenantRef(`audit/popupHistory/${eventId}`), evt);
+    } catch (e) {
+      console.warn('popup history write failed', e);
     }
   }
 
@@ -700,9 +745,13 @@
       const prefix = normalizePrefix(c.prefix);
       const nowServingNum = Number(c.nowServing || 0);
       const lastIssuedNum = Number(c.lastIssued || 0);
-      const nextNumber = ticketFull(prefix, Math.max(lastIssuedNum, 0) + 1);
-      const displayNow = ticketFull(prefix, Math.max(nowServingNum, 1));
-      const displayLast = ticketFull(prefix, Math.max(lastIssuedNum, 1));
+
+      const nextNum = Math.max(lastIssuedNum, 0) + 1;
+      const nextNumber = ticketFull(prefix, nextNum);
+
+      const displayNow = nowServingNum > 0 ? ticketFull(prefix, nowServingNum) : '—';
+      const displayLast = lastIssuedNum > 0 ? ticketFull(prefix, lastIssuedNum) : '—';
+
       const currentItem = getCurrentItemForCounter(c);
       const currentText = currentItem?.number || currentItem?.queueNumber || '—';
       const lastActionTs = stats.lastTs ? formatTime(stats.lastTs) : '—';
@@ -721,9 +770,17 @@
                   <span style="font-size:11px;font-weight:800;color:var(--primary);background:#eef2ff;padding:3px 8px;border-radius:999px">${escapeHtml(prefix || '—')}</span>
                   ${stats.waiting ? `<span style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:999px">${stats.waiting} waiting</span>` : ''}
                   ${stats.serving ? `<span style="font-size:11px;font-weight:800;color:#0f766e;background:#ecfeff;padding:3px 8px;border-radius:999px">${stats.serving} serving</span>` : ''}
-                  ${stats.completed ? `<span style="font-size:11px;font-weight:800;color:#166534;background:#f0fdf4;padding:3px 8px;border-radius:999px">${stats.completed} completed</span>` : ''}
+                  ${stats.completed ? `<span style="font-size:11px;font-weight:800;color:#166534;background:#f0fdf4;padding:3px 8px;border-radius:999px">${stats.completed} done</span>` : ''}
                   ${stats.cancelled ? `<span style="font-size:11px;font-weight:800;color:#b91c1c;background:#fef2f2;padding:3px 8px;border-radius:999px">${stats.cancelled} cancelled</span>` : ''}
                 </div>
+              </div>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-ghost btn-sm" onclick="openEditCounterModal('${escapeHtml(c.id)}')" title="Edit" style="padding:6px 8px">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="openDeleteModal('${escapeHtml(c.id)}')" title="Delete" style="padding:6px 8px;color:#dc2626">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
               </div>
             </div>
           </div>
@@ -809,14 +866,36 @@
       return;
     }
 
-    const nextItem = waiting[0];
-    const queuedNumber = normalizeStr(nextItem.number || nextItem.queueNumber || '');
     const prefix = normalizePrefix(counter.prefix);
-    const numericPart = extractNumericSuffix(queuedNumber);
     const lastIssued = Number(counter.lastIssued || 0);
+    const maxCallable = lastIssued + 1;
 
-    if (Number.isFinite(numericPart) && numericPart > 0 && lastIssued > 0 && numericPart > lastIssued + 1) {
-      showToast(`Cannot call ${escapeHtml(queuedNumber)}: it is beyond the current sequence ${ticketFull(prefix, lastIssued)}.`, 'error');
+    let nextItem = null;
+    for (const item of waiting) {
+      const queuedNumber = normalizeStr(item.number || item.queueNumber || '');
+      const numericPart = extractNumericSuffix(queuedNumber);
+
+      if (Number.isFinite(numericPart) && numericPart > 0 && numericPart > maxCallable) {
+        continue;
+      }
+
+      nextItem = item;
+      break;
+    }
+
+    if (!nextItem) {
+      showToast(`No valid waiting items within sequence range (max: ${ticketFull(prefix, maxCallable)}).`, 'warning');
+      scheduleRender();
+      return;
+    }
+
+    const queuedNumber = normalizeStr(nextItem.number || nextItem.queueNumber || '');
+    const numericPart = extractNumericSuffix(queuedNumber);
+
+    const liveItem = tenantState.queue?.[nextItem.id];
+    if (!liveItem || normalizeStatus(liveItem.status) !== 'waiting') {
+      showToast('Queue item no longer available. Please try again.', 'warning');
+      scheduleRender();
       return;
     }
 
@@ -835,7 +914,7 @@
 
     const usedNumber = Number.isFinite(numericPart) && numericPart > 0
       ? numericPart
-      : Math.max(Number(counter.lastIssued || 0), 1);
+      : Math.max(lastIssued, 1);
 
     updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/status`] = 'serving';
     updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/calledAt`] = tNow;
@@ -857,7 +936,7 @@
       logStatusEvent('call_next', nextItem.id, nextItem, counter, { fromStatus: normalizeStatus(nextItem.status) || 'waiting', toStatus: 'serving' });
 
       try {
-        await fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
+        fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -920,6 +999,8 @@
     if (!current) return showToast('No serving ticket to cancel.', 'warning');
 
     const tNow = now();
+    const queueNumber = current.number || current.queueNumber || current.id;
+
     try {
       await setQueueStatus(current.id, 'cancelled', {
         cancelledAt: tNow,
@@ -935,7 +1016,28 @@
       await update(ref(db), updates);
 
       logStatusEvent('manual_cancel', current.id, current, counter, { fromStatus: 'serving', toStatus: 'cancelled' });
-      showToast(`⛔ ${escapeHtml(current.number || current.queueNumber || current.id)} cancelled.`, 'warning');
+
+      try {
+        fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'queue_cancelled',
+            tenantId: tenantState.tenantId,
+            slug: tenantState.slug,
+            queueId: current.id,
+            queueNumber: queueNumber,
+            counterId: counterId,
+            counterName: counter.name || counterId,
+            chatId: current.chatId || current.chat_id || null,
+            sessionId: tenantState.sessionId,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform || 'web'
+          })
+        }).catch(() => {});
+      } catch (e) {}
+
+      showToast(`⛔ ${escapeHtml(queueNumber)} cancelled.`, 'warning');
       scheduleRender();
     } catch (e) {
       showToast(`Failed to cancel: ${escapeHtml(e.message)}`, 'error');
@@ -960,6 +1062,14 @@
     } catch (e) {
       showToast(`Reset failed: ${escapeHtml(e.message)}`, 'error');
     }
+  };
+
+  window.openAddCounterModal = function() {
+    if ($('modal-counter-title')) $('modal-counter-title').textContent = 'Add Counter';
+    if ($('edit-counter-id')) $('edit-counter-id').value = '';
+    if ($('counter-name')) $('counter-name').value = '';
+    if ($('counter-prefix')) $('counter-prefix').value = '';
+    if ($('modal-counter')) $('modal-counter').classList.add('show');
   };
 
   window.openEditCounterModal = function(id) {
@@ -1036,6 +1146,119 @@
     }
   };
 
+  window.openQrModal = function() {
+    if ($('modal-qr')) $('modal-qr').classList.add('show');
+  };
+
+  window.generateQr = function() {
+    const canvas = $('qr-canvas');
+    const placeholder = $('qr-placeholder');
+    const url = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
+    if ($('qr-url-display')) $('qr-url-display').textContent = url;
+    if (typeof QRCode !== 'undefined' && canvas) {
+      QRCode.toCanvas(canvas, url, { width: 240, margin: 2 }, (err) => {
+        if (!err) {
+          canvas.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+          if ($('btn-download-qr')) $('btn-download-qr').style.display = '';
+        }
+      });
+    }
+  };
+
+  window.downloadQrPng = function() {
+    const canvas = $('qr-canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `queuejoy-${tenantState.slug}-qr.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
+  window.copyQrUrl = function() {
+    const url = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
+    navigator.clipboard.writeText(url).then(() => showToast('URL copied!', 'success')).catch(() => showToast('Copy failed.', 'error'));
+  };
+
+  window.openIndexPage = function() {
+    window.open(`${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`, '_blank');
+  };
+
+  window.openExternalQrGenerator = function() {
+    window.open('https://online-qr-generator.com/en/qr?step=1&qr_onboarding=active_nsf', '_blank');
+  };
+
+  window.toggleSettingsPanel = function() {
+    const panel = $('settings-panel');
+    if (!panel) return;
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) loadNotificationSettings();
+  };
+
+  window.loadNotificationSettings = async function() {
+    try {
+      const snap = await get(tenantRef('settings/notifications'));
+      const settings = snap.exists() ? snap.val() : {};
+      if ($('set-toast-duration')) $('set-toast-duration').value = settings.toastDuration || 10;
+      if ($('set-called-msg')) $('set-called-msg').value = settings.calledMessage || '';
+      if ($('set-reminder-msg')) $('set-reminder-msg').value = settings.reminderMessage || '';
+      if ($('set-welcome-msg')) $('set-welcome-msg').value = settings.welcomeMessage || '';
+      if ($('set-cancel-msg')) $('set-cancel-msg').value = settings.cancelMessage || '';
+      if ($('set-btn-label')) $('set-btn-label').value = settings.buttonLabel || '';
+      if ($('set-btn-url')) $('set-btn-url').value = settings.buttonUrl || '';
+      if ($('set-footer')) $('set-footer').value = settings.footerText || '';
+      if ($('set-include-footer')) $('set-include-footer').checked = settings.includeFooter !== false;
+      tenantState.toastDurationMs = (Number(settings.toastDuration) || 10) * 1000;
+      updateTemplatePreview();
+    } catch (e) {
+      showToast('Failed to load settings.', 'error');
+    }
+  };
+
+  window.saveNotificationSettings = async function() {
+    const settings = {
+      toastDuration: Number($('set-toast-duration')?.value) || 10,
+      calledMessage: $('set-called-msg')?.value || '',
+      reminderMessage: $('set-reminder-msg')?.value || '',
+      welcomeMessage: $('set-welcome-msg')?.value || '',
+      cancelMessage: $('set-cancel-msg')?.value || '',
+      buttonLabel: $('set-btn-label')?.value || '',
+      buttonUrl: $('set-btn-url')?.value || '',
+      footerText: $('set-footer')?.value || '',
+      includeFooter: $('set-include-footer')?.checked !== false,
+      updatedAt: now()
+    };
+    try {
+      await set(tenantRef('settings/notifications'), settings);
+      tenantState.toastDurationMs = settings.toastDuration * 1000;
+      showToast('Settings saved.', 'success');
+    } catch (e) {
+      showToast(`Failed to save settings: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
+  function updateTemplatePreview() {
+    const preview = $('template-preview');
+    if (!preview) return;
+    const msg = $('set-called-msg')?.value || '🎯 Dear customer,\n\nYour number {calledFull} has been called. Please proceed to {counterName}. Thank you.';
+    const footer = ($('set-include-footer')?.checked !== false && $('set-footer')?.value) ? '\n\n' + $('set-footer').value : '';
+    const full = (msg + footer)
+      .replace(/{calledFull}/g, 'COFFEE001')
+      .replace(/{counterName}/g, 'Counter Coffee')
+      .replace(/{theirNumber}/g, 'COFFEE005')
+      .replace(/{tenantName}/g, tenantState.config?.displayName || tenantState.slug || 'My Shop')
+      .replace(/{slug}/g, tenantState.slug || 'my-shop')
+      .replace(/{cancelledNumber}/g, 'COFFEE003')
+      .replace(/{nextNumber}/g, 'COFFEE004');
+    preview.textContent = full;
+  }
+
+  ['set-called-msg', 'set-footer', 'set-include-footer'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', updateTemplatePreview);
+  });
+
   function setupListeners() {
     onValue(ref(db, '.info/connected'), (snap) => setConnectionStatus(snap.val() === true));
 
@@ -1057,14 +1280,16 @@
         tenantState.initialQueueSnapshot = true;
         tenantState.prevQueue = {};
         for (const [id, q] of Object.entries(nextQueue)) {
+          if (!q) continue;
           tenantState.prevQueue[id] = {
-            status: normalizeStatus(q?.status),
-            number: q?.number || q?.queueNumber || '',
-            updatedAt: q?.updatedAt || q?.createdAt || 0
+            status: normalizeStatus(q.status),
+            number: q.number || q.queueNumber || '',
+            updatedAt: q.updatedAt || q.createdAt || 0
           };
         }
       } else {
         const counters = getCounterList();
+
         for (const [id, q] of Object.entries(nextQueue)) {
           if (!q) continue;
           const prev = tenantState.prevQueue[id];
@@ -1072,11 +1297,8 @@
           const prevStatus = normalizeStatus(prev?.status);
 
           const joinedNow =
-            isWaitingLike(q) &&
-            (!prev || !isWaitingLike({ status: prevStatus })) &&
-            !isServingLike(q) &&
-            !isCancelledLike(q) &&
-            !isCompletedLike(q);
+            (currStatus === 'waiting' || (!currStatus && !q.completedAt && !q.cancelledAt)) &&
+            (!prev || (prevStatus !== 'waiting' && prevStatus !== ''));
 
           if (joinedNow) {
             const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
@@ -1085,11 +1307,9 @@
               ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id)
               : (q.counterName || q.counterLabel || q.counterId || q.counter || q.prefix || 'Counter');
 
-            if (typeof showCenterPopup === 'function') {
-              showCenterPopup('queue_joined', queueNumber, counterLabel, 'A new queue item has just arrived.');
-            }
+            showCenterPopup('queue_joined', queueNumber, counterLabel, 'A new queue item has just arrived.');
 
-            tenantState.popupHistory.unshift({
+            pushPopupHistoryEvent({
               type: 'queue_joined',
               queueId: id,
               queueNumber,
@@ -1099,13 +1319,9 @@
               source: q.source || 'customer',
               message: `${queueNumber} joined the queue at ${counterLabel}`
             });
-            if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
           }
 
-          const becameCancelled = isCancelledLike(q) && prevStatus !== 'cancelled';
-          const becameCompleted = isCompletedLike(q) && prevStatus !== 'completed';
-          const becameServing = isServingLike(q) && prevStatus !== 'serving';
-
+          const becameCancelled = currStatus === 'cancelled' && prevStatus !== 'cancelled';
           if (becameCancelled) {
             const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
             const queueNumber = q.number || q.queueNumber || prev?.number || id;
@@ -1113,11 +1329,9 @@
               ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id)
               : (q.counterName || q.counterLabel || q.counterId || q.counter || q.prefix || 'Counter');
 
-            if (typeof showCenterPopup === 'function') {
-              showCenterPopup('queue_cancelled', queueNumber, counterLabel, `${queueNumber} has been cancelled. The queue has shifted forward.`);
-            }
+            showCenterPopup('queue_cancelled', queueNumber, counterLabel, `${queueNumber} has been cancelled. The queue has shifted forward.`);
 
-            tenantState.popupHistory.unshift({
+            pushPopupHistoryEvent({
               type: 'queue_cancelled',
               queueId: id,
               queueNumber,
@@ -1127,15 +1341,17 @@
               source: q.source || 'customer',
               message: `${queueNumber} cancelled from ${counterLabel}`
             });
-            if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
           }
 
+          const becameCompleted = currStatus === 'completed' && prevStatus !== 'completed';
+          const becameServing = currStatus === 'serving' && prevStatus !== 'serving';
           if (becameCompleted || becameServing) {
             const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
-            logStatusEvent(currStatus === 'completed' ? 'queue_completed_snapshot' : 'queue_serving_snapshot', id, q, matchedCounter || {}, {
-              fromStatus: prevStatus,
-              toStatus: currStatus
-            });
+            logStatusEvent(
+              currStatus === 'completed' ? 'queue_completed_snapshot' : 'queue_serving_snapshot',
+              id, q, matchedCounter || {},
+              { fromStatus: prevStatus, toStatus: currStatus }
+            );
           }
         }
 
@@ -1214,7 +1430,6 @@
 
   init();
 
-  // Keep popup history fresh if your UI has the panel
   setInterval(() => {
     if ($('popup-history-list')) renderPopupHistory();
   }, 1000);

@@ -375,6 +375,19 @@ async function pushAuditEventTenant(adminDb, tenantId, evt) {
   } catch (e) { console.warn('pushAuditEventTenant', e?.message); }
 }
 
+// ===== Popup History Audit =====
+async function pushPopupHistoryEvent(adminDb, tenantId, evt) {
+  try {
+    if (adminDb) {
+      await adminDb.ref(`tenants/${tenantId}/audit/popupHistory`).push(evt);
+    } else if (DATABASE_URL) {
+      await fetch(`${DATABASE_URL}/tenants/${encodeURIComponent(tenantId)}/audit/popupHistory.json`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evt),
+      });
+    }
+  } catch (e) { console.warn('pushPopupHistoryEvent', e?.message); }
+}
+
 // ===== Privacy: remove number fields =====
 function markNumberForDeletionTenant(tenantId, ticketId) {
   if (!ticketId) return {};
@@ -421,7 +434,6 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
     if (alreadySent) {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, action: 'queue_cancelled', skipped: true, reason: 'duplicate' }) };
     }
-    // Mark as sent
     firebaseUpdates[`tenants/${tenantId}/notifications/sent/cancel_${queueId}`] = { sentAt: Date.now() };
   }
 
@@ -431,7 +443,7 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
       cancelledNumber: queueNumber || queueId,
       counterName: counterName || 'the counter',
       tenantName, slug: slug || tenantId,
-      nextNumber: '', // will be filled if we find next
+      nextNumber: '',
     };
     const cancelText = renderTemplate(tpl.cancelMessage || DEFAULT_TEMPLATES.cancelMessage, cancelVars);
     telegramPrepared.push(tgPrepareMessage(cancelledChatId, cancelText, btnLabel, btnUrl));
@@ -453,7 +465,21 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
     platform: payload.platform || 'netlify-function',
   });
 
-  // 3) Fetch the remaining waiting queue for the same counter to promote and remind
+  // 3) Also write to popup history audit
+  await pushPopupHistoryEvent(adminDb, tenantId, {
+    type: 'queue_cancelled',
+    queueId: queueId || '',
+    queueNumber: queueNumber || '',
+    counterId: counterId || '',
+    counterName: counterName || '',
+    tenantId,
+    slug: slug || tenantId,
+    timestamp: Date.now(),
+    source: payload.source || 'backend',
+    message: `${queueNumber || queueId} cancelled from ${counterName || 'counter'}`,
+  });
+
+  // 4) Fetch the remaining waiting queue for the same counter to promote and remind
   const allQueue = await fetchQueueAllTenant(adminDb, tenantId);
   const cancelledSeries = seriesOf(queueNumber);
 
@@ -461,25 +487,24 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
   const waitingItems = [];
   for (const [key, q] of Object.entries(allQueue || {})) {
     if (!q || q.status !== 'waiting') continue;
-    if (key === queueId) continue; // skip the cancelled one itself
+    if (key === queueId) continue;
     const qCounterId = String(q.counterId || q.counter || q.assignedCounterId || q.counterRef || q.counter_id || '').trim();
     const qSeries = seriesOf(q.number || q.queueNumber || key);
-    // Match by counterId or series
     if ((counterId && qCounterId === counterId) || (cancelledSeries && qSeries === cancelledSeries)) {
       waitingItems.push({
         id: key,
         chatId: q.chatId || q.chat_id || null,
         number: q.number || q.queueNumber || key,
-        timestamp: q.timestamp || q.createdAt || q.updatedAt || 0,
+        timestamp: q.createdAt || q.timestamp || q.updatedAt || 0,
         telegramConnected: q.telegramConnected || false,
       });
     }
   }
 
-  // Sort by timestamp (earliest first)
+  // Sort by createdAt/timestamp (earliest first)
   waitingItems.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-  // 4) Promote the first waiting user (send "your turn" notification)
+  // 5) Promote the first waiting user (send "your turn" notification)
   if (waitingItems.length > 0) {
     const frontUser = waitingItems[0];
     if (frontUser.chatId) {
@@ -498,7 +523,7 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
       results.push({ chatId: frontUser.chatId, action: 'promoted-after-cancel', queueNumber: frontUser.number });
     }
 
-    // 5) Send reminder notifications to users behind the promoted user
+    // 6) Send reminder notifications to users behind the promoted user
     for (let i = 1; i < waitingItems.length; i++) {
       const behindUser = waitingItems[i];
       if (!behindUser.chatId) continue;
@@ -515,7 +540,7 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
     }
   }
 
-  // 6) Send all Telegram messages in parallel
+  // 7) Send all Telegram messages in parallel
   if (telegramPrepared.length) {
     const telegramResults = await Promise.allSettled(telegramPrepared.map(p => tgSendPrepared(p)));
     telegramResults.forEach((r, i) => {
@@ -525,7 +550,7 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
     });
   }
 
-  // 7) Apply Firebase updates
+  // 8) Apply Firebase updates
   if (Object.keys(firebaseUpdates).length > 0) {
     try {
       if (adminDb) {
