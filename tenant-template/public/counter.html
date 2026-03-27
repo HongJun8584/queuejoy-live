@@ -341,7 +341,9 @@
 
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getDatabase, ref, set, get, update, push, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+  import {
+    getDatabase, ref, set, get, update, push, onValue
+  } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyBYJlAo0HnclifELg99BgLBU6U_OCnUoH8",
@@ -356,7 +358,6 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-
   const $ = (id) => document.getElementById(id);
 
   const tenantState = {
@@ -366,28 +367,34 @@
     counters: {},
     queue: {},
     prevQueue: {},
-    notificationSettings: {},
     countersLoaded: false,
     queueLoaded: false,
     initialQueueSnapshot: false,
     popupHistory: [],
     toastDurationMs: 10000,
+    renderQueued: false,
     sessionId: `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   };
 
-  const MAX_POPUP_HISTORY = 20;
-
   function now() { return Date.now(); }
   function normalizeStr(v) { return String(v ?? '').trim(); }
+  function normalizeStatus(v) {
+    const s = normalizeStr(v).toLowerCase();
+    if (!s) return '';
+    if (['call', 'called', 'serving', 'service', 'inservice', 'in_service'].includes(s)) return 'serving';
+    if (['wait', 'waiting', 'queued', 'queue', 'pending', 'new', 'ready'].includes(s)) return 'waiting';
+    if (['done', 'completed', 'complete', 'closed', 'close', 'finished'].includes(s)) return 'completed';
+    if (['cancel', 'cancelled', 'canceled'].includes(s)) return 'cancelled';
+    return s;
+  }
+  function isWaitingLike(q) { return normalizeStatus(q?.status) === 'waiting' || !normalizeStatus(q?.status); }
+  function isServingLike(q) { return normalizeStatus(q?.status) === 'serving'; }
+  function isCompletedLike(q) { return normalizeStatus(q?.status) === 'completed'; }
+  function isCancelledLike(q) { return normalizeStatus(q?.status) === 'cancelled'; }
+  function isCallableLike(q) { return !isCompletedLike(q) && !isCancelledLike(q); }
+
   function normalizePrefix(v) {
     return normalizeStr(v).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12);
-  }
-  function normalizeStatus(v) {
-    return normalizeStr(v).toLowerCase();
-  }
-  function extractNumericSuffix(value) {
-    const m = normalizeStr(value).match(/(\d+)$/);
-    return m ? parseInt(m[1], 10) : NaN;
   }
   function pad3(num) {
     const n = Number(num);
@@ -395,6 +402,10 @@
   }
   function ticketFull(prefix, num) {
     return `${normalizePrefix(prefix)}${pad3(num)}`;
+  }
+  function extractNumericSuffix(value) {
+    const m = normalizeStr(value).match(/(\d+)$/);
+    return m ? parseInt(m[1], 10) : NaN;
   }
   function extractPrefixFromNumber(number) {
     const n = normalizeStr(number).toUpperCase();
@@ -410,25 +421,42 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
   }
+  function formatTime(ts) {
+    if (!ts) return '—';
+    try {
+      return new Date(Number(ts)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch {
+      return '—';
+    }
+  }
+  function formatDateTime(ts) {
+    if (!ts) return '—';
+    try {
+      return new Date(Number(ts)).toLocaleString();
+    } catch {
+      return '—';
+    }
+  }
   function tenantRef(path = '') {
     return ref(db, `tenants/${tenantState.tenantId}${path ? '/' + path : ''}`);
+  }
+  function scheduleRender() {
+    if (tenantState.renderQueued) return;
+    tenantState.renderQueued = true;
+    requestAnimationFrame(() => {
+      tenantState.renderQueued = false;
+      renderCounters();
+    });
   }
 
   function showToast(message, type = 'info', duration = null) {
     const wrap = $('toast-wrap');
+    if (!wrap) return;
     const el = document.createElement('div');
     el.className = `toast ${type}`;
     const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : type === 'error' ? '❌' : 'ℹ️';
-    const msg = document.createElement('div');
-    msg.style.flex = '1';
-    msg.innerHTML = message;
-    const close = document.createElement('span');
-    close.className = 'close';
-    close.textContent = '×';
-    close.onclick = () => el.remove();
-    el.appendChild(document.createElement('span')).textContent = icon;
-    el.appendChild(msg);
-    el.appendChild(close);
+    el.innerHTML = `<span>${icon}</span><div style="flex:1">${message}</div><span class="close">×</span>`;
+    el.querySelector('.close').onclick = () => el.remove();
     wrap.appendChild(el);
     const ms = duration === null ? tenantState.toastDurationMs : duration;
     if (ms > 0) setTimeout(() => { if (el.isConnected) el.remove(); }, ms);
@@ -436,31 +464,10 @@
 
   function setConnectionStatus(connected) {
     const el = $('connection-status');
+    if (!el) return;
     el.innerHTML = connected
       ? '<span class="status-dot status-live"></span> Live'
       : '<span class="status-dot status-offline"></span> Offline';
-  }
-
-  function isCancelledLike(q) {
-    const s = normalizeStatus(q?.status);
-    return s === 'cancelled' || s === 'canceled';
-  }
-
-  function isServingLike(q) {
-    const s = normalizeStatus(q?.status);
-    return s === 'serving' || s === 'called';
-  }
-
-  function isWaitingLike(q) {
-    const s = normalizeStatus(q?.status);
-    if (!s) return true;
-    return ['waiting', 'queued', 'pending', 'new', 'ready'].includes(s);
-  }
-
-  function isCallableLike(q) {
-    const s = normalizeStatus(q?.status);
-    if (!s) return true;
-    return !['completed', 'cancelled', 'canceled', 'done', 'closed'].includes(s);
   }
 
   async function resolveTenant() {
@@ -469,7 +476,7 @@
     tenantState.slug = params.get('slug') || pathSlug || '';
 
     if (!tenantState.slug) {
-      showToast('Missing tenant slug. Open this page with ?slug=your-slug.', 'error', 0);
+      showToast('Missing tenant slug. Open with ?slug=your-slug.', 'error', 0);
       return false;
     }
 
@@ -489,7 +496,9 @@
         const slugSnap = await get(ref(db, `slugs/${tenantState.slug}`));
         if (slugSnap.exists()) {
           const val = slugSnap.val();
-          tenantState.tenantId = typeof val === 'string' ? val : normalizeStr(val?.tenantId || val?.id || tenantState.slug);
+          tenantState.tenantId = typeof val === 'string'
+            ? val
+            : normalizeStr(val?.tenantId || val?.id || tenantState.slug);
         }
       } catch (e) {}
     }
@@ -505,10 +514,12 @@
     }
 
     const displayName = tenantState.config?.displayName || tenantState.slug;
-    $('page-title').textContent = `${displayName} — Counter`;
-    $('qr-url-display').textContent = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-    $('qa-badge').style.display = 'block';
-    $('qa-badge').textContent = `slug: ${tenantState.slug} | tenantId: ${tenantState.tenantId}`;
+    if ($('page-title')) $('page-title').textContent = `${displayName} — Counter`;
+    if ($('qr-url-display')) $('qr-url-display').textContent = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
+    if ($('qa-badge')) {
+      $('qa-badge').style.display = 'block';
+      $('qa-badge').textContent = `slug: ${tenantState.slug} | tenantId: ${tenantState.tenantId}`;
+    }
     return true;
   }
 
@@ -516,11 +527,7 @@
     return Object.entries(tenantState.counters || {})
       .map(([id, c]) => ({ id, ...(c || {}) }))
       .filter(c => c && c.active !== false)
-      .sort((a, b) => {
-        const ai = a.updatedAt || a.createdAt || 0;
-        const bi = b.updatedAt || b.createdAt || 0;
-        return ai - bi;
-      });
+      .sort((a, b) => (a.updatedAt || a.createdAt || 0) - (b.updatedAt || b.createdAt || 0));
   }
 
   function counterMatchesQueue(counter, q) {
@@ -552,16 +559,16 @@
 
   function sortByTimestamp(entries) {
     return entries.sort((a, b) => {
-      const ta = a.timestamp || a.createdAt || a.updatedAt || a.calledAt || 0;
-      const tb = b.timestamp || b.createdAt || b.updatedAt || b.calledAt || 0;
+      const ta = a.timestamp || a.createdAt || a.updatedAt || a.calledAt || a.completedAt || a.cancelledAt || 0;
+      const tb = b.timestamp || b.createdAt || b.updatedAt || b.calledAt || b.completedAt || b.cancelledAt || 0;
       return ta - tb;
     });
   }
 
-  function getWaitingItemsForCounter(counter) {
+  function getQueueItemsForCounter(counter) {
     const entries = Object.entries(tenantState.queue || {})
       .map(([id, q]) => ({ id, ...(q || {}) }))
-      .filter(q => isCallableLike(q) && (isWaitingLike(q) || !normalizeStatus(q.status)));
+      .filter(q => isCallableLike(q) && (isWaitingLike(q) || isServingLike(q) || !normalizeStatus(q.status)));
 
     const matched = sortByTimestamp(entries.filter(q => counterMatchesQueue(counter, q)));
     if (matched.length) return matched;
@@ -581,240 +588,33 @@
     return [];
   }
 
+  function getWaitingItemsForCounter(counter) {
+    return getQueueItemsForCounter(counter).filter(isWaitingLike);
+  }
+
   function getServingItemsForCounter(counter) {
-    const entries = Object.entries(tenantState.queue || {})
-      .map(([id, q]) => ({ id, ...(q || {}) }))
-      .filter(q => isServingLike(q));
-    return sortByTimestamp(entries.filter(q => counterMatchesQueue(counter, q)));
+    return getQueueItemsForCounter(counter).filter(isServingLike);
   }
 
-  function displayTicket(prefix, n) {
-    return ticketFull(prefix, n);
+  function getCurrentItemForCounter(counter) {
+    return getServingItemsForCounter(counter)[0] || null;
   }
 
-  function renderCounters() {
-    const skeleton = $('loading-skeleton');
-    const grid = $('counters-grid');
-    const empty = $('empty-state');
-
-    if (!tenantState.countersLoaded) {
-      skeleton.style.display = 'grid';
-      grid.style.display = 'none';
-      empty.style.display = 'none';
-      return;
+  function buildStatsForCounter(counter) {
+    const stats = { waiting: 0, serving: 0, completed: 0, cancelled: 0, total: 0, lastTs: 0 };
+    for (const [id, q] of Object.entries(tenantState.queue || {})) {
+      if (!q || !counterMatchesQueue(counter, { ...q, id })) continue;
+      stats.total++;
+      const s = normalizeStatus(q.status);
+      if (s === 'waiting' || !s) stats.waiting++;
+      else if (s === 'serving') stats.serving++;
+      else if (s === 'completed') stats.completed++;
+      else if (s === 'cancelled') stats.cancelled++;
+      const ts = q.updatedAt || q.calledAt || q.completedAt || q.cancelledAt || q.createdAt || 0;
+      if (ts > stats.lastTs) stats.lastTs = ts;
     }
-
-    skeleton.style.display = 'none';
-
-    const counters = getCounterList();
-    if (!counters.length) {
-      grid.style.display = 'none';
-      empty.style.display = 'block';
-      return;
-    }
-
-    empty.style.display = 'none';
-    grid.style.display = 'grid';
-
-    const waitingCounts = {};
-    for (const q of Object.values(tenantState.queue || {})) {
-      if (!q || !isWaitingLike(q)) continue;
-      for (const c of counters) {
-        if (counterMatchesQueue(c, q)) {
-          waitingCounts[c.id] = (waitingCounts[c.id] || 0) + 1;
-        }
-      }
-    }
-
-    grid.innerHTML = counters.map((c, index) => {
-      const nowServing = Number(c.nowServing || 0);
-      const lastIssued = Number(c.lastIssued || 0);
-      const prefix = normalizePrefix(c.prefix);
-
-      const nextNumber = displayTicket(prefix, Math.max(lastIssued, 0) + 1);
-      const displayNow = displayTicket(prefix, Math.max(nowServing, 1));
-      const displayLast = displayTicket(prefix, Math.max(lastIssued, 1));
-
-      const waiting = waitingCounts[c.id] || 0;
-      const servingList = getServingItemsForCounter(c);
-      const servingText = servingList[0]?.number || servingList[0]?.queueNumber || '—';
-
-      const canCall = waiting > 0;
-
-      return `
-        <div class="card fade-up" id="counter-card-${escapeHtml(c.id)}" style="animation-delay:${index * 50}ms">
-          <div style="padding:18px 20px 0">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
-              <div style="min-width:0">
-                <h3 style="margin:0 0 6px;font-size:17px;font-weight:800;letter-spacing:-.01em;word-break:break-word">${escapeHtml(c.name || 'Unnamed Counter')}</h3>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                  <span style="font-size:11px;font-weight:800;color:var(--primary);background:#eef2ff;padding:3px 8px;border-radius:999px">${escapeHtml(prefix || '—')}</span>
-                  ${waiting ? `<span style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:999px">${waiting} waiting</span>` : ''}
-                </div>
-              </div>
-              <div style="display:flex;gap:4px;flex-shrink:0">
-                <button class="btn btn-ghost btn-sm" style="padding:8px 10px" title="Edit" onclick="openEditCounterModal('${escapeHtml(c.id)}')">✎</button>
-                <button class="btn btn-ghost btn-sm" style="padding:8px 10px;color:#dc2626" title="Delete" onclick="openDeleteModal('${escapeHtml(c.id)}')">🗑</button>
-              </div>
-            </div>
-          </div>
-
-          <div style="margin:16px 18px 0;padding:18px;border-radius:16px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);text-align:center">
-            <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin-bottom:6px">Now Serving</div>
-            <div style="font-size:34px;line-height:1;font-weight:900;color:#312e81">${escapeHtml(displayNow)}</div>
-            <div style="margin-top:8px;font-size:12px;color:var(--muted)">Live serving: ${escapeHtml(servingText)}</div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 18px 0">
-            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
-              <div style="font-size:11px;color:var(--muted);font-weight:700">Last Issued</div>
-              <div style="margin-top:4px;font-size:18px;font-weight:800">${escapeHtml(displayLast)}</div>
-            </div>
-            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
-              <div style="font-size:11px;color:var(--muted);font-weight:700">Next Number</div>
-              <div style="margin-top:4px;font-size:18px;font-weight:800;color:var(--primary)">${escapeHtml(nextNumber)}</div>
-            </div>
-          </div>
-
-          <div style="padding:16px 18px 18px;display:flex;gap:8px;margin-top:6px">
-            <button class="btn btn-success" style="flex:1" onclick="callNext('${escapeHtml(c.id)}')" ${canCall ? '' : 'disabled'}>${canCall ? 'Call Next' : 'Call Next (none waiting)'}</button>
-            <button class="btn btn-warning btn-sm" onclick="resetCounter('${escapeHtml(c.id)}')" title="Reset">↻</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+    return stats;
   }
-
-  function updateTemplatePreview() {
-    const called = $('set-called-msg')?.value || '';
-    const footerEnabled = $('set-include-footer')?.checked;
-    const footer = footerEnabled ? `\n\n${$('set-footer')?.value || ''}` : '';
-    const preview = called
-      .replaceAll('{calledFull}', 'CAP009')
-      .replaceAll('{counterName}', 'Counter Cappuccino')
-      .replaceAll('{theirNumber}', 'CAP008')
-      .replaceAll('{tenantName}', tenantState.config?.displayName || tenantState.slug)
-      .replaceAll('{slug}', tenantState.slug)
-      .replaceAll('{exploreLabel}', $('set-btn-label')?.value || '👉 Explore QueueJoy')
-      .replaceAll('{exploreUrl}', $('set-btn-url')?.value || '')
-      .replaceAll('{customText}', '');
-    $('template-preview').textContent = preview + footer;
-  }
-
-  function populateSettingsForm(s = {}) {
-    $('set-toast-duration').value = s.toastDurationSec || 10;
-    tenantState.toastDurationMs = (Number(s.toastDurationSec) || 10) * 1000;
-    $('set-called-msg').value = s.calledMessage || '🎯 Dear customer,\n\nYour number {calledFull} has been called. Please proceed to {counterName}. Thank you.';
-    $('set-reminder-msg').value = s.reminderMessage || '🔔 REMINDER\nNumber {calledFull} was called. Your number is {theirNumber}. We\'ll notify you again when it’s your turn.';
-    $('set-welcome-msg').value = s.welcomeMessage || '👋 Welcome! Your ticket {theirNumber} is registered. We\'ll notify you when it’s your turn.';
-    $('set-cancel-msg').value = s.cancelMessage || '❌ Your ticket {cancelledNumber} has been cancelled. Thank you for your patience.';
-    $('set-btn-label').value = s.buttonLabel || '👉 Explore QueueJoy';
-    $('set-btn-url').value = s.buttonUrl || 'https://helloqueuejoy.netlify.app';
-    $('set-footer').value = s.footerText || 'Curious how this works? Tap the button below to see tools your shop can use to keep customers happy.';
-    $('set-include-footer').checked = s.includeFooter !== false;
-    updateTemplatePreview();
-  }
-
-  function showCenterPopup(type, queueNumber, counterLabel, message) {
-    if (!queueNumber) return;
-
-    const root = $('popup-root');
-    const isCancel = type === 'queue_cancelled';
-    const badgeClass = isCancel ? 'cancel' : 'join';
-    const icon = isCancel
-      ? '<svg width="30" height="30" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>'
-      : '<svg width="30" height="30" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>';
-
-    const title = isCancel ? 'Queue Cancelled' : 'New Customer Joined';
-    const subtitle = message || (isCancel ? 'A queue item has been cancelled.' : 'A new queue item has just arrived.');
-
-    const overlay = document.createElement('div');
-    overlay.className = 'popup-overlay';
-    overlay.innerHTML = `
-      <div class="popup-card">
-        <div class="popup-badge ${badgeClass}">
-          ${icon}
-        </div>
-        <div style="font-size:14px;font-weight:800;color:${isCancel ? '#dc2626' : '#4f46e5'};margin-bottom:8px">${escapeHtml(title)}</div>
-        <div style="font-size:32px;font-weight:900;letter-spacing:-.02em;color:#312e81;margin:0 0 8px">${escapeHtml(queueNumber)}</div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:18px;color:#4b5563">${escapeHtml(counterLabel || 'Counter')}</div>
-        <div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:18px">${escapeHtml(subtitle)}</div>
-        <button class="btn ${isCancel ? 'btn-danger' : 'btn-primary'}" onclick="dismissCenterPopup(this)">Got it</button>
-      </div>
-    `;
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) dismissCenterPopup(overlay.querySelector('button'));
-    });
-
-    root.appendChild(overlay);
-  }
-
-  window.dismissCenterPopup = function(btn) {
-    const overlay = btn?.closest?.('.popup-overlay');
-    if (!overlay) return;
-    const card = overlay.querySelector('.popup-card');
-    if (card) card.classList.add('closing');
-    setTimeout(() => overlay.remove(), 160);
-  };
-
-  function addPopupHistoryEvent(evt) {
-    tenantState.popupHistory.unshift(evt);
-    if (tenantState.popupHistory.length > MAX_POPUP_HISTORY) {
-      tenantState.popupHistory = tenantState.popupHistory.slice(0, MAX_POPUP_HISTORY);
-    }
-    renderPopupHistory();
-
-    try {
-      const histId = push(tenantRef('audit/popupHistory')).key;
-      set(tenantRef(`audit/popupHistory/${histId}`), {
-        type: evt.type,
-        queueId: evt.queueId || '',
-        queueNumber: evt.queueNumber || '',
-        counterId: evt.counterId || '',
-        counterName: evt.counterName || '',
-        tenantId: tenantState.tenantId,
-        slug: tenantState.slug,
-        timestamp: evt.timestamp || now(),
-        source: evt.source || 'counter-panel',
-        message: evt.message || ''
-      });
-    } catch (e) {
-      console.warn('Failed to write popup history to Firebase:', e);
-    }
-  }
-
-  function renderPopupHistory() {
-    const list = $('popup-history-list');
-    const count = $('popup-history-count');
-
-    if (!tenantState.popupHistory.length) {
-      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No popup events yet.</div>';
-      count.textContent = '';
-      return;
-    }
-
-    count.textContent = `(${tenantState.popupHistory.length})`;
-    list.innerHTML = tenantState.popupHistory.map(evt => {
-      const isCancel = evt.type === 'queue_cancelled';
-      const badgeClass = isCancel ? 'cancelled' : 'joined';
-      const badgeLabel = isCancel ? 'Cancelled' : 'Joined';
-      const ts = evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : '';
-      return `
-        <div class="popup-history-item">
-          <span class="popup-history-badge ${badgeClass}">${badgeLabel}</span>
-          <strong style="font-size:14px">${escapeHtml(evt.queueNumber || '—')}</strong>
-          <span style="color:var(--muted);font-size:12px">${escapeHtml(evt.counterName || evt.counterId || '')}</span>
-          <span style="margin-left:auto;color:var(--muted);font-size:11px">${ts}</span>
-        </div>
-      `;
-    }).join('');
-  }
-
-  window.togglePopupHistory = function() {
-    const panel = $('popup-history-panel');
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  };
 
   function queueEntryToRecipient(qid, q) {
     return {
@@ -824,7 +624,31 @@
     };
   }
 
-  function writeCompletionAnalyticsUpdates(updates, qid, q, counter, completedAt) {
+  function logStatusEvent(type, qid, q, counter, extra = {}) {
+    try {
+      const eventId = push(tenantRef('audit/statusEvents')).key;
+      set(tenantRef(`audit/statusEvents/${eventId}`), {
+        type,
+        queueId: qid,
+        queueNumber: q?.number || q?.queueNumber || qid,
+        counterId: counter?.id || q?.counterId || '',
+        counterName: counter?.name || q?.counterName || '',
+        fromStatus: extra.fromStatus || '',
+        toStatus: extra.toStatus || '',
+        timestamp: now(),
+        tenantId: tenantState.tenantId,
+        slug: tenantState.slug,
+        sessionId: tenantState.sessionId,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform || 'web',
+        ...extra
+      });
+    } catch (e) {
+      console.warn('status log failed', e);
+    }
+  }
+
+  function updateCompletionAnalytics(updates, qid, q, counter, completedAt) {
     const startedAt = q.calledAt || q.servedAt || q.updatedAt || q.createdAt || q.timestamp || completedAt;
     const serviceMs = Math.max(0, Number(completedAt) - Number(startedAt || completedAt));
     const eventId = push(tenantRef('analytics/serviceEvents')).key;
@@ -846,20 +670,384 @@
     };
   }
 
+  function renderCounters() {
+    const skeleton = $('loading-skeleton');
+    const grid = $('counters-grid');
+    const empty = $('empty-state');
+    if (!grid || !skeleton || !empty) return;
+
+    if (!tenantState.countersLoaded) {
+      skeleton.style.display = 'grid';
+      grid.style.display = 'none';
+      empty.style.display = 'none';
+      return;
+    }
+
+    skeleton.style.display = 'none';
+
+    const counters = getCounterList();
+    if (!counters.length) {
+      grid.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+
+    grid.innerHTML = counters.map((c, index) => {
+      const stats = buildStatsForCounter(c);
+      const prefix = normalizePrefix(c.prefix);
+      const nowServingNum = Number(c.nowServing || 0);
+      const lastIssuedNum = Number(c.lastIssued || 0);
+      const nextNumber = ticketFull(prefix, Math.max(lastIssuedNum, 0) + 1);
+      const displayNow = ticketFull(prefix, Math.max(nowServingNum, 1));
+      const displayLast = ticketFull(prefix, Math.max(lastIssuedNum, 1));
+      const currentItem = getCurrentItemForCounter(c);
+      const currentText = currentItem?.number || currentItem?.queueNumber || '—';
+      const lastActionTs = stats.lastTs ? formatTime(stats.lastTs) : '—';
+
+      const canCall = stats.waiting > 0;
+      const canComplete = !!currentItem;
+      const canCancel = !!currentItem;
+
+      return `
+        <div class="card fade-up" id="counter-card-${escapeHtml(c.id)}" style="animation-delay:${index * 45}ms">
+          <div style="padding:18px 20px 0">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+              <div style="min-width:0">
+                <h3 style="margin:0 0 6px;font-size:17px;font-weight:800;letter-spacing:-.01em;word-break:break-word">${escapeHtml(c.name || 'Unnamed Counter')}</h3>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <span style="font-size:11px;font-weight:800;color:var(--primary);background:#eef2ff;padding:3px 8px;border-radius:999px">${escapeHtml(prefix || '—')}</span>
+                  ${stats.waiting ? `<span style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:999px">${stats.waiting} waiting</span>` : ''}
+                  ${stats.serving ? `<span style="font-size:11px;font-weight:800;color:#0f766e;background:#ecfeff;padding:3px 8px;border-radius:999px">${stats.serving} serving</span>` : ''}
+                  ${stats.completed ? `<span style="font-size:11px;font-weight:800;color:#166534;background:#f0fdf4;padding:3px 8px;border-radius:999px">${stats.completed} completed</span>` : ''}
+                  ${stats.cancelled ? `<span style="font-size:11px;font-weight:800;color:#b91c1c;background:#fef2f2;padding:3px 8px;border-radius:999px">${stats.cancelled} cancelled</span>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin:16px 18px 0;padding:18px;border-radius:16px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);text-align:center">
+            <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin-bottom:6px">Now Serving</div>
+            <div style="font-size:34px;line-height:1;font-weight:900;color:#312e81">${escapeHtml(displayNow)}</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--muted)">Live item: ${escapeHtml(currentText)}</div>
+            <div style="margin-top:6px;font-size:11px;color:var(--muted)">Last activity: ${escapeHtml(lastActionTs)}</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 18px 0">
+            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--muted);font-weight:700">Last Issued</div>
+              <div style="margin-top:4px;font-size:18px;font-weight:800">${escapeHtml(displayLast)}</div>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--muted);font-weight:700">Next Number</div>
+              <div style="margin-top:4px;font-size:18px;font-weight:800;color:var(--primary)">${escapeHtml(nextNumber)}</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 18px 0">
+            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--muted);font-weight:700">Waiting</div>
+              <div style="margin-top:4px;font-size:18px;font-weight:800">${stats.waiting}</div>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--muted);font-weight:700">Serving / Done</div>
+              <div style="margin-top:4px;font-size:18px;font-weight:800">${stats.serving + stats.completed}</div>
+            </div>
+          </div>
+
+          <div style="padding:16px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+            <button class="btn btn-success" onclick="callNext('${escapeHtml(c.id)}')" ${canCall ? '' : 'disabled'}>${canCall ? 'Call Next' : 'Call Next (none waiting)'}</button>
+            <button class="btn btn-primary" onclick="completeCurrent('${escapeHtml(c.id)}')" ${canComplete ? '' : 'disabled'}>Mark Done</button>
+            <button class="btn btn-warning" onclick="cancelCurrent('${escapeHtml(c.id)}')" ${canCancel ? '' : 'disabled'}>Cancel</button>
+            <button class="btn btn-ghost" onclick="resetCounter('${escapeHtml(c.id)}')">Reset</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function setQueueStatus(qid, status, extra = {}) {
+    const tNow = now();
+    const updates = {};
+    updates[`tenants/${tenantState.tenantId}/queue/${qid}/status`] = status;
+    updates[`tenants/${tenantState.tenantId}/queue/${qid}/updatedAt`] = tNow;
+
+    if (status === 'serving') {
+      updates[`tenants/${tenantState.tenantId}/queue/${qid}/calledAt`] = extra.calledAt || tNow;
+      updates[`tenants/${tenantState.tenantId}/queue/${qid}/servedAt`] = extra.calledAt || tNow;
+    }
+    if (status === 'completed') {
+      updates[`tenants/${tenantState.tenantId}/queue/${qid}/completedAt`] = extra.completedAt || tNow;
+    }
+    if (status === 'cancelled') {
+      updates[`tenants/${tenantState.tenantId}/queue/${qid}/cancelledAt`] = extra.cancelledAt || tNow;
+    }
+
+    if (extra.counterId !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/counterId`] = extra.counterId;
+    if (extra.counterPrefix !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/counterPrefix`] = extra.counterPrefix;
+    if (extra.counterName !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/counterName`] = extra.counterName;
+    if (extra.sessionId !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/sessionId`] = extra.sessionId;
+    if (extra.source !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/source`] = extra.source;
+    if (extra.numberVal !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/numberVal`] = extra.numberVal;
+
+    await update(ref(db), updates);
+  }
+
+  window.callNext = async function(counterId) {
+    const counter = tenantState.counters?.[counterId];
+    if (!counter) {
+      showToast('Counter not found.', 'error');
+      return;
+    }
+
+    const waiting = getWaitingItemsForCounter(counter);
+    if (!waiting.length) {
+      showToast('No waiting customers for this counter.', 'warning');
+      scheduleRender();
+      return;
+    }
+
+    const nextItem = waiting[0];
+    const queuedNumber = normalizeStr(nextItem.number || nextItem.queueNumber || '');
+    const prefix = normalizePrefix(counter.prefix);
+    const numericPart = extractNumericSuffix(queuedNumber);
+    const lastIssued = Number(counter.lastIssued || 0);
+
+    if (Number.isFinite(numericPart) && numericPart > 0 && lastIssued > 0 && numericPart > lastIssued + 1) {
+      showToast(`Cannot call ${escapeHtml(queuedNumber)}: it is beyond the current sequence ${ticketFull(prefix, lastIssued)}.`, 'error');
+      return;
+    }
+
+    const serving = getServingItemsForCounter(counter);
+    const servingItem = serving[0] || null;
+    const tNow = now();
+    const updates = {};
+
+    if (servingItem && servingItem.id !== nextItem.id) {
+      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/status`] = 'completed';
+      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/completedAt`] = tNow;
+      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/updatedAt`] = tNow;
+      updateCompletionAnalytics(updates, servingItem.id, servingItem, { id: counterId, ...counter }, tNow);
+      logStatusEvent('auto_complete_before_next', servingItem.id, servingItem, counter, { fromStatus: 'serving', toStatus: 'completed' });
+    }
+
+    const usedNumber = Number.isFinite(numericPart) && numericPart > 0
+      ? numericPart
+      : Math.max(Number(counter.lastIssued || 0), 1);
+
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/status`] = 'serving';
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/calledAt`] = tNow;
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/servedAt`] = tNow;
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/updatedAt`] = tNow;
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterId`] = nextItem.counterId || counterId;
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterPrefix`] = nextItem.counterPrefix || counter.prefix || '';
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterName`] = nextItem.counterName || counter.name || '';
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/sessionId`] = nextItem.sessionId || tenantState.sessionId;
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/source`] = nextItem.source || 'counter-panel';
+    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/numberVal`] = Number.isFinite(numericPart) ? numericPart : (nextItem.numberVal || usedNumber);
+
+    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`] = usedNumber;
+    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`] = Math.max(lastIssued, usedNumber);
+    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
+
+    try {
+      await update(ref(db), updates);
+      logStatusEvent('call_next', nextItem.id, nextItem, counter, { fromStatus: normalizeStatus(nextItem.status) || 'waiting', toStatus: 'serving' });
+
+      try {
+        await fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenantId: tenantState.tenantId,
+            slug: tenantState.slug,
+            calledFull: queuedNumber || ticketFull(prefix, usedNumber),
+            counterId,
+            counterName: counter.name || counterId,
+            sessionId: tenantState.sessionId,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform || 'web',
+            recipients: [queueEntryToRecipient(nextItem.id, nextItem)]
+          })
+        }).catch(() => {});
+      } catch (e) {}
+
+      showToast(`📞 <strong>${escapeHtml(queuedNumber || ticketFull(prefix, usedNumber))}</strong> called successfully.`, 'success');
+      scheduleRender();
+    } catch (e) {
+      showToast(`Failed to call next: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
+  window.completeCurrent = async function(counterId) {
+    const counter = tenantState.counters?.[counterId];
+    if (!counter) return showToast('Counter not found.', 'error');
+
+    const current = getCurrentItemForCounter(counter);
+    if (!current) return showToast('No serving ticket to mark done.', 'warning');
+
+    const tNow = now();
+    try {
+      await setQueueStatus(current.id, 'completed', {
+        completedAt: tNow,
+        counterId: current.counterId || counterId,
+        counterPrefix: current.counterPrefix || counter.prefix || '',
+        counterName: current.counterName || counter.name || '',
+        sessionId: current.sessionId || tenantState.sessionId,
+        source: current.source || 'counter-panel'
+      });
+
+      const updates = {};
+      updateCompletionAnalytics(updates, current.id, current, { id: counterId, ...counter }, tNow);
+      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
+      await update(ref(db), updates);
+
+      logStatusEvent('manual_complete', current.id, current, counter, { fromStatus: 'serving', toStatus: 'completed' });
+      showToast(`✅ ${escapeHtml(current.number || current.queueNumber || current.id)} marked completed.`, 'success');
+      scheduleRender();
+    } catch (e) {
+      showToast(`Failed to complete: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
+  window.cancelCurrent = async function(counterId) {
+    const counter = tenantState.counters?.[counterId];
+    if (!counter) return showToast('Counter not found.', 'error');
+
+    const current = getCurrentItemForCounter(counter);
+    if (!current) return showToast('No serving ticket to cancel.', 'warning');
+
+    const tNow = now();
+    try {
+      await setQueueStatus(current.id, 'cancelled', {
+        cancelledAt: tNow,
+        counterId: current.counterId || counterId,
+        counterPrefix: current.counterPrefix || counter.prefix || '',
+        counterName: current.counterName || counter.name || '',
+        sessionId: current.sessionId || tenantState.sessionId,
+        source: current.source || 'counter-panel'
+      });
+
+      const updates = {};
+      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
+      await update(ref(db), updates);
+
+      logStatusEvent('manual_cancel', current.id, current, counter, { fromStatus: 'serving', toStatus: 'cancelled' });
+      showToast(`⛔ ${escapeHtml(current.number || current.queueNumber || current.id)} cancelled.`, 'warning');
+      scheduleRender();
+    } catch (e) {
+      showToast(`Failed to cancel: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
+  window.resetCounter = async function(counterId) {
+    if (!confirm('Reset this counter stats only? This does not delete queue items.')) return;
+    const counter = tenantState.counters?.[counterId];
+    if (!counter) return;
+
+    try {
+      const tNow = now();
+      await update(ref(db), {
+        [`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`]: 0,
+        [`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`]: 0,
+        [`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`]: tNow
+      });
+      logStatusEvent('counter_reset', '', {}, counter, {});
+      showToast('Counter reset.', 'success');
+      scheduleRender();
+    } catch (e) {
+      showToast(`Reset failed: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
+  window.openEditCounterModal = function(id) {
+    const c = tenantState.counters?.[id];
+    if (!c) return;
+    if ($('modal-counter-title')) $('modal-counter-title').textContent = 'Edit Counter';
+    if ($('edit-counter-id')) $('edit-counter-id').value = id;
+    if ($('counter-name')) $('counter-name').value = c.name || '';
+    if ($('counter-prefix')) $('counter-prefix').value = c.prefix || '';
+    if ($('modal-counter')) $('modal-counter').classList.add('show');
+  };
+
+  window.openDeleteModal = function(id) {
+    if ($('delete-counter-id')) $('delete-counter-id').value = id;
+    if ($('modal-delete')) $('modal-delete').classList.add('show');
+  };
+
+  window.closeModal = function(id) {
+    $(id)?.classList.remove('show');
+  };
+
+  window.confirmDeleteCounter = async function() {
+    const id = normalizeStr($('delete-counter-id')?.value);
+    if (!id) return;
+    try {
+      const updates = {};
+      updates[`tenants/${tenantState.tenantId}/counters/${id}`] = null;
+
+      for (const [qid, q] of Object.entries(tenantState.queue || {})) {
+        if (!q) continue;
+        const qCounterId = normalizeStr(q.counterId || q.counter || q.assignedCounterId || q.counterRef || q.counter_id);
+        if (qCounterId === id) updates[`tenants/${tenantState.tenantId}/queue/${qid}`] = null;
+      }
+
+      await update(ref(db), updates);
+      showToast('Counter deleted.', 'success');
+      window.closeModal('modal-delete');
+      scheduleRender();
+    } catch (e) {
+      showToast(`Failed to delete counter: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
+  window.saveCounter = async function() {
+    const name = normalizeStr($('counter-name')?.value);
+    const prefix = normalizePrefix($('counter-prefix')?.value);
+    const editId = normalizeStr($('edit-counter-id')?.value);
+
+    if (!name || !prefix) {
+      showToast('Counter name and prefix are required.', 'warning');
+      return;
+    }
+
+    try {
+      if (editId) {
+        await update(tenantRef(`counters/${editId}`), { name, prefix, updatedAt: now() });
+        showToast('Counter updated successfully.', 'success');
+      } else {
+        const newId = push(tenantRef('counters')).key;
+        await set(tenantRef(`counters/${newId}`), {
+          name,
+          prefix,
+          active: true,
+          nowServing: 0,
+          lastIssued: 0,
+          createdAt: now(),
+          updatedAt: now()
+        });
+        showToast('Counter created successfully.', 'success');
+      }
+      window.closeModal('modal-counter');
+    } catch (e) {
+      showToast(`Failed to save counter: ${escapeHtml(e.message)}`, 'error');
+    }
+  };
+
   function setupListeners() {
-    onValue(ref(db, '.info/connected'), (snap) => {
-      setConnectionStatus(snap.val() === true);
-    });
+    onValue(ref(db, '.info/connected'), (snap) => setConnectionStatus(snap.val() === true));
 
     onValue(tenantRef('counters'), (snap) => {
       tenantState.counters = snap.val() || {};
       tenantState.countersLoaded = true;
-      renderCounters();
+      scheduleRender();
     }, (err) => {
       console.error(err);
       tenantState.countersLoaded = true;
       showToast('Failed to load counters.', 'error');
-      renderCounters();
+      scheduleRender();
     });
 
     onValue(tenantRef('queue'), (snap) => {
@@ -877,7 +1065,6 @@
         }
       } else {
         const counters = getCounterList();
-
         for (const [id, q] of Object.entries(nextQueue)) {
           if (!q) continue;
           const prev = tenantState.prevQueue[id];
@@ -888,7 +1075,8 @@
             isWaitingLike(q) &&
             (!prev || !isWaitingLike({ status: prevStatus })) &&
             !isServingLike(q) &&
-            !isCancelledLike(q);
+            !isCancelledLike(q) &&
+            !isCompletedLike(q);
 
           if (joinedNow) {
             const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
@@ -897,8 +1085,11 @@
               ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id)
               : (q.counterName || q.counterLabel || q.counterId || q.counter || q.prefix || 'Counter');
 
-            showCenterPopup('queue_joined', queueNumber, counterLabel, 'A new queue item has just arrived.');
-            addPopupHistoryEvent({
+            if (typeof showCenterPopup === 'function') {
+              showCenterPopup('queue_joined', queueNumber, counterLabel, 'A new queue item has just arrived.');
+            }
+
+            tenantState.popupHistory.unshift({
               type: 'queue_joined',
               queueId: id,
               queueNumber,
@@ -908,9 +1099,13 @@
               source: q.source || 'customer',
               message: `${queueNumber} joined the queue at ${counterLabel}`
             });
+            if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
           }
 
-          const becameCancelled = isCancelledLike(q) && prevStatus !== 'cancelled' && prevStatus !== 'canceled';
+          const becameCancelled = isCancelledLike(q) && prevStatus !== 'cancelled';
+          const becameCompleted = isCompletedLike(q) && prevStatus !== 'completed';
+          const becameServing = isServingLike(q) && prevStatus !== 'serving';
+
           if (becameCancelled) {
             const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
             const queueNumber = q.number || q.queueNumber || prev?.number || id;
@@ -918,8 +1113,11 @@
               ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id)
               : (q.counterName || q.counterLabel || q.counterId || q.counter || q.prefix || 'Counter');
 
-            showCenterPopup('queue_cancelled', queueNumber, counterLabel, `${queueNumber} has been cancelled. The queue has shifted forward.`);
-            addPopupHistoryEvent({
+            if (typeof showCenterPopup === 'function') {
+              showCenterPopup('queue_cancelled', queueNumber, counterLabel, `${queueNumber} has been cancelled. The queue has shifted forward.`);
+            }
+
+            tenantState.popupHistory.unshift({
               type: 'queue_cancelled',
               queueId: id,
               queueNumber,
@@ -929,26 +1127,15 @@
               source: q.source || 'customer',
               message: `${queueNumber} cancelled from ${counterLabel}`
             });
+            if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
+          }
 
-            try {
-              fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  tenantId: tenantState.tenantId,
-                  slug: tenantState.slug,
-                  action: 'queue_cancelled',
-                  queueId: id,
-                  queueNumber,
-                  counterId: matchedCounter?.id || q.counterId || '',
-                  counterName: counterLabel,
-                  chatId: q.chatId || q.chat_id || null,
-                  sessionId: tenantState.sessionId,
-                  userAgent: navigator.userAgent,
-                  platform: navigator.platform || 'web'
-                })
-              }).catch(() => {});
-            } catch (e) {}
+          if (becameCompleted || becameServing) {
+            const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
+            logStatusEvent(currStatus === 'completed' ? 'queue_completed_snapshot' : 'queue_serving_snapshot', id, q, matchedCounter || {}, {
+              fromStatus: prevStatus,
+              toStatus: currStatus
+            });
           }
         }
 
@@ -966,341 +1153,71 @@
 
       tenantState.queue = nextQueue;
       tenantState.queueLoaded = true;
-      renderCounters();
+      scheduleRender();
     }, (err) => {
       console.error(err);
       tenantState.queueLoaded = true;
     });
-
-    onValue(tenantRef('settings/notifications'), (snap) => {
-      tenantState.notificationSettings = snap.val() || {};
-      populateSettingsForm(tenantState.notificationSettings);
-    });
   }
 
-  window.openAddCounterModal = function() {
-    $('modal-counter-title').textContent = 'Add Counter';
-    $('edit-counter-id').value = '';
-    $('counter-name').value = '';
-    $('counter-prefix').value = '';
-    $('modal-counter').classList.add('show');
-  };
-
-  window.openEditCounterModal = function(id) {
-    const c = tenantState.counters?.[id];
-    if (!c) return;
-    $('modal-counter-title').textContent = 'Edit Counter';
-    $('edit-counter-id').value = id;
-    $('counter-name').value = c.name || '';
-    $('counter-prefix').value = c.prefix || '';
-    $('modal-counter').classList.add('show');
-  };
-
-  window.closeModal = function(id) {
-    $(id)?.classList.remove('show');
-  };
-
-  document.querySelectorAll('.modal').forEach(modal => {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.remove('show');
-    });
-  });
-
-  window.saveCounter = async function() {
-    const name = normalizeStr($('counter-name').value);
-    const prefix = normalizePrefix($('counter-prefix').value);
-    const editId = normalizeStr($('edit-counter-id').value);
-
-    if (!name || !prefix) {
-      showToast('Counter name and prefix are required.', 'warning');
-      return;
-    }
-
-    try {
-      if (editId) {
-        await update(tenantRef(`counters/${editId}`), {
-          name,
-          prefix,
-          updatedAt: now()
-        });
-        showToast('Counter updated successfully.', 'success');
-      } else {
-        const newId = push(tenantRef('counters')).key;
-        await set(tenantRef(`counters/${newId}`), {
-          name,
-          prefix,
-          active: true,
-          nowServing: 0,
-          lastIssued: 0,
-          updatedAt: now()
-        });
-        showToast('Counter created successfully.', 'success');
-      }
-      closeModal('modal-counter');
-    } catch (e) {
-      showToast(`Failed to save counter: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.openDeleteModal = function(id) {
-    $('delete-counter-id').value = id;
-    $('modal-delete').classList.add('show');
-  };
-
-  window.confirmDeleteCounter = async function() {
-    const id = normalizeStr($('delete-counter-id').value);
-    if (!id) return;
-
-    try {
-      const updates = {};
-      updates[`tenants/${tenantState.tenantId}/counters/${id}`] = null;
-
-      for (const [qid, q] of Object.entries(tenantState.queue || {})) {
-        if (!q) continue;
-        const qCounterId = normalizeStr(q.counterId || q.counter || q.assignedCounterId || q.counterRef || q.counter_id);
-        if (qCounterId === id) updates[`tenants/${tenantState.tenantId}/queue/${qid}`] = null;
-      }
-
-      await update(ref(db), updates);
-      showToast('Counter deleted.', 'success');
-      closeModal('modal-delete');
-    } catch (e) {
-      showToast(`Failed to delete counter: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.callNext = async function(counterId) {
-    const counter = tenantState.counters?.[counterId];
-    if (!counter) {
-      showToast('Counter not found.', 'error');
-      return;
-    }
-
-    const waiting = getWaitingItemsForCounter(counter);
-    if (!waiting.length) {
-      showToast('No waiting customers for this counter.', 'warning');
-      renderCounters();
-      return;
-    }
-
-    const nextItem = waiting[0];
-    const queuedNumber = normalizeStr(nextItem.number || nextItem.queueNumber || '');
-    const prefix = normalizePrefix(counter.prefix);
-    const numericPart = extractNumericSuffix(queuedNumber);
-    const lastIssued = Number(counter.lastIssued || 0);
-
-    if (Number.isFinite(numericPart) && numericPart > 0 && lastIssued > 0 && numericPart > lastIssued + 1) {
-      showToast(`Cannot call ${escapeHtml(queuedNumber)}: it is beyond the current sequence ${ticketFull(prefix, lastIssued)}.`, 'error');
-      return;
-    }
-
-    const serving = getServingItemsForCounter(counter);
-    const servingItem = serving.find(item => item.id !== nextItem.id) || serving[0] || null;
-    const updates = {};
-    const tNow = now();
-
-    if (servingItem) {
-      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/status`] = 'completed';
-      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/completedAt`] = tNow;
-      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/updatedAt`] = tNow;
-      writeCompletionAnalyticsUpdates(updates, servingItem.id, servingItem, { id: counterId, ...counter }, tNow);
-    }
-
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/status`] = 'serving';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/calledAt`] = tNow;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/updatedAt`] = tNow;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterId`] = nextItem.counterId || counterId;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterPrefix`] = nextItem.counterPrefix || counter.prefix || '';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterName`] = nextItem.counterName || counter.name || '';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/sessionId`] = nextItem.sessionId || tenantState.sessionId;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/source`] = nextItem.source || 'counter-panel';
-
-    const usedNumber = Number.isFinite(numericPart) && numericPart > 0
-      ? numericPart
-      : Math.max(Number(counter.lastIssued || 0), 1);
-
-    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`] = usedNumber;
-    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`] = Math.max(lastIssued, usedNumber);
-    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
-
-    try {
-      await update(ref(db), updates);
-
-      const calledFull = queuedNumber || ticketFull(prefix, usedNumber);
-      try {
-        const recipients = [queueEntryToRecipient(nextItem.id, nextItem)];
-        const resp = await fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenantId: tenantState.tenantId,
-            slug: tenantState.slug,
-            calledFull,
-            counterId,
-            counterName: counter.name || counterId,
-            sessionId: tenantState.sessionId,
-            userAgent: navigator.userAgent,
-            platform: navigator.platform || 'web',
-            recipients
-          })
-        });
-
-        const data = await resp.json().catch(() => ({}));
-        if (resp.ok && data.ok) {
-          showToast(`📞 <strong>${escapeHtml(calledFull)}</strong> called successfully.`, 'success');
-        } else {
-          showToast(`📞 <strong>${escapeHtml(calledFull)}</strong> called, but notification service returned an issue.`, 'warning');
-        }
-      } catch (e) {
-        showToast(`📞 <strong>${escapeHtml(calledFull)}</strong> called. Notification request failed.`, 'warning');
-      }
-
-      renderCounters();
-    } catch (e) {
-      showToast(`Failed to call next: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.resetCounter = async function(counterId) {
-    if (!confirm('Reset this counter? This will clear active queue assignments for that counter.')) return;
-    const counter = tenantState.counters?.[counterId];
-    if (!counter) return;
-
-    try {
-      const updates = {};
-      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`] = 0;
-      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`] = 0;
-      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = now();
-
-      for (const [qid, q] of Object.entries(tenantState.queue || {})) {
-        const qCounterId = normalizeStr(q?.counterId || q?.counter || q?.assignedCounterId || q?.counterRef || q?.counter_id);
-        if (qCounterId === counterId && isCallableLike(q)) {
-          updates[`tenants/${tenantState.tenantId}/queue/${qid}/status`] = 'cancelled';
-          updates[`tenants/${tenantState.tenantId}/queue/${qid}/updatedAt`] = now();
-        }
-      }
-
-      const auditId = push(tenantRef('audit')).key;
-      updates[`tenants/${tenantState.tenantId}/audit/${auditId}`] = {
-        action: 'counter_reset',
-        ts: now(),
-        counterId
-      };
-
-      await update(ref(db), updates);
-      showToast('Counter reset.', 'success');
-      renderCounters();
-    } catch (e) {
-      showToast(`Reset failed: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.toggleSettingsPanel = function() {
-    const panel = $('settings-panel');
+  window.togglePopupHistory = function() {
+    const panel = $('popup-history-panel');
+    if (!panel) return;
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    if (panel.style.display === 'block') updateTemplatePreview();
   };
 
-  window.loadNotificationSettings = async function() {
-    try {
-      const snap = await get(tenantRef('settings/notifications'));
-      populateSettingsForm(snap.exists() ? snap.val() : {});
-      showToast('Settings reloaded.', 'info');
-    } catch (e) {
-      showToast('Failed to reload settings.', 'error');
-    }
-  };
+  function renderPopupHistory() {
+    const list = $('popup-history-list');
+    const count = $('popup-history-count');
+    if (!list || !count) return;
 
-  window.saveNotificationSettings = async function() {
-    const payload = {
-      toastDurationSec: Number($('set-toast-duration').value) || 10,
-      calledMessage: $('set-called-msg').value,
-      reminderMessage: $('set-reminder-msg').value,
-      welcomeMessage: $('set-welcome-msg').value,
-      cancelMessage: $('set-cancel-msg').value,
-      buttonLabel: $('set-btn-label').value,
-      buttonUrl: $('set-btn-url').value,
-      footerText: $('set-footer').value,
-      includeFooter: $('set-include-footer').checked,
-      updatedAt: now()
-    };
-    try {
-      await set(tenantRef('settings/notifications'), payload);
-      tenantState.toastDurationMs = payload.toastDurationSec * 1000;
-      showToast('Settings saved successfully.', 'success');
-    } catch (e) {
-      showToast(`Failed to save settings: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.openQrModal = function() {
-    $('modal-qr').classList.add('show');
-    $('qr-url-display').textContent = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-  };
-
-  window.generateQr = async function() {
-    const url = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-    const canvas = $('qr-canvas');
-    $('qr-placeholder').style.display = 'none';
-    canvas.style.display = 'block';
-    await QRCode.toCanvas(canvas, url, { width: 320, margin: 2, color: { dark: '#1e1b4b', light: '#ffffff' } });
-    $('btn-download-qr').style.display = 'inline-flex';
-  };
-
-  window.downloadQrPng = function() {
-    const canvas = $('qr-canvas');
-    if (!canvas.width || !canvas.height) {
-      showToast('Generate the QR code first.', 'warning');
+    if (!tenantState.popupHistory.length) {
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No popup events yet.</div>';
+      count.textContent = '';
       return;
     }
-    const a = document.createElement('a');
-    a.download = `queuejoy-${tenantState.slug}-qr.png`;
-    a.href = canvas.toDataURL('image/png');
-    a.click();
-    showToast('QR code downloaded.', 'success');
-  };
 
-  window.copyQrUrl = async function() {
-    const url = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast('QR URL copied to clipboard.', 'success');
-    } catch (e) {
-      showToast('Copy failed.', 'error');
-    }
-  };
+    count.textContent = `(${tenantState.popupHistory.length})`;
+    list.innerHTML = tenantState.popupHistory.map(evt => {
+      const isCancel = evt.type === 'queue_cancelled';
+      const badgeClass = isCancel ? 'cancelled' : 'joined';
+      const badgeLabel = isCancel ? 'Cancelled' : 'Joined';
+      const ts = evt.timestamp ? formatTime(evt.timestamp) : '';
+      return `
+        <div class="popup-history-item">
+          <span class="popup-history-badge ${badgeClass}">${badgeLabel}</span>
+          <strong style="font-size:14px">${escapeHtml(evt.queueNumber || '—')}</strong>
+          <span style="color:var(--muted);font-size:12px">${escapeHtml(evt.counterName || evt.counterId || '')}</span>
+          <span style="margin-left:auto;color:var(--muted);font-size:11px">${escapeHtml(ts)}</span>
+        </div>
+      `;
+    }).join('');
+  }
 
-  window.openIndexPage = function() {
-    const url = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
-  window.openExternalQrGenerator = function() {
-    window.open('https://online-qr-generator.com/en/qr?step=1&qr_onboarding=active_nsf', '_blank', 'noopener,noreferrer');
-    const url = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-    navigator.clipboard?.writeText(url).catch(() => {});
-    showToast('Online QR generator opened.', 'info');
-  };
-
-  function attachSettingsBindings() {
-    ['set-called-msg','set-reminder-msg','set-welcome-msg','set-cancel-msg','set-btn-label','set-btn-url','set-footer','set-include-footer']
-      .forEach(id => {
-        const el = $(id);
-        if (el) el.addEventListener('input', updateTemplatePreview);
-        if (el && el.type === 'checkbox') el.addEventListener('change', updateTemplatePreview);
+  function initModalCleanup() {
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('show');
       });
+    });
   }
 
   async function init() {
     const ok = await resolveTenant();
     if (!ok) return;
-    attachSettingsBindings();
-    populateSettingsForm({});
+
+    initModalCleanup();
     setupListeners();
     renderCounters();
+    renderPopupHistory();
   }
 
   init();
+
+  // Keep popup history fresh if your UI has the panel
+  setInterval(() => {
+    if ($('popup-history-list')) renderPopupHistory();
+  }, 1000);
 </script>
 </body>
 </html>
