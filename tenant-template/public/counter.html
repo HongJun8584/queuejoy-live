@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -104,14 +105,29 @@
     }
     .popup-card.closing{animation:popOut .16s ease both}
     .popup-badge{
-      width:64px;height:64px;border-radius:999px;margin:0 auto 14px;background:linear-gradient(135deg,#4f46e5,#7c3aed);
+      width:64px;height:64px;border-radius:999px;margin:0 auto 14px;
       display:flex;align-items:center;justify-content:center;color:#fff;
     }
+    .popup-badge.join{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
+    .popup-badge.cancel{background:linear-gradient(135deg,#dc2626,#ef4444)}
     .qa-badge{
       position:fixed;right:12px;bottom:12px;z-index:9999;
       display:none;background:#7c3aed;color:#fff;border-radius:12px;padding:6px 10px;
       font-size:11px;font-family:Inter,monospace;opacity:.92;
     }
+    .popup-history-panel{
+      margin-top:24px;
+    }
+    .popup-history-item{
+      display:flex;align-items:center;gap:10px;padding:10px 14px;
+      border-bottom:1px solid #f3f4f6;font-size:13px;
+    }
+    .popup-history-item:last-child{border-bottom:none}
+    .popup-history-badge{
+      display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;
+    }
+    .popup-history-badge.joined{background:#eef2ff;color:#4f46e5}
+    .popup-history-badge.cancelled{background:#fef2f2;color:#dc2626}
     @media (max-width:640px){
       .header-actions{width:100%;display:flex;flex-wrap:wrap}
       .header-actions .btn{flex:1}
@@ -143,6 +159,10 @@
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3z"/></svg>
           QR Code
         </button>
+        <button class="btn btn-ghost btn-sm" onclick="togglePopupHistory()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+          History
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="toggleSettingsPanel()">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           Settings
@@ -172,6 +192,23 @@
 
     <div id="counters-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;"></div>
 
+    <!-- Popup History Panel -->
+    <section id="popup-history-panel" class="popup-history-panel" style="display:none;">
+      <div class="card">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+            <h3 style="font-size:16px;font-weight:800">Popup History</h3>
+            <span id="popup-history-count" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="togglePopupHistory()">Close</button>
+        </div>
+        <div id="popup-history-list" style="max-height:400px;overflow-y:auto">
+          <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No popup events yet.</div>
+        </div>
+      </div>
+    </section>
+
     <section id="settings-panel" style="display:none;margin-top:32px">
       <div class="card">
         <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -197,6 +234,10 @@
           <div>
             <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Welcome Message Template</label>
             <textarea id="set-welcome-msg" class="input textarea" placeholder="Welcome! Your ticket {theirNumber} is registered..."></textarea>
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Cancellation Message Template</label>
+            <textarea id="set-cancel-msg" class="input textarea" placeholder="Your ticket {cancelledNumber} has been cancelled..."></textarea>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div>
@@ -290,7 +331,7 @@
           <div style="font-size:12px;font-weight:800;color:#6b7280;margin-bottom:8px">QR Preview</div>
           <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:16px;min-height:260px;display:flex;align-items:center;justify-content:center;padding:16px">
             <canvas id="qr-canvas" style="display:none;max-width:100%"></canvas>
-            <p id="qr-placeholder" style="margin:0;color:var(--muted);font-size:13px">Click “Generate QR” to create the code</p>
+            <p id="qr-placeholder" style="margin:0;color:var(--muted);font-size:13px">Click "Generate QR" to create the code</p>
           </div>
           <div style="margin-top:8px;font-size:11px;color:var(--muted)">QR URL: <code id="qr-url-display"></code></div>
         </div>
@@ -323,14 +364,18 @@
       config: {},
       counters: {},
       queue: {},
+      prevQueue: {},
       notificationSettings: {},
       countersLoaded: false,
       queueLoaded: false,
       initialQueueSnapshot: false,
       popupSeen: new Set(),
+      popupHistory: [],
       toastDurationMs: 10000,
       sessionId: `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     };
+
+    const MAX_POPUP_HISTORY = 20;
 
     function normalizeStr(v) {
       return String(v ?? '').trim();
@@ -500,7 +545,6 @@
       const matched = sortByTimestamp(entries.filter(q => counterMatchesQueue(counter, q)));
       if (matched.length) return matched;
 
-      // Safe fallback for older data that has no counter metadata but still uses the same prefix.
       const prefix = normalizePrefix(counter.prefix);
       if (prefix) {
         const prefixMatched = sortByTimestamp(entries.filter(q => {
@@ -547,11 +591,8 @@
       const waitingCounts = {};
       for (const [id, q] of Object.entries(tenantState.queue || {})) {
         if (!q || q.status !== 'waiting') continue;
-        const counterId = normalizeStr(q.counterId || q.counter || q.assignedCounterId || q.counterRef || q.counter_id);
-        const counterPrefix = normalizePrefix(q.counterPrefix || q.prefix || extractPrefixFromNumber(q.number));
         for (const c of counters) {
-          const cPrefix = normalizePrefix(c.prefix);
-          if ((counterId && counterId === c.id) || (cPrefix && counterPrefix && cPrefix === counterPrefix)) {
+          if (counterMatchesQueue(c, { ...q, id })) {
             waitingCounts[c.id] = (waitingCounts[c.id] || 0) + 1;
           }
         }
@@ -568,8 +609,12 @@
         const servingList = getServingItemsForCounter(c);
         const servingText = servingList[0]?.number || (servingList[0]?.queueNumber) || '—';
 
+        // Call Next must be disabled if no waiting items exist
+        // Also enforce: cannot call beyond lastIssued (no items means nothing to call)
+        const canCall = waiting > 0;
+
         return `
-          <div class="card fade-up" style="animation-delay:${index * 50}ms">
+          <div class="card fade-up" id="counter-card-${escapeHtml(c.id)}" style="animation-delay:${index * 50}ms">
             <div style="padding:18px 20px 0">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
                 <div style="min-width:0">
@@ -604,7 +649,7 @@
             </div>
 
             <div style="padding:16px 18px 18px;display:flex;gap:8px;margin-top:6px">
-              <button class="btn btn-success" style="flex:1" onclick="callNext('${escapeHtml(c.id)}')" ${waiting ? '' : 'disabled'}>${waiting ? 'Call Next' : 'Call Next (none waiting)'}</button>
+              <button class="btn btn-success" style="flex:1" onclick="callNext('${escapeHtml(c.id)}')" ${canCall ? '' : 'disabled'}>${canCall ? 'Call Next' : 'Call Next (none waiting)'}</button>
               <button class="btn btn-warning btn-sm" onclick="resetCounter('${escapeHtml(c.id)}')" title="Reset">↻</button>
             </div>
           </div>
@@ -634,6 +679,7 @@
       $('set-called-msg').value = s.calledMessage || '🎯 Dear customer,\n\nYour number {calledFull} has been called. Please proceed to {counterName}. Thank you.';
       $('set-reminder-msg').value = s.reminderMessage || '🔔 REMINDER\nNumber {calledFull} was called. Your number is {theirNumber}. We\'ll notify you again when it\'s your turn.';
       $('set-welcome-msg').value = s.welcomeMessage || '👋 Welcome! Your ticket {theirNumber} is registered. We\'ll notify you when it\'s your turn.';
+      $('set-cancel-msg').value = s.cancelMessage || '❌ Your ticket {cancelledNumber} has been cancelled. Thank you for your patience.';
       $('set-btn-label').value = s.buttonLabel || '👉 Explore QueueJoy';
       $('set-btn-url').value = s.buttonUrl || 'https://helloqueuejoy.netlify.app';
       $('set-footer').value = s.footerText || 'Curious how this works? Tap the button below to see tools your shop can use to keep customers happy.';
@@ -641,23 +687,30 @@
       updateTemplatePreview();
     }
 
-    function showCenterPopup(queueNumber, counterLabel) {
+    // ===== Center Popup: only for queue_joined and queue_cancelled =====
+    function showCenterPopup(type, queueNumber, counterLabel, message) {
       if (!queueNumber) return;
       const root = $('popup-root');
+      const isCancel = type === 'queue_cancelled';
+      const badgeClass = isCancel ? 'cancel' : 'join';
+      const icon = isCancel
+        ? '<svg width="30" height="30" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+        : '<svg width="30" height="30" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>';
+      const title = isCancel ? 'Queue Cancelled' : 'New Customer Joined';
+      const subtitle = message || (isCancel ? 'A queue item has been cancelled.' : 'A new queue item has just arrived.');
+
       const overlay = document.createElement('div');
       overlay.className = 'popup-overlay';
       overlay.innerHTML = `
         <div class="popup-card">
-          <div class="popup-badge">
-            <svg width="30" height="30" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/>
-            </svg>
+          <div class="popup-badge ${badgeClass}">
+            ${icon}
           </div>
-          <div style="font-size:14px;font-weight:800;color:#4f46e5;margin-bottom:8px">New Customer Joined</div>
+          <div style="font-size:14px;font-weight:800;color:${isCancel ? '#dc2626' : '#4f46e5'};margin-bottom:8px">${escapeHtml(title)}</div>
           <div style="font-size:32px;font-weight:900;letter-spacing:-.02em;color:#312e81;margin:0 0 8px">${escapeHtml(queueNumber)}</div>
           <div style="font-size:15px;font-weight:700;margin-bottom:18px;color:#4b5563">${escapeHtml(counterLabel || 'Counter')}</div>
-          <div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:18px">A new queue item has just arrived.</div>
-          <button class="btn btn-primary" onclick="dismissCenterPopup(this)">Got it</button>
+          <div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:18px">${escapeHtml(subtitle)}</div>
+          <button class="btn ${isCancel ? 'btn-danger' : 'btn-primary'}" onclick="dismissCenterPopup(this)">Got it</button>
         </div>
       `;
       overlay.addEventListener('click', (e) => {
@@ -693,6 +746,64 @@
       } catch (e) {}
     }
 
+    // ===== Popup History =====
+    function addPopupHistoryEvent(evt) {
+      tenantState.popupHistory.unshift(evt);
+      if (tenantState.popupHistory.length > MAX_POPUP_HISTORY) {
+        tenantState.popupHistory = tenantState.popupHistory.slice(0, MAX_POPUP_HISTORY);
+      }
+      renderPopupHistory();
+
+      // Write to Firebase audit/popupHistory
+      try {
+        const histId = push(tenantRef('audit/popupHistory')).key;
+        set(tenantRef(`audit/popupHistory/${histId}`), {
+          type: evt.type,
+          queueId: evt.queueId || '',
+          queueNumber: evt.queueNumber || '',
+          counterId: evt.counterId || '',
+          counterName: evt.counterName || '',
+          tenantId: tenantState.tenantId,
+          slug: tenantState.slug,
+          timestamp: evt.timestamp || now(),
+          source: evt.source || 'counter-panel',
+          message: evt.message || ''
+        });
+      } catch (e) {
+        console.warn('Failed to write popup history to Firebase:', e);
+      }
+    }
+
+    function renderPopupHistory() {
+      const list = $('popup-history-list');
+      const count = $('popup-history-count');
+      if (!tenantState.popupHistory.length) {
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No popup events yet.</div>';
+        count.textContent = '';
+        return;
+      }
+      count.textContent = `(${tenantState.popupHistory.length})`;
+      list.innerHTML = tenantState.popupHistory.map(evt => {
+        const isCancel = evt.type === 'queue_cancelled';
+        const badgeClass = isCancel ? 'cancelled' : 'joined';
+        const badgeLabel = isCancel ? 'Cancelled' : 'Joined';
+        const ts = evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : '';
+        return `
+          <div class="popup-history-item">
+            <span class="popup-history-badge ${badgeClass}">${badgeLabel}</span>
+            <strong style="font-size:14px">${escapeHtml(evt.queueNumber || '—')}</strong>
+            <span style="color:var(--muted);font-size:12px">${escapeHtml(evt.counterName || evt.counterId || '')}</span>
+            <span style="margin-left:auto;color:var(--muted);font-size:11px">${ts}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.togglePopupHistory = function() {
+      const panel = $('popup-history-panel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    };
+
     function setupListeners() {
       onValue(ref(db, '.info/connected'), (snap) => {
         setConnectionStatus(snap.val() === true);
@@ -711,22 +822,94 @@
 
       onValue(tenantRef('queue'), (snap) => {
         const nextQueue = snap.val() || {};
-        const nextKeys = new Set(Object.keys(nextQueue));
 
         if (!tenantState.initialQueueSnapshot) {
+          // First snapshot: record all existing IDs to avoid false popups
           tenantState.initialQueueSnapshot = true;
-          tenantState.popupSeen = nextKeys;
+          tenantState.popupSeen = new Set(Object.keys(nextQueue));
+          // Also record status of each item for cancel detection
+          tenantState.prevQueue = {};
+          for (const [id, q] of Object.entries(nextQueue)) {
+            if (q) tenantState.prevQueue[id] = { status: q.status, number: q.number };
+          }
         } else {
           const counters = getCounterList();
-          for (const [id, q] of Object.entries(nextQueue)) {
-            if (!q || q.status !== 'waiting') continue;
-            if (tenantState.popupSeen.has(id)) continue;
-            tenantState.popupSeen.add(id);
 
-            const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
-            const queueNumber = q.number || q.queueNumber || id;
-            const label = matchedCounter ? `${matchedCounter.name || matchedCounter.prefix || matchedCounter.id}` : (q.counterId || q.counter || q.prefix || 'Counter');
-            showCenterPopup(queueNumber, label);
+          for (const [id, q] of Object.entries(nextQueue)) {
+            if (!q) continue;
+
+            // Detect NEW waiting items (queue_joined)
+            if (q.status === 'waiting' && !tenantState.popupSeen.has(id)) {
+              tenantState.popupSeen.add(id);
+
+              const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
+              const queueNumber = q.number || q.queueNumber || id;
+              const counterLabel = matchedCounter ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id) : (q.counterId || q.counter || q.prefix || 'Counter');
+
+              showCenterPopup('queue_joined', queueNumber, counterLabel, 'A new queue item has just arrived.');
+              addPopupHistoryEvent({
+                type: 'queue_joined',
+                queueId: id,
+                queueNumber,
+                counterId: matchedCounter?.id || q.counterId || '',
+                counterName: counterLabel,
+                timestamp: now(),
+                source: q.source || 'customer',
+                message: `${queueNumber} joined the queue at ${counterLabel}`
+              });
+            }
+
+            // Detect status change to "cancelled" (queue_cancelled)
+            if (q.status === 'cancelled') {
+              const prev = tenantState.prevQueue[id];
+              const dedupeKey = `cancel_${id}`;
+              if (prev && prev.status !== 'cancelled' && !tenantState.popupSeen.has(dedupeKey)) {
+                tenantState.popupSeen.add(dedupeKey);
+
+                const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
+                const queueNumber = q.number || q.queueNumber || prev.number || id;
+                const counterLabel = matchedCounter ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id) : (q.counterId || q.counter || q.prefix || 'Counter');
+
+                showCenterPopup('queue_cancelled', queueNumber, counterLabel, `${queueNumber} has been cancelled. The queue has shifted forward.`);
+                addPopupHistoryEvent({
+                  type: 'queue_cancelled',
+                  queueId: id,
+                  queueNumber,
+                  counterId: matchedCounter?.id || q.counterId || '',
+                  counterName: counterLabel,
+                  timestamp: now(),
+                  source: q.source || 'customer',
+                  message: `${queueNumber} cancelled from ${counterLabel}`
+                });
+
+                // Send cancellation notification to backend
+                try {
+                  fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      tenantId: tenantState.tenantId,
+                      slug: tenantState.slug,
+                      action: 'queue_cancelled',
+                      queueId: id,
+                      queueNumber,
+                      counterId: matchedCounter?.id || q.counterId || '',
+                      counterName: counterLabel,
+                      chatId: q.chatId || q.chat_id || null,
+                      sessionId: tenantState.sessionId,
+                      userAgent: navigator.userAgent,
+                      platform: navigator.platform || 'web'
+                    })
+                  }).catch(() => {});
+                } catch (e) {}
+              }
+            }
+          }
+
+          // Update prevQueue snapshot for next diff
+          tenantState.prevQueue = {};
+          for (const [id, q] of Object.entries(nextQueue)) {
+            if (q) tenantState.prevQueue[id] = { status: q.status, number: q.number };
           }
         }
 
@@ -779,13 +962,13 @@
         return;
       }
       try {
-        const data = {
-          name,
-          prefix,
-          updatedAt: now()
-        };
         if (editId) {
-          await update(tenantRef(`counters/${editId}`), data);
+          // Edit: preserve existing queue-related values, only update name/prefix/updatedAt
+          await update(tenantRef(`counters/${editId}`), {
+            name,
+            prefix,
+            updatedAt: now()
+          });
           showToast('Counter updated successfully.', 'success');
         } else {
           const newId = push(tenantRef('counters')).key;
@@ -857,16 +1040,6 @@
         userAgent: navigator.userAgent,
         platform: navigator.platform || 'web'
       };
-
-      const auditId = push(tenantRef('audit')).key;
-      updates[`tenants/${tenantState.tenantId}/audit/${auditId}`] = {
-        action: 'service_completed',
-        ts: completedAt,
-        counterId: counter.id,
-        queueId: qid,
-        queueNumber: q.number || qid,
-        serviceMs: Number(serviceMs) || 0
-      };
     }
 
     window.callNext = async function(counterId) {
@@ -886,18 +1059,28 @@
       const queuedNumber = normalizeStr(nextItem.number || nextItem.queueNumber || '');
       const prefix = normalizePrefix(counter.prefix);
       const numericPart = extractNumericSuffix(queuedNumber);
+      const lastIssued = Number(counter.lastIssued || 0);
+
+      // STRICT CALL LIMIT: never call beyond lastIssued
+      if (Number.isFinite(numericPart) && numericPart > 0 && lastIssued > 0 && numericPart > lastIssued) {
+        showToast(`Cannot call ${escapeHtml(queuedNumber)}: exceeds last issued number ${ticketFull(prefix, lastIssued)}.`, 'error');
+        return;
+      }
+
       const serving = getServingItemsForCounter(counter);
       const servingItem = serving.find(item => item.id !== nextItem.id) || serving[0] || null;
       const updates = {};
       const tNow = now();
 
+      // Complete currently serving item if exists
       if (servingItem) {
         updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/status`] = 'completed';
         updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/completedAt`] = tNow;
         updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/updatedAt`] = tNow;
-        writeCompletionAnalyticsUpdates(updates, servingItem.id, servingItem, counter, tNow);
+        writeCompletionAnalyticsUpdates(updates, servingItem.id, servingItem, { id: counterId, ...counter }, tNow);
       }
 
+      // Mark the waiting item as serving
       updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/status`] = 'serving';
       updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/calledAt`] = tNow;
       updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/updatedAt`] = tNow;
@@ -905,26 +1088,24 @@
       updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/sessionId`] = nextItem.sessionId || tenantState.sessionId;
       updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/source`] = nextItem.source || 'counter-panel';
 
+      // Update counter's nowServing to the actual queue number
       const usedNumber = Number.isFinite(numericPart) && numericPart > 0
         ? numericPart
-        : Math.max(Number(counter.lastIssued || 0) + 1, 1);
+        : Math.max(Number(counter.lastIssued || 0), 1);
 
       updates[`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`] = usedNumber;
-      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`] = Math.max(Number(counter.lastIssued || 0), usedNumber);
+      // lastIssued only advances if the called number is beyond it (should not happen due to guard above)
+      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`] = Math.max(lastIssued, usedNumber);
       updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
 
       try {
         await update(ref(db), updates);
 
         const calledFull = queuedNumber || ticketFull(prefix, usedNumber);
-        const card = document.getElementById(`counter-card-${counterId}`);
-        if (card) {
-          card.style.transform = 'translateY(-1px)';
-          setTimeout(() => { card.style.transform = ''; }, 220);
-        }
 
         playBeep();
 
+        // Send notification via backend (toast-only, no center popup)
         try {
           const recipients = [queueEntryToRecipient(nextItem.id, nextItem)];
           const resp = await fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
@@ -1011,6 +1192,7 @@
         calledMessage: $('set-called-msg').value,
         reminderMessage: $('set-reminder-msg').value,
         welcomeMessage: $('set-welcome-msg').value,
+        cancelMessage: $('set-cancel-msg').value,
         buttonLabel: $('set-btn-label').value,
         buttonUrl: $('set-btn-url').value,
         footerText: $('set-footer').value,
@@ -1076,7 +1258,7 @@
     };
 
     function attachSettingsBindings() {
-      ['set-called-msg','set-reminder-msg','set-welcome-msg','set-btn-label','set-btn-url','set-footer','set-include-footer']
+      ['set-called-msg','set-reminder-msg','set-welcome-msg','set-cancel-msg','set-btn-label','set-btn-url','set-footer','set-include-footer']
         .forEach(id => {
           const el = $(id);
           if (el) el.addEventListener('input', updateTemplatePreview);

@@ -14,6 +14,7 @@
 //   - Service analytics & series stats
 //   - Customizable Telegram inline buttons
 //   - Full analytics/serviceEvents with all required fields
+//   - Queue cancellation support with notifications
 // ============================================================
 
 const fetch = globalThis.fetch || require('node-fetch');
@@ -57,6 +58,8 @@ const DEFAULT_TEMPLATES = {
   calledMessage: '🎯 Dear customer,\n\nYour number <b>{calledFull}</b> has been called. Please proceed to <b>{counterName}</b>. Thank you.',
   reminderMessage: '🔔 REMINDER\nNumber <b>{calledFull}</b> was called. Your number is <b>{theirNumber}</b>. We\'ll notify you again when it\'s your turn.',
   welcomeMessage: '👋 Welcome! Your ticket <b>{theirNumber}</b> is registered. We\'ll notify you when it\'s your turn.',
+  cancelMessage: '❌ Your ticket <b>{cancelledNumber}</b> has been cancelled. Thank you for your patience.',
+  cancelPromotionMessage: '🎯 Great news! The queue has moved forward. Your number <b>{theirNumber}</b> is now next in line at <b>{counterName}</b>. Please get ready!',
   buttonLabel: '👉 Explore QueueJoy',
   buttonUrl: 'https://helloqueuejoy.netlify.app',
   footerText: '\n\nCurious how this works? Tap the button below to see tools your shop can use to keep customers happy.',
@@ -247,6 +250,22 @@ async function markNotificationSent(adminDb, tenantId, ticketId, firebaseUpdates
   firebaseUpdates[`tenants/${tenantId}/notifications/sent/${ticketId}`] = { sentAt: Date.now() };
 }
 
+// ===== Duplicate Cancel Notification Check =====
+async function checkDuplicateCancelNotification(adminDb, tenantId, queueId) {
+  if (!queueId) return false;
+  const key = `cancel_${queueId}`;
+  try {
+    if (adminDb) {
+      const snap = await adminDb.ref(`tenants/${tenantId}/notifications/sent/${key}`).get().catch(() => null);
+      return snap && snap.exists && snap.exists();
+    } else if (DATABASE_URL) {
+      const res = await fetch(`${DATABASE_URL}/tenants/${encodeURIComponent(tenantId)}/notifications/sent/${encodeURIComponent(key)}.json`);
+      if (res.ok) { const data = await res.json(); return data !== null; }
+    }
+  } catch (e) {}
+  return false;
+}
+
 // ===== Telegram =====
 function tgPrepareMessage(chatId, text, buttonLabel, buttonUrl, extraButtons = []) {
   const inlineKeyboard = [];
@@ -343,6 +362,19 @@ async function pushServiceEventTenant(adminDb, tenantId, evt) {
   } catch (e) { console.warn('pushServiceEventTenant', e?.message); }
 }
 
+// ===== Audit Event =====
+async function pushAuditEventTenant(adminDb, tenantId, evt) {
+  try {
+    if (adminDb) {
+      await adminDb.ref(`tenants/${tenantId}/audit`).push(evt);
+    } else if (DATABASE_URL) {
+      await fetch(`${DATABASE_URL}/tenants/${encodeURIComponent(tenantId)}/audit.json`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evt),
+      });
+    }
+  } catch (e) { console.warn('pushAuditEventTenant', e?.message); }
+}
+
 // ===== Privacy: remove number fields =====
 function markNumberForDeletionTenant(tenantId, ticketId) {
   if (!ticketId) return {};
@@ -352,6 +384,172 @@ function markNumberForDeletionTenant(tenantId, ticketId) {
     [`${base}/queueId`]: null,
     [`${base}/recipientFull`]: null,
     [`${base}/fullNumber`]: null,
+  };
+}
+
+// ===== QUEUE CANCELLATION HANDLER =====
+async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
+  const queueId = String(payload.queueId || '').trim();
+  const queueNumber = normalizeNumber(payload.queueNumber || '');
+  const counterId = String(payload.counterId || '').trim();
+  const counterName = String(payload.counterName || '').trim();
+  const cancelledChatId = payload.chatId ? String(payload.chatId) : null;
+  const payloadSessionId = payload.sessionId ? String(payload.sessionId).trim() : '';
+
+  if (!queueId && !queueNumber) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'queueId or queueNumber required for cancellation' }) };
+  }
+
+  // Load tenant settings
+  const [tenantSettings, tenantPublicCfg] = await Promise.all([
+    getTenantNotificationSettings(adminDb, tenantId),
+    getTenantPublicConfig(adminDb, tenantId),
+  ]);
+
+  const tpl = { ...DEFAULT_TEMPLATES, ...(tenantSettings || {}) };
+  const tenantName = tenantPublicCfg?.displayName || slug || tenantId;
+  const btnLabel = tpl.buttonLabel || DEFAULT_TEMPLATES.buttonLabel;
+  const btnUrl = tpl.buttonUrl || DEFAULT_TEMPLATES.buttonUrl;
+
+  const firebaseUpdates = {};
+  const telegramPrepared = [];
+  const results = [];
+
+  // Duplicate protection for cancellation
+  if (queueId) {
+    const alreadySent = await checkDuplicateCancelNotification(adminDb, tenantId, queueId);
+    if (alreadySent) {
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, action: 'queue_cancelled', skipped: true, reason: 'duplicate' }) };
+    }
+    // Mark as sent
+    firebaseUpdates[`tenants/${tenantId}/notifications/sent/cancel_${queueId}`] = { sentAt: Date.now() };
+  }
+
+  // 1) Send cancellation message to the cancelling user
+  if (cancelledChatId) {
+    const cancelVars = {
+      cancelledNumber: queueNumber || queueId,
+      counterName: counterName || 'the counter',
+      tenantName, slug: slug || tenantId,
+      nextNumber: '', // will be filled if we find next
+    };
+    const cancelText = renderTemplate(tpl.cancelMessage || DEFAULT_TEMPLATES.cancelMessage, cancelVars);
+    telegramPrepared.push(tgPrepareMessage(cancelledChatId, cancelText, btnLabel, btnUrl));
+    results.push({ chatId: cancelledChatId, action: 'cancel-notification', queueNumber });
+  }
+
+  // 2) Write audit entry for the cancellation (NOT into analytics/serviceEvents)
+  await pushAuditEventTenant(adminDb, tenantId, {
+    type: 'queue_cancelled',
+    queueId: queueId || '',
+    queueNumber: queueNumber || '',
+    tenantId,
+    slug: slug || tenantId,
+    counterId: counterId || '',
+    counterName: counterName || '',
+    timestamp: Date.now(),
+    sessionId: payloadSessionId || '',
+    userAgent: payload.userAgent || 'server',
+    platform: payload.platform || 'netlify-function',
+  });
+
+  // 3) Fetch the remaining waiting queue for the same counter to promote and remind
+  const allQueue = await fetchQueueAllTenant(adminDb, tenantId);
+  const cancelledSeries = seriesOf(queueNumber);
+
+  // Find waiting items for the same counter, sorted by timestamp
+  const waitingItems = [];
+  for (const [key, q] of Object.entries(allQueue || {})) {
+    if (!q || q.status !== 'waiting') continue;
+    if (key === queueId) continue; // skip the cancelled one itself
+    const qCounterId = String(q.counterId || q.counter || q.assignedCounterId || q.counterRef || q.counter_id || '').trim();
+    const qSeries = seriesOf(q.number || q.queueNumber || key);
+    // Match by counterId or series
+    if ((counterId && qCounterId === counterId) || (cancelledSeries && qSeries === cancelledSeries)) {
+      waitingItems.push({
+        id: key,
+        chatId: q.chatId || q.chat_id || null,
+        number: q.number || q.queueNumber || key,
+        timestamp: q.timestamp || q.createdAt || q.updatedAt || 0,
+        telegramConnected: q.telegramConnected || false,
+      });
+    }
+  }
+
+  // Sort by timestamp (earliest first)
+  waitingItems.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+  // 4) Promote the first waiting user (send "your turn" notification)
+  if (waitingItems.length > 0) {
+    const frontUser = waitingItems[0];
+    if (frontUser.chatId) {
+      const promotionVars = {
+        theirNumber: frontUser.number,
+        counterName: counterName || 'the counter',
+        tenantName, slug: slug || tenantId,
+        calledFull: frontUser.number,
+        cancelledNumber: queueNumber || queueId,
+      };
+      const promotionText = renderTemplate(
+        tpl.cancelPromotionMessage || DEFAULT_TEMPLATES.cancelPromotionMessage,
+        promotionVars
+      );
+      telegramPrepared.push(tgPrepareMessage(frontUser.chatId, promotionText, btnLabel, btnUrl));
+      results.push({ chatId: frontUser.chatId, action: 'promoted-after-cancel', queueNumber: frontUser.number });
+    }
+
+    // 5) Send reminder notifications to users behind the promoted user
+    for (let i = 1; i < waitingItems.length; i++) {
+      const behindUser = waitingItems[i];
+      if (!behindUser.chatId) continue;
+      const reminderVars = {
+        calledFull: frontUser.number,
+        theirNumber: behindUser.number,
+        counterName: counterName || 'the counter',
+        tenantName, slug: slug || tenantId,
+        cancelledNumber: queueNumber || queueId,
+      };
+      const reminderText = renderTemplate(tpl.reminderMessage || DEFAULT_TEMPLATES.reminderMessage, reminderVars);
+      telegramPrepared.push(tgPrepareMessage(behindUser.chatId, reminderText, btnLabel, btnUrl));
+      results.push({ chatId: behindUser.chatId, action: 'reminder-after-cancel', queueNumber: behindUser.number });
+    }
+  }
+
+  // 6) Send all Telegram messages in parallel
+  if (telegramPrepared.length) {
+    const telegramResults = await Promise.allSettled(telegramPrepared.map(p => tgSendPrepared(p)));
+    telegramResults.forEach((r, i) => {
+      if (results[i]) {
+        results[i].sendRes = r.status === 'fulfilled' ? r.value : { ok: false, error: r.reason };
+      }
+    });
+  }
+
+  // 7) Apply Firebase updates
+  if (Object.keys(firebaseUpdates).length > 0) {
+    try {
+      if (adminDb) {
+        await adminDb.ref().update(firebaseUpdates);
+      } else if (DATABASE_URL) {
+        await fetch(`${DATABASE_URL}.json`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(firebaseUpdates),
+        });
+      }
+    } catch (e) { console.warn('Firebase batch update (cancel) failed', e?.message); }
+  }
+
+  return {
+    statusCode: 200,
+    headers: CORS,
+    body: JSON.stringify({
+      ok: true,
+      action: 'queue_cancelled',
+      queueId, queueNumber, counterId, counterName,
+      sent: telegramPrepared.length,
+      processed: results.length,
+      results,
+    }),
   };
 }
 
@@ -391,7 +589,13 @@ exports.handler = async function (event) {
   }
   if (!tenantId) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'tenantId or slug required' }) };
 
-  // ===== Parse Payload =====
+  // ===== Route: Queue Cancellation =====
+  const action = String(payload.action || payload.eventType || '').trim();
+  if (action === 'queue_cancelled') {
+    return handleQueueCancellation(payload, adminDb, tenantId, slug);
+  }
+
+  // ===== Original service_completed / call flow =====
   const calledFullRaw = String(payload.calledFull || '').trim();
   const calledFull = normalizeNumber(calledFullRaw);
   const counterName = payload.counterName ? String(payload.counterName).trim() : '';
@@ -567,7 +771,7 @@ exports.handler = async function (event) {
       if (ticket.ticketId) {
         const serviceMs = Math.max(0, now - createdMs);
 
-        // Update queue status to 'completed' (not 'served')
+        // Update queue status to 'completed'
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/status`] = 'completed';
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/completedAt`] = now;
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/serviceMs`] = serviceMs;
