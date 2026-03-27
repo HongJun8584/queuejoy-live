@@ -155,6 +155,17 @@
       100% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0); }
     }
 
+    /* Game Button */
+    .btn-game {
+      background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;
+      padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s var(--ease); font-family: inherit; width: 100%;
+      margin-top: 8px;
+    }
+    .btn-game:active { transform: scale(0.97); }
+
     /* Error */
     .error-banner {
       padding: 14px; border-radius: 12px; background: #fef2f2; border: 1px solid #fecaca;
@@ -321,6 +332,9 @@
       </div>
       <button id="btnConnect" class="btn-tg pulse" data-t-inner="connect_btn">Connect Telegram</button>
     </div>
+
+    <!-- Game Button -->
+    <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Play Snake Game</button>
   </main>
 </div>
 
@@ -393,12 +407,15 @@ const CONFIG = {
     createLink: '/.netlify/functions/createTelegramLink',
     getTenant: '/.netlify/functions/get-tenant',
     getFirebaseConfig: '/.netlify/functions/get-firebase-config',
-    markTokenUsed: '/.netlify/functions/markTokenUsed'
+    markTokenUsed: '/.netlify/functions/markTokenUsed',
   },
   telegramBotUrl: 'https://t.me/QueueJoyBot',
-  maxAhead: 20,
-  retryDelays: [500, 1500, 3000],  // exponential backoff ms
-  redirectDelay: 3000               // wait before redirect on not-found
+  maxAhead: 30,
+  defaultAvgServiceMin: 3,
+  // Retry config — only used for initial load, not for ongoing watching
+  maxInitRetries: 3,
+  initRetryDelayMs: 2000,
+  redirectDelay: 5000,
 };
 
 /* ========================================
@@ -408,6 +425,8 @@ const I18N = {
   en: {
     in_queue: "You're in the queue",
     tracking_realtime: "We're tracking your spot in real-time.",
+    stay_on_page: "Stay on this page — only Telegram can notify you when closed.",
+    all_set: "You're all set! We'll notify you on Telegram.",
     progress: "Queue Progress",
     your_ticket: "Your Ticket",
     now_serving: "Now Serving",
@@ -415,88 +434,89 @@ const I18N = {
     est_wait: "Est. Wait",
     tg_title: "Get Telegram Alerts",
     tg_desc: "Receive a notification when it's your turn.",
-    tg_title_connected: "✅ Connected to Telegram",
-    tg_desc_connected: "We'll notify you when it's your turn.",
+    tg_title_connected: "Telegram Connected",
+    tg_desc_connected: "We'll notify you when your number is called.",
     connect_btn: "Connect Telegram",
-    stay_on_page: "Stay on this page — only Telegram can notify you when closed.",
-    all_set: "You're all set! We'll notify you on Telegram.",
     modal_title: "Never Miss Your Turn",
     modal_desc: "Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.",
     modal_continue: "Continue →",
+    skip: "Skip for now",
     modal_step2_title: 'Tap "Start" in Telegram',
     modal_step2_desc: "We'll open our bot. Tap <strong>Start</strong> to activate notifications.",
     modal_step3_title: "Ready to Connect",
     modal_connected_title: "You're Connected!",
     modal_connected_desc: "You'll get a Telegram notification when it's your turn.",
-    skip: "Skip for now",
+    your_turn: "🎉 It's your turn!",
     next: "You're next!",
     loading: "Loading...",
     not_found: "Queue not found. Retrying...",
     est_now: "Now",
     people_1: "1 person ahead",
-    your_turn: "🎉 It's your turn!"
+    play_game: "🎮 Play Snake Game",
   },
   zh: {
-    in_queue: "您正在排队中",
-    tracking_realtime: "我们正在实时追踪您的位置。",
+    in_queue: "你在排队中",
+    tracking_realtime: "我们正在实时追踪你的位置。",
+    stay_on_page: "请留在此页面 — 只有 Telegram 能在你离开时通知你。",
+    all_set: "一切就绪！我们会通过 Telegram 通知你。",
     progress: "排队进度",
-    your_ticket: "您的号码",
-    now_serving: "正在叫号",
-    people_ahead: "等待人数",
+    your_ticket: "你的号码",
+    now_serving: "正在服务",
+    people_ahead: "前方人数",
     est_wait: "预计等待",
-    tg_title: "获取 Telegram 提醒",
-    tg_desc: "到您时收到即时通知。",
-    tg_title_connected: "✅ 已连接 Telegram",
-    tg_desc_connected: "到您时我们将通过 Telegram 通知您。",
+    tg_title: "获取 Telegram 通知",
+    tg_desc: "当轮到你时收到通知。",
+    tg_title_connected: "Telegram 已连接",
+    tg_desc_connected: "我们会在叫到你的号码时通知你。",
     connect_btn: "连接 Telegram",
-    stay_on_page: "请保持此页面打开 — 只有 Telegram 可以在关闭时通知您。",
-    all_set: "设置成功！我们将通过 Telegram 通知您。",
-    modal_title: "不错过任何叫号",
-    modal_desc: "浏览器可能会休眠。Telegram 确保您在手机锁屏时也能收到提醒。",
+    modal_title: "别错过你的号",
+    modal_desc: "浏览器可能休眠。Telegram 确保你手机锁屏也能收到通知。",
     modal_continue: "继续 →",
-    modal_step2_title: "在 Telegram 中点击「开始」",
-    modal_step2_desc: "我们将打开机器人。点击 <strong>开始</strong> 来激活通知。",
+    skip: "暂时跳过",
+    modal_step2_title: '在 Telegram 中点击 "Start"',
+    modal_step2_desc: "我们会打开机器人。点击 <strong>Start</strong> 激活通知。",
     modal_step3_title: "准备连接",
     modal_connected_title: "已连接！",
-    modal_connected_desc: "到您时会收到 Telegram 通知。",
-    skip: "稍后再说",
-    next: "下一位到您！",
+    modal_connected_desc: "你会在轮到时收到 Telegram 通知。",
+    your_turn: "🎉 轮到你了！",
+    next: "你是下一个！",
     loading: "加载中...",
     not_found: "未找到队列，正在重试...",
-    est_now: "即时",
-    people_1: "前面 1 人",
-    your_turn: "🎉 到您了！"
+    est_now: "现在",
+    people_1: "前方 1 人",
+    play_game: "🎮 玩贪吃蛇游戏",
   },
   bm: {
     in_queue: "Anda dalam barisan",
     tracking_realtime: "Kami menjejaki kedudukan anda secara langsung.",
-    progress: "Status Barisan",
+    stay_on_page: "Kekal di halaman ini — hanya Telegram boleh memberitahu anda apabila ditutup.",
+    all_set: "Semuanya siap! Kami akan memberitahu anda melalui Telegram.",
+    progress: "Kemajuan Barisan",
     your_ticket: "Tiket Anda",
-    now_serving: "Sedang Dipanggil",
-    people_ahead: "Orang Menunggu",
-    est_wait: "Anggaran Masa",
-    tg_title: "Dapatkan Notifikasi Telegram",
-    tg_desc: "Terima makluman apabila tiba giliran anda.",
-    tg_title_connected: "✅ Telegram disambung",
-    tg_desc_connected: "Kami akan maklumkan apabila giliran anda.",
+    now_serving: "Sedang Dilayan",
+    people_ahead: "Orang di Hadapan",
+    est_wait: "Anggaran Tunggu",
+    tg_title: "Dapatkan Amaran Telegram",
+    tg_desc: "Terima pemberitahuan apabila giliran anda.",
+    tg_title_connected: "Telegram Disambung",
+    tg_desc_connected: "Kami akan memberitahu anda apabila nombor anda dipanggil.",
     connect_btn: "Sambung Telegram",
-    stay_on_page: "Kekal di halaman ini — hanya Telegram boleh memaklumkan jika ditutup.",
-    all_set: "Semua siap! Kami akan maklumkan anda di Telegram.",
     modal_title: "Jangan Terlepas Giliran",
-    modal_desc: "Tab pelayar boleh 'tidur'. Telegram memastikan anda mendapat makluman walaupun telefon dikunci.",
+    modal_desc: "Tab pelayar boleh tidur. Telegram memastikan anda mendapat amaran walaupun telefon anda terkunci.",
     modal_continue: "Teruskan →",
-    modal_step2_title: 'Tekan "Start" di Telegram',
-    modal_step2_desc: "Kami akan buka bot. Tekan <strong>Start</strong> untuk aktifkan notifikasi.",
-    modal_step3_title: "Sedia untuk sambung",
-    modal_connected_title: "Disambung!",
-    modal_connected_desc: "Anda akan terima notifikasi Telegram apabila tiba giliran.",
-    skip: "Langkau dahulu",
-    next: "Giliran anda seterusnya!",
+    skip: "Langkau buat masa ini",
+    modal_step2_title: 'Ketik "Start" dalam Telegram',
+    modal_step2_desc: "Kami akan membuka bot kami. Ketik <strong>Start</strong> untuk mengaktifkan pemberitahuan.",
+    modal_step3_title: "Sedia untuk Sambung",
+    modal_connected_title: "Anda Disambung!",
+    modal_connected_desc: "Anda akan mendapat pemberitahuan Telegram apabila giliran anda.",
+    your_turn: "🎉 Giliran anda!",
+    next: "Anda seterusnya!",
     loading: "Memuatkan...",
-    not_found: "Barisan tidak ditemui. Mencuba semula...",
+    not_found: "Barisan tidak dijumpai. Mencuba semula...",
     est_now: "Sekarang",
     people_1: "1 orang di hadapan",
-    your_turn: "🎉 Giliran anda!"
+    play_game: "🎮 Main Permainan Snake",
   }
 };
 
@@ -505,22 +525,22 @@ const I18N = {
    ======================================== */
 const state = {
   lang: localStorage.getItem('qj_lang') || 'en',
-  queueId: null,
+  queueId: null,      // visible ticket number = database key
   slug: null,
   tenantId: null,
-  data: null,       // current queue data from Firebase
-  cachedData: null,  // from localStorage
+  data: null,
+  cachedData: null,
   isTgConnected: false,
   isRedirecting: false,
-  retryCount: 0,
-  avgServiceTime: 3,
+  avgServiceTimeMin: CONFIG.defaultAvgServiceMin,
   latestConnectLink: null,
-  linkGenerating: false
+  linkGenerating: false,
+  initResolved: false, // true once queue data loaded successfully
 };
 
 let db = null;
 let firebaseApp = null;
-let qRef = null, counterRef = null, adRef = null;
+let qRef = null, counterRef = null, adRef = null, analyticsRef = null;
 let currentCounterId = null;
 
 /* ========================================
@@ -562,39 +582,29 @@ function getSlugFromUrl() {
 }
 
 /* ========================================
-   I18N ENGINE (zero-reload)
+   I18N ENGINE
    ======================================== */
 function setLang(lang) {
   state.lang = lang;
   localStorage.setItem('qj_lang', lang);
-
-  // Update nav buttons
   document.querySelectorAll('.lang-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
-
-  // Update all data-t elements
   const t = I18N[lang];
   document.querySelectorAll('[data-t]').forEach(el => {
     const key = el.getAttribute('data-t');
     if (t[key]) {
-      // Some strings contain HTML (like <strong>)
       if (t[key].includes('<')) el.innerHTML = t[key];
       else el.textContent = t[key];
     }
   });
-
-  // Update data-t-inner elements
   document.querySelectorAll('[data-t-inner]').forEach(el => {
     const key = el.getAttribute('data-t-inner');
     if (t[key]) el.textContent = t[key];
   });
-
-  // Re-render dynamic values
   renderData();
 }
 
-// Bind language buttons
 document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', () => setLang(btn.dataset.lang));
 });
@@ -612,8 +622,6 @@ async function resolveTenant() {
       if (res.ok) {
         const data = await res.json();
         state.tenantId = data?.tenantId || data?.tenant || slug;
-
-        // Apply theme
         if (data?.config?.theme?.color) {
           document.documentElement.style.setProperty('--primary-hex', data.config.theme.color);
           document.querySelector('meta[name="theme-color"]')?.setAttribute('content', data.config.theme.color);
@@ -631,18 +639,12 @@ async function resolveTenant() {
   }
 }
 
-function tenantPath(sub) {
-  if (!state.tenantId) return sub;
-  return `tenants/${encodeURIComponent(state.tenantId)}/${sub}`;
-}
-
 /* ========================================
    FIREBASE INIT
    ======================================== */
 async function initFirebase() {
   let cfg = CONFIG.firebase;
 
-  // Try tenant-specific config
   if (state.slug) {
     try {
       const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`);
@@ -659,51 +661,6 @@ async function initFirebase() {
   if (!getApps().length) firebaseApp = initializeApp(cfg);
   else firebaseApp = getApps()[0];
   db = getDatabase(firebaseApp);
-}
-
-/* ========================================
-   PATH RESOLUTION WITH RETRY
-   ======================================== */
-async function probePath(path) {
-  if (!db) return false;
-  try {
-    const snap = await get(ref(db, path));
-    return snap?.exists?.() ?? false;
-  } catch { return false; }
-}
-
-async function findPath(candidates) {
-  for (const p of candidates) {
-    if (await probePath(p)) return p;
-  }
-  return candidates[0]; // fallback
-}
-
-async function chooseQueuePath(queueKey) {
-  return findPath([
-    tenantPath(`queue/${queueKey}`),
-    tenantPath(`queues/${queueKey}`),
-    tenantPath(`public/queue/${queueKey}`),
-    `queue/${queueKey}`,
-    `queues/${queueKey}`,
-    queueKey
-  ]);
-}
-
-async function chooseCounterPath(counterId) {
-  return findPath([
-    tenantPath(`counters/${counterId}`),
-    `counters/${counterId}`,
-    tenantPath(`public/counters/${counterId}`)
-  ]);
-}
-
-async function chooseSettingsPath(key) {
-  return findPath([
-    tenantPath(`settings/${key}`),
-    `settings/${key}`,
-    tenantPath(`public/config/theme/${key}`)
-  ]);
 }
 
 /* ========================================
@@ -756,7 +713,12 @@ function renderData() {
 
   if (ahead !== null && ahead !== undefined) {
     $('peopleAhead').textContent = ahead;
-    $('estimatedWait').textContent = ahead === 0 ? t.next : formatMinutes(ahead * state.avgServiceTime);
+    // Dynamic wait time: peopleAhead × avgServiceTime
+    if (ahead === 0) {
+      $('estimatedWait').textContent = t.next;
+    } else {
+      $('estimatedWait').textContent = formatMinutes(ahead * state.avgServiceTimeMin);
+    }
   }
 
   // Progress bar
@@ -768,8 +730,11 @@ function renderData() {
     fill.style.width = '100%';
     caption.textContent = t.your_turn;
     caption.style.color = '#10b981';
+  } else if (status === 'canceled' || status === 'cancelled') {
+    fill.style.width = '0%';
+    caption.textContent = '❌ Canceled';
+    caption.style.color = '#b91c1c';
   } else if (ahead === 0) {
-    // You're next — NOT 100%. Show 95% to indicate imminent but not done
     fill.style.width = '95%';
     caption.textContent = '🎯 ' + t.next;
     caption.style.color = 'var(--primary-hex)';
@@ -785,7 +750,7 @@ function renderData() {
   }
 
   // Telegram state
-  const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id);
+  const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id || d.chatId);
   setTelegramUI(hasTg);
 }
 
@@ -807,30 +772,34 @@ function redirectToTurn() {
 }
 
 /* ========================================
-   QUEUE WATCHER WITH RETRY
+   QUEUE WATCHER — DIRECT PATH ONLY
    ======================================== */
-let retryTimer = null;
-
 async function startQueueWatcher() {
   if (!db || !state.queueId) return;
 
   // Clean up previous
   if (qRef) { off(qRef); qRef = null; }
-  clearTimeout(retryTimer);
 
-  const path = await chooseQueuePath(state.queueId);
+  // CORE FIX: Use queueId directly as the database key
+  // The canonical path is: tenants/{tenantId}/queue/{queueId}
+  const path = state.tenantId
+    ? `tenants/${state.tenantId}/queue/${state.queueId}`
+    : `queue/${state.queueId}`;
+
   console.log('[QJ] Watching queue at:', path);
   qRef = ref(db, path);
 
   onValue(qRef, (snap) => {
-    if (!snap?.exists?.()) {
-      handleMissingQueue();
+    if (!snap || !snap.exists || !snap.exists()) {
+      // Only show error if we haven't resolved yet — don't spam
+      if (!state.initResolved) {
+        console.warn('[QJ] Queue data not yet available at', path);
+        // Don't show error immediately, wait for a brief moment
+      }
       return;
     }
 
-    // Reset retry on success
-    state.retryCount = 0;
-
+    state.initResolved = true;
     const data = snap.val();
     state.data = data;
     localStorage.setItem('qj_last_data', JSON.stringify(data));
@@ -840,6 +809,12 @@ async function startQueueWatcher() {
     const st = String(data.status || '').toLowerCase();
     if (st === 'called' || st === 'serving' || st === 'your_turn' || data.called === true || data.notifiedAt || data.calledAt) {
       redirectToTurn();
+      return;
+    }
+
+    // Skip canceled
+    if (st === 'canceled' || st === 'cancelled') {
+      renderData();
       return;
     }
 
@@ -854,42 +829,42 @@ async function startQueueWatcher() {
     }
 
     // Auto-open modal if Telegram not connected and not skipped
-    const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id);
+    const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id || data.chatId);
     if (!hasTg && !$('obModal').classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + state.queueId)) {
       openModal();
     }
 
     renderData();
   });
-}
 
-function handleMissingQueue() {
-  state.retryCount++;
-  const delays = CONFIG.retryDelays;
-
-  if (state.retryCount <= delays.length) {
-    const delay = delays[state.retryCount - 1];
-    console.warn(`[QJ] Queue not found, retry ${state.retryCount}/${delays.length} in ${delay}ms`);
-    showError(I18N[state.lang].not_found);
-    retryTimer = setTimeout(() => startQueueWatcher(), delay);
-  } else {
-    // Final delay before redirect
-    console.warn('[QJ] Queue not found after retries, redirecting in', CONFIG.redirectDelay, 'ms');
-    setTimeout(() => {
-      window.location.href = state.slug ? `index.html?error=not_found&slug=${encodeURIComponent(state.slug)}` : 'index.html?error=not_found';
-    }, CONFIG.redirectDelay);
-  }
+  // Set a timeout: if no data after retries, show error and redirect
+  setTimeout(() => {
+    if (!state.initResolved && !state.isRedirecting) {
+      console.warn('[QJ] Queue not found after timeout at', path);
+      showError(I18N[state.lang].not_found);
+      setTimeout(() => {
+        if (!state.initResolved && !state.isRedirecting) {
+          window.location.href = state.slug
+            ? `index.html?error=not_found&slug=${encodeURIComponent(state.slug)}`
+            : 'index.html?error=not_found';
+        }
+      }, CONFIG.redirectDelay);
+    }
+  }, CONFIG.maxInitRetries * CONFIG.initRetryDelayMs);
 }
 
 /* ========================================
    COUNTER WATCHER
    ======================================== */
 async function watchCounter(counterId) {
-  const path = await chooseCounterPath(counterId);
+  const path = state.tenantId
+    ? `tenants/${state.tenantId}/counters/${counterId}`
+    : `counters/${counterId}`;
+
   counterRef = ref(db, path);
 
   onValue(counterRef, (snap) => {
-    if (!snap?.exists?.()) return;
+    if (!snap || !snap.exists || !snap.exists()) return;
     const cData = snap.val();
     const serving = cData.nowServing || cData.serving || cData.now;
     $('nowServing').textContent = formatServingNumber(serving) || '—';
@@ -908,7 +883,7 @@ function formatServingNumber(raw) {
   const num = extractNumber(raw);
   if (num === null) return String(raw);
   const len = String(ticket).match(/(\d+)$/)?.[1]?.length || String(num).length;
-  return prefix ? `${prefix} ${String(num).padStart(len, '0')}` : String(num);
+  return prefix ? `${prefix}${String(num).padStart(len, '0')}` : String(num);
 }
 
 function computeAhead(data, servingRaw) {
@@ -928,13 +903,46 @@ function computeAhead(data, servingRaw) {
 }
 
 /* ========================================
+   DYNAMIC WAIT TIME — ANALYTICS WATCHER
+   ======================================== */
+async function watchAnalytics() {
+  if (!db) return;
+
+  const path = state.tenantId
+    ? `tenants/${state.tenantId}/analytics/serviceEvents`
+    : 'analytics/serviceEvents';
+
+  try {
+    analyticsRef = ref(db, path);
+    onValue(analyticsRef, (snap) => {
+      if (!snap || !snap.exists || !snap.exists()) return;
+      const events = snap.val();
+      const times = [];
+      for (const k in events) {
+        const ms = events[k]?.serviceMs;
+        if (ms > 0) {
+          const m = ms / 60000;
+          if (m <= 120) times.push(m);
+        }
+      }
+      if (times.length > 0) {
+        // Use last 10 events for moving average
+        const recent = times.slice(-10);
+        state.avgServiceTimeMin = Math.max(1, Math.round(recent.reduce((a, b) => a + b, 0) / recent.length));
+        renderData(); // Re-render with new avg
+      }
+    });
+  } catch (e) { /* non-critical */ }
+}
+
+/* ========================================
    LOGO & SETTINGS LOADERS
    ======================================== */
 async function loadLogo() {
   if (!db) return;
   try {
-    const p = await chooseSettingsPath('logo');
-    const snap = await get(ref(db, p));
+    const path = state.tenantId ? `tenants/${state.tenantId}/settings/logo` : 'settings/logo';
+    const snap = await get(ref(db, path));
     if (snap?.exists?.()) {
       const url = snap.val();
       if (url) {
@@ -946,33 +954,11 @@ async function loadLogo() {
   } catch (e) { /* non-critical */ }
 }
 
-async function loadAvgServiceTime() {
-  if (!db) return;
-  try {
-    const candidates = [tenantPath('analytics/serviceEvents'), 'analytics/serviceEvents'];
-    for (const p of candidates) {
-      const snap = await get(ref(db, p)).catch(() => null);
-      if (snap?.exists?.()) {
-        const events = snap.val();
-        const times = [];
-        for (const k in events) {
-          const ms = events[k]?.serviceMs;
-          if (ms > 0) { const m = ms / 60000; if (m <= 120) times.push(m); }
-        }
-        if (times.length) {
-          state.avgServiceTime = Math.max(1, Math.round(times.reduce((a, b) => a + b, 0) / times.length));
-        }
-        break;
-      }
-    }
-  } catch (e) { /* non-critical */ }
-}
-
 async function watchAds() {
   if (!db) return;
   try {
-    const p = await chooseSettingsPath('adImage');
-    adRef = ref(db, p);
+    const path = state.tenantId ? `tenants/${state.tenantId}/settings/adImage` : 'settings/adImage';
+    adRef = ref(db, path);
     onValue(adRef, (snap) => {
       const url = snap?.exists?.() ? snap.val() : null;
       showAd(url);
@@ -1037,9 +1023,15 @@ async function generateLink() {
   statusText.textContent = 'Creating secure link...';
 
   try {
-    const payload = { queueKey: state.queueId };
-    if (state.tenantId) payload.tenantId = state.tenantId;
-    if (state.slug) payload.slug = state.slug;
+    const d = state.data || {};
+    const payload = {
+      queueKey: state.queueId,
+      queueId: d.queueId || state.queueId,
+      tenantId: state.tenantId || undefined,
+      slug: state.slug || undefined,
+      counterId: d.counterId || d.counter || undefined,
+      counterName: d.counterName || undefined,
+    };
 
     const res = await fetch(CONFIG.endpoints.createLink, {
       method: 'POST',
@@ -1047,21 +1039,33 @@ async function generateLink() {
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error('API error');
+    if (!res.ok) throw new Error('API error ' + res.status);
     const j = await res.json();
     state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
   } catch (e) {
-    console.warn('[QJ] Link generation failed, using fallback');
+    console.warn('[QJ] Link generation failed:', e.message);
   }
 
   if (!state.latestConnectLink) {
-    const token = state.data?.telegramToken || state.data?.token || state.queueId;
-    state.latestConnectLink = `${CONFIG.telegramBotUrl}?start=${token}`;
+    // Show retryable state instead of broken fallback
+    statusText.textContent = 'Link generation failed. Tap to retry.';
+    btn.disabled = false;
+    content.innerHTML = '🔄 Retry';
+    state.linkGenerating = false;
+    // On next click, reset and try again
+    btn.onclick = () => {
+      state.latestConnectLink = null;
+      state.linkGenerating = false;
+      btn.onclick = openTelegram;
+      generateLink();
+    };
+    return;
   }
 
   statusText.textContent = 'Ready! Tap below to open Telegram.';
   btn.disabled = false;
   content.innerHTML = '🚀 Open Telegram';
+  btn.onclick = openTelegram;
   state.linkGenerating = false;
 }
 
@@ -1072,7 +1076,13 @@ async function openTelegram() {
   btn.disabled = true;
   content.innerHTML = '<span class="spinner"></span> Opening...';
 
-  const url = state.latestConnectLink || `${CONFIG.telegramBotUrl}?start=${state.queueId}`;
+  const url = state.latestConnectLink;
+  if (!url) {
+    // Should not happen, but handle gracefully
+    generateLink();
+    return;
+  }
+
   const win = window.open(url, '_blank', 'noopener,noreferrer');
   if (!win) {
     const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
@@ -1139,17 +1149,28 @@ $('obModal').onclick = (e) => { if (e.target === $('obModal')) closeModal(); };
 $('btnConnect').onclick = openModal;
 
 /* ========================================
+   GAME BUTTON
+   ======================================== */
+$('btnGame').onclick = () => {
+  const params = new URLSearchParams();
+  if (state.queueId) params.set('queueId', state.queueId);
+  if (state.slug) params.set('slug', state.slug);
+  if (state.tenantId) params.set('tenantId', state.tenantId);
+  window.open(`game.html?${params.toString()}`, '_blank');
+};
+
+/* ========================================
    VISIBILITY CHANGE HANDLER
    ======================================== */
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    console.log('[QJ] Tab became visible, re-attaching watcher');
+  if (document.visibilityState === 'visible' && !state.isRedirecting) {
+    // Re-attach watcher on tab focus
     startQueueWatcher();
   }
 });
 
 /* ========================================
-   HYDRATE FROM CACHE (zero-flicker)
+   HYDRATE FROM CACHE
    ======================================== */
 function hydrateFromCache() {
   try {
@@ -1167,7 +1188,7 @@ function hydrateFromCache() {
    INITIALIZATION
    ======================================== */
 async function init() {
-  // Parse queue ID
+  // Parse queue ID — this IS the database key
   const params = new URLSearchParams(window.location.search);
   state.queueId = params.get('queueId') || params.get('queueid') || params.get('qid') || params.get('id');
   state.slug = getSlugFromUrl();
@@ -1178,7 +1199,7 @@ async function init() {
     return;
   }
 
-  // 1) Hydrate from cache immediately (no flicker)
+  // 1) Hydrate from cache immediately
   setLang(state.lang);
   hydrateFromCache();
 
@@ -1186,20 +1207,20 @@ async function init() {
   await resolveTenant();
   await initFirebase();
 
-  // 3) Load assets in parallel
-  await Promise.all([loadLogo(), loadAvgServiceTime()]);
+  // 3) Load logo
+  loadLogo();
 
-  // 4) Start real-time watcher
-  await startQueueWatcher();
-
-  // 5) Watch ads
+  // 4) Start real-time watchers (parallel)
+  startQueueWatcher();
+  watchAnalytics();
   watchAds();
 
-  // 6) Cleanup on unload
+  // 5) Cleanup on unload
   window.addEventListener('beforeunload', () => {
     if (qRef) off(qRef);
     if (counterRef) off(counterRef);
     if (adRef) off(adRef);
+    if (analyticsRef) off(analyticsRef);
   });
 }
 
