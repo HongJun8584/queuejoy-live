@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>QueueJoy — Live Status</title>
-  <meta name="description" content="Track your queue position in real-time with QueueJoy"/>
-  <meta name="theme-color" content="#8b5cf6"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <meta name="description" content="Track your queue position in real-time with QueueJoy" />
+  <meta name="theme-color" content="#8b5cf6" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <style>
     :root {
@@ -56,6 +56,7 @@
 
     .page-wrapper { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
 
+    /* Language Switcher */
     .lang-nav { display: flex; justify-content: flex-end; gap: 6px; }
     .lang-btn {
       background: none; border: 1px solid transparent; font-size: 12px; font-weight: 600;
@@ -65,6 +66,7 @@
     .lang-btn:hover { background: rgba(139, 92, 246, 0.06); }
     .lang-btn.active { color: var(--primary-hex); background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.15); }
 
+    /* Banners */
     .banner {
       padding: 14px 18px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600;
       display: flex; align-items: center; gap: 10px; line-height: 1.5;
@@ -75,6 +77,7 @@
 
     @keyframes slideDown { from { transform: translateY(-8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+    /* Main Card */
     .status-card {
       background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
       padding: 28px 24px; position: relative; overflow: hidden;
@@ -87,13 +90,13 @@
       display: flex; align-items: center; justify-content: center;
       color: white; font-weight: 800; font-size: 20px;
       box-shadow: 0 8px 20px rgba(139, 92, 246, 0.25);
-      overflow: hidden;
     }
     .logo-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
 
     .header-info h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
     .header-info p { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
 
+    /* Progress */
     .progress-area { margin-bottom: 28px; }
     .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .progress-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
@@ -106,6 +109,7 @@
       box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
     }
 
+    /* Stats Grid */
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
     .stat-box {
       background: var(--stat-bg); border: 1px solid var(--stat-border);
@@ -116,13 +120,16 @@
     .stat-number { font-size: 28px; font-weight: 800; margin-top: 6px; color: var(--text-main); line-height: 1; word-break: break-word; }
     .stat-number.highlight { color: var(--primary-hex); }
 
+    /* Telegram CTA */
     .tg-cta {
       background: #f0f7ff; border: 1px solid #e0f2fe;
       padding: 20px; border-radius: var(--radius-md);
       display: flex; flex-direction: column; gap: 14px;
       transition: all 0.3s var(--ease);
     }
-    .tg-cta.connected { background: var(--success-bg); border-color: var(--success-border); }
+    .tg-cta.connected {
+      background: var(--success-bg); border-color: var(--success-border);
+    }
     .tg-cta-header { display: flex; gap: 12px; align-items: center; }
     .tg-icon { font-size: 24px; flex-shrink: 0; }
     .tg-cta-text h4 { font-size: 14px; font-weight: 700; color: #0369a1; }
@@ -148,6 +155,7 @@
       100% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0); }
     }
 
+    /* Game Button */
     .btn-game {
       background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;
       padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
@@ -158,11 +166,13 @@
     }
     .btn-game:active { transform: scale(0.97); }
 
+    /* Error */
     .error-banner {
       padding: 14px; border-radius: 12px; background: #fef2f2; border: 1px solid #fecaca;
       color: #b91c1c; font-weight: 600; font-size: 13px; text-align: center;
     }
 
+    /* Onboarding Modal */
     .modal-overlay {
       position: fixed; inset: 0; z-index: 1000;
       background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
@@ -223,6 +233,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Ad Panel */
     .ad-panel {
       position: fixed; left: 50%; transform: translateX(-50%);
       bottom: 12px; width: calc(100% - 32px); max-width: 400px;
@@ -234,40 +245,87 @@
 
     .hidden { display: none !important; }
 
+    /* Skeleton pulse for initial load */
     .skeleton-text { background: var(--track-bg); border-radius: 4px; animation: skeletonPulse 1.5s ease-in-out infinite; }
     @keyframes skeletonPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-    @media (max-width: 480px) { body { padding-left: 12px; padding-right: 12px; } }
+    /* Cancel Button */
+    .btn-cancel {
+      background: white; color: #b91c1c; border: 2px solid #fecaca;
+      padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all 0.2s var(--ease); font-family: inherit; width: 100%;
+      margin-top: 8px;
+    }
+    .btn-cancel:hover { background: #fef2f2; border-color: #f87171; }
+    .btn-cancel:active { transform: scale(0.97); }
+    .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Cancel Confirm Modal */
+    .confirm-overlay {
+      position: fixed; inset: 0; z-index: 1100;
+      background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0.25s;
+    }
+    .confirm-overlay.show { opacity: 1; visibility: visible; }
+    .confirm-card {
+      background: white; width: 100%; max-width: 340px;
+      border-radius: var(--radius-lg); padding: 28px 24px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.4);
+      transform: translateY(20px) scale(0.96);
+      transition: transform 0.3s cubic-bezier(0.22, 0.9, 0.22, 1);
+      text-align: center;
+    }
+    .confirm-overlay.show .confirm-card { transform: translateY(0) scale(1); }
+    .confirm-icon { font-size: 48px; margin-bottom: 16px; }
+    .confirm-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+    .confirm-desc { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
+    .confirm-actions { display: flex; flex-direction: column; gap: 10px; }
+    .btn-confirm-cancel {
+      background: #dc2626; color: white; border: none;
+      padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
+      cursor: pointer; font-family: inherit; width: 100%;
+      transition: background 0.15s;
+    }
+    .btn-confirm-cancel:hover { background: #b91c1c; }
+    .btn-confirm-cancel:active { transform: scale(0.98); }
+    .btn-keep {
+      background: white; color: var(--text-main); border: 2px solid #e5e7eb;
+      padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
+      cursor: pointer; font-family: inherit; width: 100%;
+      transition: background 0.15s;
+    }
+    .btn-keep:hover { background: #f9fafb; }
   </style>
 </head>
 <body>
 
 <div class="page-wrapper">
-  <div id="skel" class="fade-up">
-    <div class="skeleton skel-header" style="margin-bottom:14px"></div>
-    <div class="skeleton skel-hero" style="margin-bottom:14px"></div>
-    <div class="skeleton skel-ad"></div>
-  </div>
 
-  <div id="content" style="display:none">
-    <nav class="lang-nav" id="langNav">
-      <button class="lang-btn active" data-lang="en">EN</button>
-      <button class="lang-btn" data-lang="zh">中文</button>
-      <button class="lang-btn" data-lang="bm">BM</button>
-    </nav>
+  <!-- Language Switcher -->
+  <nav class="lang-nav" id="langNav">
+    <button class="lang-btn active" data-lang="en">EN</button>
+    <button class="lang-btn" data-lang="zh">中文</button>
+    <button class="lang-btn" data-lang="bm">BM</button>
+  </nav>
 
+  <!-- Warning Banner (visible until Telegram connected) -->
   <div id="bannerWarning" class="banner banner-warning">
     <span>⚠️</span>
     <span data-t="stay_on_page">Stay on this page — only Telegram can notify you when closed.</span>
   </div>
 
+  <!-- Success Banner (hidden until Telegram connected) -->
   <div id="bannerSuccess" class="banner banner-success hidden">
     <span>✅</span>
     <span data-t="all_set">You're all set! We'll notify you on Telegram.</span>
   </div>
 
+  <!-- Error Banner -->
   <div id="errorBanner" class="error-banner hidden"></div>
 
+  <!-- Main Card -->
   <main class="status-card">
     <div class="header">
       <div class="logo-container" id="logoBox">
@@ -312,6 +370,7 @@
       </div>
     </div>
 
+    <!-- Telegram CTA -->
     <div id="tgCta" class="tg-cta">
       <div class="tg-cta-header">
         <span class="tg-icon">🔔</span>
@@ -323,11 +382,15 @@
       <button id="btnConnect" class="btn-tg pulse" data-t-inner="connect_btn">Connect Telegram</button>
     </div>
 
+    <!-- Game Button -->
     <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Play Snake Game</button>
+
+    <!-- Cancel Number Button -->
+    <button id="btnCancel" class="btn-cancel" data-t-inner="cancel_btn">❌ Cancel Number</button>
   </main>
-  </div>
 </div>
 
+<!-- Onboarding Modal -->
 <div id="obModal" class="modal-overlay" aria-hidden="true">
   <div class="modal-card" role="dialog" aria-modal="true">
 
@@ -368,15 +431,32 @@
   </div>
 </div>
 
+<!-- Ad Panel -->
 <div id="adPanel" class="ad-panel hidden">
   <div class="ad-label">Advertisement</div>
   <div id="adContainer"></div>
 </div>
 
-<script type="module">
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getDatabase, ref, onValue, off, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+<!-- Cancel Confirmation Modal -->
+<div id="cancelModal" class="confirm-overlay" aria-hidden="true">
+  <div class="confirm-card">
+    <div class="confirm-icon">⚠️</div>
+    <h3 class="confirm-title" id="cancelConfirmTitle">Cancel this number?</h3>
+    <p class="confirm-desc" id="cancelConfirmDesc">This will mark the ticket as canceled and skip it in the queue.</p>
+    <div class="confirm-actions">
+      <button id="btnConfirmCancel" class="btn-confirm-cancel">Confirm Cancel</button>
+      <button id="btnKeepNumber" class="btn-keep">Keep Number</button>
+    </div>
+  </div>
+</div>
 
+<script type="module">
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, off, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+/* ========================================
+   CONFIGURATION
+   ======================================== */
 const CONFIG = {
   firebase: {
     apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
@@ -392,16 +472,20 @@ const CONFIG = {
     createLink: '/.netlify/functions/createTelegramLink',
     getTenant: '/.netlify/functions/get-tenant',
     getFirebaseConfig: '/.netlify/functions/get-firebase-config',
-    markTokenUsed: '/.netlify/functions/markTokenUsed'
+    markTokenUsed: '/.netlify/functions/markTokenUsed',
   },
   telegramBotUrl: 'https://t.me/QueueJoyBot',
   maxAhead: 30,
   defaultAvgServiceMin: 3,
+  // Retry config — only used for initial load, not for ongoing watching
   maxInitRetries: 3,
   initRetryDelayMs: 2000,
-  redirectDelay: 5000
+  redirectDelay: 5000,
 };
 
+/* ========================================
+   I18N
+   ======================================== */
 const I18N = {
   en: {
     in_queue: "You're in the queue",
@@ -434,26 +518,12 @@ const I18N = {
     est_now: "Now",
     people_1: "1 person ahead",
     play_game: "🎮 Play Snake Game",
-    connected: "✅ Connected",
-    retry: "🔄 Retry",
-    open_telegram: "🚀 Open Telegram",
-    generating: "Generating...",
-    opening: "Opening...",
+    cancel_btn: "❌ Cancel Number",
+    cancel_title: "Cancel this number?",
+    cancel_desc: "This will mark the ticket as canceled and skip it in the queue.",
+    cancel_confirm: "Confirm Cancel",
+    cancel_keep: "Keep Number",
     canceled: "❌ Canceled",
-    sync_tenant: "Syncing tenant...",
-    live: "Live",
-    offline: "Offline — reconnecting...",
-    unavailable: "Unavailable",
-    missing_tenant: "Missing tenant",
-    missing_tenant_desc: "Open this page with ?slug=your-slug or ?tenantId=your-tenant-id.",
-    tenant_lookup_failed: "Tenant lookup failed",
-    tenant_lookup_failed_desc: "This page could not resolve a valid tenant.",
-    config_unavailable: "Configuration unavailable",
-    config_unavailable_desc: "This tenant does not have a valid public config yet.",
-    unable_load: "Unable to load tenant data",
-    unable_load_desc: "The tenant could not be loaded safely. Please refresh.",
-    unexpected_error: "Unexpected error",
-    unexpected_error_desc: "Something went wrong while loading this page."
   },
   zh: {
     in_queue: "你在排队中",
@@ -486,26 +556,12 @@ const I18N = {
     est_now: "现在",
     people_1: "前方 1 人",
     play_game: "🎮 玩贪吃蛇游戏",
-    connected: "✅ 已连接",
-    retry: "🔄 重试",
-    open_telegram: "🚀 打开 Telegram",
-    generating: "生成中...",
-    opening: "打开中...",
+    cancel_btn: "❌ 取消号码",
+    cancel_title: "取消此号码？",
+    cancel_desc: "这将标记票据为已取消，并在排队中跳过。",
+    cancel_confirm: "确认取消",
+    cancel_keep: "保留号码",
     canceled: "❌ 已取消",
-    sync_tenant: "同步租户中...",
-    live: "在线",
-    offline: "离线 — 正在重连...",
-    unavailable: "不可用",
-    missing_tenant: "缺少租户",
-    missing_tenant_desc: "请使用 ?slug=your-slug 或 ?tenantId=your-tenant-id 打开此页。",
-    tenant_lookup_failed: "租户查找失败",
-    tenant_lookup_failed_desc: "此页面无法解析有效租户。",
-    config_unavailable: "配置不可用",
-    config_unavailable_desc: "此租户还没有有效的 public/config。",
-    unable_load: "无法加载租户数据",
-    unable_load_desc: "租户无法安全加载，请刷新。",
-    unexpected_error: "意外错误",
-    unexpected_error_desc: "加载页面时出了点问题。"
   },
   bm: {
     in_queue: "Anda dalam barisan",
@@ -538,33 +594,21 @@ const I18N = {
     est_now: "Sekarang",
     people_1: "1 orang di hadapan",
     play_game: "🎮 Main Permainan Snake",
-    connected: "✅ Disambung",
-    retry: "🔄 Cuba lagi",
-    open_telegram: "🚀 Buka Telegram",
-    generating: "Menjana...",
-    opening: "Membuka...",
+    cancel_btn: "❌ Batal Nombor",
+    cancel_title: "Batalkan nombor ini?",
+    cancel_desc: "Ini akan menanda tiket sebagai dibatalkan dan melangkauinya dalam barisan.",
+    cancel_confirm: "Sahkan Batal",
+    cancel_keep: "Kekal Nombor",
     canceled: "❌ Dibatalkan",
-    sync_tenant: "Menyegerak tenant...",
-    live: "Langsung",
-    offline: "Luar talian — cuba sambung semula...",
-    unavailable: "Tidak tersedia",
-    missing_tenant: "Tenant tiada",
-    missing_tenant_desc: "Buka halaman ini dengan ?slug=slug-anda atau ?tenantId=tenant-id-anda.",
-    tenant_lookup_failed: "Carian tenant gagal",
-    tenant_lookup_failed_desc: "Halaman ini tidak dapat mengenal pasti tenant yang sah.",
-    config_unavailable: "Konfigurasi tidak tersedia",
-    config_unavailable_desc: "Tenant ini belum ada public/config yang sah.",
-    unable_load: "Tidak dapat memuatkan data tenant",
-    unable_load_desc: "Tenant tidak dapat dimuatkan dengan selamat. Sila muat semula.",
-    unexpected_error: "Ralat tidak dijangka",
-    unexpected_error_desc: "Ada masalah semasa memuatkan halaman ini."
   }
 };
 
+/* ========================================
+   STATE
+   ======================================== */
 const state = {
   lang: localStorage.getItem('qj_lang') || 'en',
-  queueId: null,
-  queueNumber: null,
+  queueId: null,      // visible ticket number = database key
   slug: null,
   tenantId: null,
   data: null,
@@ -574,34 +618,22 @@ const state = {
   avgServiceTimeMin: CONFIG.defaultAvgServiceMin,
   latestConnectLink: null,
   linkGenerating: false,
-  initResolved: false,
-  configLoaded: false,
-  countersLoaded: false,
-  connected: false,
-  config: {},
-  queueWatchRef: null,
-  currentCounterId: null,
-  counterRef: null,
-  analyticsRef: null,
-  configRef: null,
-  countersRef: null,
-  queuedDirectPath: null
+  initResolved: false, // true once queue data loaded successfully
 };
 
 let db = null;
 let firebaseApp = null;
+let qRef = null, counterRef = null, adRef = null, analyticsRef = null;
+let currentCounterId = null;
 
+/* ========================================
+   DOM REFS
+   ======================================== */
 const $ = id => document.getElementById(id);
 
-function getParam(...keys) {
-  const params = new URLSearchParams(window.location.search);
-  for (const k of keys) {
-    const v = params.get(k);
-    if (v != null && String(v).trim() !== '') return String(v).trim();
-  }
-  return null;
-}
-
+/* ========================================
+   UTILITIES
+   ======================================== */
 function extractNumber(str) {
   if (str == null) return null;
   const m = String(str).trim().match(/(\d+)$/);
@@ -623,53 +655,31 @@ function showError(msg) {
   setTimeout(() => el.classList.add('hidden'), 7000);
 }
 
-function toast(msg) { showError(msg); }
-
 function getSlugFromUrl() {
-  const slug = getParam('slug', 'tenantSlug', 'tenant');
-  if (slug) return slug;
+  const params = new URLSearchParams(window.location.search);
+  const s = params.get('slug');
+  if (s) return s;
   const parts = location.pathname.replace(/^\/+|\/+$/g, '').split('/');
   if (parts.length > 1 && !parts[0].includes('.html')) return parts[0];
   return null;
 }
 
-function getStoredTenantId() {
-  try {
-    return localStorage.getItem('qj_last_tenant_id') || sessionStorage.getItem('qj_last_tenant_id') || localStorage.getItem('qj_tenant_id') || sessionStorage.getItem('qj_tenant_id');
-  } catch {
-    return null;
-  }
-}
-
-function getStoredSlug() {
-  try {
-    return localStorage.getItem('qj_last_tenant_slug') || sessionStorage.getItem('qj_last_tenant_slug') || null;
-  } catch {
-    return null;
-  }
-}
-
-function saveTenantContext() {
-  try {
-    if (state.tenantId) {
-      localStorage.setItem('qj_last_tenant_id', state.tenantId);
-      sessionStorage.setItem('qj_last_tenant_id', state.tenantId);
-    }
-    if (state.slug) {
-      localStorage.setItem('qj_last_tenant_slug', state.slug);
-      sessionStorage.setItem('qj_last_tenant_slug', state.slug);
-    }
-  } catch {}
-}
-
+/* ========================================
+   I18N ENGINE
+   ======================================== */
 function setLang(lang) {
   state.lang = lang;
   localStorage.setItem('qj_lang', lang);
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
   const t = I18N[lang];
   document.querySelectorAll('[data-t]').forEach(el => {
     const key = el.getAttribute('data-t');
-    if (t[key]) el.innerHTML = t[key];
+    if (t[key]) {
+      if (t[key].includes('<')) el.innerHTML = t[key];
+      else el.textContent = t[key];
+    }
   });
   document.querySelectorAll('[data-t-inner]').forEach(el => {
     const key = el.getAttribute('data-t-inner');
@@ -682,294 +692,63 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', () => setLang(btn.dataset.lang));
 });
 
-function safeString(value, fallback = '') {
-  if (typeof value === 'string') {
-    const s = value.trim();
-    return s || fallback;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  return fallback;
-}
+/* ========================================
+   TENANT RESOLUTION
+   ======================================== */
+async function resolveTenant() {
+  const slug = getSlugFromUrl();
+  state.slug = slug;
 
-function getPath(obj, path) {
-  if (!obj || typeof obj !== 'object') return undefined;
-  const parts = String(path).split('.');
-  let cur = obj;
-  for (const part of parts) {
-    if (!cur || typeof cur !== 'object') return undefined;
-    cur = cur[part];
-  }
-  return cur;
-}
-
-function darkenHex(hex, amount = 0.12) {
-  if (typeof hex !== 'string') return '#7c3aed';
-  const m = hex.trim().match(/^#([0-9a-f]{6})$/i);
-  if (!m) return hex.trim() || '#7c3aed';
-  const n = parseInt(m[1], 16);
-  const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * (1 - amount))));
-  const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * (1 - amount))));
-  const b = Math.max(0, Math.min(255, Math.round((n & 255) * (1 - amount))));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
-
-function isSafeUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-  const lower = url.trim().toLowerCase();
-  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
-  if (lower.startsWith('data:image/') || lower.startsWith('data:video/')) return true;
-  return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('/');
-}
-
-function getSessionId() {
-  const key = 'qj_session_id';
-  try {
-    let v = sessionStorage.getItem(key);
-    if (!v) {
-      v = (crypto?.randomUUID?.() || `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
-      sessionStorage.setItem(key, v);
+  if (slug) {
+    try {
+      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`);
+      if (res.ok) {
+        const data = await res.json();
+        state.tenantId = data?.tenantId || data?.tenant || slug;
+        if (data?.config?.theme?.color) {
+          document.documentElement.style.setProperty('--primary-hex', data.config.theme.color);
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', data.config.theme.color);
+        }
+        if (data?.config?.displayName) {
+          $('displayName').textContent = data.config.displayName;
+        }
+      } else {
+        state.tenantId = slug;
+      }
+    } catch (e) {
+      console.warn('[QJ] tenant fetch failed, using slug as id');
+      state.tenantId = slug;
     }
-    return v;
-  } catch {
-    return `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   }
 }
 
-state.sessionId = getSessionId();
+/* ========================================
+   FIREBASE INIT
+   ======================================== */
+async function initFirebase() {
+  let cfg = CONFIG.firebase;
 
-function isActiveCounter(counter) {
-  if (!counter || typeof counter !== 'object') return false;
-  const active = counter.active;
-  if (active === undefined || active === null) return true;
-  if (typeof active === 'boolean') return active;
-  if (typeof active === 'number') return active !== 0;
-  const s = String(active).trim().toLowerCase();
-  return s === 'true' || s === '1' || s === 'yes' || s === 'on';
-}
-
-function makeHeaderFallback(name) {
-  const div = document.createElement('div');
-  div.className = 'header-logo-fallback';
-  div.style.width = '100%';
-  div.style.height = '100%';
-  div.style.display = 'flex';
-  div.style.alignItems = 'center';
-  div.style.justifyContent = 'center';
-  div.style.color = '#fff';
-  div.style.fontWeight = '800';
-  div.style.fontSize = '20px';
-  div.style.background = 'linear-gradient(135deg,var(--theme),var(--theme2))';
-  div.textContent = (safeString(name, 'Q')[0] || 'Q').toUpperCase();
-  return div;
-}
-
-function makeCenterFallback() {
-  const span = document.createElement('span');
-  span.className = 'hero-logo-fallback';
-  span.textContent = '🎫';
-  return span;
-}
-
-function renderMedia(src, container, type = 'image') {
-  container.innerHTML = '';
-  if (!src) return;
-  const isVideo = type === 'video' || (typeof src === 'string' && (src.startsWith('data:video/') || /\.(mp4|webm|ogg|mov)$/i.test(src)));
-  if (isVideo) {
-    const video = document.createElement('video');
-    video.src = src;
-    video.autoplay = true;
-    video.loop = true;
-    video.muted = true;
-    video.playsInline = true;
-    video.className = 'ad-media';
-    video.style.height = 'auto';
-    video.style.maxHeight = '200px';
-    video.loading = 'lazy';
-    container.appendChild(video);
-    return;
-  }
-  const img = document.createElement('img');
-  img.src = src;
-  img.alt = 'Advertisement';
-  img.className = 'ad-media';
-  img.loading = 'lazy';
-  img.onerror = () => { img.style.display = 'none'; };
-  container.appendChild(img);
-}
-
-function setHeaderLogo(url, name) {
-  const wrap = $('headerLogoWrap') || $('logoBox');
-  if (!wrap) return;
-  const box = $('logoBox');
-  if (box) {
-    box.innerHTML = '';
-    box.classList.add('logo-container');
-  } else {
-    wrap.innerHTML = '';
-  }
-  if (isSafeUrl(url)) {
-    const img = document.createElement('img');
-    img.className = 'header-logo';
-    img.src = url;
-    img.alt = 'Logo';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.objectFit = 'cover';
-    img.onerror = () => {
-      const target = $('logoBox');
-      if (target && target.contains(img)) {
-        target.innerHTML = '';
-        target.appendChild(makeHeaderFallback(name));
+  if (state.slug) {
+    try {
+      const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`);
+      if (res.ok) {
+        const j = await res.json();
+        const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
+        if (tenantCfg?.databaseURL && !tenantCfg.databaseURL.includes('demo.firebaseio.com')) {
+          cfg = tenantCfg;
+        }
       }
-    };
-    const target = $('logoBox');
-    if (target) target.appendChild(img);
-    else wrap.appendChild(img);
-  } else {
-    const target = $('logoBox');
-    const fallback = makeHeaderFallback(name);
-    if (target) target.appendChild(fallback);
-    else wrap.appendChild(fallback);
+    } catch (e) { /* use default */ }
   }
+
+  if (!getApps().length) firebaseApp = initializeApp(cfg);
+  else firebaseApp = getApps()[0];
+  db = getDatabase(firebaseApp);
 }
 
-function setCenterLogo(url) {
-  const wrap = $('centerLogoWrap');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-  if (isSafeUrl(url)) {
-    const img = document.createElement('img');
-    img.className = 'hero-logo';
-    img.src = url;
-    img.alt = 'Logo';
-    img.onerror = () => {
-      if (wrap.contains(img)) {
-        wrap.innerHTML = '';
-        wrap.appendChild(makeCenterFallback());
-      }
-    };
-    wrap.appendChild(img);
-  } else {
-    wrap.appendChild(makeCenterFallback());
-  }
-}
-
-function renderAd(cfg) {
-  const card = $('adCard');
-  const content = $('adContent');
-  const text = $('adText');
-  const ad = cfg && typeof cfg.ad === 'object' && cfg.ad ? cfg.ad : {};
-  const adImage = safeString(ad.image || cfg.adImage);
-  const adVideo = safeString(ad.video || cfg.adVideo);
-  const adLink = safeString(ad.link || cfg.adLink);
-  const adText = safeString(cfg.adText);
-  if (!adImage && !adVideo) {
-    card.style.display = 'none';
-    content.innerHTML = '';
-    text.style.display = 'none';
-    return;
-  }
-  card.style.display = '';
-  content.innerHTML = '';
-  text.style.display = 'none';
-  const mediaWrap = document.createElement(adLink && isSafeUrl(adLink) ? 'a' : 'div');
-  if (adLink && isSafeUrl(adLink)) {
-    mediaWrap.href = adLink;
-    mediaWrap.target = '_blank';
-    mediaWrap.rel = 'noopener noreferrer';
-    mediaWrap.className = 'ad-link';
-  }
-  const holder = document.createElement('div');
-  renderMedia(adVideo || adImage, holder, adVideo ? 'video' : 'image');
-  mediaWrap.appendChild(holder);
-  content.appendChild(mediaWrap);
-  if (adText) {
-    text.textContent = adText;
-    text.style.display = '';
-  }
-}
-
-function applyConfig(cfg) {
-  state.config = cfg || {};
-  const themeColor = safeString(getPath(cfg, 'theme.color'), '#8b5cf6');
-  document.documentElement.style.setProperty('--theme', themeColor);
-  document.documentElement.style.setProperty('--theme2', darkenHex(themeColor, 0.12));
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
-
-  const displayName = safeString(getPath(cfg, 'displayName'), state.slug || 'Queue Joy');
-  document.title = `${displayName} — Queue`;
-
-  $('displayName').textContent = displayName;
-  $('smallTopText').textContent = safeString(getPath(cfg, 'smallTextOnTop'), 'Queue Joy');
-  setHeaderLogo(getPath(cfg, 'logoUrl'), displayName);
-  setCenterLogo(getPath(cfg, 'centerLogoUrl'));
-  $('mainHeading').textContent = safeString(getPath(cfg, 'mainHeading'), 'Get your queue number');
-  $('introText').textContent = safeString(getPath(cfg, 'description'), 'Real-time queueing system. Mobile-friendly. No app needed.');
-
-  if (!state.isJoining) {
-    $('ctaBtnText').textContent = safeString(getPath(cfg, 'buttonText'), 'Get your queue number');
-  }
-
-  renderAd(cfg);
-}
-
-function getActiveCounters() {
-  return Object.entries(state.counters || {})
-    .filter(([, counter]) => isActiveCounter(counter))
-    .sort((a, b) => {
-      const ao = Number(getPath(a[1], 'order') ?? 0) || 0;
-      const bo = Number(getPath(b[1], 'order') ?? 0) || 0;
-      return ao - bo;
-    })
-    .map(([id, counter]) => ({
-      id,
-      ...counter,
-      name: safeString(counter.name || counter.label || counter.displayName || id, id)
-    }));
-}
-
-function updateStatusLine() {
-  const dot = $('statusLine')?.querySelector('.status-dot');
-  const txt = $('statusText');
-  if (!dot || !txt) return;
-  if (!state.configLoaded || !state.countersLoaded) {
-    dot.className = 'status-dot loading';
-    txt.textContent = I18N[state.lang].sync_tenant;
-    return;
-  }
-  if (state.connected) {
-    dot.className = 'status-dot live';
-    txt.textContent = I18N[state.lang].live;
-  } else {
-    dot.className = 'status-dot offline';
-    txt.textContent = I18N[state.lang].offline;
-  }
-}
-
-function updateCtaState() {
-  const btn = $('ctaBtn');
-  const txt = $('ctaBtnText');
-  if (!btn || !txt) return;
-
-  if (!state.configLoaded || !state.countersLoaded) {
-    btn.disabled = true;
-    txt.textContent = 'Loading...';
-    return;
-  }
-
-  const activeCounters = getActiveCounters();
-  if (activeCounters.length === 0) {
-    btn.disabled = true;
-    txt.textContent = 'No active counters right now';
-    return;
-  }
-
-  btn.disabled = state.isJoining;
-  if (!state.isJoining) {
-    txt.textContent = safeString(getPath(state.config, 'buttonText'), 'Get your queue number');
-  }
-}
-
+/* ========================================
+   TELEGRAM UI STATE
+   ======================================== */
 function setTelegramUI(connected) {
   state.isTgConnected = connected;
   const t = I18N[state.lang];
@@ -980,7 +759,7 @@ function setTelegramUI(connected) {
     tgCta.classList.add('connected');
     $('tgTitle').textContent = t.tg_title_connected;
     $('tgDesc').textContent = t.tg_desc_connected;
-    btn.textContent = t.connected;
+    btn.textContent = '✅ Connected';
     btn.disabled = true;
     btn.classList.remove('pulse');
     btn.classList.add('btn-connected');
@@ -999,49 +778,33 @@ function setTelegramUI(connected) {
   }
 }
 
-function formatServingNumber(raw) {
-  if (raw == null) return null;
-  const ticket = state.data?.queueNumber || state.data?.number || state.data?.ticketNumber || state.data?.ticket || state.data?.queueId || '';
-  const prefix = String(ticket).replace(/\d+$/, '').trim();
-  const num = extractNumber(raw);
-  if (num === null) return String(raw);
-  const len = String(ticket).match(/(\d+)$/)?.[1]?.length || String(num).length;
-  return prefix ? `${prefix}${String(num).padStart(len, '0')}` : String(num);
-}
-
-function computeAhead(data, servingRaw) {
-  const myRaw = data?.numberVal ?? data?.queueNumber ?? data?.number ?? data?.ticketNumber ?? data?.ticket ?? data?.queueId;
-  const myNum = Number.isFinite(Number(myRaw)) ? Number(myRaw) : extractNumber(myRaw);
-  const servNum = servingRaw != null
-    ? (Number.isFinite(Number(servingRaw)) ? Number(servingRaw) : extractNumber(servingRaw))
-    : extractNumber($('nowServing').textContent);
-
-  if (myNum !== null && servNum !== null) {
-    if (servNum >= myNum) {
-      data._computedAhead = 0;
-      if (servNum === myNum) redirectToTurn();
-    } else {
-      data._computedAhead = myNum - servNum;
-    }
-  } else {
-    data._computedAhead = data.peopleAhead ?? null;
-  }
-}
-
+/* ========================================
+   PROGRESS & RENDER
+   ======================================== */
 function renderData() {
   const d = state.data || state.cachedData;
   if (!d) return;
+
   const t = I18N[state.lang];
 
-  const ticket = d.queueNumber || d.number || d.ticketNumber || d.ticket || d.queueId || '—';
+  // Ticket number
+  const ticket = d.queueId || d.ticketNumber || d.ticket || d.number || '—';
   $('yourNumber').textContent = ticket;
 
+  // People ahead
   const ahead = d._computedAhead ?? d.peopleAhead ?? null;
+
   if (ahead !== null && ahead !== undefined) {
     $('peopleAhead').textContent = ahead;
-    $('estimatedWait').textContent = ahead === 0 ? t.next : formatMinutes(ahead * state.avgServiceTimeMin);
+    // Dynamic wait time: peopleAhead × avgServiceTime
+    if (ahead === 0) {
+      $('estimatedWait').textContent = t.next;
+    } else {
+      $('estimatedWait').textContent = formatMinutes(ahead * state.avgServiceTimeMin);
+    }
   }
 
+  // Progress bar
   const status = String(d.status || '').toLowerCase();
   const fill = $('progressFill');
   const caption = $('progressCaption');
@@ -1052,7 +815,7 @@ function renderData() {
     caption.style.color = '#10b981';
   } else if (status === 'canceled' || status === 'cancelled') {
     fill.style.width = '0%';
-    caption.textContent = t.canceled;
+    caption.textContent = '❌ Canceled';
     caption.style.color = '#b91c1c';
   } else if (ahead === 0) {
     fill.style.width = '95%';
@@ -1069,10 +832,24 @@ function renderData() {
     caption.style.color = 'var(--text-muted)';
   }
 
+  // Telegram state
   const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id || d.chatId);
   setTelegramUI(hasTg);
+
+  // Cancel button visibility: hide if not in cancelable state
+  const cancelBtn = $('btnCancel');
+  if (status === 'canceled' || status === 'cancelled' || status === 'served' || status === 'completed' || status === 'called' || status === 'serving') {
+    cancelBtn.disabled = true;
+    cancelBtn.style.opacity = '0.4';
+  } else {
+    cancelBtn.disabled = false;
+    cancelBtn.style.opacity = '1';
+  }
 }
 
+/* ========================================
+   REDIRECT TO TURN
+   ======================================== */
 function redirectToTurn() {
   if (state.isRedirecting) return;
   state.isRedirecting = true;
@@ -1083,259 +860,80 @@ function redirectToTurn() {
   caption.style.color = '#10b981';
 
   setTimeout(() => {
-    const url = new URL('your_turn.html', window.location.origin);
-    if (state.queueId) url.searchParams.set('queueId', state.queueId);
-    if (state.slug) url.searchParams.set('slug', state.slug);
-    if (state.tenantId) url.searchParams.set('tenantId', state.tenantId);
-    window.location.href = url.toString();
+    window.location.href = `your_turn.html?queueId=${encodeURIComponent(state.queueId)}&slug=${encodeURIComponent(state.slug || '')}`;
   }, 600);
 }
 
-function showBlockingState(title, description) {
-  $('skel').style.display = 'none';
-  $('content').style.display = 'flex';
-  $('content').style.flexDirection = 'column';
-  $('content').style.gap = '14px';
-  $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
-  $('statusText').textContent = I18N[state.lang].unavailable;
-  $('headerTitle').textContent = title;
-  $('smallTopText').textContent = title;
-  $('mainHeading').textContent = title;
-  $('introText').textContent = description;
-  $('ctaBtn').style.display = 'none';
-  $('adCard').style.display = 'none';
-}
+/* ========================================
+   QUEUE WATCHER — DIRECT PATH ONLY
+   ======================================== */
+async function startQueueWatcher() {
+  if (!db || !state.queueId) return;
 
-function hydrateFromCache() {
-  try {
-    const cached = localStorage.getItem('qj_last_data');
-    const cachedId = localStorage.getItem('qj_last_queueId');
-    if (cached && cachedId === state.queueId) {
-      state.cachedData = JSON.parse(cached);
-      state.data = state.cachedData;
-      renderData();
-    }
-  } catch {}
-}
+  // Clean up previous
+  if (qRef) { off(qRef); qRef = null; }
 
-async function resolveTenant() {
-  const slug = getSlugFromUrl();
-  const tenantIdParam = getParam('tenantId', 'tenant_id', 'tid');
-  state.slug = slug || getStoredSlug();
-  state.tenantId = tenantIdParam || getStoredTenantId() || null;
+  // CORE FIX: Use queueId directly as the database key
+  // The canonical path is: tenants/{tenantId}/queue/{queueId}
+  const path = state.tenantId
+    ? `tenants/${state.tenantId}/queue/${state.queueId}`
+    : `queue/${state.queueId}`;
 
-  if (state.tenantId) {
-    saveTenantContext();
-    return;
-  }
+  console.log('[QJ] Watching queue at:', path);
+  qRef = ref(db, path);
 
-  if (state.slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(state.slug)}`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        state.tenantId = data?.tenantId || data?.tenant || state.slug;
-        if (data?.config) state.config = data.config;
-        if (data?.config?.theme?.color) document.documentElement.style.setProperty('--theme', data.config.theme.color);
-        if (data?.config?.displayName) $('displayName').textContent = data.config.displayName;
-        saveTenantContext();
-        return;
+  onValue(qRef, (snap) => {
+    if (!snap || !snap.exists || !snap.exists()) {
+      // Only show error if we haven't resolved yet — don't spam
+      if (!state.initResolved) {
+        console.warn('[QJ] Queue data not yet available at', path);
+        // Don't show error immediately, wait for a brief moment
       }
-    } catch (e) {
-      console.warn('[QJ] tenant fetch failed, using slug as fallback', e);
-    }
-    state.tenantId = state.slug;
-    saveTenantContext();
-    return;
-  }
-}
-
-async function initFirebase() {
-  let cfg = CONFIG.firebase;
-  if (state.slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`, { cache: 'no-store' });
-      if (res.ok) {
-        const j = await res.json();
-        const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
-        if (tenantCfg?.databaseURL && !String(tenantCfg.databaseURL).includes('demo.firebaseio.com')) {
-          cfg = tenantCfg;
-        }
-      }
-    } catch {}
-  }
-
-  if (!getApps().length) firebaseApp = initializeApp(cfg);
-  else firebaseApp = getApps()[0];
-  db = getDatabase(firebaseApp);
-}
-
-function cleanupListeners() {
-  try { if (state.queueWatchRef) off(state.queueWatchRef); } catch {}
-  try { if (state.counterRef) off(state.counterRef); } catch {}
-  try { if (state.analyticsRef) off(state.analyticsRef); } catch {}
-  try { if (state.configRef) off(state.configRef); } catch {}
-  try { if (state.countersRef) off(state.countersRef); } catch {}
-}
-
-function watchConfig() {
-  if (!db || !state.tenantId) return;
-  const path = `tenants/${state.tenantId}/public/config`;
-  state.configRef = ref(db, path);
-  onValue(state.configRef, snap => {
-    state.configLoaded = true;
-    if (!snap.exists()) {
-      applyConfig(state.config || {});
-      updateStatusLine();
-      updateCtaState();
       return;
     }
-    state.config = snap.val() || {};
-    applyConfig(state.config);
-    updateStatusLine();
-    updateCtaState();
-  }, err => console.error('config listener error', err));
-}
-
-function watchCounters() {
-  if (!db || !state.tenantId) return;
-  const path = `tenants/${state.tenantId}/counters`;
-  state.countersRef = ref(db, path);
-  onValue(state.countersRef, snap => {
-    state.countersLoaded = true;
-    state.counters = snap.exists() ? (snap.val() || {}) : {};
-    updateStatusLine();
-    updateCtaState();
-  }, err => console.error('counters listener error', err));
-}
-
-function watchAnalytics() {
-  if (!db || !state.tenantId) return;
-  const path = `tenants/${state.tenantId}/analytics/serviceEvents`;
-  state.analyticsRef = ref(db, path);
-  onValue(state.analyticsRef, snap => {
-    if (!snap.exists()) return;
-    const events = snap.val() || {};
-    const times = [];
-    for (const k in events) {
-      const ms = events[k]?.serviceMs;
-      if (ms > 0) {
-        const m = ms / 60000;
-        if (m <= 120) times.push(m);
-      }
-    }
-    if (times.length > 0) {
-      const recent = times.slice(-10);
-      state.avgServiceTimeMin = Math.max(1, Math.round(recent.reduce((a, b) => a + b, 0) / recent.length));
-      renderData();
-    }
-  }, err => console.error('analytics listener error', err));
-}
-
-function queuePaths() {
-  const base = state.tenantId ? `tenants/${state.tenantId}` : null;
-  const qid = state.queueId;
-  return base ? [
-    `${base}/queue/current/${qid}`,
-    `${base}/queue/${qid}`
-  ] : [
-    `queue/current/${qid}`,
-    `queue/${qid}`
-  ];
-}
-
-function attachQueueWatcher(path) {
-  if (state.queueWatchRef) {
-    try { off(state.queueWatchRef); } catch {}
-    state.queueWatchRef = null;
-  }
-
-  state.queuedDirectPath = path;
-  const qRef = ref(db, path);
-  state.queueWatchRef = qRef;
-
-  onValue(qRef, snap => {
-    if (!snap.exists()) return;
 
     state.initResolved = true;
-    const data = snap.val() || {};
+    const data = snap.val();
     state.data = data;
     localStorage.setItem('qj_last_data', JSON.stringify(data));
     localStorage.setItem('qj_last_queueId', state.queueId);
 
+    // Check if called/serving → redirect
     const st = String(data.status || '').toLowerCase();
     if (st === 'called' || st === 'serving' || st === 'your_turn' || data.called === true || data.notifiedAt || data.calledAt) {
       redirectToTurn();
       return;
     }
 
+    // Skip canceled
     if (st === 'canceled' || st === 'cancelled') {
       renderData();
       return;
     }
 
+    // Attach counter watcher
     const cid = data.counterId || data.counter || data.counterAssigned;
-    if (cid && cid !== state.currentCounterId) {
-      state.currentCounterId = cid;
+    if (cid && cid !== currentCounterId) {
+      if (counterRef) off(counterRef);
+      currentCounterId = cid;
       watchCounter(cid);
     } else {
       computeAhead(data);
     }
 
+    // Auto-open modal if Telegram not connected and not skipped
     const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id || data.chatId);
     if (!hasTg && !$('obModal').classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + state.queueId)) {
       openModal();
     }
 
     renderData();
-  }, err => {
-    console.warn('[QJ] queue watcher error', err);
   });
-}
 
-async function startQueueWatcher() {
-  if (!db || !state.queueId) return;
-
-  const paths = queuePaths();
-  const direct = paths[0];
-  attachQueueWatcher(direct);
-
-  setTimeout(async () => {
-    if (state.initResolved || state.isRedirecting) return;
-
-    try {
-      const currentPath = state.tenantId ? `tenants/${state.tenantId}/queue/current` : `queue/current`;
-      const q = query(ref(db, currentPath), orderByChild('queueId'), equalTo(state.queueId));
-      const snap = await get(q);
-      if (snap.exists()) {
-        state.initResolved = true;
-        const val = snap.val();
-        const key = Object.keys(val)[0];
-        state.queueId = key || state.queueId;
-        attachQueueWatcher(`${currentPath}/${state.queueId}`);
-        return;
-      }
-    } catch (e) {
-      console.warn('[QJ] queue discovery fallback failed', e);
-    }
-
-    try {
-      const legacyPath = state.tenantId ? `tenants/${state.tenantId}/queue` : 'queue';
-      const q = query(ref(db, legacyPath), orderByChild('queueId'), equalTo(state.queueId));
-      const snap = await get(q);
-      if (snap.exists()) {
-        state.initResolved = true;
-        const val = snap.val();
-        const key = Object.keys(val)[0];
-        state.queueId = key || state.queueId;
-        attachQueueWatcher(`${legacyPath}/${state.queueId}`);
-        return;
-      }
-    } catch (e) {
-      console.warn('[QJ] legacy queue discovery failed', e);
-    }
-
+  // Set a timeout: if no data after retries, show error and redirect
+  setTimeout(() => {
     if (!state.initResolved && !state.isRedirecting) {
+      console.warn('[QJ] Queue not found after timeout at', path);
       showError(I18N[state.lang].not_found);
       setTimeout(() => {
         if (!state.initResolved && !state.isRedirecting) {
@@ -1348,23 +946,264 @@ async function startQueueWatcher() {
   }, CONFIG.maxInitRetries * CONFIG.initRetryDelayMs);
 }
 
+/* ========================================
+   COUNTER WATCHER
+   ======================================== */
 async function watchCounter(counterId) {
-  if (!db || !state.tenantId || !counterId) return;
-  const path = `tenants/${state.tenantId}/counters/${counterId}`;
-  state.counterRef = ref(db, path);
+  const path = state.tenantId
+    ? `tenants/${state.tenantId}/counters/${counterId}`
+    : `counters/${counterId}`;
 
-  onValue(state.counterRef, snap => {
-    if (!snap.exists()) return;
-    const cData = snap.val() || {};
-    const serving = cData.nowServing ?? cData.serving ?? cData.now;
+  counterRef = ref(db, path);
+
+  onValue(counterRef, (snap) => {
+    if (!snap || !snap.exists || !snap.exists()) return;
+    const cData = snap.val();
+    const serving = cData.nowServing || cData.serving || cData.now;
     $('nowServing').textContent = formatServingNumber(serving) || '—';
+
     if (state.data) {
       computeAhead(state.data, serving);
       renderData();
     }
-  }, err => console.error('counter listener error', err));
+  });
 }
 
+function formatServingNumber(raw) {
+  if (raw == null) return null;
+  const ticket = state.data?.queueId || state.data?.ticketNumber || state.data?.ticket || state.data?.number || '';
+  const prefix = String(ticket).replace(/\d+$/, '').trim();
+  const num = extractNumber(raw);
+  if (num === null) return String(raw);
+  const len = String(ticket).match(/(\d+)$/)?.[1]?.length || String(num).length;
+  return prefix ? `${prefix}${String(num).padStart(len, '0')}` : String(num);
+}
+
+function computeAhead(data, servingRaw) {
+  const myNum = extractNumber(data.queueId || data.ticketNumber || data.ticket || data.number);
+  const servNum = servingRaw != null ? extractNumber(servingRaw) : extractNumber($('nowServing').textContent);
+
+  if (myNum !== null && servNum !== null) {
+    if (servNum >= myNum) {
+      data._computedAhead = 0;
+      if (servNum === myNum) redirectToTurn();
+    } else {
+      data._computedAhead = myNum - servNum;
+    }
+  } else {
+    data._computedAhead = data.peopleAhead ?? null;
+  }
+}
+
+/* ========================================
+   DYNAMIC WAIT TIME — ANALYTICS WATCHER
+   ======================================== */
+async function watchAnalytics() {
+  if (!db) return;
+
+  const path = state.tenantId
+    ? `tenants/${state.tenantId}/analytics/serviceEvents`
+    : 'analytics/serviceEvents';
+
+  try {
+    analyticsRef = ref(db, path);
+    onValue(analyticsRef, (snap) => {
+      if (!snap || !snap.exists || !snap.exists()) return;
+      const events = snap.val();
+      const times = [];
+      for (const k in events) {
+        const ms = events[k]?.serviceMs;
+        if (ms > 0) {
+          const m = ms / 60000;
+          if (m <= 120) times.push(m);
+        }
+      }
+      if (times.length > 0) {
+        // Use last 10 events for moving average
+        const recent = times.slice(-10);
+        state.avgServiceTimeMin = Math.max(1, Math.round(recent.reduce((a, b) => a + b, 0) / recent.length));
+        renderData(); // Re-render with new avg
+      }
+    });
+  } catch (e) { /* non-critical */ }
+}
+
+/* ========================================
+   LOGO & SETTINGS LOADERS
+   ======================================== */
+async function loadLogo() {
+  if (!db) return;
+  try {
+    const path = state.tenantId ? `tenants/${state.tenantId}/settings/logo` : 'settings/logo';
+    const snap = await get(ref(db, path));
+    if (snap?.exists?.()) {
+      const url = snap.val();
+      if (url) {
+        const img = $('logoImg');
+        img.src = String(url);
+        img.onload = () => { $('logoText').classList.add('hidden'); img.classList.remove('hidden'); };
+      }
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+async function watchAds() {
+  if (!db) return;
+  try {
+    const path = state.tenantId ? `tenants/${state.tenantId}/settings/adImage` : 'settings/adImage';
+    adRef = ref(db, path);
+    onValue(adRef, (snap) => {
+      const url = snap?.exists?.() ? snap.val() : null;
+      showAd(url);
+    });
+  } catch (e) { /* non-critical */ }
+}
+
+function showAd(url) {
+  const panel = $('adPanel');
+  const container = $('adContainer');
+  container.innerHTML = '';
+  if (!url) { panel.classList.add('hidden'); return; }
+
+  const u = String(url).trim();
+  if (!u) { panel.classList.add('hidden'); return; }
+
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(u)) {
+    let embedSrc = u;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(u)) {
+        const vid = new URL(u).searchParams.get('v');
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1`;
+      } else if (/youtu\.be\//.test(u)) {
+        const id = u.split('youtu.be/')[1].split(/[?#]/)[0];
+        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
+      }
+    } catch (e) {}
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px"></iframe></div>`;
+    panel.classList.remove('hidden');
+    return;
+  }
+
+  if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(u) || /^data:video\//i.test(u) || /^blob:/i.test(u)) {
+    const v = document.createElement('video');
+    v.src = u; v.className = 'ad-media'; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
+    v.addEventListener('loadedmetadata', () => panel.classList.remove('hidden'));
+    v.addEventListener('error', () => panel.classList.add('hidden'));
+    container.appendChild(v);
+    v.play().catch(() => {});
+    return;
+  }
+
+  const img = document.createElement('img');
+  img.src = u; img.className = 'ad-media'; img.alt = 'Ad';
+  img.onload = () => panel.classList.remove('hidden');
+  img.onerror = () => panel.classList.add('hidden');
+  container.appendChild(img);
+}
+
+/* ========================================
+   TELEGRAM LINK GENERATION
+   ======================================== */
+async function generateLink() {
+  if (state.linkGenerating || state.latestConnectLink) return;
+  state.linkGenerating = true;
+  const btn = $('obFinish');
+  const content = $('obFinishContent');
+  const statusText = $('obStatusText');
+
+  btn.disabled = true;
+  content.innerHTML = '<span class="spinner"></span> Generating...';
+  statusText.textContent = 'Creating secure link...';
+
+  try {
+    const d = state.data || {};
+    const payload = {
+      queueKey: state.queueId,
+      queueId: d.queueId || state.queueId,
+      tenantId: state.tenantId || undefined,
+      slug: state.slug || undefined,
+      counterId: d.counterId || d.counter || undefined,
+      counterName: d.counterName || undefined,
+    };
+
+    const res = await fetch(CONFIG.endpoints.createLink, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const j = await res.json();
+    state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
+  } catch (e) {
+    console.warn('[QJ] Link generation failed:', e.message);
+  }
+
+  if (!state.latestConnectLink) {
+    // Show retryable state instead of broken fallback
+    statusText.textContent = 'Link generation failed. Tap to retry.';
+    btn.disabled = false;
+    content.innerHTML = '🔄 Retry';
+    state.linkGenerating = false;
+    // On next click, reset and try again
+    btn.onclick = () => {
+      state.latestConnectLink = null;
+      state.linkGenerating = false;
+      btn.onclick = openTelegram;
+      generateLink();
+    };
+    return;
+  }
+
+  statusText.textContent = 'Ready! Tap below to open Telegram.';
+  btn.disabled = false;
+  content.innerHTML = '🚀 Open Telegram';
+  btn.onclick = openTelegram;
+  state.linkGenerating = false;
+}
+
+async function openTelegram() {
+  if (state.linkGenerating) return;
+  const btn = $('obFinish');
+  const content = $('obFinishContent');
+  btn.disabled = true;
+  content.innerHTML = '<span class="spinner"></span> Opening...';
+
+  const url = state.latestConnectLink;
+  if (!url) {
+    // Should not happen, but handle gracefully
+    generateLink();
+    return;
+  }
+
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  // Mark token used (fire-and-forget)
+  try {
+    const token = url.split('start=')[1];
+    if (token) {
+      fetch(CONFIG.endpoints.markTokenUsed, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queueKey: state.queueId, token, tenantId: state.tenantId })
+      }).catch(() => {});
+    }
+  } catch (e) {}
+
+  setTimeout(() => {
+    btn.disabled = false;
+    content.innerHTML = '✅ Opened!';
+    setTimeout(closeModal, 1200);
+  }, 400);
+}
+
+/* ========================================
+   MODAL HELPERS
+   ======================================== */
 function showSlide(idx) {
   document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.step-dot').forEach(d => d.classList.remove('active'));
@@ -1391,141 +1230,99 @@ function closeModal() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
-async function generateLink() {
-  if (state.linkGenerating || state.latestConnectLink) return;
-  state.linkGenerating = true;
-  const btn = $('obFinish');
-  const content = $('obFinishContent');
-  const statusText = $('obStatusText');
+// Modal button bindings
+$('obNext').onclick = () => showSlide(1);
+$('obNext2').onclick = () => showSlide(2);
+$('obBack1').onclick = () => showSlide(0);
+$('obBack2').onclick = () => showSlide(1);
+$('obSkip').onclick = () => { localStorage.setItem('qj_modal_skipped_' + state.queueId, 'true'); closeModal(); };
+$('obDone').onclick = closeModal;
+$('obFinish').onclick = openTelegram;
+$('obModal').onclick = (e) => { if (e.target === $('obModal')) closeModal(); };
+$('btnConnect').onclick = openModal;
 
-  btn.disabled = true;
-  content.innerHTML = '<span class="spinner"></span> Generating...';
-  statusText.textContent = 'Creating secure link...';
+/* ========================================
+   GAME BUTTON
+   ======================================== */
+$('btnGame').onclick = () => {
+  const params = new URLSearchParams();
+  if (state.queueId) params.set('queueId', state.queueId);
+  if (state.slug) params.set('slug', state.slug);
+  if (state.tenantId) params.set('tenantId', state.tenantId);
+  window.open(`game.html?${params.toString()}`, '_blank');
+};
 
-  try {
-    const d = state.data || {};
-    const payload = {
-      queueKey: state.queueId,
-      queueId: d.queueId || state.queueId,
-      queueNumber: d.queueNumber || d.number || d.ticketNumber || '',
-      tenantId: state.tenantId || undefined,
-      slug: state.slug || undefined,
-      counterId: d.counterId || d.counter || undefined,
-      counterName: d.counterName || d.counter || undefined,
-      meta: {
-        from: 'status.html',
-        tenantId: state.tenantId || null,
-        slug: state.slug || null
-      }
-    };
-
-    const res = await fetch(CONFIG.endpoints.createLink, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) throw new Error('API error ' + res.status);
-    const j = await res.json();
-    state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
-  } catch (e) {
-    console.warn('[QJ] Link generation failed:', e.message);
-  }
-
-  if (!state.latestConnectLink) {
-    statusText.textContent = 'Link generation failed. Tap to retry.';
-    btn.disabled = false;
-    content.innerHTML = '🔄 Retry';
-    state.linkGenerating = false;
-    btn.onclick = () => {
-      state.latestConnectLink = null;
-      state.linkGenerating = false;
-      btn.onclick = openTelegram;
-      generateLink();
-    };
-    return;
-  }
-
-  statusText.textContent = 'Ready! Tap below to open Telegram.';
-  btn.disabled = false;
-  content.innerHTML = '🚀 Open Telegram';
-  btn.onclick = openTelegram;
-  state.linkGenerating = false;
+/* ========================================
+   CANCEL NUMBER — DOUBLE CONFIRMATION
+   ======================================== */
+function openCancelModal() {
+  const d = state.data;
+  if (!d) return;
+  const st = String(d.status || '').toLowerCase();
+  if (st === 'canceled' || st === 'cancelled' || st === 'served' || st === 'completed' || st === 'called' || st === 'serving') return;
+  const t = I18N[state.lang];
+  $('cancelConfirmTitle').textContent = t.cancel_title;
+  $('cancelConfirmDesc').textContent = t.cancel_desc;
+  $('btnConfirmCancel').textContent = t.cancel_confirm;
+  $('btnKeepNumber').textContent = t.cancel_keep;
+  $('cancelModal').classList.add('show');
+  $('cancelModal').setAttribute('aria-hidden', 'false');
 }
-
-async function openTelegram() {
-  if (state.linkGenerating) return;
-  const btn = $('obFinish');
-  const content = $('obFinishContent');
-  btn.disabled = true;
-  content.innerHTML = '<span class="spinner"></span> Opening...';
-
-  const url = state.latestConnectLink;
-  if (!url) {
-    generateLink();
-    return;
-  }
-
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }
-
+function closeCancelModal() {
+  $('cancelModal').classList.remove('show');
+  $('cancelModal').setAttribute('aria-hidden', 'true');
+}
+async function confirmCancel() {
+  const d = state.data;
+  if (!d) { closeCancelModal(); return; }
+  const st = String(d.status || '').toLowerCase();
+  if (st === 'canceled' || st === 'cancelled' || st === 'served' || st === 'completed') { closeCancelModal(); return; }
+  const btn = $('btnConfirmCancel');
+  btn.disabled = true; btn.textContent = '...';
   try {
-    const token = url.split('start=')[1];
-    if (token) {
-      fetch(CONFIG.endpoints.markTokenUsed, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queueKey: state.queueId, token, tenantId: state.tenantId })
-      }).catch(() => {});
+    const path = state.tenantId ? `tenants/${state.tenantId}/queue/${state.queueId}` : `queue/${state.queueId}`;
+    await update(ref(db, path), { status: 'canceled', canceledAt: new Date().toISOString(), updatedAt: new Date().toISOString(), canceledBy: 'customer' });
+  } catch (e) { console.error('[QJ] Cancel failed:', e); showError('Cancel failed. Please try again.'); }
+  btn.disabled = false; closeCancelModal();
+}
+$('btnCancel').onclick = openCancelModal;
+$('btnConfirmCancel').onclick = confirmCancel;
+$('btnKeepNumber').onclick = closeCancelModal;
+$('cancelModal').onclick = (e) => { if (e.target === $('cancelModal')) closeCancelModal(); };
+
+/* ========================================
+   VISIBILITY CHANGE HANDLER
+   ======================================== */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !state.isRedirecting) {
+    // Re-attach watcher on tab focus
+    startQueueWatcher();
+  }
+});
+
+/* ========================================
+   HYDRATE FROM CACHE
+   ======================================== */
+function hydrateFromCache() {
+  try {
+    const cached = localStorage.getItem('qj_last_data');
+    const cachedId = localStorage.getItem('qj_last_queueId');
+    if (cached && cachedId === state.queueId) {
+      state.cachedData = JSON.parse(cached);
+      state.data = state.cachedData;
+      renderData();
     }
-  } catch {}
-
-  setTimeout(() => {
-    btn.disabled = false;
-    content.innerHTML = '✅ Opened!';
-    setTimeout(closeModal, 1200);
-  }, 400);
+  } catch (e) { /* corrupted cache, ignore */ }
 }
 
-function hydrateOrInitButtons() {
-  $('obNext').onclick = () => showSlide(1);
-  $('obNext2').onclick = () => showSlide(2);
-  $('obBack1').onclick = () => showSlide(0);
-  $('obBack2').onclick = () => showSlide(1);
-  $('obSkip').onclick = () => {
-    localStorage.setItem('qj_modal_skipped_' + state.queueId, 'true');
-    closeModal();
-  };
-  $('obDone').onclick = closeModal;
-  $('obFinish').onclick = openTelegram;
-  $('obModal').onclick = e => { if (e.target === $('obModal')) closeModal(); };
-  $('btnConnect').onclick = openModal;
-
-  $('btnGame').onclick = () => {
-    const params = new URLSearchParams();
-    if (state.queueId) params.set('queueId', state.queueId);
-    if (state.slug) params.set('slug', state.slug);
-    if (state.tenantId) params.set('tenantId', state.tenantId);
-    window.open(`game.html?${params.toString()}`, '_blank');
-  };
-}
-
-function watchVisibility() {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !state.isRedirecting) startQueueWatcher();
-  });
-}
-
+/* ========================================
+   INITIALIZATION
+   ======================================== */
 async function init() {
+  // Parse queue ID — this IS the database key
   const params = new URLSearchParams(window.location.search);
   state.queueId = params.get('queueId') || params.get('queueid') || params.get('qid') || params.get('id');
-  state.queueNumber = params.get('queueNumber') || params.get('number') || params.get('queueNo') || null;
-  state.slug = getSlugFromUrl() || getStoredSlug();
-  state.tenantId = getParam('tenantId', 'tenant_id', 'tid') || getStoredTenantId();
+  state.slug = getSlugFromUrl();
 
   if (!state.queueId) {
     showError('Queue ID missing.');
@@ -1533,73 +1330,34 @@ async function init() {
     return;
   }
 
+  // 1) Hydrate from cache immediately
   setLang(state.lang);
   hydrateFromCache();
 
-  if (!state.tenantId && !state.slug && getStoredTenantId()) {
-    state.tenantId = getStoredTenantId();
-  }
-
+  // 2) Resolve tenant + init Firebase
   await resolveTenant();
-  if (!state.tenantId && state.slug) state.tenantId = state.slug;
-  if (!state.tenantId) {
-    showBlockingState(I18N[state.lang].missing_tenant, I18N[state.lang].missing_tenant_desc);
-    return;
-  }
-
-  saveTenantContext();
-  window.__TENANT_SLUG = state.slug || null;
-  window.__TENANT_ID = state.tenantId;
-
   await initFirebase();
 
-  const configRef = ref(db, `tenants/${state.tenantId}/public/config`);
-  const countersRef = ref(db, `tenants/${state.tenantId}/counters`);
+  // 3) Load logo
+  loadLogo();
 
-  let configSnap;
-  let countersSnap;
-  try {
-    [configSnap, countersSnap] = await Promise.all([get(configRef), get(countersRef)]);
-  } catch (err) {
-    console.error(err);
-    showBlockingState(I18N[state.lang].unable_load, I18N[state.lang].unable_load_desc);
-    return;
-  }
-
-  if (configSnap.exists()) {
-    state.config = configSnap.val() || {};
-    state.configLoaded = true;
-  } else {
-    state.configLoaded = true;
-    state.config = state.config || {};
-  }
-  state.countersLoaded = true;
-  state.counters = countersSnap.exists() ? (countersSnap.val() || {}) : {};
-
-  applyConfig(state.config);
-  updateStatusLine();
-  updateCtaState();
-
-  $('skel').style.display = 'none';
-  $('content').style.display = 'flex';
-  $('content').style.flexDirection = 'column';
-  $('content').style.gap = '14px';
-
-  watchConfig();
-  watchCounters();
-  watchAnalytics();
+  // 4) Start real-time watchers (parallel)
   startQueueWatcher();
+  watchAnalytics();
+  watchAds();
 
-  window.addEventListener('beforeunload', cleanupListeners);
-  window.addEventListener('pagehide', cleanupListeners);
+  // 5) Cleanup on unload
+  window.addEventListener('beforeunload', () => {
+    if (qRef) off(qRef);
+    if (counterRef) off(counterRef);
+    if (adRef) off(adRef);
+    if (analyticsRef) off(analyticsRef);
+  });
 }
 
-hydrateOrInitButtons();
-watchVisibility();
-
-init().catch(err => {
-  console.error(err);
-  showBlockingState(I18N[state.lang].unexpected_error, I18N[state.lang].unexpected_error_desc);
+init().catch(e => {
+  console.error('[QJ] Init failed:', e);
+  showError('Something went wrong. Please refresh.');
 });
 </script>
 </body>

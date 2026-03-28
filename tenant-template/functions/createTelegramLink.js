@@ -109,10 +109,11 @@ exports.handler = async function (event) {
   if (!event || event.httpMethod !== 'POST') return json(405, { error: 'Only POST allowed' }, origin);
 
   const body = parseBody(event);
-  const queueKey = sanitize(body.queueKey || body.token || '');
+  const queueKey = sanitize(body.queueKey || '');
   const queueId = sanitize(body.queueId || body.queueKey || '');
   const counterId = sanitize(body.counterId || '');
   const counterName = sanitize(body.counterName || '');
+  const slug = sanitize(body.slug || '');
   const meta = (body.meta && typeof body.meta === 'object') ? body.meta : sanitize(body.meta || '');
 
   const tenantCandidate = pickTenantCandidate(event, body);
@@ -132,6 +133,7 @@ exports.handler = async function (event) {
     queueId,
     counterId,
     counterName,
+    slug,
     meta,
     createdAt,
     expiresAt,
@@ -174,7 +176,7 @@ exports.handler = async function (event) {
       // Write to ALL THREE paths atomically
       const db = admin.database();
       const updates = {};
-      updates[`telegramTokens/${token}`] = { tenantId, queueKey, queueId, token, createdAt, expiresAt, counterId, counterName };
+      updates[`telegramTokens/${token}`] = { tenantId, queueKey, queueId, token, createdAt, expiresAt, counterId, counterName, slug };
       updates[`tenants/${tenantId}/integrations/telegram/tokens/${token}`] = fullPayload;
       updates[`tenants/${tenantId}/telegramTokens/${token}`] = fullPayload;
 
@@ -230,7 +232,7 @@ exports.handler = async function (event) {
 
   // Write all three paths via REST
   const restResults = await Promise.allSettled([
-    restPut(`/telegramTokens/${encodeURIComponent(token)}.json`, { tenantId: tenantCandidate, queueKey, queueId, token, createdAt, expiresAt, counterId, counterName }),
+    restPut(`/telegramTokens/${encodeURIComponent(token)}.json`, { tenantId: tenantCandidate, queueKey, queueId, token, createdAt, expiresAt, counterId, counterName, slug }),
     restPut(`/tenants/${encodeURIComponent(tenantCandidate)}/integrations/telegram/tokens/${encodeURIComponent(token)}.json`, fullPayload),
     restPut(`/tenants/${encodeURIComponent(tenantCandidate)}/telegramTokens/${encodeURIComponent(token)}.json`, fullPayload),
   ]);
