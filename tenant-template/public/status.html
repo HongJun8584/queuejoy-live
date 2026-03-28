@@ -156,13 +156,15 @@
     }
 
     /* Game Button */
+    /* Action Buttons Stack */
+    .actions-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+
     .btn-game {
       background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;
       padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
       box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
       transition: all 0.2s var(--ease); font-family: inherit; width: 100%;
-      margin-top: 8px;
     }
     .btn-game:active { transform: scale(0.97); }
 
@@ -255,7 +257,6 @@
       padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: all 0.2s var(--ease); font-family: inherit; width: 100%;
-      margin-top: 8px;
     }
     .btn-cancel:hover { background: #fef2f2; border-color: #f87171; }
     .btn-cancel:active { transform: scale(0.97); }
@@ -382,11 +383,11 @@
       <button id="btnConnect" class="btn-tg pulse" data-t-inner="connect_btn">Connect Telegram</button>
     </div>
 
-    <!-- Game Button -->
-    <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Play Snake Game</button>
-
-    <!-- Cancel Number Button -->
-    <button id="btnCancel" class="btn-cancel" data-t-inner="cancel_btn">❌ Cancel Number</button>
+    <!-- Action Buttons -->
+    <div class="actions-stack">
+      <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Play Snake Game</button>
+      <button id="btnCancel" class="btn-cancel" data-t-inner="cancel_btn">❌ Cancel Number</button>
+    </div>
   </main>
 </div>
 
@@ -873,11 +874,13 @@ async function startQueueWatcher() {
   // Clean up previous
   if (qRef) { off(qRef); qRef = null; }
 
-  // CORE FIX: Use queueId directly as the database key
-  // The canonical path is: tenants/{tenantId}/queue/{queueId}
-  const path = state.tenantId
-    ? `tenants/${state.tenantId}/queue/${state.queueId}`
-    : `queue/${state.queueId}`;
+  // STRICT: Only read from the tenant-scoped queue path
+  if (!state.tenantId) {
+    console.warn('[QJ] No tenantId resolved — cannot watch queue');
+    showError('Tenant not resolved. Please check your link.');
+    return;
+  }
+  const path = `tenants/${state.tenantId}/queue/${state.queueId}`;
 
   console.log('[QJ] Watching queue at:', path);
   qRef = ref(db, path);
@@ -950,9 +953,8 @@ async function startQueueWatcher() {
    COUNTER WATCHER
    ======================================== */
 async function watchCounter(counterId) {
-  const path = state.tenantId
-    ? `tenants/${state.tenantId}/counters/${counterId}`
-    : `counters/${counterId}`;
+  if (!state.tenantId) return;
+  const path = `tenants/${state.tenantId}/counters/${counterId}`;
 
   counterRef = ref(db, path);
 
@@ -999,11 +1001,9 @@ function computeAhead(data, servingRaw) {
    DYNAMIC WAIT TIME — ANALYTICS WATCHER
    ======================================== */
 async function watchAnalytics() {
-  if (!db) return;
+  if (!db || !state.tenantId) return;
 
-  const path = state.tenantId
-    ? `tenants/${state.tenantId}/analytics/serviceEvents`
-    : 'analytics/serviceEvents';
+  const path = `tenants/${state.tenantId}/analytics/serviceEvents`;
 
   try {
     analyticsRef = ref(db, path);
@@ -1034,7 +1034,8 @@ async function watchAnalytics() {
 async function loadLogo() {
   if (!db) return;
   try {
-    const path = state.tenantId ? `tenants/${state.tenantId}/settings/logo` : 'settings/logo';
+    if (!state.tenantId) return;
+    const path = `tenants/${state.tenantId}/settings/logo`;
     const snap = await get(ref(db, path));
     if (snap?.exists?.()) {
       const url = snap.val();
@@ -1050,7 +1051,8 @@ async function loadLogo() {
 async function watchAds() {
   if (!db) return;
   try {
-    const path = state.tenantId ? `tenants/${state.tenantId}/settings/adImage` : 'settings/adImage';
+    if (!state.tenantId) return;
+    const path = `tenants/${state.tenantId}/settings/adImage`;
     adRef = ref(db, path);
     onValue(adRef, (snap) => {
       const url = snap?.exists?.() ? snap.val() : null;
@@ -1280,7 +1282,8 @@ async function confirmCancel() {
   const btn = $('btnConfirmCancel');
   btn.disabled = true; btn.textContent = '...';
   try {
-    const path = state.tenantId ? `tenants/${state.tenantId}/queue/${state.queueId}` : `queue/${state.queueId}`;
+    if (!state.tenantId) { showError('Tenant not resolved.'); closeCancelModal(); return; }
+    const path = `tenants/${state.tenantId}/queue/${state.queueId}`;
     await update(ref(db, path), { status: 'canceled', canceledAt: new Date().toISOString(), updatedAt: new Date().toISOString(), canceledBy: 'customer' });
   } catch (e) { console.error('[QJ] Cancel failed:', e); showError('Cancel failed. Please try again.'); }
   btn.disabled = false; closeCancelModal();

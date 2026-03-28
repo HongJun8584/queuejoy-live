@@ -142,7 +142,7 @@ import{initializeApp}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-ap
 import{getDatabase,ref,onValue,get,set,push,runTransaction}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 
 const FIREBASE_CONFIG={
-  apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
+  apiKey: "AIzaSyBYJlAo0Hn..." /* keep your actual config here */, 
   authDomain: "queuejoy-live.firebaseapp.com",
   databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "queuejoy-live",
@@ -154,8 +154,8 @@ const FIREBASE_CONFIG={
 
 const app=initializeApp(FIREBASE_CONFIG);
 const db=getDatabase(app);
-
 const $=id=>document.getElementById(id);
+
 const state={
   slug:'',
   tenantId:'',
@@ -177,7 +177,6 @@ function safeString(value,fallback=''){
   }
   return fallback;
 }
-
 function getPath(obj,path){
   if(!obj||typeof obj!=='object')return undefined;
   const parts=String(path).split('.');
@@ -188,7 +187,6 @@ function getPath(obj,path){
   }
   return cur;
 }
-
 function darkenHex(hex,amount=0.12){
   if(typeof hex!=='string')return '#7c3aed';
   const m=hex.trim().match(/^#([0-9a-f]{6})$/i);
@@ -199,7 +197,6 @@ function darkenHex(hex,amount=0.12){
   const b=Math.max(0,Math.min(255,Math.round((n&255)*(1-amount))));
   return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
-
 function getSessionId(){
   const key='qj_session_id';
   try{
@@ -213,9 +210,7 @@ function getSessionId(){
     return `sid_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
   }
 }
-
 state.sessionId=getSessionId();
-
 function isSafeUrl(url){
   if(!url||typeof url!=='string')return false;
   const lower=url.trim().toLowerCase();
@@ -223,7 +218,6 @@ function isSafeUrl(url){
   if(lower.startsWith('data:image/')||lower.startsWith('data:video/'))return true;
   return lower.startsWith('http://')||lower.startsWith('https://')||lower.startsWith('/');
 }
-
 function isActiveCounter(counter){
   if(!counter||typeof counter!=='object')return false;
   const active=counter.active;
@@ -233,7 +227,6 @@ function isActiveCounter(counter){
   const s=String(active).trim().toLowerCase();
   return s==='true'||s==='1'||s==='yes'||s==='on';
 }
-
 function showToast(message,type='info',ms=3500){
   const host=$('toastContainer');
   if(!host)return;
@@ -246,7 +239,6 @@ function showToast(message,type='info',ms=3500){
     setTimeout(()=>toast.remove(),220);
   },ms);
 }
-
 function renderMedia(src,container,type='image'){
   container.innerHTML='';
   if(!src)return;
@@ -271,21 +263,18 @@ function renderMedia(src,container,type='image'){
   img.onerror=()=>{img.style.display='none';};
   container.appendChild(img);
 }
-
 function makeHeaderFallback(name){
   const div=document.createElement('div');
   div.className='header-logo-fallback';
   div.textContent=(safeString(name,'Q')[0]||'Q').toUpperCase();
   return div;
 }
-
 function makeCenterFallback(){
   const span=document.createElement('span');
   span.className='hero-logo-fallback';
   span.textContent='🎫';
   return span;
 }
-
 function setHeaderLogo(url,name){
   const wrap=$('headerLogoWrap');
   if(!wrap)return;
@@ -306,7 +295,6 @@ function setHeaderLogo(url,name){
     wrap.appendChild(makeHeaderFallback(name));
   }
 }
-
 function setCenterLogo(url){
   const wrap=$('centerLogoWrap');
   if(!wrap)return;
@@ -327,7 +315,6 @@ function setCenterLogo(url){
     wrap.appendChild(makeCenterFallback());
   }
 }
-
 function renderAd(cfg){
   const card=$('adCard');
   const content=$('adContent');
@@ -362,7 +349,6 @@ function renderAd(cfg){
     text.style.display='';
   }
 }
-
 function showBlockingState(title,description){
   $('skel').style.display='none';
   $('content').style.display='flex';
@@ -377,7 +363,6 @@ function showBlockingState(title,description){
   $('ctaBtn').style.display='none';
   $('adCard').style.display='none';
 }
-
 function updateStatusLine(){
   const dot=$('statusLine')?.querySelector('.status-dot');
   const txt=$('statusText');
@@ -395,7 +380,6 @@ function updateStatusLine(){
     txt.textContent='Offline — reconnecting...';
   }
 }
-
 function applyConfig(cfg){
   state.config=cfg||{};
   const themeColor=safeString(getPath(cfg,'theme.color'),'#8b5cf6');
@@ -418,7 +402,6 @@ function applyConfig(cfg){
 
   renderAd(cfg);
 }
-
 function getActiveCounters(){
   return Object.entries(state.counters||{})
     .filter(([,counter])=>isActiveCounter(counter))
@@ -433,7 +416,6 @@ function getActiveCounters(){
       name:safeString(counter.name||counter.label||counter.displayName||id,id)
     }));
 }
-
 function updateCtaState(){
   const btn=$('ctaBtn');
   const txt=$('ctaBtnText');
@@ -457,7 +439,6 @@ function updateCtaState(){
     txt.textContent=safeString(getPath(state.config,'buttonText'),'Get your queue number');
   }
 }
-
 function cleanupListeners(){
   while(state.liveUnsubs.length){
     const unsub=state.liveUnsubs.pop();
@@ -468,26 +449,16 @@ function cleanupListeners(){
     state.queueMonitorUnsub=null;
   }
 }
-
 function isFinalQueueStatus(status){
   const s=safeString(status).toLowerCase();
   return ['completed','done','served','finished','closed','resolved'].includes(s);
 }
-
 async function recordServiceCompleted({queueKey,queueData,completedAt}){
   const dedupeKey=`qj_service_event:${state.tenantId}:${queueKey}`;
-  try{
-    if(sessionStorage.getItem(dedupeKey)==='1')return;
-  }catch{}
+  try{ if(sessionStorage.getItem(dedupeKey)==='1')return; }catch{}
 
   const endAt=Number(completedAt||Date.now());
-  const startedAt=Number(
-    queueData?.serviceStartedAt||
-    queueData?.startedAt||
-    queueData?.joinedAt||
-    queueData?.createdAt||
-    endAt
-  );
+  const startedAt=Number(queueData?.serviceStartedAt||queueData?.startedAt||queueData?.joinedAt||queueData?.createdAt||endAt);
   const serviceMs=Math.max(0,endAt-startedAt);
 
   const payload={
@@ -510,17 +481,15 @@ async function recordServiceCompleted({queueKey,queueData,completedAt}){
 
   const eventRef=push(ref(db,`tenants/${state.tenantId}/analytics/serviceEvents`));
   await set(eventRef,payload);
-
   try{sessionStorage.setItem(dedupeKey,'1');}catch{}
 }
-
 function watchQueueForCompletion(queueKey){
   if(state.queueMonitorUnsub){
     try{state.queueMonitorUnsub();}catch{}
     state.queueMonitorUnsub=null;
   }
 
-  const queueRef=ref(db,`tenants/${state.tenantId}/queue/current/${queueKey}`);
+  const queueRef=ref(db,`tenants/${state.tenantId}/queue/${queueKey}`);
   state.queueMonitorUnsub=onValue(queueRef,snap=>{
     if(!snap.exists())return;
     const data=snap.val()||{};
@@ -528,13 +497,10 @@ function watchQueueForCompletion(queueKey){
       const completedAt=Number(data.completedAt||data.serviceCompletedAt||Date.now());
       recordServiceCompleted({queueKey,queueData:data,completedAt}).catch(err=>console.error('service analytics write failed',err));
     }
-  },err=>{
-    console.error('queue monitor error',err);
-  });
+  },err=>{ console.error('queue monitor error',err); });
 
   state.liveUnsubs.push(state.queueMonitorUnsub);
 }
-
 function showSuccess(queueNumber,queueKey){
   const host=$('successOverlay');
   host.style.display='block';
@@ -551,26 +517,18 @@ function showSuccess(queueNumber,queueKey){
 
   setTimeout(()=>{
     const url=new URL('/status.html',window.location.origin);
-    url.searchParams.set('queueId',queueKey);
+    url.searchParams.set('queueId',queueKey); // queueId param carries queueKey to status.html
     url.searchParams.set('slug',state.slug);
     url.searchParams.set('tenantId',state.tenantId);
     url.searchParams.set('queueNumber',queueNumber);
     window.location.replace(url.toString());
   },1200);
 }
-
 async function resolveTenantIdOnce(slug){
   const cacheKey=`qj_resolved_tenant:${slug}`;
-  try{
-    sessionStorage.removeItem(cacheKey);
-  }catch{}
+  try{ sessionStorage.removeItem(cacheKey); }catch{}
 
-  const response=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`,{
-    method:'GET',
-    credentials:'same-origin',
-    cache:'no-store'
-  });
-
+  const response=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`,{method:'GET',credentials:'same-origin',cache:'no-store'});
   if(!response.ok){
     throw new Error(`Tenant lookup failed (${response.status})`);
   }
@@ -584,7 +542,6 @@ async function resolveTenantIdOnce(slug){
   try{sessionStorage.setItem(cacheKey,tenantId);}catch{}
   return tenantId;
 }
-
 function getSlugFromLocation(){
   const params=new URLSearchParams(window.location.search);
   let slug=safeString(params.get('slug')||params.get('tenant')||params.get('tenantSlug'));
@@ -593,7 +550,6 @@ function getSlugFromLocation(){
   slug=path.find(p=>p&&!p.includes('.html')&&!p.includes('.'));
   return safeString(slug);
 }
-
 async function bootstrap(){
   const slug=getSlugFromLocation();
   if(!slug){
@@ -670,7 +626,6 @@ async function bootstrap(){
   updateStatusLine();
   updateCtaState();
 }
-
 window.addEventListener('pagehide',cleanupListeners);
 window.addEventListener('beforeunload',cleanupListeners);
 
@@ -708,14 +663,16 @@ $('ctaBtn').addEventListener('click',async e=>{
     const nextNumber=Number(issuedSnap.val())||1;
 
     const prefix=safeString(chosen.prefix,'Q');
-    const queueNumber=`${prefix}${String(nextNumber).padStart(3,'0')}`;
-    const queueKey=push(ref(db,`tenants/${state.tenantId}/queue/current`)).key;
+    const queueNumber=`${prefix}${String(nextNumber).padStart(3,'0')}`; // visible ticket number (queueId)
+
+    // Create a real queue record key, then write directly to tenants/{tenantId}/queue/{queueKey}
+    const queueKey=push(ref(db,`tenants/${state.tenantId}/queue`)).key;
     if(!queueKey)throw new Error('Could not create queue entry');
 
     const now=Date.now();
     const payload={
-      queueId:queueKey,
       queueKey,
+      queueId:queueNumber,
       queueNumber,
       number:queueNumber,
       numberVal:nextNumber,
@@ -728,7 +685,6 @@ $('ctaBtn').addEventListener('click',async e=>{
       createdAt:now,
       updatedAt:now,
       joinedAt:now,
-      serviceStartedAt:now,
       slug:state.slug,
       tenantId:state.tenantId,
       sessionId:state.sessionId,
@@ -737,7 +693,7 @@ $('ctaBtn').addEventListener('click',async e=>{
       source:'index.html'
     };
 
-    await set(ref(db,`tenants/${state.tenantId}/queue/current/${queueKey}`),payload);
+    await set(ref(db,`tenants/${state.tenantId}/queue/${queueKey}`),payload);
     try{
       sessionStorage.setItem('qj_last_queue_key',queueKey);
       sessionStorage.setItem('qj_last_queue_number',queueNumber);
