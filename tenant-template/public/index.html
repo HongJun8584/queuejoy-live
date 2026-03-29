@@ -138,11 +138,19 @@
 <div id="successOverlay" style="display:none"></div>
 
 <script type="module">
-import{initializeApp}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-import{getDatabase,ref,onValue,get,set,push,runTransaction}from'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import {
+  getDatabase,
+  ref,
+  onValue,
+  get,
+  set,
+  push,
+  runTransaction
+} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 
-const FIREBASE_CONFIG={
-  apiKey: "AIzaSyBYJlAo0Hn..." /* keep your actual config here */, 
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBYJlAo0Hn...", 
   authDomain: "queuejoy-live.firebaseapp.com",
   databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "queuejoy-live",
@@ -152,359 +160,402 @@ const FIREBASE_CONFIG={
   measurementId: "G-KWBELWRC5M"
 };
 
-const app=initializeApp(FIREBASE_CONFIG);
-const db=getDatabase(app);
-const $=id=>document.getElementById(id);
+const app = initializeApp(FIREBASE_CONFIG);
+const db = getDatabase(app);
+const $ = id => document.getElementById(id);
 
-const state={
-  slug:'',
-  tenantId:'',
-  config:{},
-  counters:{},
-  configLoaded:false,
-  countersLoaded:false,
-  connected:false,
-  isJoining:false,
-  sessionId:'',
-  liveUnsubs:[],
-  queueMonitorUnsub:null
+const state = {
+  slug: '',
+  tenantId: '',
+  config: {},
+  counters: {},
+  configLoaded: false,
+  countersLoaded: false,
+  connected: false,
+  isJoining: false,
+  sessionId: '',
+  liveUnsubs: [],
+  queueMonitorUnsub: null
 };
 
-function safeString(value,fallback=''){
-  if(typeof value==='string'){
-    const s=value.trim();
-    return s||fallback;
+function safeString(value, fallback = '') {
+  if (typeof value === 'string') {
+    const s = value.trim();
+    return s || fallback;
   }
   return fallback;
 }
-function getPath(obj,path){
-  if(!obj||typeof obj!=='object')return undefined;
-  const parts=String(path).split('.');
-  let cur=obj;
-  for(const part of parts){
-    if(!cur||typeof cur!=='object')return undefined;
-    cur=cur[part];
+
+function getPath(obj, path) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const parts = String(path).split('.');
+  let cur = obj;
+  for (const part of parts) {
+    if (!cur || typeof cur !== 'object') return undefined;
+    cur = cur[part];
   }
   return cur;
 }
-function darkenHex(hex,amount=0.12){
-  if(typeof hex!=='string')return '#7c3aed';
-  const m=hex.trim().match(/^#([0-9a-f]{6})$/i);
-  if(!m)return hex.trim()||'#7c3aed';
-  const n=parseInt(m[1],16);
-  const r=Math.max(0,Math.min(255,Math.round(((n>>16)&255)*(1-amount))));
-  const g=Math.max(0,Math.min(255,Math.round(((n>>8)&255)*(1-amount))));
-  const b=Math.max(0,Math.min(255,Math.round((n&255)*(1-amount))));
-  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+
+function darkenHex(hex, amount = 0.12) {
+  if (typeof hex !== 'string') return '#7c3aed';
+  const m = hex.trim().match(/^#([0-9a-f]{6})$/i);
+  if (!m) return hex.trim() || '#7c3aed';
+  const n = parseInt(m[1], 16);
+  const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * (1 - amount))));
+  const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * (1 - amount))));
+  const b = Math.max(0, Math.min(255, Math.round((n & 255) * (1 - amount))));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
-function getSessionId(){
-  const key='qj_session_id';
-  try{
-    let v=sessionStorage.getItem(key);
-    if(!v){
-      v=(crypto?.randomUUID?.()||`sid_${Date.now()}_${Math.random().toString(36).slice(2,10)}`);
-      sessionStorage.setItem(key,v);
+
+function getSessionId() {
+  const key = 'qj_session_id';
+  try {
+    let v = sessionStorage.getItem(key);
+    if (!v) {
+      v = (crypto?.randomUUID?.() || `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+      sessionStorage.setItem(key, v);
     }
     return v;
-  }catch{
-    return `sid_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+  } catch {
+    return `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   }
 }
-state.sessionId=getSessionId();
-function isSafeUrl(url){
-  if(!url||typeof url!=='string')return false;
-  const lower=url.trim().toLowerCase();
-  if(lower.startsWith('javascript:')||lower.startsWith('vbscript:'))return false;
-  if(lower.startsWith('data:image/')||lower.startsWith('data:video/'))return true;
-  return lower.startsWith('http://')||lower.startsWith('https://')||lower.startsWith('/');
+state.sessionId = getSessionId();
+
+function isSafeUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
+  if (lower.startsWith('data:image/') || lower.startsWith('data:video/')) return true;
+  return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('/');
 }
-function isActiveCounter(counter){
-  if(!counter||typeof counter!=='object')return false;
-  const active=counter.active;
-  if(active===undefined||active===null)return true;
-  if(typeof active==='boolean')return active;
-  if(typeof active==='number')return active!==0;
-  const s=String(active).trim().toLowerCase();
-  return s==='true'||s==='1'||s==='yes'||s==='on';
+
+function isActiveCounter(counter) {
+  if (!counter || typeof counter !== 'object') return false;
+  const active = counter.active;
+  if (active === undefined || active === null) return true;
+  if (typeof active === 'boolean') return active;
+  if (typeof active === 'number') return active !== 0;
+  const s = String(active).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'yes' || s === 'on';
 }
-function showToast(message,type='info',ms=3500){
-  const host=$('toastContainer');
-  if(!host)return;
-  const toast=document.createElement('div');
-  toast.className=`toast ${type}`;
-  toast.textContent=message;
+
+function showToast(message, type = 'info', ms = 3500) {
+  const host = $('toastContainer');
+  if (!host) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
   host.appendChild(toast);
-  setTimeout(()=>{
+  setTimeout(() => {
     toast.classList.add('toast-exit');
-    setTimeout(()=>toast.remove(),220);
-  },ms);
+    setTimeout(() => toast.remove(), 220);
+  }, ms);
 }
-function renderMedia(src,container,type='image'){
-  container.innerHTML='';
-  if(!src)return;
-  const isVideo=type==='video'||(typeof src==='string'&&(src.startsWith('data:video/')||/\.(mp4|webm|ogg|mov)$/i.test(src)));
-  if(isVideo){
-    const video=document.createElement('video');
-    video.src=src;
-    video.autoplay=true;
-    video.loop=true;
-    video.muted=true;
-    video.playsInline=true;
-    video.className='ad-media-video';
-    video.loading='lazy';
+
+function renderMedia(src, container, type = 'image') {
+  container.innerHTML = '';
+  if (!src) return;
+
+  const isVideo = type === 'video' || (
+    typeof src === 'string' &&
+    (src.startsWith('data:video/') || /\.(mp4|webm|ogg|mov)$/i.test(src))
+  );
+
+  if (isVideo) {
+    const video = document.createElement('video');
+    video.src = src;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.className = 'ad-media-video';
+    video.loading = 'lazy';
     container.appendChild(video);
     return;
   }
-  const img=document.createElement('img');
-  img.src=src;
-  img.alt='Advertisement';
-  img.className='ad-media';
-  img.loading='lazy';
-  img.onerror=()=>{img.style.display='none';};
+
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = 'Advertisement';
+  img.className = 'ad-media';
+  img.loading = 'lazy';
+  img.onerror = () => { img.style.display = 'none'; };
   container.appendChild(img);
 }
-function makeHeaderFallback(name){
-  const div=document.createElement('div');
-  div.className='header-logo-fallback';
-  div.textContent=(safeString(name,'Q')[0]||'Q').toUpperCase();
+
+function makeHeaderFallback(name) {
+  const div = document.createElement('div');
+  div.className = 'header-logo-fallback';
+  div.textContent = (safeString(name, 'Q')[0] || 'Q').toUpperCase();
   return div;
 }
-function makeCenterFallback(){
-  const span=document.createElement('span');
-  span.className='hero-logo-fallback';
-  span.textContent='🎫';
+
+function makeCenterFallback() {
+  const span = document.createElement('span');
+  span.className = 'hero-logo-fallback';
+  span.textContent = '🎫';
   return span;
 }
-function setHeaderLogo(url,name){
-  const wrap=$('headerLogoWrap');
-  if(!wrap)return;
-  wrap.innerHTML='';
-  if(isSafeUrl(url)){
-    const img=document.createElement('img');
-    img.className='header-logo';
-    img.src=url;
-    img.alt='Logo';
-    img.onerror=()=>{
-      if(wrap.contains(img)){
-        wrap.innerHTML='';
+
+function setHeaderLogo(url, name) {
+  const wrap = $('headerLogoWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (isSafeUrl(url)) {
+    const img = document.createElement('img');
+    img.className = 'header-logo';
+    img.src = url;
+    img.alt = 'Logo';
+    img.onerror = () => {
+      if (wrap.contains(img)) {
+        wrap.innerHTML = '';
         wrap.appendChild(makeHeaderFallback(name));
       }
     };
     wrap.appendChild(img);
-  }else{
+  } else {
     wrap.appendChild(makeHeaderFallback(name));
   }
 }
-function setCenterLogo(url){
-  const wrap=$('centerLogoWrap');
-  if(!wrap)return;
-  wrap.innerHTML='';
-  if(isSafeUrl(url)){
-    const img=document.createElement('img');
-    img.className='hero-logo';
-    img.src=url;
-    img.alt='Logo';
-    img.onerror=()=>{
-      if(wrap.contains(img)){
-        wrap.innerHTML='';
+
+function setCenterLogo(url) {
+  const wrap = $('centerLogoWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (isSafeUrl(url)) {
+    const img = document.createElement('img');
+    img.className = 'hero-logo';
+    img.src = url;
+    img.alt = 'Logo';
+    img.onerror = () => {
+      if (wrap.contains(img)) {
+        wrap.innerHTML = '';
         wrap.appendChild(makeCenterFallback());
       }
     };
     wrap.appendChild(img);
-  }else{
+  } else {
     wrap.appendChild(makeCenterFallback());
   }
 }
-function renderAd(cfg){
-  const card=$('adCard');
-  const content=$('adContent');
-  const text=$('adText');
-  const ad=cfg&&typeof cfg.ad==='object'&&cfg.ad?cfg.ad:{};
-  const adImage=safeString(ad.image);
-  const adVideo=safeString(ad.video);
-  const adLink=safeString(ad.link);
-  const adText=safeString(cfg.adText);
-  if(!adImage&&!adVideo){
-    card.style.display='none';
-    content.innerHTML='';
-    text.style.display='none';
+
+function renderAd(cfg) {
+  const card = $('adCard');
+  const content = $('adContent');
+  const text = $('adText');
+  const ad = cfg && typeof cfg.ad === 'object' && cfg.ad ? cfg.ad : {};
+
+  const adImage = safeString(ad.image);
+  const adVideo = safeString(ad.video);
+  const adLink = safeString(ad.link);
+  const adText = safeString(cfg.adText);
+
+  if (!adImage && !adVideo) {
+    card.style.display = 'none';
+    content.innerHTML = '';
+    text.style.display = 'none';
     return;
   }
-  card.style.display='';
-  content.innerHTML='';
-  text.style.display='none';
-  const mediaWrap=document.createElement(adLink&&isSafeUrl(adLink)?'a':'div');
-  if(adLink&&isSafeUrl(adLink)){
-    mediaWrap.href=adLink;
-    mediaWrap.target='_blank';
-    mediaWrap.rel='noopener noreferrer';
-    mediaWrap.className='ad-link';
+
+  card.style.display = '';
+  content.innerHTML = '';
+  text.style.display = 'none';
+
+  const mediaWrap = document.createElement(adLink && isSafeUrl(adLink) ? 'a' : 'div');
+  if (adLink && isSafeUrl(adLink)) {
+    mediaWrap.href = adLink;
+    mediaWrap.target = '_blank';
+    mediaWrap.rel = 'noopener noreferrer';
+    mediaWrap.className = 'ad-link';
   }
-  const holder=document.createElement('div');
-  renderMedia(adVideo||adImage,holder,adVideo?'video':'image');
+
+  const holder = document.createElement('div');
+  renderMedia(adVideo || adImage, holder, adVideo ? 'video' : 'image');
   mediaWrap.appendChild(holder);
   content.appendChild(mediaWrap);
-  if(adText){
-    text.textContent=adText;
-    text.style.display='';
+
+  if (adText) {
+    text.textContent = adText;
+    text.style.display = '';
   }
 }
-function showBlockingState(title,description){
-  $('skel').style.display='none';
-  $('content').style.display='flex';
-  $('content').style.flexDirection='column';
-  $('content').style.gap='14px';
-  $('statusLine').querySelector('.status-dot').className='status-dot offline';
-  $('statusText').textContent='Unavailable';
-  $('headerTitle').textContent='Queue Joy';
-  $('smallTopText').textContent='Queue Joy';
-  $('mainHeading').textContent=title;
-  $('introText').textContent=description;
-  $('ctaBtn').style.display='none';
-  $('adCard').style.display='none';
+
+function showBlockingState(title, description) {
+  $('skel').style.display = 'none';
+  $('content').style.display = 'flex';
+  $('content').style.flexDirection = 'column';
+  $('content').style.gap = '14px';
+  $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
+  $('statusText').textContent = 'Unavailable';
+  $('headerTitle').textContent = 'Queue Joy';
+  $('smallTopText').textContent = 'Queue Joy';
+  $('mainHeading').textContent = title;
+  $('introText').textContent = description;
+  $('ctaBtn').style.display = 'none';
+  $('adCard').style.display = 'none';
 }
-function updateStatusLine(){
-  const dot=$('statusLine')?.querySelector('.status-dot');
-  const txt=$('statusText');
-  if(!dot||!txt)return;
-  if(!state.configLoaded||!state.countersLoaded){
-    dot.className='status-dot loading';
-    txt.textContent='Syncing tenant...';
+
+function updateStatusLine() {
+  const dot = $('statusLine')?.querySelector('.status-dot');
+  const txt = $('statusText');
+  if (!dot || !txt) return;
+
+  if (!state.configLoaded || !state.countersLoaded) {
+    dot.className = 'status-dot loading';
+    txt.textContent = 'Syncing tenant...';
     return;
   }
-  if(state.connected){
-    dot.className='status-dot live';
-    txt.textContent='Live';
-  }else{
-    dot.className='status-dot offline';
-    txt.textContent='Offline — reconnecting...';
+
+  if (state.connected) {
+    dot.className = 'status-dot live';
+    txt.textContent = 'Live';
+  } else {
+    dot.className = 'status-dot offline';
+    txt.textContent = 'Offline — reconnecting...';
   }
 }
-function applyConfig(cfg){
-  state.config=cfg||{};
-  const themeColor=safeString(getPath(cfg,'theme.color'),'#8b5cf6');
-  document.documentElement.style.setProperty('--theme',themeColor);
-  document.documentElement.style.setProperty('--theme2',darkenHex(themeColor,0.12));
 
-  const displayName=safeString(getPath(cfg,'displayName'),state.slug||'Queue Joy');
-  document.title=`${displayName} — Queue`;
+function applyConfig(cfg) {
+  state.config = cfg || {};
+  const themeColor = safeString(getPath(cfg, 'theme.color'), '#8b5cf6');
+  document.documentElement.style.setProperty('--theme', themeColor);
+  document.documentElement.style.setProperty('--theme2', darkenHex(themeColor, 0.12));
 
-  $('headerTitle').textContent=displayName;
-  $('smallTopText').textContent=safeString(getPath(cfg,'smallTextOnTop'),'Queue Joy');
-  setHeaderLogo(getPath(cfg,'logoUrl'),displayName);
-  setCenterLogo(getPath(cfg,'centerLogoUrl'));
-  $('mainHeading').textContent=safeString(getPath(cfg,'mainHeading'),'Get your queue number');
-  $('introText').textContent=safeString(getPath(cfg,'description'),'Real-time queueing system. Mobile-friendly. No app needed.');
+  const displayName = safeString(getPath(cfg, 'displayName'), state.slug || 'Queue Joy');
+  document.title = `${displayName} — Queue`;
 
-  if(!state.isJoining){
-    $('ctaBtnText').textContent=safeString(getPath(cfg,'buttonText'),'Get your queue number');
+  $('headerTitle').textContent = displayName;
+  $('smallTopText').textContent = safeString(getPath(cfg, 'smallTextOnTop'), 'Queue Joy');
+  setHeaderLogo(getPath(cfg, 'logoUrl'), displayName);
+  setCenterLogo(getPath(cfg, 'centerLogoUrl'));
+  $('mainHeading').textContent = safeString(getPath(cfg, 'mainHeading'), 'Get your queue number');
+  $('introText').textContent = safeString(getPath(cfg, 'description'), 'Real-time queueing system. Mobile-friendly. No app needed.');
+
+  if (!state.isJoining) {
+    $('ctaBtnText').textContent = safeString(getPath(cfg, 'buttonText'), 'Get your queue number');
   }
 
   renderAd(cfg);
 }
-function getActiveCounters(){
-  return Object.entries(state.counters||{})
-    .filter(([,counter])=>isActiveCounter(counter))
-    .sort((a,b)=>{
-      const ao=Number(getPath(a[1],'order')??0)||0;
-      const bo=Number(getPath(b[1],'order')??0)||0;
-      return ao-bo;
+
+function getActiveCounters() {
+  return Object.entries(state.counters || {})
+    .filter(([, counter]) => isActiveCounter(counter))
+    .sort((a, b) => {
+      const ao = Number(getPath(a[1], 'order') ?? 0) || 0;
+      const bo = Number(getPath(b[1], 'order') ?? 0) || 0;
+      return ao - bo;
     })
-    .map(([id,counter])=>({
+    .map(([id, counter]) => ({
       id,
       ...counter,
-      name:safeString(counter.name||counter.label||counter.displayName||id,id)
+      name: safeString(counter.name || counter.label || counter.displayName || id, id)
     }));
 }
-function updateCtaState(){
-  const btn=$('ctaBtn');
-  const txt=$('ctaBtnText');
-  if(!btn||!txt)return;
 
-  if(!state.configLoaded||!state.countersLoaded){
-    btn.disabled=true;
-    txt.textContent='Loading...';
+function updateCtaState() {
+  const btn = $('ctaBtn');
+  const txt = $('ctaBtnText');
+  if (!btn || !txt) return;
+
+  if (!state.configLoaded || !state.countersLoaded) {
+    btn.disabled = true;
+    txt.textContent = 'Loading...';
     return;
   }
 
-  const activeCounters=getActiveCounters();
-  if(activeCounters.length===0){
-    btn.disabled=true;
-    txt.textContent='No active counters right now';
+  const activeCounters = getActiveCounters();
+  if (activeCounters.length === 0) {
+    btn.disabled = true;
+    txt.textContent = 'No active counters right now';
     return;
   }
 
-  btn.disabled=state.isJoining;
-  if(!state.isJoining){
-    txt.textContent=safeString(getPath(state.config,'buttonText'),'Get your queue number');
+  btn.disabled = state.isJoining;
+  if (!state.isJoining) {
+    txt.textContent = safeString(getPath(state.config, 'buttonText'), 'Get your queue number');
   }
 }
-function cleanupListeners(){
-  while(state.liveUnsubs.length){
-    const unsub=state.liveUnsubs.pop();
-    try{unsub&&unsub();}catch{}
-  }
-  if(state.queueMonitorUnsub){
-    try{state.queueMonitorUnsub();}catch{}
-    state.queueMonitorUnsub=null;
-  }
-}
-function isFinalQueueStatus(status){
-  const s=safeString(status).toLowerCase();
-  return ['completed','done','served','finished','closed','resolved'].includes(s);
-}
-async function recordServiceCompleted({queueKey,queueData,completedAt}){
-  const dedupeKey=`qj_service_event:${state.tenantId}:${queueKey}`;
-  try{ if(sessionStorage.getItem(dedupeKey)==='1')return; }catch{}
 
-  const endAt=Number(completedAt||Date.now());
-  const startedAt=Number(queueData?.serviceStartedAt||queueData?.startedAt||queueData?.joinedAt||queueData?.createdAt||endAt);
-  const serviceMs=Math.max(0,endAt-startedAt);
+function cleanupListeners() {
+  while (state.liveUnsubs.length) {
+    const unsub = state.liveUnsubs.pop();
+    try { unsub && unsub(); } catch {}
+  }
+  if (state.queueMonitorUnsub) {
+    try { state.queueMonitorUnsub(); } catch {}
+    state.queueMonitorUnsub = null;
+  }
+}
 
-  const payload={
-    type:'service_completed',
+function isFinalQueueStatus(status) {
+  const s = safeString(status).toLowerCase();
+  return ['completed', 'done', 'served', 'finished', 'closed', 'resolved'].includes(s);
+}
+
+async function recordServiceCompleted({ queueKey, queueData, completedAt }) {
+  const dedupeKey = `qj_service_event:${state.tenantId}:${queueKey}`;
+  try { if (sessionStorage.getItem(dedupeKey) === '1') return; } catch {}
+
+  const endAt = Number(completedAt || Date.now());
+  const startedAt = Number(
+    queueData?.serviceStartedAt ||
+    queueData?.startedAt ||
+    queueData?.joinedAt ||
+    queueData?.createdAt ||
+    endAt
+  );
+  const serviceMs = Math.max(0, endAt - startedAt);
+
+  const payload = {
+    type: 'service_completed',
     serviceMs,
     startedAt,
-    completedAt:endAt,
-    counterId:queueData?.counterId||'',
-    counter:queueData?.counter||queueData?.counterName||'',
-    queueId:queueData?.queueId||queueKey||'',
-    queueNumber:queueData?.queueNumber||queueData?.number||'',
-    tenantId:state.tenantId,
-    slug:state.slug,
-    timestamp:endAt,
-    sessionId:queueData?.sessionId||state.sessionId,
-    userAgent:navigator.userAgent,
-    platform:navigator.platform||'',
-    source:'index.html'
+    completedAt: endAt,
+    counterId: queueData?.counterId || '',
+    counter: queueData?.counter || queueData?.counterName || '',
+    queueId: queueData?.queueId || queueData?.queueNumber || queueKey || '',
+    queueNumber: queueData?.queueNumber || queueData?.number || '',
+    tenantId: state.tenantId,
+    slug: state.slug,
+    timestamp: endAt,
+    sessionId: queueData?.sessionId || state.sessionId,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform || '',
+    source: 'index.html'
   };
 
-  const eventRef=push(ref(db,`tenants/${state.tenantId}/analytics/serviceEvents`));
-  await set(eventRef,payload);
-  try{sessionStorage.setItem(dedupeKey,'1');}catch{}
+  const eventRef = push(ref(db, `tenants/${state.tenantId}/analytics/serviceEvents`));
+  await set(eventRef, payload);
+  try { sessionStorage.setItem(dedupeKey, '1'); } catch {}
 }
-function watchQueueForCompletion(queueKey){
-  if(state.queueMonitorUnsub){
-    try{state.queueMonitorUnsub();}catch{}
-    state.queueMonitorUnsub=null;
+
+function watchQueueForCompletion(queueKey) {
+  if (state.queueMonitorUnsub) {
+    try { state.queueMonitorUnsub(); } catch {}
+    state.queueMonitorUnsub = null;
   }
 
-  const queueRef=ref(db,`tenants/${state.tenantId}/queue/${queueKey}`);
-  state.queueMonitorUnsub=onValue(queueRef,snap=>{
-    if(!snap.exists())return;
-    const data=snap.val()||{};
-    if(isFinalQueueStatus(data.status)||data.completedAt||data.serviceCompletedAt){
-      const completedAt=Number(data.completedAt||data.serviceCompletedAt||Date.now());
-      recordServiceCompleted({queueKey,queueData:data,completedAt}).catch(err=>console.error('service analytics write failed',err));
+  const queueRef = ref(db, `tenants/${state.tenantId}/queue/${queueKey}`);
+  state.queueMonitorUnsub = onValue(queueRef, snap => {
+    if (!snap.exists()) return;
+    const data = snap.val() || {};
+    if (isFinalQueueStatus(data.status) || data.completedAt || data.serviceCompletedAt) {
+      const completedAt = Number(data.completedAt || data.serviceCompletedAt || Date.now());
+      recordServiceCompleted({ queueKey, queueData: data, completedAt })
+        .catch(err => console.error('service analytics write failed', err));
     }
-  },err=>{ console.error('queue monitor error',err); });
+  }, err => { console.error('queue monitor error', err); });
 
   state.liveUnsubs.push(state.queueMonitorUnsub);
 }
-function showSuccess(queueNumber,queueKey){
-  const host=$('successOverlay');
-  host.style.display='block';
-  host.innerHTML=`
+
+function showSuccess(queueNumber, queueKey) {
+  const host = $('successOverlay');
+  host.style.display = 'block';
+  host.innerHTML = `
     <div class="success-overlay">
       <div class="success-card">
         <div class="success-icon">✓</div>
@@ -515,206 +566,209 @@ function showSuccess(queueNumber,queueKey){
     </div>
   `;
 
-  setTimeout(()=>{
-    const url=new URL('/status.html',window.location.origin);
-    url.searchParams.set('queueId',queueKey); // queueId param carries queueKey to status.html
-    url.searchParams.set('slug',state.slug);
-    url.searchParams.set('tenantId',state.tenantId);
-    url.searchParams.set('queueNumber',queueNumber);
+  setTimeout(() => {
+    const url = new URL('/status.html', window.location.origin);
+    url.searchParams.set('queueId', queueKey);
+    url.searchParams.set('queueKey', queueKey);
+    url.searchParams.set('slug', state.slug);
+    url.searchParams.set('tenantId', state.tenantId);
+    url.searchParams.set('queueNumber', queueNumber);
     window.location.replace(url.toString());
-  },1200);
+  }, 1200);
 }
-async function resolveTenantIdOnce(slug){
-  const cacheKey=`qj_resolved_tenant:${slug}`;
-  try{ sessionStorage.removeItem(cacheKey); }catch{}
 
-  const response=await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`,{method:'GET',credentials:'same-origin',cache:'no-store'});
-  if(!response.ok){
+async function resolveTenantIdOnce(slug) {
+  const response = await fetch(
+    `/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`,
+    { method: 'GET', credentials: 'same-origin', cache: 'no-store' }
+  );
+  if (!response.ok) {
     throw new Error(`Tenant lookup failed (${response.status})`);
   }
 
-  const data=await response.json().catch(()=>null);
-  const tenantId=safeString(data?.tenantId||'','');
-  if(!tenantId||tenantId.includes('/')){
+  const data = await response.json().catch(() => null);
+  const tenantId = safeString(data?.tenantId || '', '');
+  if (!tenantId || tenantId.includes('/')) {
     throw new Error('Invalid tenant returned');
   }
-
-  try{sessionStorage.setItem(cacheKey,tenantId);}catch{}
   return tenantId;
 }
-function getSlugFromLocation(){
-  const params=new URLSearchParams(window.location.search);
-  let slug=safeString(params.get('slug')||params.get('tenant')||params.get('tenantSlug'));
-  if(slug)return slug;
-  const path=window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
-  slug=path.find(p=>p&&!p.includes('.html')&&!p.includes('.'));
+
+function getSlugFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  let slug = safeString(params.get('slug') || params.get('tenant') || params.get('tenantSlug'));
+  if (slug) return slug;
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  slug = path.find(p => p && !p.includes('.html') && !p.includes('.'));
   return safeString(slug);
 }
-async function bootstrap(){
-  const slug=getSlugFromLocation();
-  if(!slug){
-    showBlockingState('Missing tenant slug','Open this page with ?slug=your-slug');
+
+async function bootstrap() {
+  const slug = getSlugFromLocation();
+  if (!slug) {
+    showBlockingState('Missing tenant slug', 'Open this page with ?slug=your-slug');
     return;
   }
 
-  state.slug=slug;
-  window.__TENANT_SLUG=slug;
+  state.slug = slug;
+  window.__TENANT_SLUG = slug;
 
   let tenantId;
-  try{
-    tenantId=await resolveTenantIdOnce(slug);
-  }catch(err){
+  try {
+    tenantId = await resolveTenantIdOnce(slug);
+  } catch (err) {
     console.error(err);
-    showBlockingState('Tenant lookup failed','This page could not resolve a valid tenant for the provided slug.');
+    showBlockingState('Tenant lookup failed', 'This page could not resolve a valid tenant for the provided slug.');
     return;
   }
 
-  state.tenantId=tenantId;
-  window.__TENANT_ID=tenantId;
+  state.tenantId = tenantId;
+  window.__TENANT_ID = tenantId;
 
-  const configRef=ref(db,`tenants/${tenantId}/public/config`);
-  const countersRef=ref(db,`tenants/${tenantId}/counters`);
+  const configRef = ref(db, `tenants/${tenantId}/public/config`);
+  const countersRef = ref(db, `tenants/${tenantId}/counters`);
 
   let configSnap;
   let countersSnap;
-  try{
-    [configSnap,countersSnap]=await Promise.all([get(configRef),get(countersRef)]);
-  }catch(err){
+  try {
+    [configSnap, countersSnap] = await Promise.all([get(configRef), get(countersRef)]);
+  } catch (err) {
     console.error(err);
-    showBlockingState('Unable to load tenant data','The tenant could not be loaded safely. Please refresh or check the slug.');
+    showBlockingState('Unable to load tenant data', 'The tenant could not be loaded safely. Please refresh or check the slug.');
     return;
   }
 
-  if(!configSnap.exists()){
-    showBlockingState('Configuration unavailable','This tenant does not have a valid public/config yet.');
+  if (!configSnap.exists()) {
+    showBlockingState('Configuration unavailable', 'This tenant does not have a valid public/config yet.');
     return;
   }
 
-  state.configLoaded=true;
-  state.countersLoaded=true;
-  state.config=configSnap.val()||{};
-  state.counters=countersSnap.exists()?(countersSnap.val()||{}):{};
+  state.configLoaded = true;
+  state.countersLoaded = true;
+  state.config = configSnap.val() || {};
+  state.counters = countersSnap.exists() ? (countersSnap.val() || {}) : {};
 
   applyConfig(state.config);
   updateStatusLine();
   updateCtaState();
 
-  $('skel').style.display='none';
-  $('content').style.display='flex';
-  $('content').style.flexDirection='column';
-  $('content').style.gap='14px';
+  $('skel').style.display = 'none';
+  $('content').style.display = 'flex';
+  $('content').style.flexDirection = 'column';
+  $('content').style.gap = '14px';
 
-  state.liveUnsubs.push(onValue(configRef,snap=>{
-    if(!snap.exists())return;
-    state.config=snap.val()||{};
+  state.liveUnsubs.push(onValue(configRef, snap => {
+    if (!snap.exists()) return;
+    state.config = snap.val() || {};
     applyConfig(state.config);
     updateCtaState();
-  },err=>console.error('config listener error',err)));
+  }, err => console.error('config listener error', err)));
 
-  state.liveUnsubs.push(onValue(countersRef,snap=>{
-    state.counters=snap.exists()?(snap.val()||{}):{};
-    state.countersLoaded=true;
+  state.liveUnsubs.push(onValue(countersRef, snap => {
+    state.counters = snap.exists() ? (snap.val() || {}) : {};
+    state.countersLoaded = true;
     updateStatusLine();
     updateCtaState();
-  },err=>console.error('counters listener error',err)));
+  }, err => console.error('counters listener error', err)));
 
-  state.liveUnsubs.push(onValue(ref(db,'.info/connected'),snap=>{
-    state.connected=snap.val()===true;
+  state.liveUnsubs.push(onValue(ref(db, '.info/connected'), snap => {
+    state.connected = snap.val() === true;
     updateStatusLine();
   }));
 
   updateStatusLine();
   updateCtaState();
 }
-window.addEventListener('pagehide',cleanupListeners);
-window.addEventListener('beforeunload',cleanupListeners);
 
-$('ctaBtn').addEventListener('click',async e=>{
+window.addEventListener('pagehide', cleanupListeners);
+window.addEventListener('beforeunload', cleanupListeners);
+
+$('ctaBtn').addEventListener('click', async e => {
   e.preventDefault();
-  if(state.isJoining)return;
+  if (state.isJoining) return;
 
-  const activeCounters=getActiveCounters();
-  if(activeCounters.length===0){
-    showToast('No active counters available.','error');
+  const activeCounters = getActiveCounters();
+  if (activeCounters.length === 0) {
+    showToast('No active counters available.', 'error');
     return;
   }
 
-  state.isJoining=true;
+  state.isJoining = true;
   updateCtaState();
 
-  const btn=$('ctaBtn');
-  const icon=btn.querySelector('.icon');
-  const originalIcon=icon?icon.textContent:'🎫';
-  if(icon)icon.innerHTML='<span class="spinner"></span>';
-  $('ctaBtnText').textContent='Getting your number...';
+  const btn = $('ctaBtn');
+  const icon = btn.querySelector('.icon');
+  const originalIcon = icon ? icon.textContent : '🎫';
+  if (icon) icon.innerHTML = '<span class="spinner"></span>';
+  $('ctaBtnText').textContent = 'Getting your number...';
 
-  try{
-    const rrRef=ref(db,`tenants/${state.tenantId}/queueState/lastCounterIndex`);
-    await runTransaction(rrRef,cur=>(Number(cur)||0)+1);
-    const rrSnap=await get(rrRef);
-    const rr=Number(rrSnap.val())||1;
+  try {
+    const rrRef = ref(db, `tenants/${state.tenantId}/queueState/lastCounterIndex`);
+    await runTransaction(rrRef, cur => (Number(cur) || 0) + 1);
+    const rrSnap = await get(rrRef);
+    const rr = Number(rrSnap.val()) || 1;
 
-    const chosen=activeCounters[(rr-1)%activeCounters.length]||activeCounters[0];
-    if(!chosen)throw new Error('No active counter could be selected');
+    const chosen = activeCounters[(rr - 1) % activeCounters.length] || activeCounters[0];
+    if (!chosen) throw new Error('No active counter could be selected');
 
-    const issuedRef=ref(db,`tenants/${state.tenantId}/counters/${chosen.id}/lastIssued`);
-    await runTransaction(issuedRef,cur=>(Number(cur)||0)+1);
-    const issuedSnap=await get(issuedRef);
-    const nextNumber=Number(issuedSnap.val())||1;
+    const issuedRef = ref(db, `tenants/${state.tenantId}/counters/${chosen.id}/lastIssued`);
+    await runTransaction(issuedRef, cur => (Number(cur) || 0) + 1);
+    const issuedSnap = await get(issuedRef);
+    const nextNumber = Number(issuedSnap.val()) || 1;
 
-    const prefix=safeString(chosen.prefix,'Q');
-    const queueNumber=`${prefix}${String(nextNumber).padStart(3,'0')}`; // visible ticket number (queueId)
+    const prefix = safeString(chosen.prefix, 'Q');
+    const queueNumber = `${prefix}${String(nextNumber).padStart(3, '0')}`;
 
-    // Create a real queue record key, then write directly to tenants/{tenantId}/queue/{queueKey}
-    const queueKey=push(ref(db,`tenants/${state.tenantId}/queue`)).key;
-    if(!queueKey)throw new Error('Could not create queue entry');
+    const queueKey = push(ref(db, `tenants/${state.tenantId}/queue`)).key;
+    if (!queueKey) throw new Error('Could not create queue entry');
 
-    const now=Date.now();
-    const payload={
+    const now = Date.now();
+    const payload = {
       queueKey,
-      queueId:queueNumber,
+      queueId: queueNumber,
       queueNumber,
-      number:queueNumber,
-      numberVal:nextNumber,
+      number: queueNumber,
+      numberVal: nextNumber,
       prefix,
-      counterId:chosen.id,
-      counter:chosen.name||chosen.label||chosen.displayName||chosen.id,
-      counterName:chosen.name||chosen.label||chosen.displayName||chosen.id,
-      counterOrder:Number(chosen.order)||0,
-      status:'waiting',
-      createdAt:now,
-      updatedAt:now,
-      joinedAt:now,
-      slug:state.slug,
-      tenantId:state.tenantId,
-      sessionId:state.sessionId,
-      userAgent:navigator.userAgent,
-      platform:navigator.platform||'',
-      source:'index.html'
+      counterId: chosen.id,
+      counter: chosen.name || chosen.label || chosen.displayName || chosen.id,
+      counterName: chosen.name || chosen.label || chosen.displayName || chosen.id,
+      counterOrder: Number(chosen.order) || 0,
+      status: 'waiting',
+      createdAt: now,
+      updatedAt: now,
+      joinedAt: now,
+      slug: state.slug,
+      tenantId: state.tenantId,
+      sessionId: state.sessionId,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform || '',
+      source: 'index.html'
     };
 
-    await set(ref(db,`tenants/${state.tenantId}/queue/${queueKey}`),payload);
-    try{
-      sessionStorage.setItem('qj_last_queue_key',queueKey);
-      sessionStorage.setItem('qj_last_queue_number',queueNumber);
-      sessionStorage.setItem('qj_last_tenant_id',state.tenantId);
-    }catch{}
+    await set(ref(db, `tenants/${state.tenantId}/queue/${queueKey}`), payload);
+
+    try {
+      sessionStorage.setItem('qj_last_queue_key', queueKey);
+      sessionStorage.setItem('qj_last_queue_number', queueNumber);
+      sessionStorage.setItem('qj_last_tenant_id', state.tenantId);
+    } catch {}
 
     watchQueueForCompletion(queueKey);
-    showSuccess(queueNumber,queueKey);
-  }catch(err){
-    console.error('join queue error',err);
-    showToast(err?.message||'Failed to get queue number. Try again.','error');
-    if(icon)icon.textContent=originalIcon;
-  }finally{
-    state.isJoining=false;
+    showSuccess(queueNumber, queueKey);
+  } catch (err) {
+    console.error('join queue error', err);
+    showToast(err?.message || 'Failed to get queue number. Try again.', 'error');
+    if (icon) icon.textContent = originalIcon;
+  } finally {
+    state.isJoining = false;
     updateCtaState();
   }
 });
 
-bootstrap().catch(err=>{
+bootstrap().catch(err => {
   console.error(err);
-  showBlockingState('Unexpected error','Something went wrong while loading this page.');
+  showBlockingState('Unexpected error', 'Something went wrong while loading this page.');
 });
 </script>
 </body>
