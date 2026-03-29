@@ -455,9 +455,9 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, off, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-/* ========================================
-   CONFIGURATION
-   ======================================== */
+/* =========================
+   CONFIG
+   ========================= */
 const CONFIG = {
   firebase: {
     apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
@@ -470,23 +470,22 @@ const CONFIG = {
     measurementId: "G-KWBELWRC5M"
   },
   endpoints: {
-    createLink: '/.netlify/functions/createTelegramLink',
-    getTenant: '/.netlify/functions/get-tenant',
-    getFirebaseConfig: '/.netlify/functions/get-firebase-config',
-    markTokenUsed: '/.netlify/functions/markTokenUsed',
+    getTenant: "/.netlify/functions/get-tenant",
+    getFirebaseConfig: "/.netlify/functions/get-firebase-config",
+    createLink: "/.netlify/functions/createTelegramLink",
+    markTokenUsed: "/.netlify/functions/markTokenUsed",
   },
-  telegramBotUrl: 'https://t.me/QueueJoyBot',
-  maxAhead: 30,
+  telegramBotUrl: "https://t.me/QueueJoyBot",
   defaultAvgServiceMin: 3,
-  // Retry config — only used for initial load, not for ongoing watching
+  maxAhead: 30,
   maxInitRetries: 3,
   initRetryDelayMs: 2000,
   redirectDelay: 5000,
 };
 
-/* ========================================
+/* =========================
    I18N
-   ======================================== */
+   ========================= */
 const I18N = {
   en: {
     in_queue: "You're in the queue",
@@ -604,14 +603,15 @@ const I18N = {
   }
 };
 
-/* ========================================
+/* =========================
    STATE
-   ======================================== */
+   ========================= */
 const state = {
-  lang: localStorage.getItem('qj_lang') || 'en',
-  queueId: null,      // visible ticket number = database key
+  lang: localStorage.getItem("qj_lang") || "en",
   slug: null,
   tenantId: null,
+  queueKey: null,      // Firebase queue record key
+  queueNumber: null,   // visible ticket like CAP013
   data: null,
   cachedData: null,
   isTgConnected: false,
@@ -619,22 +619,43 @@ const state = {
   avgServiceTimeMin: CONFIG.defaultAvgServiceMin,
   latestConnectLink: null,
   linkGenerating: false,
-  initResolved: false, // true once queue data loaded successfully
+  initResolved: false,
 };
 
 let db = null;
-let firebaseApp = null;
-let qRef = null, counterRef = null, adRef = null, analyticsRef = null;
+let qRef = null;
+let counterRef = null;
+let adRef = null;
+let analyticsRef = null;
 let currentCounterId = null;
 
-/* ========================================
-   DOM REFS
-   ======================================== */
+/* =========================
+   DOM
+   ========================= */
 const $ = id => document.getElementById(id);
 
-/* ========================================
-   UTILITIES
-   ======================================== */
+/* =========================
+   HELPERS
+   ========================= */
+function safeString(value, fallback = "") {
+  if (typeof value === "string") {
+    const s = value.trim();
+    return s || fallback;
+  }
+  if (value === 0) return "0";
+  return fallback;
+}
+
+function getPath(obj, path) {
+  if (!obj || typeof obj !== "object") return undefined;
+  let cur = obj;
+  for (const part of String(path).split(".")) {
+    if (!cur || typeof cur !== "object") return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
 function extractNumber(str) {
   if (str == null) return null;
   const m = String(str).trim().match(/(\d+)$/);
@@ -650,271 +671,298 @@ function formatMinutes(m) {
 }
 
 function showError(msg) {
-  const el = $('errorBanner');
+  const el = $("errorBanner");
+  if (!el) return;
   el.textContent = msg;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 7000);
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 7000);
 }
 
 function getSlugFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const s = params.get('slug');
+  const s = params.get("slug");
   if (s) return s;
-  const parts = location.pathname.replace(/^\/+|\/+$/g, '').split('/');
-  if (parts.length > 1 && !parts[0].includes('.html')) return parts[0];
+  const parts = location.pathname.replace(/^\/+|\/+$/g, "").split("/");
+  if (parts.length > 1 && !parts[0].includes(".html")) return parts[0];
   return null;
 }
 
-/* ========================================
-   I18N ENGINE
-   ======================================== */
+function getQueueKeyFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("queueId") || params.get("queueKey") || params.get("qid") || params.get("id") || null;
+}
+
+function getVisibleTicket(d) {
+  return d?.queueNumber || d?.number || d?.ticketNumber || d?.ticket || d?.queueId || "—";
+}
+
+function getTicketPrefix(d) {
+  const ticket = getVisibleTicket(d);
+  return String(ticket).replace(/\d+$/, "");
+}
+
+function getServingRaw(cData) {
+  return cData?.nowServing ?? cData?.serving ?? cData?.now ?? cData?.current ?? cData?.lastCalled ?? null;
+}
+
+function getServingDisplay(raw, prefix = "") {
+  if (raw == null) return "—";
+  const num = extractNumber(raw);
+  if (num == null) return String(raw);
+  if (num <= 0) return "—";
+  const len = Math.max(3, String(num).length);
+  return prefix ? `${prefix}${String(num).padStart(len, "0")}` : String(num);
+}
+
+function getTicketNumber(d) {
+  const ticket = getVisibleTicket(d);
+  return extractNumber(ticket);
+}
+
+function computeAhead(data, servingRaw) {
+  const myNum = getTicketNumber(data);
+  const servNum = servingRaw != null ? extractNumber(servingRaw) : extractNumber($("nowServing")?.textContent);
+
+  if (myNum !== null && servNum !== null) {
+    if (servNum >= myNum) {
+      data._computedAhead = 0;
+      if (servNum === myNum) redirectToTurn();
+    } else {
+      data._computedAhead = myNum - servNum;
+    }
+  } else if (data.peopleAhead != null) {
+    data._computedAhead = Number(data.peopleAhead);
+  } else {
+    data._computedAhead = null;
+  }
+}
+
 function setLang(lang) {
   state.lang = lang;
-  localStorage.setItem('qj_lang', lang);
-  document.querySelectorAll('.lang-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.lang === lang);
-  });
+  localStorage.setItem("qj_lang", lang);
+  document.querySelectorAll(".lang-btn").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
   const t = I18N[lang];
-  document.querySelectorAll('[data-t]').forEach(el => {
-    const key = el.getAttribute('data-t');
+  document.querySelectorAll("[data-t]").forEach(el => {
+    const key = el.getAttribute("data-t");
     if (t[key]) {
-      if (t[key].includes('<')) el.innerHTML = t[key];
+      if (t[key].includes("<")) el.innerHTML = t[key];
       else el.textContent = t[key];
     }
   });
-  document.querySelectorAll('[data-t-inner]').forEach(el => {
-    const key = el.getAttribute('data-t-inner');
+  document.querySelectorAll("[data-t-inner]").forEach(el => {
+    const key = el.getAttribute("data-t-inner");
     if (t[key]) el.textContent = t[key];
   });
   renderData();
 }
 
-document.querySelectorAll('.lang-btn').forEach(btn => {
-  btn.addEventListener('click', () => setLang(btn.dataset.lang));
-});
-
-/* ========================================
-   TENANT RESOLUTION
-   ======================================== */
-async function resolveTenant() {
-  const slug = getSlugFromUrl();
-  state.slug = slug;
-
-  if (slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`);
-      if (res.ok) {
-        const data = await res.json();
-        state.tenantId = data?.tenantId || data?.tenant || slug;
-        if (data?.config?.theme?.color) {
-          document.documentElement.style.setProperty('--primary-hex', data.config.theme.color);
-          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', data.config.theme.color);
-        }
-        if (data?.config?.displayName) {
-          $('displayName').textContent = data.config.displayName;
-        }
-      } else {
-        state.tenantId = slug;
-      }
-    } catch (e) {
-      console.warn('[QJ] tenant fetch failed, using slug as id');
-      state.tenantId = slug;
-    }
-  }
-}
-
-/* ========================================
-   FIREBASE INIT
-   ======================================== */
-async function initFirebase() {
-  let cfg = CONFIG.firebase;
-
-  if (state.slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`);
-      if (res.ok) {
-        const j = await res.json();
-        const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
-        if (tenantCfg?.databaseURL && !tenantCfg.databaseURL.includes('demo.firebaseio.com')) {
-          cfg = tenantCfg;
-        }
-      }
-    } catch (e) { /* use default */ }
-  }
-
-  if (!getApps().length) firebaseApp = initializeApp(cfg);
-  else firebaseApp = getApps()[0];
-  db = getDatabase(firebaseApp);
-}
-
-/* ========================================
-   TELEGRAM UI STATE
-   ======================================== */
 function setTelegramUI(connected) {
   state.isTgConnected = connected;
   const t = I18N[state.lang];
-  const tgCta = $('tgCta');
-  const btn = $('btnConnect');
+  const tgCta = $("tgCta");
+  const btn = $("btnConnect");
+  if (!tgCta || !btn) return;
 
   if (connected) {
-    tgCta.classList.add('connected');
-    $('tgTitle').textContent = t.tg_title_connected;
-    $('tgDesc').textContent = t.tg_desc_connected;
-    btn.textContent = '✅ Connected';
+    tgCta.classList.add("connected");
+    $("tgTitle").textContent = t.tg_title_connected;
+    $("tgDesc").textContent = t.tg_desc_connected;
+    btn.textContent = "✅ Connected";
     btn.disabled = true;
-    btn.classList.remove('pulse');
-    btn.classList.add('btn-connected');
-    $('bannerWarning').classList.add('hidden');
-    $('bannerSuccess').classList.remove('hidden');
+    btn.classList.remove("pulse");
+    btn.classList.add("btn-connected");
+    $("bannerWarning")?.classList.add("hidden");
+    $("bannerSuccess")?.classList.remove("hidden");
   } else {
-    tgCta.classList.remove('connected');
-    $('tgTitle').textContent = t.tg_title;
-    $('tgDesc').textContent = t.tg_desc;
+    tgCta.classList.remove("connected");
+    $("tgTitle").textContent = t.tg_title;
+    $("tgDesc").textContent = t.tg_desc;
     btn.textContent = t.connect_btn;
     btn.disabled = false;
-    btn.classList.add('pulse');
-    btn.classList.remove('btn-connected');
-    $('bannerWarning').classList.remove('hidden');
-    $('bannerSuccess').classList.add('hidden');
+    btn.classList.add("pulse");
+    btn.classList.remove("btn-connected");
+    $("bannerWarning")?.classList.remove("hidden");
+    $("bannerSuccess")?.classList.add("hidden");
   }
 }
 
-/* ========================================
-   PROGRESS & RENDER
-   ======================================== */
+function formatServingNumber(raw) {
+  const prefix = getTicketPrefix(state.data || state.cachedData || {});
+  return getServingDisplay(raw, prefix);
+}
+
+/* =========================
+   RENDER
+   ========================= */
 function renderData() {
   const d = state.data || state.cachedData;
   if (!d) return;
 
   const t = I18N[state.lang];
 
-  // Ticket number
-  const ticket = d.queueId || d.ticketNumber || d.ticket || d.number || '—';
-  $('yourNumber').textContent = ticket;
+  const ticket = getVisibleTicket(d);
+  const ticketNum = getTicketNumber(d);
+  $("yourNumber").textContent = ticket;
 
-  // People ahead
   const ahead = d._computedAhead ?? d.peopleAhead ?? null;
-
-  if (ahead !== null && ahead !== undefined) {
-    $('peopleAhead').textContent = ahead;
-    // Dynamic wait time: peopleAhead × avgServiceTime
-    if (ahead === 0) {
-      $('estimatedWait').textContent = t.next;
-    } else {
-      $('estimatedWait').textContent = formatMinutes(ahead * state.avgServiceTimeMin);
-    }
-  }
-
-  // Progress bar
-  const status = String(d.status || '').toLowerCase();
-  const fill = $('progressFill');
-  const caption = $('progressCaption');
-
-  if (status === 'called' || status === 'serving' || status === 'your_turn') {
-    fill.style.width = '100%';
-    caption.textContent = t.your_turn;
-    caption.style.color = '#10b981';
-  } else if (status === 'canceled' || status === 'cancelled') {
-    fill.style.width = '0%';
-    caption.textContent = '❌ Canceled';
-    caption.style.color = '#b91c1c';
-  } else if (ahead === 0) {
-    fill.style.width = '95%';
-    caption.textContent = '🎯 ' + t.next;
-    caption.style.color = 'var(--primary-hex)';
-  } else if (ahead !== null && ahead > 0) {
-    const pct = Math.max(5, Math.min(90, 100 - (ahead / CONFIG.maxAhead * 100)));
-    fill.style.width = `${pct}%`;
-    caption.textContent = ahead === 1 ? t.people_1 : `${ahead} ${t.people_ahead.toLowerCase()}`;
-    caption.style.color = 'var(--text-muted)';
+  if (ahead !== null && ahead !== undefined && !Number.isNaN(Number(ahead))) {
+    $("peopleAhead").textContent = ahead;
+    $("estimatedWait").textContent = ahead === 0 ? t.next : formatMinutes(Number(ahead) * state.avgServiceTimeMin);
   } else {
-    fill.style.width = '8%';
-    caption.textContent = t.loading;
-    caption.style.color = 'var(--text-muted)';
+    $("peopleAhead").textContent = "—";
+    $("estimatedWait").textContent = "—";
   }
 
-  // Telegram state
+  const status = String(d.status || "").toLowerCase();
+  const fill = $("progressFill");
+  const caption = $("progressCaption");
+
+  if (status === "called" || status === "serving" || status === "your_turn") {
+    fill.style.width = "100%";
+    caption.textContent = t.your_turn;
+    caption.style.color = "#10b981";
+  } else if (status === "canceled" || status === "cancelled") {
+    fill.style.width = "0%";
+    caption.textContent = t.canceled;
+    caption.style.color = "#b91c1c";
+  } else if (ticketNum !== null && ahead === 0) {
+    fill.style.width = "95%";
+    caption.textContent = "🎯 " + t.next;
+    caption.style.color = "var(--primary-hex)";
+  } else if (ahead !== null && ahead > 0) {
+    const pct = Math.max(5, Math.min(90, 100 - (Number(ahead) / CONFIG.maxAhead * 100)));
+    fill.style.width = `${pct}%`;
+    caption.textContent = Number(ahead) === 1 ? t.people_1 : `${ahead} ${t.people_ahead.toLowerCase()}`;
+    caption.style.color = "var(--text-muted)";
+  } else {
+    fill.style.width = "8%";
+    caption.textContent = t.loading;
+    caption.style.color = "var(--text-muted)";
+  }
+
   const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id || d.chatId);
   setTelegramUI(hasTg);
 
-  // Cancel button visibility: hide if not in cancelable state
-  const cancelBtn = $('btnCancel');
-  if (status === 'canceled' || status === 'cancelled' || status === 'served' || status === 'completed' || status === 'called' || status === 'serving') {
-    cancelBtn.disabled = true;
-    cancelBtn.style.opacity = '0.4';
-  } else {
-    cancelBtn.disabled = false;
-    cancelBtn.style.opacity = '1';
+  const cancelBtn = $("btnCancel");
+  if (cancelBtn) {
+    if (status === "canceled" || status === "cancelled" || status === "served" || status === "completed" || status === "called" || status === "serving") {
+      cancelBtn.disabled = true;
+      cancelBtn.style.opacity = "0.4";
+    } else {
+      cancelBtn.disabled = false;
+      cancelBtn.style.opacity = "1";
+    }
   }
 }
 
-/* ========================================
-   REDIRECT TO TURN
-   ======================================== */
+/* =========================
+   REDIRECT
+   ========================= */
 function redirectToTurn() {
   if (state.isRedirecting) return;
   state.isRedirecting = true;
-  const fill = $('progressFill');
-  const caption = $('progressCaption');
-  fill.style.width = '100%';
-  caption.textContent = I18N[state.lang].your_turn;
-  caption.style.color = '#10b981';
+
+  const fill = $("progressFill");
+  const caption = $("progressCaption");
+  if (fill && caption) {
+    fill.style.width = "100%";
+    caption.textContent = I18N[state.lang].your_turn;
+    caption.style.color = "#10b981";
+  }
 
   setTimeout(() => {
-    window.location.href = `your_turn.html?queueId=${encodeURIComponent(state.queueId)}&slug=${encodeURIComponent(state.slug || '')}`;
+    window.location.href = `your_turn.html?queueId=${encodeURIComponent(state.queueKey || state.queueId || "")}&slug=${encodeURIComponent(state.slug || "")}`;
   }, 600);
 }
 
-/* ========================================
-   QUEUE WATCHER — DIRECT PATH ONLY
-   ======================================== */
-async function startQueueWatcher() {
-  if (!db || !state.queueId) return;
+/* =========================
+   FIREBASE
+   ========================= */
+async function resolveTenant() {
+  const slug = getSlugFromUrl();
+  state.slug = slug;
 
-  // Clean up previous
+  if (slug) {
+    try {
+      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        state.tenantId = data?.tenantId || data?.tenant || slug;
+        if (data?.config?.theme?.color) {
+          document.documentElement.style.setProperty("--primary-hex", data.config.theme.color);
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", data.config.theme.color);
+        }
+        if (data?.config?.displayName) $("displayName").textContent = data.config.displayName;
+      } else {
+        state.tenantId = slug;
+      }
+    } catch {
+      state.tenantId = slug;
+    }
+  }
+}
+
+async function initFirebase() {
+  let cfg = CONFIG.firebase;
+
+  if (state.slug) {
+    try {
+      const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`, { cache: "no-store" });
+      if (res.ok) {
+        const j = await res.json();
+        const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
+        if (tenantCfg?.databaseURL && !String(tenantCfg.databaseURL).includes("demo.firebaseio.com")) {
+          cfg = tenantCfg;
+        }
+      }
+    } catch {
+      /* keep default */
+    }
+  }
+
+  if (!getApps().length) initializeApp(cfg);
+  db = getDatabase(getApps()[0]);
+}
+
+/* =========================
+   WATCHERS
+   ========================= */
+async function startQueueWatcher() {
+  if (!db || !state.queueKey) return;
   if (qRef) { off(qRef); qRef = null; }
 
-  // STRICT: Only read from the tenant-scoped queue path
   if (!state.tenantId) {
-    console.warn('[QJ] No tenantId resolved — cannot watch queue');
-    showError('Tenant not resolved. Please check your link.');
+    showError("Tenant not resolved. Please check your link.");
     return;
   }
-  const path = `tenants/${state.tenantId}/queue/${state.queueId}`;
 
-  console.log('[QJ] Watching queue at:', path);
+  const path = `tenants/${state.tenantId}/queue/${state.queueKey}`;
+  console.log("[QJ] Watching queue at:", path);
   qRef = ref(db, path);
 
-  onValue(qRef, (snap) => {
+  onValue(qRef, snap => {
     if (!snap || !snap.exists || !snap.exists()) {
-      // Only show error if we haven't resolved yet — don't spam
-      if (!state.initResolved) {
-        console.warn('[QJ] Queue data not yet available at', path);
-        // Don't show error immediately, wait for a brief moment
-      }
+      if (!state.initResolved) console.warn("[QJ] Queue data not yet available at", path);
       return;
     }
 
     state.initResolved = true;
-    const data = snap.val();
+    const data = snap.val() || {};
     state.data = data;
-    localStorage.setItem('qj_last_data', JSON.stringify(data));
-    localStorage.setItem('qj_last_queueId', state.queueId);
+    localStorage.setItem("qj_last_data", JSON.stringify(data));
+    localStorage.setItem("qj_last_queueId", state.queueKey);
 
-    // Check if called/serving → redirect
-    const st = String(data.status || '').toLowerCase();
-    if (st === 'called' || st === 'serving' || st === 'your_turn' || data.called === true || data.notifiedAt || data.calledAt) {
+    const st = String(data.status || "").toLowerCase();
+    if (st === "called" || st === "serving" || st === "your_turn" || data.called === true || data.notifiedAt || data.calledAt) {
       redirectToTurn();
       return;
     }
 
-    // Skip canceled
-    if (st === 'canceled' || st === 'cancelled') {
+    if (st === "canceled" || st === "cancelled") {
       renderData();
       return;
     }
 
-    // Attach counter watcher
     const cid = data.counterId || data.counter || data.counterAssigned;
     if (cid && cid !== currentCounterId) {
       if (counterRef) off(counterRef);
@@ -924,45 +972,40 @@ async function startQueueWatcher() {
       computeAhead(data);
     }
 
-    // Auto-open modal if Telegram not connected and not skipped
     const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id || data.chatId);
-    if (!hasTg && !$('obModal').classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + state.queueId)) {
+    if (!hasTg && !$("obModal").classList.contains("show") && !localStorage.getItem("qj_modal_skipped_" + state.queueKey)) {
       openModal();
     }
 
     renderData();
   });
 
-  // Set a timeout: if no data after retries, show error and redirect
   setTimeout(() => {
     if (!state.initResolved && !state.isRedirecting) {
-      console.warn('[QJ] Queue not found after timeout at', path);
       showError(I18N[state.lang].not_found);
       setTimeout(() => {
         if (!state.initResolved && !state.isRedirecting) {
           window.location.href = state.slug
             ? `index.html?error=not_found&slug=${encodeURIComponent(state.slug)}`
-            : 'index.html?error=not_found';
+            : "index.html?error=not_found";
         }
       }, CONFIG.redirectDelay);
     }
   }, CONFIG.maxInitRetries * CONFIG.initRetryDelayMs);
 }
 
-/* ========================================
-   COUNTER WATCHER
-   ======================================== */
 async function watchCounter(counterId) {
   if (!state.tenantId) return;
   const path = `tenants/${state.tenantId}/counters/${counterId}`;
-
+  if (counterRef) off(counterRef);
   counterRef = ref(db, path);
 
-  onValue(counterRef, (snap) => {
+  onValue(counterRef, snap => {
     if (!snap || !snap.exists || !snap.exists()) return;
-    const cData = snap.val();
-    const serving = cData.nowServing || cData.serving || cData.now;
-    $('nowServing').textContent = formatServingNumber(serving) || '—';
+    const cData = snap.val() || {};
+    const serving = getServingRaw(cData);
+
+    $("nowServing").textContent = formatServingNumber(serving);
 
     if (state.data) {
       computeAhead(state.data, serving);
@@ -971,45 +1014,15 @@ async function watchCounter(counterId) {
   });
 }
 
-function formatServingNumber(raw) {
-  if (raw == null) return null;
-  const ticket = state.data?.queueId || state.data?.ticketNumber || state.data?.ticket || state.data?.number || '';
-  const prefix = String(ticket).replace(/\d+$/, '').trim();
-  const num = extractNumber(raw);
-  if (num === null) return String(raw);
-  const len = String(ticket).match(/(\d+)$/)?.[1]?.length || String(num).length;
-  return prefix ? `${prefix}${String(num).padStart(len, '0')}` : String(num);
-}
-
-function computeAhead(data, servingRaw) {
-  const myNum = extractNumber(data.queueId || data.ticketNumber || data.ticket || data.number);
-  const servNum = servingRaw != null ? extractNumber(servingRaw) : extractNumber($('nowServing').textContent);
-
-  if (myNum !== null && servNum !== null) {
-    if (servNum >= myNum) {
-      data._computedAhead = 0;
-      if (servNum === myNum) redirectToTurn();
-    } else {
-      data._computedAhead = myNum - servNum;
-    }
-  } else {
-    data._computedAhead = data.peopleAhead ?? null;
-  }
-}
-
-/* ========================================
-   DYNAMIC WAIT TIME — ANALYTICS WATCHER
-   ======================================== */
 async function watchAnalytics() {
   if (!db || !state.tenantId) return;
-
   const path = `tenants/${state.tenantId}/analytics/serviceEvents`;
 
   try {
     analyticsRef = ref(db, path);
-    onValue(analyticsRef, (snap) => {
+    onValue(analyticsRef, snap => {
       if (!snap || !snap.exists || !snap.exists()) return;
-      const events = snap.val();
+      const events = snap.val() || {};
       const times = [];
       for (const k in events) {
         const ms = events[k]?.serviceMs;
@@ -1019,109 +1032,130 @@ async function watchAnalytics() {
         }
       }
       if (times.length > 0) {
-        // Use last 10 events for moving average
         const recent = times.slice(-10);
         state.avgServiceTimeMin = Math.max(1, Math.round(recent.reduce((a, b) => a + b, 0) / recent.length));
-        renderData(); // Re-render with new avg
+        renderData();
       }
     });
-  } catch (e) { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 }
 
-/* ========================================
-   LOGO & SETTINGS LOADERS
-   ======================================== */
 async function loadLogo() {
-  if (!db) return;
+  if (!db || !state.tenantId) return;
   try {
-    if (!state.tenantId) return;
     const path = `tenants/${state.tenantId}/settings/logo`;
     const snap = await get(ref(db, path));
     if (snap?.exists?.()) {
       const url = snap.val();
       if (url) {
-        const img = $('logoImg');
-        img.src = String(url);
-        img.onload = () => { $('logoText').classList.add('hidden'); img.classList.remove('hidden'); };
+        const img = $("logoImg");
+        if (img) {
+          img.src = String(url);
+          img.onload = () => {
+            $("logoText")?.classList.add("hidden");
+            img.classList.remove("hidden");
+          };
+        }
       }
     }
-  } catch (e) { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 }
 
 async function watchAds() {
-  if (!db) return;
+  if (!db || !state.tenantId) return;
   try {
-    if (!state.tenantId) return;
     const path = `tenants/${state.tenantId}/settings/adImage`;
     adRef = ref(db, path);
-    onValue(adRef, (snap) => {
+    onValue(adRef, snap => {
       const url = snap?.exists?.() ? snap.val() : null;
       showAd(url);
     });
-  } catch (e) { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 }
 
 function showAd(url) {
-  const panel = $('adPanel');
-  const container = $('adContainer');
-  container.innerHTML = '';
-  if (!url) { panel.classList.add('hidden'); return; }
+  const panel = $("adPanel");
+  const container = $("adContainer");
+  if (!panel || !container) return;
+
+  container.innerHTML = "";
+  if (!url) {
+    panel.classList.add("hidden");
+    return;
+  }
 
   const u = String(url).trim();
-  if (!u) { panel.classList.add('hidden'); return; }
+  if (!u) {
+    panel.classList.add("hidden");
+    return;
+  }
 
   if (/youtube\.com|youtu\.be|vimeo\.com/i.test(u)) {
     let embedSrc = u;
     try {
       if (/youtube\.com\/watch\?v=/.test(u)) {
-        const vid = new URL(u).searchParams.get('v');
+        const vid = new URL(u).searchParams.get("v");
         if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1`;
       } else if (/youtu\.be\//.test(u)) {
-        const id = u.split('youtu.be/')[1].split(/[?#]/)[0];
+        const id = u.split("youtu.be/")[1].split(/[?#]/)[0];
         embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
       }
-    } catch (e) {}
+    } catch {}
     container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px"></iframe></div>`;
-    panel.classList.remove('hidden');
+    panel.classList.remove("hidden");
     return;
   }
 
   if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(u) || /^data:video\//i.test(u) || /^blob:/i.test(u)) {
-    const v = document.createElement('video');
-    v.src = u; v.className = 'ad-media'; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
-    v.addEventListener('loadedmetadata', () => panel.classList.remove('hidden'));
-    v.addEventListener('error', () => panel.classList.add('hidden'));
+    const v = document.createElement("video");
+    v.src = u;
+    v.className = "ad-media";
+    v.autoplay = true;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.addEventListener("loadedmetadata", () => panel.classList.remove("hidden"));
+    v.addEventListener("error", () => panel.classList.add("hidden"));
     container.appendChild(v);
     v.play().catch(() => {});
     return;
   }
 
-  const img = document.createElement('img');
-  img.src = u; img.className = 'ad-media'; img.alt = 'Ad';
-  img.onload = () => panel.classList.remove('hidden');
-  img.onerror = () => panel.classList.add('hidden');
+  const img = document.createElement("img");
+  img.src = u;
+  img.className = "ad-media";
+  img.alt = "Ad";
+  img.onload = () => panel.classList.remove("hidden");
+  img.onerror = () => panel.classList.add("hidden");
   container.appendChild(img);
 }
 
-/* ========================================
-   TELEGRAM LINK GENERATION
-   ======================================== */
+/* =========================
+   TELEGRAM LINK
+   ========================= */
 async function generateLink() {
   if (state.linkGenerating || state.latestConnectLink) return;
   state.linkGenerating = true;
-  const btn = $('obFinish');
-  const content = $('obFinishContent');
-  const statusText = $('obStatusText');
 
-  btn.disabled = true;
-  content.innerHTML = '<span class="spinner"></span> Generating...';
-  statusText.textContent = 'Creating secure link...';
+  const btn = $("obFinish");
+  const content = $("obFinishContent");
+  const statusText = $("obStatusText");
+
+  if (btn) btn.disabled = true;
+  if (content) content.innerHTML = '<span class="spinner"></span> Generating...';
+  if (statusText) statusText.textContent = "Creating secure link...";
 
   try {
     const d = state.data || {};
     const payload = {
-      queueKey: state.queueId,
-      queueId: d.queueId || state.queueId,
+      queueKey: state.queueKey,
+      queueId: d.queueId || d.queueNumber || state.queueKey,
       tenantId: state.tenantId || undefined,
       slug: state.slug || undefined,
       counterId: d.counterId || d.counter || undefined,
@@ -1129,228 +1163,221 @@ async function generateLink() {
     };
 
     const res = await fetch(CONFIG.endpoints.createLink, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error('API error ' + res.status);
+    if (!res.ok) throw new Error("API error " + res.status);
     const j = await res.json();
     state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
   } catch (e) {
-    console.warn('[QJ] Link generation failed:', e.message);
+    console.warn("[QJ] Link generation failed:", e.message);
   }
 
   if (!state.latestConnectLink) {
-    // Show retryable state instead of broken fallback
-    statusText.textContent = 'Link generation failed. Tap to retry.';
-    btn.disabled = false;
-    content.innerHTML = '🔄 Retry';
-    state.linkGenerating = false;
-    // On next click, reset and try again
-    btn.onclick = () => {
-      state.latestConnectLink = null;
+    if (statusText) statusText.textContent = "Link generation failed. Tap to retry.";
+    if (btn) {
+      btn.disabled = false;
+      content.innerHTML = "🔄 Retry";
       state.linkGenerating = false;
-      btn.onclick = openTelegram;
-      generateLink();
-    };
+      btn.onclick = () => {
+        state.latestConnectLink = null;
+        state.linkGenerating = false;
+        btn.onclick = openTelegram;
+        generateLink();
+      };
+    }
     return;
   }
 
-  statusText.textContent = 'Ready! Tap below to open Telegram.';
-  btn.disabled = false;
-  content.innerHTML = '🚀 Open Telegram';
-  btn.onclick = openTelegram;
+  if (statusText) statusText.textContent = "Ready! Tap below to open Telegram.";
+  if (btn) {
+    btn.disabled = false;
+    content.innerHTML = "🚀 Open Telegram";
+    btn.onclick = openTelegram;
+  }
   state.linkGenerating = false;
 }
 
 async function openTelegram() {
   if (state.linkGenerating) return;
-  const btn = $('obFinish');
-  const content = $('obFinishContent');
-  btn.disabled = true;
-  content.innerHTML = '<span class="spinner"></span> Opening...';
+
+  const btn = $("obFinish");
+  const content = $("obFinishContent");
+  if (btn) btn.disabled = true;
+  if (content) content.innerHTML = '<span class="spinner"></span> Opening...';
 
   const url = state.latestConnectLink;
   if (!url) {
-    // Should not happen, but handle gracefully
     generateLink();
     return;
   }
 
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  const win = window.open(url, "_blank", "noopener,noreferrer");
   if (!win) {
-    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
-  // Mark token used (fire-and-forget)
   try {
-    const token = url.split('start=')[1];
+    const token = url.split("start=")[1];
     if (token) {
       fetch(CONFIG.endpoints.markTokenUsed, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queueKey: state.queueId, token, tenantId: state.tenantId })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queueKey: state.queueKey, token, tenantId: state.tenantId })
       }).catch(() => {});
     }
-  } catch (e) {}
+  } catch {}
 
   setTimeout(() => {
-    btn.disabled = false;
-    content.innerHTML = '✅ Opened!';
+    if (btn) btn.disabled = false;
+    if (content) content.innerHTML = "✅ Opened!";
     setTimeout(closeModal, 1200);
   }, 400);
 }
 
-/* ========================================
-   MODAL HELPERS
-   ======================================== */
+/* =========================
+   MODALS
+   ========================= */
 function showSlide(idx) {
-  document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.step-dot').forEach(d => d.classList.remove('active'));
+  document.querySelectorAll(".slide").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".step-dot").forEach(d => d.classList.remove("active"));
   const slide = document.querySelector(`[data-slide="${idx}"]`);
-  if (slide) slide.classList.add('active');
-  if (typeof idx === 'number') {
-    const dots = document.querySelectorAll('.step-dot');
-    if (dots[idx]) dots[idx].classList.add('active');
+  if (slide) slide.classList.add("active");
+  if (typeof idx === "number") {
+    const dots = document.querySelectorAll(".step-dot");
+    if (dots[idx]) dots[idx].classList.add("active");
   }
   if (idx === 2) generateLink();
 }
 
 function openModal() {
-  const modal = $('obModal');
-  modal.classList.add('show');
-  modal.setAttribute('aria-hidden', 'false');
-  if (state.isTgConnected) showSlide('connected');
+  const modal = $("obModal");
+  if (!modal) return;
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  if (state.isTgConnected) showSlide("connected");
   else showSlide(0);
 }
 
 function closeModal() {
-  const modal = $('obModal');
-  modal.classList.remove('show');
-  modal.setAttribute('aria-hidden', 'true');
+  const modal = $("obModal");
+  if (!modal) return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
 }
 
-// Modal button bindings
-$('obNext').onclick = () => showSlide(1);
-$('obNext2').onclick = () => showSlide(2);
-$('obBack1').onclick = () => showSlide(0);
-$('obBack2').onclick = () => showSlide(1);
-$('obSkip').onclick = () => { localStorage.setItem('qj_modal_skipped_' + state.queueId, 'true'); closeModal(); };
-$('obDone').onclick = closeModal;
-$('obFinish').onclick = openTelegram;
-$('obModal').onclick = (e) => { if (e.target === $('obModal')) closeModal(); };
-$('btnConnect').onclick = openModal;
-
-/* ========================================
-   GAME BUTTON
-   ======================================== */
-$('btnGame').onclick = () => {
-  const params = new URLSearchParams();
-  if (state.queueId) params.set('queueId', state.queueId);
-  if (state.slug) params.set('slug', state.slug);
-  if (state.tenantId) params.set('tenantId', state.tenantId);
-  window.open(`game.html?${params.toString()}`, '_blank');
-};
-
-/* ========================================
-   CANCEL NUMBER — DOUBLE CONFIRMATION
-   ======================================== */
+/* =========================
+   CANCEL
+   ========================= */
 function openCancelModal() {
   const d = state.data;
   if (!d) return;
-  const st = String(d.status || '').toLowerCase();
-  if (st === 'canceled' || st === 'cancelled' || st === 'served' || st === 'completed' || st === 'called' || st === 'serving') return;
+  const st = String(d.status || "").toLowerCase();
+  if (["canceled", "cancelled", "served", "completed", "called", "serving"].includes(st)) return;
+
   const t = I18N[state.lang];
-  $('cancelConfirmTitle').textContent = t.cancel_title;
-  $('cancelConfirmDesc').textContent = t.cancel_desc;
-  $('btnConfirmCancel').textContent = t.cancel_confirm;
-  $('btnKeepNumber').textContent = t.cancel_keep;
-  $('cancelModal').classList.add('show');
-  $('cancelModal').setAttribute('aria-hidden', 'false');
+  $("cancelConfirmTitle").textContent = t.cancel_title;
+  $("cancelConfirmDesc").textContent = t.cancel_desc;
+  $("btnConfirmCancel").textContent = t.cancel_confirm;
+  $("btnKeepNumber").textContent = t.cancel_keep;
+  $("cancelModal").classList.add("show");
+  $("cancelModal").setAttribute("aria-hidden", "false");
 }
+
 function closeCancelModal() {
-  $('cancelModal').classList.remove('show');
-  $('cancelModal').setAttribute('aria-hidden', 'true');
+  $("cancelModal").classList.remove("show");
+  $("cancelModal").setAttribute("aria-hidden", "true");
 }
+
 async function confirmCancel() {
   const d = state.data;
   if (!d) { closeCancelModal(); return; }
-  const st = String(d.status || '').toLowerCase();
-  if (st === 'canceled' || st === 'cancelled' || st === 'served' || st === 'completed') { closeCancelModal(); return; }
-  const btn = $('btnConfirmCancel');
-  btn.disabled = true; btn.textContent = '...';
-  try {
-    if (!state.tenantId) { showError('Tenant not resolved.'); closeCancelModal(); return; }
-    const path = `tenants/${state.tenantId}/queue/${state.queueId}`;
-    await update(ref(db, path), { status: 'canceled', canceledAt: new Date().toISOString(), updatedAt: new Date().toISOString(), canceledBy: 'customer' });
-  } catch (e) { console.error('[QJ] Cancel failed:', e); showError('Cancel failed. Please try again.'); }
-  btn.disabled = false; closeCancelModal();
-}
-$('btnCancel').onclick = openCancelModal;
-$('btnConfirmCancel').onclick = confirmCancel;
-$('btnKeepNumber').onclick = closeCancelModal;
-$('cancelModal').onclick = (e) => { if (e.target === $('cancelModal')) closeCancelModal(); };
 
-/* ========================================
-   VISIBILITY CHANGE HANDLER
-   ======================================== */
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && !state.isRedirecting) {
-    // Re-attach watcher on tab focus
-    startQueueWatcher();
+  const st = String(d.status || "").toLowerCase();
+  if (["canceled", "cancelled", "served", "completed"].includes(st)) {
+    closeCancelModal();
+    return;
   }
-});
 
-/* ========================================
-   HYDRATE FROM CACHE
-   ======================================== */
+  const btn = $("btnConfirmCancel");
+  btn.disabled = true;
+  btn.textContent = "...";
+
+  try {
+    if (!state.tenantId || !state.queueKey) {
+      showError("Tenant not resolved.");
+      closeCancelModal();
+      return;
+    }
+
+    const path = `tenants/${state.tenantId}/queue/${state.queueKey}`;
+    await update(ref(db, path), {
+      status: "canceled",
+      canceledAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      canceledBy: "customer"
+    });
+  } catch (e) {
+    console.error("[QJ] Cancel failed:", e);
+    showError("Cancel failed. Please try again.");
+  }
+
+  btn.disabled = false;
+  closeCancelModal();
+}
+
+/* =========================
+   CACHE
+   ========================= */
 function hydrateFromCache() {
   try {
-    const cached = localStorage.getItem('qj_last_data');
-    const cachedId = localStorage.getItem('qj_last_queueId');
-    if (cached && cachedId === state.queueId) {
+    const cached = localStorage.getItem("qj_last_data");
+    const cachedId = localStorage.getItem("qj_last_queueId");
+    if (cached && cachedId === state.queueKey) {
       state.cachedData = JSON.parse(cached);
       state.data = state.cachedData;
       renderData();
     }
-  } catch (e) { /* corrupted cache, ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
-/* ========================================
-   INITIALIZATION
-   ======================================== */
+/* =========================
+   INIT
+   ========================= */
 async function init() {
-  // Parse queue ID — this IS the database key
   const params = new URLSearchParams(window.location.search);
-  state.queueId = params.get('queueId') || params.get('queueid') || params.get('qid') || params.get('id');
+  state.queueKey = getQueueKeyFromUrl();
+  state.queueNumber = params.get("queueNumber") || params.get("queue") || null;
   state.slug = getSlugFromUrl();
 
-  if (!state.queueId) {
-    showError('Queue ID missing.');
-    setTimeout(() => { window.location.href = 'index.html'; }, 2000);
+  if (!state.queueKey) {
+    showError("Queue ID missing.");
+    setTimeout(() => { window.location.href = "index.html"; }, 2000);
     return;
   }
 
-  // 1) Hydrate from cache immediately
   setLang(state.lang);
   hydrateFromCache();
 
-  // 2) Resolve tenant + init Firebase
   await resolveTenant();
   await initFirebase();
 
-  // 3) Load logo
   loadLogo();
-
-  // 4) Start real-time watchers (parallel)
   startQueueWatcher();
   watchAnalytics();
   watchAds();
 
-  // 5) Cleanup on unload
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener("beforeunload", () => {
     if (qRef) off(qRef);
     if (counterRef) off(counterRef);
     if (adRef) off(adRef);
@@ -1358,9 +1385,48 @@ async function init() {
   });
 }
 
+/* =========================
+   EVENT BINDINGS
+   ========================= */
+document.querySelectorAll(".lang-btn").forEach(btn => {
+  btn.addEventListener("click", () => setLang(btn.dataset.lang));
+});
+
+$("obNext").onclick = () => showSlide(1);
+$("obNext2").onclick = () => showSlide(2);
+$("obBack1").onclick = () => showSlide(0);
+$("obBack2").onclick = () => showSlide(1);
+$("obSkip").onclick = () => {
+  localStorage.setItem("qj_modal_skipped_" + state.queueKey, "true");
+  closeModal();
+};
+$("obDone").onclick = closeModal;
+$("obFinish").onclick = openTelegram;
+$("obModal").onclick = (e) => { if (e.target === $("obModal")) closeModal(); };
+$("btnConnect").onclick = openModal;
+
+$("btnGame").onclick = () => {
+  const params = new URLSearchParams();
+  if (state.queueKey) params.set("queueId", state.queueKey);
+  if (state.slug) params.set("slug", state.slug);
+  if (state.tenantId) params.set("tenantId", state.tenantId);
+  window.open(`game.html?${params.toString()}`, "_blank");
+};
+
+$("btnCancel").onclick = openCancelModal;
+$("btnConfirmCancel").onclick = confirmCancel;
+$("btnKeepNumber").onclick = closeCancelModal;
+$("cancelModal").onclick = (e) => { if (e.target === $("cancelModal")) closeCancelModal(); };
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !state.isRedirecting) {
+    startQueueWatcher();
+  }
+});
+
 init().catch(e => {
-  console.error('[QJ] Init failed:', e);
-  showError('Something went wrong. Please refresh.');
+  console.error("[QJ] Init failed:", e);
+  showError("Something went wrong. Please refresh.");
 });
 </script>
 </body>
