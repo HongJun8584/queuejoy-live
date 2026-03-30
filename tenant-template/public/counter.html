@@ -1,1223 +1,1585 @@
 
 
+
+
+
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Counter Management — QueueJoy</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Counter Management — Queue Joy</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.0/build/qrcode.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
   <style>
-    :root{
-      --bg: linear-gradient(160deg,#f4f7ff 0%,#faf5ff 52%,#f7f7ff 100%);
-      --surface:#fff;
-      --text:#111827;
-      --muted:#6b7280;
-      --border:#e5e7eb;
-      --primary:#4f46e5;
-      --primary-2:#7c3aed;
-      --success:#10b981;
-      --warning:#f59e0b;
-      --danger:#dc2626;
-      --shadow:0 6px 28px rgba(15,23,42,.07),0 2px 8px rgba(15,23,42,.05);
-      --shadow-2:0 16px 48px rgba(15,23,42,.12),0 4px 14px rgba(15,23,42,.08);
-      --radius:18px;
+    :root {
+      --primary: #667eea;
+      --primary-deep: #764ba2;
+      --success: #10b981;
+      --success-deep: #14b8a6;
+      --danger: #ef4444;
+      --warning: #f97316;
+      --surface: #ffffff;
+      --page-bg-from: #f0f4ff;
+      --page-bg-to: #fdf2f8;
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --text-muted: #9ca3af;
+      --border-light: #e5e7eb;
+      --card-shadow: 0 4px 24px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --card-shadow-hover: 0 8px 40px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
+      --toast-dismiss-ms: 10000;
     }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0}
-    body{
-      font-family:Inter,system-ui,-apple-system,sans-serif;
-      background:var(--bg);
-      color:var(--text);
-      min-height:100vh;
-      -webkit-font-smoothing:antialiased;
-      text-rendering:optimizeLegibility;
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      background: linear-gradient(180deg, var(--page-bg-from) 0%, var(--page-bg-to) 100%);
+      min-height: 100vh;
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
     }
-    .card{background:var(--surface);border:1px solid rgba(229,231,235,.8);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
-    .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;
-      border:1px solid transparent;cursor:pointer;transition:.18s ease;user-select:none;
+
+    /* ── Animations ── */
+    @keyframes fadeInUp {
+      from { opacity:0; transform:translateY(12px); filter:blur(4px); }
+      to   { opacity:1; transform:translateY(0); filter:blur(0); }
     }
-    .btn:active{transform:scale(.98)}
-    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-    .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff}
-    .btn-success{background:linear-gradient(135deg,#10b981,#14b8a6);color:#fff}
-    .btn-warning{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff}
-    .btn-danger{background:var(--danger);color:#fff}
-    .btn-ghost{background:#fff;border-color:var(--border);color:#374151}
-    .btn-ghost:hover{background:#f9fafb}
-    .btn-sm{padding:8px 12px;font-size:13px;border-radius:10px}
-    .input{
-      width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid var(--border);
-      background:#fff;outline:none;font:inherit;transition:.15s ease;
+    @keyframes fadeOut {
+      to { opacity:0; transform:translateY(-8px); }
     }
-    .input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(79,70,229,.10)}
-    .textarea{min-height:92px;resize:vertical}
-    .status-dot{width:8px;height:8px;border-radius:999px;display:inline-block}
-    .status-live{background:#10b981}
-    .status-offline{background:#ef4444}
-    .status-pending{background:#f59e0b}
-    .skeleton{
-      background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);
-      background-size:800px 100%;animation:shimmer 1.4s infinite linear;border-radius:14px;
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
     }
-    @keyframes shimmer{0%{background-position:-800px 0}100%{background-position:800px 0}}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes popIn{from{opacity:0;transform:scale(.94) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-    @keyframes popOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.94)}}
-    .fade-up{animation:fadeUp .35s ease both}
-    .toast-wrap{
-      position:fixed;top:16px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:10px;
-      width:min(380px,calc(100vw - 32px));pointer-events:none;
+    @keyframes pulseServing {
+      0%,100% { transform:scale(1); }
+      50%     { transform:scale(1.02); }
     }
-    .toast{
-      pointer-events:auto;background:#fff;border:1px solid rgba(229,231,235,.9);
-      border-left:4px solid var(--primary);border-radius:16px;padding:14px 16px;
-      box-shadow:var(--shadow-2);display:flex;align-items:flex-start;gap:10px;
-      animation:fadeUp .18s ease both;font-size:14px;line-height:1.45;
+    @keyframes calledFlash {
+      0%   { box-shadow: 0 0 0 0 rgba(16,185,129,.45); }
+      70%  { box-shadow: 0 0 0 12px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
     }
-    .toast.success{border-left-color:var(--success)}
-    .toast.warning{border-left-color:var(--warning)}
-    .toast.error{border-left-color:var(--danger)}
-    .toast .close{margin-left:auto;cursor:pointer;color:#9ca3af;font-size:18px;line-height:1}
-    .modal{
-      position:fixed;inset:0;z-index:6000;display:none;align-items:center;justify-content:center;
-      padding:16px;background:rgba(15,23,42,.46);backdrop-filter:blur(5px);
+    @keyframes slideInRight {
+      from { transform:translateX(calc(100% + 24px)); opacity:0; }
+      to   { transform:translateX(0); opacity:1; }
     }
-    .modal.show{display:flex}
-    .modal-card{
-      width:min(640px,100%);background:#fff;border-radius:22px;overflow:hidden;
-      box-shadow:var(--shadow-2);animation:popIn .18s ease both;
-      max-height:90vh;overflow-y:auto;
+    @keyframes slideOutRight {
+      to { transform:translateX(calc(100% + 24px)); opacity:0; }
     }
-    .modal-card.small{width:min(420px,100%)}
-    .modal-head{padding:18px 22px;color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary-2))}
-    .popup-overlay{
-      position:fixed;inset:0;z-index:9000;background:rgba(15,23,42,.40);backdrop-filter:blur(4px);
-      display:flex;align-items:center;justify-content:center;padding:16px;
+    @keyframes modalIn {
+      from { opacity:0; transform:scale(.96) translateY(8px); }
+      to   { opacity:1; transform:scale(1) translateY(0); }
     }
-    .popup-card{
-      width:min(420px,100%);background:#fff;border-radius:24px;box-shadow:var(--shadow-2);
-      padding:28px 24px;text-align:center;animation:popIn .18s ease both;
+    @keyframes modalBgIn {
+      from { opacity:0; }
+      to   { opacity:1; }
     }
-    .popup-card.closing{animation:popOut .16s ease both}
-    .popup-badge{
-      width:64px;height:64px;border-radius:999px;margin:0 auto 14px;
-      display:flex;align-items:center;justify-content:center;color:#fff;
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @keyframes dotPulse {
+      0%,80%,100% { transform:scale(0); }
+      40% { transform:scale(1); }
     }
-    .popup-badge.join{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
-    .popup-badge.cancel{background:linear-gradient(135deg,#dc2626,#ef4444)}
-    .qa-badge{
-      position:fixed;right:12px;bottom:12px;z-index:9999;
-      display:none;background:#7c3aed;color:#fff;border-radius:12px;padding:6px 10px;
-      font-size:11px;font-family:Inter,monospace;opacity:.92;
+
+    .animate-fade-in-up { animation: fadeInUp .5s cubic-bezier(.16,1,.3,1) both; }
+    .animate-called-flash { animation: calledFlash .9s ease both; }
+    .animate-modal-in { animation: modalIn .3s cubic-bezier(.16,1,.3,1) both; }
+    .animate-modal-bg { animation: modalBgIn .2s ease both; }
+
+    /* ── Skeleton Shimmer ── */
+    .skeleton {
+      background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.8s infinite linear;
+      border-radius: 8px;
     }
-    .popup-history-panel{
-      margin-top:24px;
+
+    /* ── Cards ── */
+    .counter-card {
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: var(--card-shadow);
+      transition: box-shadow .25s ease, transform .25s ease;
+      overflow: hidden;
     }
-    .popup-history-item{
-      display:flex;align-items:center;gap:10px;padding:10px 14px;
-      border-bottom:1px solid #f3f4f6;font-size:13px;
+    .counter-card:hover {
+      box-shadow: var(--card-shadow-hover);
+      transform: translateY(-2px);
     }
-    .popup-history-item:last-child{border-bottom:none}
-    .popup-history-badge{
-      display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font-weight: 600; border-radius: 12px; border: none; cursor: pointer;
+      transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+      font-family: inherit; font-size: 14px; line-height: 1;
+      padding: 12px 20px;
     }
-    .popup-history-badge.joined{background:#eef2ff;color:#4f46e5}
-    .popup-history-badge.cancelled{background:#fef2f2;color:#dc2626}
-    @media (max-width:640px){
-      .header-actions{width:100%;display:flex;flex-wrap:wrap}
-      .header-actions .btn{flex:1}
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(102,126,234,.35); }
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), var(--success-deep));
+      color: #fff;
+    }
+    .btn-success:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(16,185,129,.35); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-warning { background: var(--warning); color: #fff; }
+    .btn-warning:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-ghost { background: #f3f4f6; color: var(--text-secondary); }
+    .btn-ghost:hover:not(:disabled) { background: #e5e7eb; }
+    .btn-icon {
+      width: 36px; height: 36px; padding: 0; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #f9fafb; border: 1px solid var(--border-light); cursor: pointer;
+      transition: background .15s, transform .15s;
+    }
+    .btn-icon:hover { background: #f3f4f6; }
+    .btn-icon:active { transform: scale(.95); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.4); backdrop-filter: blur(4px);
+      padding: 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-card {
+      background: var(--surface); border-radius: 20px;
+      box-shadow: 0 25px 80px rgba(0,0,0,.15);
+      max-height: 90vh; overflow-y: auto;
+      width: 100%; position: relative;
+    }
+
+    /* ── Toast Container ── */
+    #toast-container {
+      position: fixed; top: 16px; right: 16px; z-index: 200;
+      display: flex; flex-direction: column; gap: 8px;
+      max-width: 380px; width: 100%;
+      pointer-events: none;
+    }
+    .toast-item {
+      pointer-events: auto;
+      background: var(--surface); border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+      padding: 14px 18px; display: flex; align-items: flex-start; gap: 10px;
+      animation: slideInRight .4s cubic-bezier(.16,1,.3,1) both;
+      border-left: 4px solid var(--primary);
+      position: relative; overflow: hidden;
+    }
+    .toast-item.toast-success { border-left-color: var(--success); }
+    .toast-item.toast-error { border-left-color: var(--danger); }
+    .toast-item.toast-info { border-left-color: var(--primary); }
+    .toast-item.toast-queue { border-left-color: #8b5cf6; }
+    .toast-item.removing { animation: slideOutRight .3s ease both; }
+    .toast-progress {
+      position: absolute; bottom: 0; left: 0; height: 3px;
+      background: currentColor; opacity: .3; border-radius: 0 0 0 12px;
+      transition: width linear;
+    }
+
+    /* ── Input ── */
+    .input-field {
+      width: 100%; padding: 12px 16px; border: 2px solid var(--border-light);
+      border-radius: 12px; font-family: inherit; font-size: 15px;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none; background: #fff;
+    }
+    .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102,126,234,.15); }
+    .input-field::placeholder { color: var(--text-muted); }
+
+    /* ── Textarea ── */
+    .textarea-field {
+      width: 100%; padding: 12px 16px; border: 2px solid var(--border-light);
+      border-radius: 12px; font-family: inherit; font-size: 14px;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none; resize: vertical; min-height: 80px; background: #fff;
+    }
+    .textarea-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102,126,234,.15); }
+
+    /* ── Toggle ── */
+    .toggle-track {
+      width: 44px; height: 24px; border-radius: 12px;
+      background: #d1d5db; position: relative; cursor: pointer;
+      transition: background .2s;
+    }
+    .toggle-track.active { background: var(--success); }
+    .toggle-thumb {
+      width: 20px; height: 20px; border-radius: 50%; background: #fff;
+      position: absolute; top: 2px; left: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+      transition: transform .2s;
+    }
+    .toggle-track.active .toggle-thumb { transform: translateX(20px); }
+
+    /* ── Connection Status ── */
+    .conn-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    .conn-dot.live { background:#22c55e; box-shadow:0 0 6px rgba(34,197,94,.5); }
+    .conn-dot.offline { background:#ef4444; }
+    .conn-dot.reconnecting { background:#f59e0b; animation: dotPulse 1.4s infinite ease-in-out; }
+
+    /* ── Serving Number ── */
+    .serving-display {
+      background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+      border-radius: 14px; padding: 20px; text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .serving-number {
+      font-size: 2.75rem; font-weight: 800; color: #312e81;
+      letter-spacing: -0.02em; line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Collapsible Section ── */
+    .section-toggle {
+      cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; background: var(--surface);
+      border-radius: 16px; box-shadow: var(--card-shadow);
+      transition: box-shadow .2s;
+    }
+    .section-toggle:hover { box-shadow: var(--card-shadow-hover); }
+    .section-toggle svg { transition: transform .3s; }
+    .section-toggle.open svg { transform: rotate(180deg); }
+    .section-body {
+      max-height: 0; overflow: hidden;
+      transition: max-height .4s cubic-bezier(.16,1,.3,1), opacity .3s;
+      opacity: 0;
+    }
+    .section-body.open { max-height: 3000px; opacity: 1; }
+
+    /* ── Preview Message ── */
+    .msg-preview {
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px;
+      padding: 14px 16px; font-size: 13px; line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 200px; overflow-y: auto;
+    }
+
+    /* ── Badge ── */
+    #tenant-slug-badge {
+      position: fixed; right: 12px; bottom: 12px;
+      background: #7c3aed; color: #fff;
+      padding: 6px 12px; border-radius: 8px;
+      font-size: 11px; z-index: 9999; opacity: .9;
+      display: none; font-weight: 500;
+      box-shadow: 0 2px 8px rgba(124,58,237,.3);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .serving-number { font-size: 2rem; }
+      .header-actions { flex-direction: column; gap: 8px; }
+      .header-actions .btn { width: 100%; }
+      .modal-card { border-radius: 16px; }
     }
   </style>
 </head>
 <body>
-  <div class="toast-wrap" id="toast-wrap"></div>
-  <div id="popup-root"></div>
-  <div class="qa-badge" id="qa-badge"></div>
 
-  <header style="position:sticky;top:0;z-index:80;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);">
-    <div style="max-width:1280px;margin:0 auto;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:14px;min-width:0">
-        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary-2));display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)">
-          <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header class="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-lg" style="background:linear-gradient(135deg,var(--primary),var(--primary-deep))">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
         </div>
-        <div style="min-width:0">
-          <h1 id="page-title" style="margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em">Counter Management</h1>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px" id="connection-status"><span class="status-dot status-pending"></span> Connecting…</div>
+        <div>
+          <h1 id="pageTitle" class="text-lg sm:text-xl font-bold text-gray-900 leading-tight">Counter Management</h1>
+          <div class="flex items-center gap-2 mt-0.5">
+            <p id="pageSubtitle" class="text-xs text-gray-500">Queue Joy — Admin</p>
+            <span id="connStatus" class="flex items-center gap-1.5 text-xs text-gray-400">
+              <span class="conn-dot reconnecting" id="connDot"></span>
+              <span id="connLabel">Connecting…</span>
+            </span>
+          </div>
         </div>
       </div>
-      <div class="header-actions" style="display:flex;align-items:center;gap:8px;">
-        <button class="btn btn-primary btn-sm" onclick="openAddCounterModal()">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      <div class="flex gap-2 header-actions">
+        <button id="addCounterBtn" class="btn btn-primary">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4v16m8-8H4"/></svg>
           Add Counter
         </button>
-        <button class="btn btn-success btn-sm" onclick="openQrModal()">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3z"/></svg>
-          QR Code
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="togglePopupHistory()">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
-          History
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="toggleSettingsPanel()">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-          Settings
+        <button id="generateTicketBtn" class="btn btn-success">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5z"/><path stroke-linecap="round" d="M3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/><path stroke-linecap="round" d="M13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/><path stroke-linecap="round" d="M17.25 17.25h.008v.008h-.008z M17.25 13.5h.008v.008h-.008z M13.5 17.25h.008v.008h-.008z"/></svg>
+          QR Ticket
         </button>
       </div>
     </div>
   </header>
 
-  <main style="max-width:1280px;margin:0 auto;padding:24px">
-    <div id="loading-skeleton" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;">
-      <div class="card" style="padding:24px"><div class="skeleton" style="height:20px;width:60%;margin-bottom:16px"></div><div class="skeleton" style="height:70px;margin-bottom:16px"></div><div style="display:flex;gap:12px"><div class="skeleton" style="height:48px;flex:1"></div><div class="skeleton" style="height:48px;flex:1"></div></div><div style="display:flex;gap:8px;margin-top:16px"><div class="skeleton" style="height:38px;flex:1"></div><div class="skeleton" style="height:38px;width:80px"></div></div></div>
-      <div class="card" style="padding:24px"><div class="skeleton" style="height:20px;width:50%;margin-bottom:16px"></div><div class="skeleton" style="height:70px;margin-bottom:16px"></div><div style="display:flex;gap:12px"><div class="skeleton" style="height:48px;flex:1"></div><div class="skeleton" style="height:48px;flex:1"></div></div><div style="display:flex;gap:8px;margin-top:16px"><div class="skeleton" style="height:38px;flex:1"></div><div class="skeleton" style="height:38px;width:80px"></div></div></div>
-      <div class="card" style="padding:24px"><div class="skeleton" style="height:20px;width:55%;margin-bottom:16px"></div><div class="skeleton" style="height:70px;margin-bottom:16px"></div><div style="display:flex;gap:12px"><div class="skeleton" style="height:48px;flex:1"></div><div class="skeleton" style="height:48px;flex:1"></div></div><div style="display:flex;gap:8px;margin-top:16px"><div class="skeleton" style="height:38px;flex:1"></div><div class="skeleton" style="height:38px;width:80px"></div></div></div>
+  <!-- ═══════════ MAIN ═══════════ -->
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+    <!-- Loading State -->
+    <div id="loadingState" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="counter-card p-6 space-y-4"><div class="skeleton h-5 w-3/4"></div><div class="skeleton h-24 w-full"></div><div class="flex gap-3"><div class="skeleton h-10 w-1/2"></div><div class="skeleton h-10 w-1/2"></div></div><div class="flex gap-2"><div class="skeleton h-12 flex-1"></div><div class="skeleton h-12 w-20"></div></div></div>
+      <div class="counter-card p-6 space-y-4 hidden sm:block"><div class="skeleton h-5 w-3/4"></div><div class="skeleton h-24 w-full"></div><div class="flex gap-3"><div class="skeleton h-10 w-1/2"></div><div class="skeleton h-10 w-1/2"></div></div><div class="flex gap-2"><div class="skeleton h-12 flex-1"></div><div class="skeleton h-12 w-20"></div></div></div>
+      <div class="counter-card p-6 space-y-4 hidden lg:block"><div class="skeleton h-5 w-3/4"></div><div class="skeleton h-24 w-full"></div><div class="flex gap-3"><div class="skeleton h-10 w-1/2"></div><div class="skeleton h-10 w-1/2"></div></div><div class="flex gap-2"><div class="skeleton h-12 flex-1"></div><div class="skeleton h-12 w-20"></div></div></div>
+      <p class="col-span-full text-center text-sm text-gray-400 mt-2">Syncing counters…</p>
     </div>
 
-    <div id="empty-state" style="display:none;text-align:center;padding:82px 20px">
-      <div style="width:84px;height:84px;border-radius:22px;background:linear-gradient(135deg,#eef2ff,#fdf2f8);margin:0 auto 20px;display:flex;align-items:center;justify-content:center">
-        <svg width="38" height="38" fill="none" stroke="#818cf8" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4"/></svg>
+    <!-- Error State -->
+    <div id="errorState" class="text-center py-16 hidden">
+      <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
       </div>
-      <h2 style="font-size:22px;font-weight:800;margin:0 0 8px">No Counters Yet</h2>
-      <p style="color:var(--muted);max-width:380px;margin:0 auto 22px;line-height:1.6">Create your first counter to start managing queues and issuing tickets.</p>
-      <button class="btn btn-primary" onclick="openAddCounterModal()">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      <h3 class="text-lg font-semibold text-gray-800 mb-1">Failed to load counters</h3>
+      <p class="text-sm text-gray-500 mb-4" id="errorMsg">Check your connection and try again.</p>
+      <button onclick="location.reload()" class="btn btn-primary">Retry</button>
+    </div>
+
+    <!-- Counters Grid -->
+    <div id="countersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="text-center py-20 hidden">
+      <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center mx-auto mb-5">
+        <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+      </div>
+      <h3 class="text-xl font-bold text-gray-900 mb-2">No Counters Yet</h3>
+      <p class="text-gray-500 mb-6 text-sm">Create your first counter to start managing queues</p>
+      <button id="addCounterBtnEmpty" class="btn btn-primary">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4v16m8-8H4"/></svg>
         Add Your First Counter
       </button>
     </div>
 
-    <div id="counters-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;"></div>
-
-    <!-- Popup History Panel -->
-    <section id="popup-history-panel" class="popup-history-panel" style="display:none;">
-      <div class="card">
-        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <svg width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
-            <h3 style="font-size:16px;font-weight:800">Popup History</h3>
-            <span id="popup-history-count" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+    <!-- ═══════════ POPUP HISTORY SECTION ═══════════ -->
+    <div id="popupHistorySection">
+      <div class="section-toggle" id="popupHistoryToggle">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center justify-center">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="togglePopupHistory()">Close</button>
+          <div>
+            <h3 class="font-bold text-gray-900">Event History</h3>
+            <p class="text-xs text-gray-500">Recent queue join and cancel events</p>
+          </div>
         </div>
-        <div id="popup-history-list" style="max-height:400px;overflow-y:auto">
-          <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No popup events yet.</div>
-        </div>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
       </div>
-    </section>
-
-    <section id="settings-panel" style="display:none;margin-top:32px">
-      <div class="card">
-        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <svg width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            <h3 style="font-size:16px;font-weight:800">Notification Settings</h3>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="toggleSettingsPanel()">Close</button>
-        </div>
-        <div style="padding:22px;display:grid;gap:18px">
-          <div>
-            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Toast Auto-Dismiss (seconds)</label>
-            <input type="number" id="set-toast-duration" class="input" min="3" max="60" value="10" style="max-width:140px">
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Called Message Template</label>
-            <textarea id="set-called-msg" class="input textarea" placeholder="Your number {calledFull} has been called..."></textarea>
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Reminder Message Template</label>
-            <textarea id="set-reminder-msg" class="input textarea" placeholder="Number {calledFull} was called..."></textarea>
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Welcome Message Template</label>
-            <textarea id="set-welcome-msg" class="input textarea" placeholder="Welcome! Your ticket {theirNumber} is registered..."></textarea>
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Cancellation Message Template</label>
-            <textarea id="set-cancel-msg" class="input textarea" placeholder="Your ticket {cancelledNumber} has been cancelled..."></textarea>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div>
-              <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Button Label</label>
-              <input type="text" id="set-btn-label" class="input" placeholder="👉 Explore QueueJoy">
-            </div>
-            <div>
-              <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Button URL</label>
-              <input type="url" id="set-btn-url" class="input" placeholder="https://helloqueuejoy.netlify.app">
-            </div>
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Footer Text</label>
-            <textarea id="set-footer" class="input textarea" style="min-height:72px" placeholder="Curious how this works?..."></textarea>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600">
-              <input type="checkbox" id="set-include-footer" checked>
-              Include footer in messages
-            </label>
-          </div>
-          <div style="border:1px solid var(--border);border-radius:16px;padding:16px;background:#fafafa">
-            <div style="font-size:13px;font-weight:800;color:#6b7280;margin-bottom:10px">Live Preview — Called Message</div>
-            <div id="template-preview" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:14px;white-space:pre-wrap;line-height:1.6;font-size:14px"></div>
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="loadNotificationSettings()">Reset</button>
-            <button class="btn btn-primary btn-sm" onclick="saveNotificationSettings()">Save Settings</button>
+      <div class="section-body" id="popupHistoryBody">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mt-3 p-4">
+          <div id="popupHistoryList" class="space-y-2">
+            <p class="text-sm text-gray-400 text-center py-4">No events yet</p>
           </div>
         </div>
       </div>
-    </section>
+    </div>
+
+    <!-- ═══════════ NOTIFICATION TEMPLATE EDITOR ═══════════ -->
+    <div id="settingsSection">
+      <div class="section-toggle" id="settingsToggle">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93s.844.083 1.207-.166l.72-.488a1.125 1.125 0 011.37.162l.773.773a1.125 1.125 0 01.162 1.37l-.488.72c-.249.363-.326.81-.166 1.207.16.396.506.71.93.78l.894.15c.542.09.94.56.94 1.109v1.094c0 .55-.398 1.02-.94 1.11l-.894.149c-.424.07-.764.384-.93.78s-.083.844.166 1.207l.488.72a1.125 1.125 0 01-.162 1.37l-.773.773a1.125 1.125 0 01-1.37.162l-.72-.488c-.363-.249-.81-.326-1.207-.166-.396.16-.71.506-.78.93l-.15.894c-.09.542-.56.94-1.109.94h-1.094c-.55 0-1.02-.398-1.11-.94l-.149-.894c-.07-.424-.384-.764-.78-.93s-.844-.083-1.207.166l-.72.488a1.125 1.125 0 01-1.37-.162l-.773-.773a1.125 1.125 0 01-.162-1.37l.488-.72c.249-.363.326-.81.166-1.207a1.125 1.125 0 00-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.764-.384.93-.78s.083-.844-.166-1.207l-.488-.72a1.125 1.125 0 01.162-1.37l.773-.773a1.125 1.125 0 011.37-.162l.72.488c.363.249.81.326 1.207.166.396-.16.71-.506.78-.93l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-gray-900">Notification Templates</h3>
+            <p class="text-xs text-gray-500">Customize Telegram messages sent to your customers</p>
+          </div>
+        </div>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </div>
+      <div class="section-body" id="settingsBody">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mt-3 p-6 space-y-6">
+
+          <!-- Called Message -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">🎯 Called Message</label>
+            <p class="text-xs text-gray-400 mb-2">Sent when a customer's number is called. Variables: {counterName} {calledFull} {theirNumber} {tenantName} {slug}</p>
+            <textarea id="tmplCalled" class="textarea-field" rows="3">🎯 Dear customer,
+
+Your number {calledFull} has been called. Please proceed to {counterName}. Thank you!</textarea>
+          </div>
+
+          <!-- Reminder Message -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">🔔 Reminder Message</label>
+            <p class="text-xs text-gray-400 mb-2">Sent to customers still waiting when another number is called.</p>
+            <textarea id="tmplReminder" class="textarea-field" rows="3">🔔 REMINDER
+Number {calledFull} was just called at {counterName}. Your number is {theirNumber}. Stay nearby — we'll notify you when it's your turn!</textarea>
+          </div>
+
+          <!-- Welcome Message -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">👋 Welcome Message</label>
+            <p class="text-xs text-gray-400 mb-2">Sent when a customer first connects via Telegram.</p>
+            <textarea id="tmplWelcome" class="textarea-field" rows="2">👋 Welcome! Your ticket {theirNumber} has been registered at {tenantName}. We'll notify you when it's your turn.</textarea>
+          </div>
+
+          <!-- Cancel Message -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">❌ Cancel Message</label>
+            <p class="text-xs text-gray-400 mb-2">Sent when a customer cancels their ticket. Variables: {cancelledNumber} {counterName} {tenantName} {slug}</p>
+            <textarea id="tmplCancel" class="textarea-field" rows="2">❌ Your ticket {cancelledNumber} has been cancelled. Thank you for your patience.</textarea>
+          </div>
+
+          <!-- Button -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Button Label</label>
+              <input id="tmplBtnLabel" class="input-field" value="👉 Explore QueueJoy" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Button URL</label>
+              <input id="tmplBtnUrl" class="input-field" value="https://helloqueuejoy.netlify.app" />
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Footer Text</label>
+            <textarea id="tmplFooter" class="textarea-field" rows="2">Curious how this works? Tap the button below to explore tools for your business.</textarea>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="toggle-track active" id="footerToggle"><div class="toggle-thumb"></div></div>
+            <span class="text-sm text-gray-600">Include footer in messages</span>
+          </div>
+
+          <!-- Toast Duration -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">🔔 Queue Join Popup Duration (seconds)</label>
+            <input id="toastDuration" type="number" min="3" max="60" value="10" class="input-field" style="max-width:120px" />
+          </div>
+
+          <!-- Preview -->
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Preview — Called Message</h4>
+            <div class="msg-preview" id="tmplPreview"></div>
+          </div>
+
+          <button id="saveSettingsBtn" class="btn btn-primary w-full sm:w-auto">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
-  <div class="modal" id="modal-counter">
-    <div class="modal-card">
-      <div class="modal-head">
-        <h3 id="modal-counter-title" style="margin:0;font-size:18px;font-weight:800">Add Counter</h3>
+  <!-- ═══════════ ADD/EDIT COUNTER MODAL ═══════════ -->
+  <div id="counterModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card max-w-md animate-modal-in">
+      <div class="p-6 rounded-t-[20px] text-white" style="background:linear-gradient(135deg,var(--primary),var(--primary-deep))">
+        <h2 id="counterModalTitle" class="text-xl font-bold">Add Counter</h2>
+        <p class="text-sm text-white/70 mt-1">Configure a new service counter</p>
       </div>
-      <div style="padding:22px;display:grid;gap:16px">
-        <input type="hidden" id="edit-counter-id">
+      <form id="counterForm" class="p-6 space-y-5">
+        <input type="hidden" id="counterIdInput"/>
         <div>
-          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Counter Name</label>
-          <input type="text" id="counter-name" class="input" placeholder="e.g. Counter Cappuccino" maxlength="50">
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Counter Name</label>
+          <input id="counterNameInput" maxlength="50" required class="input-field" placeholder="e.g., Counter Ice Cream"/>
         </div>
         <div>
-          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Prefix (max 7 chars)</label>
-          <input type="text" id="counter-prefix" class="input" placeholder="e.g. CAP" maxlength="7" style="text-transform:uppercase">
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Prefix <span class="font-normal text-gray-400">(max 7 chars)</span></label>
+          <input id="counterPrefixInput" maxlength="7" required class="input-field uppercase" placeholder="e.g., ICE"/>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost" onclick="closeModal('modal-counter')">Cancel</button>
-          <button class="btn btn-primary" id="btn-save-counter" onclick="saveCounter()">Save Counter</button>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" class="btn btn-primary flex-1">Save Counter</button>
+          <button type="button" id="closeCounterModalBtn" class="btn btn-ghost flex-1">Cancel</button>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 
-  <div class="modal" id="modal-delete">
-    <div class="modal-card small">
-      <div style="padding:30px 24px;text-align:center">
-        <div style="width:58px;height:58px;border-radius:999px;background:#fef2f2;margin:0 auto 14px;display:flex;align-items:center;justify-content:center">
-          <svg width="28" height="28" fill="none" stroke="#dc2626" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </div>
-        <h3 style="font-size:18px;font-weight:800;margin:0 0 6px">Delete Counter?</h3>
-        <p style="margin:0 0 22px;color:var(--muted);line-height:1.6">This action cannot be undone. Queue data linked to this counter will be removed.</p>
-        <input type="hidden" id="delete-counter-id">
-        <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost" onclick="closeModal('modal-delete')">Cancel</button>
-          <button class="btn btn-danger" onclick="confirmDeleteCounter()">Delete</button>
-        </div>
+  <!-- ═══════════ QR TICKET MODAL ═══════════ -->
+  <div id="ticketModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card max-w-3xl animate-modal-in">
+      <div class="p-6 rounded-t-[20px] text-white" style="background:linear-gradient(135deg,var(--success),var(--success-deep))">
+        <h2 class="text-xl font-bold">Generate QR Ticket</h2>
+        <p class="text-sm text-white/70 mt-1">QR code links customers to your live queue status page</p>
       </div>
-    </div>
-  </div>
-
-  <div class="modal" id="modal-qr">
-    <div class="modal-card">
-      <div class="modal-head" style="background:linear-gradient(135deg,#10b981,#14b8a6)">
-        <h3 style="margin:0;font-size:18px;font-weight:800">Generate QR Code</h3>
-      </div>
-      <div style="padding:22px;display:grid;grid-template-columns:1fr 1fr;gap:22px">
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <p style="margin:0;color:var(--muted);line-height:1.6;font-size:13px">This QR code points customers to your QueueJoy index page.</p>
-          <button class="btn btn-primary btn-sm" onclick="generateQr()">Generate QR</button>
-          <button class="btn btn-success btn-sm" onclick="downloadQrPng()" id="btn-download-qr" style="display:none">Download PNG</button>
-          <button class="btn btn-ghost btn-sm" onclick="copyQrUrl()">Copy URL</button>
-          <button class="btn btn-success btn-sm" onclick="openIndexPage()">Open Index Page</button>
-          <button class="btn btn-warning btn-sm" onclick="openExternalQrGenerator()">Open Online QR Generator</button>
-          <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-qr')">Close</button>
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:800;color:#6b7280;margin-bottom:8px">QR Preview</div>
-          <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:16px;min-height:260px;display:flex;align-items:center;justify-content:center;padding:16px">
-            <canvas id="qr-canvas" style="display:none;max-width:100%"></canvas>
-            <p id="qr-placeholder" style="margin:0;color:var(--muted);font-size:13px">Click "Generate QR" to create the code</p>
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-3">
+          <p class="text-sm text-gray-500">The QR encodes a link to your tenant's <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">index.html?slug=…</code> page.</p>
+          <div class="flex flex-col gap-2">
+            <button id="generateBtn" class="btn btn-success w-full">Generate &amp; Download QR</button>
+            <button id="openStatusBtn" class="btn btn-primary w-full hidden">Open Status Page</button>
+            <button id="downloadQRBtn" class="btn btn-ghost w-full hidden">Download PNG</button>
+            <button id="copyQRUrlBtn" class="btn btn-ghost w-full hidden">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copy QR URL
+            </button>
+            <a id="externalQRLink" href="https://online-qr-generator.com/en/qr?step=1&qr_onboarding=active_nsf" target="_blank" rel="noopener" class="btn btn-ghost w-full hidden text-center" style="text-decoration:none">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-3-4.5h6m0 0v6m0-6L12 15"/></svg>
+              Open Online QR Generator
+            </a>
+            <button id="closeTicketModalBtn" type="button" class="btn btn-ghost w-full">Close</button>
           </div>
-          <div style="margin-top:8px;font-size:11px;color:var(--muted)">QR URL: <code id="qr-url-display"></code></div>
+          <p class="text-xs text-gray-400 italic">Use the online generator for advanced styling options.</p>
+        </div>
+        <div class="flex flex-col items-center gap-3">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">QR Preview</span>
+          <div id="ticketQRCode" class="bg-white rounded-xl p-4 border border-gray-100 flex items-center justify-center min-h-[200px] w-full max-w-[320px]">
+            <span class="text-sm text-gray-300">Click "Generate" to create QR</span>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import {
-    getDatabase, ref, set, get, update, push, onValue
-  } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+  <!-- ═══════════ DELETE MODAL ═══════════ -->
+  <div id="deleteModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card max-w-sm animate-modal-in p-7 text-center">
+      <div class="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-7 h-7 text-red-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-1">Delete this counter?</h3>
+      <p class="text-sm text-gray-500 mb-6">This action cannot be undone. All related queue data will be lost.</p>
+      <div class="flex gap-3">
+        <button id="confirmDeleteBtn" class="btn btn-danger flex-1">Delete</button>
+        <button id="cancelDeleteBtn" class="btn btn-ghost flex-1">Cancel</button>
+      </div>
+    </div>
+  </div>
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBYJlAo0HnclifELg99BgLBU6U_OCnUoH8",
-    authDomain: "queuejoy-live.firebaseapp.com",
-    databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "queuejoy-live",
-    storageBucket: "queuejoy-live.firebasestorage.app",
-    messagingSenderId: "882772437195",
-    appId: "1:882772437195:web:60a2f1081a139d0810d34e",
-    measurementId: "G-KWBELWRC5M"
-  };
+  <!-- ═══════════ CENTER EVENT POPUP ═══════════ -->
+  <div id="eventPopup" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card max-w-sm animate-modal-in p-7 text-center">
+      <div id="eventPopupIcon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:#eef2ff">
+        <span style="font-size:32px">🎫</span>
+      </div>
+      <h3 id="eventPopupTitle" class="text-lg font-bold text-gray-900 mb-1">New Ticket</h3>
+      <p id="eventPopupMessage" class="text-sm text-gray-500 mb-3"></p>
+      <p id="eventPopupNumber" class="text-3xl font-extrabold mb-5" style="color:#4338ca"></p>
+      <button id="eventPopupDismissBtn" class="btn btn-primary w-full">Dismiss</button>
+    </div>
+  </div>
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const $ = (id) => document.getElementById(id);
+  <!-- ═══════════ TOAST CONTAINER ═══════════ -->
+  <div id="toast-container"></div>
 
-  const tenantState = {
-    slug: '',
-    tenantId: '',
-    config: {},
-    counters: {},
-    queue: {},
-    prevQueue: {},
-    countersLoaded: false,
-    queueLoaded: false,
-    initialQueueSnapshot: false,
-    popupHistory: [],
-    toastDurationMs: 10000,
-    renderQueued: false,
-    sessionId: `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  };
+  <!-- ═══════════ QA BADGE ═══════════ -->
+  <div id="tenant-slug-badge">
+    <span id="tenant-slug-value">—</span>
+    <span id="tenant-id-value" style="margin-left:6px;opacity:.8"></span>
+  </div>
 
-  function now() { return Date.now(); }
-  function normalizeStr(v) { return String(v ?? '').trim(); }
-  function normalizeStatus(v) {
-    const s = normalizeStr(v).toLowerCase();
-    if (!s) return '';
-    if (['call', 'called', 'serving', 'service', 'inservice', 'in_service'].includes(s)) return 'serving';
-    if (['wait', 'waiting', 'queued', 'queue', 'pending', 'new', 'ready'].includes(s)) return 'waiting';
-    if (['done', 'completed', 'complete', 'closed', 'close', 'finished'].includes(s)) return 'completed';
-    if (['cancel', 'cancelled', 'canceled'].includes(s)) return 'cancelled';
-    return s;
-  }
-  function isWaitingLike(q) { return normalizeStatus(q?.status) === 'waiting' || !normalizeStatus(q?.status); }
-  function isServingLike(q) { return normalizeStatus(q?.status) === 'serving'; }
-  function isCompletedLike(q) { return normalizeStatus(q?.status) === 'completed'; }
-  function isCancelledLike(q) { return normalizeStatus(q?.status) === 'cancelled'; }
-  function isCallableLike(q) { return !isCompletedLike(q) && !isCancelledLike(q); }
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ═══════════ SCRIPT — ALL LOGIC ═══════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, update, remove, push, get, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  function normalizePrefix(v) {
-    return normalizeStr(v).toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12);
-  }
-  function pad3(num) {
-    const n = Number(num);
-    return String(Number.isFinite(n) && n > 0 ? n : 1).padStart(3, '0');
-  }
-  function ticketFull(prefix, num) {
-    return `${normalizePrefix(prefix)}${pad3(num)}`;
-  }
-  function extractNumericSuffix(value) {
-    const m = normalizeStr(value).match(/(\d+)$/);
-    return m ? parseInt(m[1], 10) : NaN;
-  }
-  function extractPrefixFromNumber(number) {
-    const n = normalizeStr(number).toUpperCase();
-    const m = n.match(/^([A-Z][A-Z0-9_-]*?)(\d+)$/);
-    if (m) return normalizePrefix(m[1]);
-    return normalizePrefix(n.replace(/\d+$/, ''));
-  }
-  function escapeHtml(s) {
-    return String(s ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
-  function formatTime(ts) {
-    if (!ts) return '—';
-    try {
-      return new Date(Number(ts)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    } catch {
-      return '—';
+    const NOTIFY_ENDPOINT = '/.netlify/functions/notifyCounter';
+
+    const siteFirebaseConfig = {
+      apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
+      authDomain: "queue-joy-aa21b.firebaseapp.com",
+      databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "queue-joy-aa21b",
+      storageBucket: "queue-joy-aa21b.firebasestorage.app",
+      messagingSenderId: "950240394209",
+      appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+    };
+
+    /* ══════════ DOM REFS ══════════ */
+    const $ = (id) => document.getElementById(id);
+    const loadingState     = $('loadingState');
+    const errorState       = $('errorState');
+    const countersGrid     = $('countersGrid');
+    const emptyState       = $('emptyState');
+    const addCounterBtn    = $('addCounterBtn');
+    const addCounterBtnE   = $('addCounterBtnEmpty');
+    const counterModal     = $('counterModal');
+    const counterForm      = $('counterForm');
+    const counterIdInput   = $('counterIdInput');
+    const counterNameInput = $('counterNameInput');
+    const counterPrefixInput = $('counterPrefixInput');
+    const counterModalTitle  = $('counterModalTitle');
+    const closeCounterModalBtn = $('closeCounterModalBtn');
+    const ticketModal      = $('ticketModal');
+    const ticketQRCode     = $('ticketQRCode');
+    const generateBtn      = $('generateBtn');
+    const closeTicketModalBtn = $('closeTicketModalBtn');
+    const openStatusBtn    = $('openStatusBtn');
+    const downloadQRBtn    = $('downloadQRBtn');
+    const copyQRUrlBtn     = $('copyQRUrlBtn');
+    const externalQRLink   = $('externalQRLink');
+    const deleteModal      = $('deleteModal');
+    const confirmDeleteBtn = $('confirmDeleteBtn');
+    const cancelDeleteBtn  = $('cancelDeleteBtn');
+    const eventPopup       = $('eventPopup');
+    const badge            = $('tenant-slug-badge');
+    const badgeSlug        = $('tenant-slug-value');
+    const badgeId          = $('tenant-id-value');
+    const connDot          = $('connDot');
+    const connLabel        = $('connLabel');
+    const settingsToggle   = $('settingsToggle');
+    const settingsBody     = $('settingsBody');
+    const toastContainer   = $('toast-container');
+
+    /* ══════════ STATE ══════════ */
+    let countersData = {};
+    let queueData = {};
+    let previousQueueData = {};
+    let deleteTargetId = null;
+    let countersLoaded = false;
+    let queueLoaded = false;
+    let notifSettings = {};
+    let toastDismissMs = 10000;
+    let includeFooter = true;
+    let lastQRCanvas = null;
+    let qrUrl = '';
+    let eventPopupTimer = null;
+    let popupDedupeKeys = new Set();
+    let popupHistory = [];
+    const MAX_POPUP_HISTORY = 20;
+
+    /* ══════════ HELPERS ══════════ */
+    function esc(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
-  }
-  function formatDateTime(ts) {
-    if (!ts) return '—';
-    try {
-      return new Date(Number(ts)).toLocaleString();
-    } catch {
-      return '—';
+    function fmt(prefix, num) {
+      return `${prefix}${String(num).padStart(3, '0')}`;
     }
-  }
-  function tenantRef(path = '') {
-    return ref(db, `tenants/${tenantState.tenantId}${path ? '/' + path : ''}`);
-  }
-  function scheduleRender() {
-    if (tenantState.renderQueued) return;
-    tenantState.renderQueued = true;
-    requestAnimationFrame(() => {
-      tenantState.renderQueued = false;
-      renderCounters();
-    });
-  }
-
-  function showToast(message, type = 'info', duration = null) {
-    const wrap = $('toast-wrap');
-    if (!wrap) return;
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : type === 'error' ? '❌' : 'ℹ️';
-    el.innerHTML = `<span>${icon}</span><div style="flex:1">${message}</div><span class="close">×</span>`;
-    el.querySelector('.close').onclick = () => el.remove();
-    wrap.appendChild(el);
-    const ms = duration === null ? tenantState.toastDurationMs : duration;
-    if (ms > 0) setTimeout(() => { if (el.isConnected) el.remove(); }, ms);
-  }
-
-  function setConnectionStatus(connected) {
-    const el = $('connection-status');
-    if (!el) return;
-    el.innerHTML = connected
-      ? '<span class="status-dot status-live"></span> Live'
-      : '<span class="status-dot status-offline"></span> Offline';
-  }
-
-  async function resolveTenant() {
-    const params = new URLSearchParams(window.location.search);
-    const pathSlug = window.location.pathname.split('/').filter(Boolean)[0] || '';
-    tenantState.slug = params.get('slug') || pathSlug || '';
-
-    if (!tenantState.slug) {
-      showToast('Missing tenant slug. Open with ?slug=your-slug.', 'error', 0);
-      return false;
+    function parseNumericSuffix(s) {
+      if (!s) return 0;
+      const m = String(s).match(/(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
     }
-
-    window.__TENANT_SLUG = tenantState.slug;
-
-    try {
-      const resp = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(tenantState.slug)}`);
-      if (resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        tenantState.tenantId = normalizeStr(data.tenantId || data.id || data.tenant || tenantState.slug);
-        if (data.config && typeof data.config === 'object') tenantState.config = data.config;
-      }
-    } catch (e) {}
-
-    if (!tenantState.tenantId) {
+    function isCancelledStatus(status) {
+      if (!status) return false;
+      const s = String(status).toLowerCase();
+      return s === 'cancelled' || s === 'canceled';
+    }
+    function playBeep() {
       try {
-        const slugSnap = await get(ref(db, `slugs/${tenantState.slug}`));
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.12;
+        o.connect(g); g.connect(ctx.destination); o.start();
+        setTimeout(() => { o.stop(); try { ctx.close(); } catch(_){} }, 160);
+      } catch(_){}
+    }
+
+    /* ══════════ TOAST SYSTEM ══════════ */
+    function showToast(message, type = 'info', durationMs = null) {
+      const dur = durationMs || (type === 'queue' ? toastDismissMs : 5000);
+      const el = document.createElement('div');
+      el.className = `toast-item toast-${type}`;
+      const icon = { success:'✅', error:'❌', info:'ℹ️', queue:'🎫' }[type] || 'ℹ️';
+      el.innerHTML = `
+        <span style="font-size:18px;flex-shrink:0">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <p style="font-size:13px;line-height:1.4;margin:0;color:#374151;word-break:break-word">${esc(message)}</p>
+        </div>
+        <button onclick="this.parentElement.classList.add('removing');setTimeout(()=>this.parentElement.remove(),300)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:18px;padding:0;line-height:1;flex-shrink:0">×</button>
+        <div class="toast-progress" style="width:100%;color:${type==='success'?'var(--success)':type==='error'?'var(--danger)':type==='queue'?'#8b5cf6':'var(--primary)'}"></div>
+      `;
+      toastContainer.appendChild(el);
+      const prog = el.querySelector('.toast-progress');
+      requestAnimationFrame(() => { prog.style.width = '0%'; prog.style.transitionDuration = dur + 'ms'; });
+      setTimeout(() => {
+        el.classList.add('removing');
+        setTimeout(() => el.remove(), 300);
+      }, dur);
+    }
+
+    /* ══════════ MODAL HELPERS ══════════ */
+    function openModal(modal) { modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); }
+    function closeModal(modal) { modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
+
+    /* ══════════ CENTER EVENT POPUP ══════════ */
+    function showCenterPopup(type, queueNumber, counterName) {
+      const icon = $('eventPopupIcon');
+      const title = $('eventPopupTitle');
+      const message = $('eventPopupMessage');
+      const numDisplay = $('eventPopupNumber');
+
+      if (type === 'join') {
+        icon.style.background = '#eef2ff';
+        icon.querySelector('span').textContent = '🎫';
+        title.textContent = 'New Ticket Joined';
+        message.textContent = `A customer has joined the queue at ${counterName || 'the counter'}`;
+        numDisplay.textContent = queueNumber;
+        numDisplay.style.color = '#4338ca';
+      } else if (type === 'cancel') {
+        icon.style.background = '#fef2f2';
+        icon.querySelector('span').textContent = '❌';
+        title.textContent = 'Ticket Cancelled';
+        message.textContent = `Ticket has been cancelled from the queue`;
+        numDisplay.textContent = queueNumber;
+        numDisplay.style.color = '#dc2626';
+      }
+
+      openModal(eventPopup);
+      playBeep();
+
+      if (eventPopupTimer) clearTimeout(eventPopupTimer);
+      eventPopupTimer = setTimeout(() => closeModal(eventPopup), toastDismissMs);
+    }
+
+    $('eventPopupDismissBtn').addEventListener('click', () => {
+      if (eventPopupTimer) clearTimeout(eventPopupTimer);
+      closeModal(eventPopup);
+    });
+
+    /* ══════════ POPUP HISTORY ══════════ */
+    function addPopupHistoryEvent(type, queueNumber, counterId, counterName, tenantIdVal, slugVal) {
+      const event = {
+        type,
+        queueNumber: queueNumber || '',
+        counterId: counterId || '',
+        counterName: counterName || '',
+        tenantId: tenantIdVal || window.__TENANT_ID || '',
+        slug: slugVal || window.__TENANT_SLUG || '',
+        timestamp: Date.now(),
+        source: 'counter-panel',
+        message: type === 'queue_joined'
+          ? `${queueNumber || '?'} joined at ${counterName || 'counter'}`
+          : `${queueNumber || '?'} cancelled`,
+      };
+
+      popupHistory.unshift(event);
+      if (popupHistory.length > MAX_POPUP_HISTORY) popupHistory.pop();
+      renderPopupHistory();
+
+      // Write to Firebase (fire-and-forget)
+      try {
+        push(tenantRef('audit/popupHistory'), event).catch(err =>
+          console.warn('Failed to write popup history', err)
+        );
+      } catch (_) {}
+    }
+
+    function renderPopupHistory() {
+      const list = $('popupHistoryList');
+      if (!popupHistory.length) {
+        list.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No events yet</p>';
+        return;
+      }
+      list.innerHTML = popupHistory.map(ev => {
+        const isJoin = ev.type === 'queue_joined';
+        const badge = isJoin
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">Joined</span>'
+          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700">Cancelled</span>';
+        const icon = isJoin ? '🎫' : '❌';
+        const time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
+        return `
+          <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <span class="text-lg flex-shrink-0">${icon}</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-gray-800">${esc(ev.queueNumber || '—')}</p>
+              <p class="text-xs text-gray-400 truncate">${esc(ev.counterName || '')} · ${time}</p>
+            </div>
+            ${badge}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Popup history toggle
+    $('popupHistoryToggle').addEventListener('click', () => {
+      $('popupHistoryToggle').classList.toggle('open');
+      $('popupHistoryBody').classList.toggle('open');
+    });
+
+    /* ══════════ TENANT RESOLUTION ══════════ */
+    function getSlug() {
+      try {
+        const qp = new URLSearchParams(window.location.search);
+        const s = qp.get('slug');
+        if (s && s.trim()) return s.trim();
+        const parts = window.location.pathname.split('/').filter(Boolean);
+        return parts.length > 0 ? parts[0] : null;
+      } catch(_) { return null; }
+    }
+
+    const slug = getSlug();
+    if (!slug) {
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      $('errorMsg').textContent = 'Missing slug — open with ?slug=your-tenant-slug';
+      throw new Error('No slug');
+    }
+    window.__TENANT_SLUG = slug;
+    badgeSlug.textContent = slug;
+    badge.style.display = 'block';
+
+    let tenantId = null;
+    let tenantResolved = false;
+
+    // Try the API first
+    try {
+      const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Tenant lookup failed (${res.status})`);
+      const j = await res.json();
+      tenantId = j.tenantId || (j.config && j.config.tenantId) || null;
+      if (tenantId) {
+        tenantResolved = true;
+        window.__TENANT_ID = tenantId;
+        window.__TENANT_PUBLIC_CONFIG = j.config || j.public || {};
+        badgeId.textContent = `id:${tenantId}`;
+        if (window.__TENANT_PUBLIC_CONFIG.displayName) {
+          $('pageTitle').textContent = window.__TENANT_PUBLIC_CONFIG.displayName + ' — Counters';
+          document.title = window.__TENANT_PUBLIC_CONFIG.displayName + ' · Counter Management';
+        }
+      }
+    } catch (e) {
+      console.warn('API tenant resolution failed', e);
+    }
+
+    // Fallback: try slugs/{slug} in Firebase directly
+    if (!tenantResolved) {
+      try {
+        const tempApp = initializeApp(siteFirebaseConfig, '__tenantLookup__');
+        const tempDb = getDatabase(tempApp);
+        const slugSnap = await get(ref(tempDb, `slugs/${slug}`));
         if (slugSnap.exists()) {
           const val = slugSnap.val();
-          tenantState.tenantId = typeof val === 'string'
-            ? val
-            : normalizeStr(val?.tenantId || val?.id || tenantState.slug);
+          if (typeof val === 'string' && val.trim()) {
+            tenantId = val.trim();
+          } else if (val && typeof val === 'object' && val.tenantId) {
+            tenantId = String(val.tenantId);
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Firebase slug lookup failed', e);
+      }
     }
 
-    if (!tenantState.tenantId) tenantState.tenantId = tenantState.slug;
-    window.__TENANT_ID = tenantState.tenantId;
-
-    if (!tenantState.config.displayName) {
-      try {
-        const cfgSnap = await get(tenantRef('public/config'));
-        if (cfgSnap.exists()) tenantState.config = cfgSnap.val() || {};
-      } catch (e) {}
+    if (!tenantId) {
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      $('errorMsg').textContent = 'Could not resolve tenant for slug "' + slug + '". Please check the URL.';
+      throw new Error('Tenant resolution failed — refusing to use slug as tenantId');
     }
 
-    const displayName = tenantState.config?.displayName || tenantState.slug;
-    if ($('page-title')) $('page-title').textContent = `${displayName} — Counter`;
-    if ($('qr-url-display')) $('qr-url-display').textContent = `${window.location.origin}/index.html?slug=${encodeURIComponent(tenantState.slug)}`;
-    if ($('qa-badge')) {
-      $('qa-badge').style.display = 'block';
-      $('qa-badge').textContent = `slug: ${tenantState.slug} | tenantId: ${tenantState.tenantId}`;
-    }
-    return true;
-  }
+    window.__TENANT_ID = tenantId;
+    window.__TENANT_PUBLIC_CONFIG = window.__TENANT_PUBLIC_CONFIG || {};
+    badgeId.textContent = `id:${tenantId}`;
 
-  function getCounterList() {
-    return Object.entries(tenantState.counters || {})
-      .map(([id, c]) => ({ id, ...(c || {}) }))
-      .filter(c => c && c.active !== false)
-      .sort((a, b) => (a.updatedAt || a.createdAt || 0) - (b.updatedAt || b.createdAt || 0));
-  }
-
-  function counterMatchesQueue(counter, q) {
-    if (!counter || !q) return false;
-
-    const cid = normalizeStr(counter.id);
-    const qCounterIds = [
-      q.counterId, q.counter, q.assignedCounterId, q.counterRef, q.counter_id
-    ].map(normalizeStr).filter(Boolean);
-
-    if (qCounterIds.includes(cid)) return true;
-
-    const counterPrefix = normalizePrefix(counter.prefix);
-    const qPrefix = normalizePrefix(q.counterPrefix || q.prefix || extractPrefixFromNumber(q.number || q.queueNumber || q.ticketNumber));
-    if (counterPrefix && qPrefix && counterPrefix === qPrefix) return true;
-
-    const counterName = normalizeStr(counter.name).toLowerCase();
-    const qNames = [
-      q.counterName, q.counterLabel, q.counterDisplay, q.assignedCounterName
-    ].map(v => normalizeStr(v).toLowerCase()).filter(Boolean);
-
-    if (counterName && qNames.some(n => n === counterName || n.includes(counterName) || counterName.includes(n))) return true;
-
-    const numberPrefix = extractPrefixFromNumber(q.number || q.queueNumber || q.ticketNumber);
-    if (counterPrefix && numberPrefix && counterPrefix === numberPrefix) return true;
-
-    return false;
-  }
-
-  function sortByTimestamp(entries) {
-    return entries.sort((a, b) => {
-      const ta = a.timestamp || a.createdAt || a.updatedAt || a.calledAt || a.completedAt || a.cancelledAt || 0;
-      const tb = b.timestamp || b.createdAt || b.updatedAt || b.calledAt || b.completedAt || b.cancelledAt || 0;
-      return ta - tb;
-    });
-  }
-
-  function getQueueItemsForCounter(counter) {
-    const entries = Object.entries(tenantState.queue || {})
-      .map(([id, q]) => ({ id, ...(q || {}) }))
-      .filter(q => isCallableLike(q) && (isWaitingLike(q) || isServingLike(q) || !normalizeStatus(q.status)));
-
-    const matched = sortByTimestamp(entries.filter(q => counterMatchesQueue(counter, q)));
-    if (matched.length) return matched;
-
-    const counters = getCounterList();
-    if (counters.length === 1) return sortByTimestamp(entries);
-
-    const prefix = normalizePrefix(counter.prefix);
-    if (prefix) {
-      const prefixMatched = sortByTimestamp(entries.filter(q => {
-        const qPrefix = normalizePrefix(q.counterPrefix || q.prefix || extractPrefixFromNumber(q.number));
-        return qPrefix === prefix;
-      }));
-      if (prefixMatched.length) return prefixMatched;
-    }
-
-    return [];
-  }
-
-  function getWaitingItemsForCounter(counter) {
-    return getQueueItemsForCounter(counter).filter(isWaitingLike);
-  }
-
-  function getServingItemsForCounter(counter) {
-    return getQueueItemsForCounter(counter).filter(isServingLike);
-  }
-
-  function getCurrentItemForCounter(counter) {
-    return getServingItemsForCounter(counter)[0] || null;
-  }
-
-  function buildStatsForCounter(counter) {
-    const stats = { waiting: 0, serving: 0, completed: 0, cancelled: 0, total: 0, lastTs: 0 };
-    for (const [id, q] of Object.entries(tenantState.queue || {})) {
-      if (!q || !counterMatchesQueue(counter, { ...q, id })) continue;
-      stats.total++;
-      const s = normalizeStatus(q.status);
-      if (s === 'waiting' || !s) stats.waiting++;
-      else if (s === 'serving') stats.serving++;
-      else if (s === 'completed') stats.completed++;
-      else if (s === 'cancelled') stats.cancelled++;
-      const ts = q.updatedAt || q.calledAt || q.completedAt || q.cancelledAt || q.createdAt || 0;
-      if (ts > stats.lastTs) stats.lastTs = ts;
-    }
-    return stats;
-  }
-
-  function queueEntryToRecipient(qid, q) {
-    return {
-      chatId: q?.chatId || q?.chat_id || null,
-      theirNumber: q?.number || q?.queueNumber || qid,
-      ticketId: qid
-    };
-  }
-
-  function logStatusEvent(type, qid, q, counter, extra = {}) {
+    /* ══════════ FIREBASE INIT ══════════ */
+    let app, db;
     try {
-      const eventId = push(tenantRef('audit/statusEvents')).key;
-      set(tenantRef(`audit/statusEvents/${eventId}`), {
-        type,
-        queueId: qid,
-        queueNumber: q?.number || q?.queueNumber || qid,
-        counterId: counter?.id || q?.counterId || '',
-        counterName: counter?.name || q?.counterName || '',
-        fromStatus: extra.fromStatus || '',
-        toStatus: extra.toStatus || '',
-        timestamp: now(),
-        tenantId: tenantState.tenantId,
-        slug: tenantState.slug,
-        sessionId: tenantState.sessionId,
-        userAgent: navigator.userAgent,
-        platform: navigator.platform || 'web',
-        ...extra
-      });
+      app = initializeApp(siteFirebaseConfig);
+      db = getDatabase(app);
     } catch (e) {
-      console.warn('status log failed', e);
+      // App may already be initialized
+      try {
+        const { getApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+        app = getApp();
+        db = getDatabase(app);
+      } catch (e2) {
+        loadingState.classList.add('hidden');
+        errorState.classList.remove('hidden');
+        $('errorMsg').textContent = 'Failed to initialize Firebase: ' + e.message;
+        throw e;
+      }
     }
-  }
 
-  function updateCompletionAnalytics(updates, qid, q, counter, completedAt) {
-    const startedAt = q.calledAt || q.servedAt || q.updatedAt || q.createdAt || q.timestamp || completedAt;
-    const serviceMs = Math.max(0, Number(completedAt) - Number(startedAt || completedAt));
-    const eventId = push(tenantRef('analytics/serviceEvents')).key;
-    updates[`tenants/${tenantState.tenantId}/analytics/serviceEvents/${eventId}`] = {
-      type: 'service_completed',
-      serviceMs: Number(serviceMs) || 0,
-      startedAt: Number(startedAt) || completedAt,
-      completedAt: Number(completedAt),
-      timestamp: Number(completedAt),
-      counterId: counter.id,
-      counter: counter.name || counter.id,
-      queueId: qid,
-      queueNumber: q.number || q.queueNumber || qid,
-      tenantId: tenantState.tenantId,
-      slug: tenantState.slug,
-      sessionId: tenantState.sessionId,
-      userAgent: navigator.userAgent,
-      platform: navigator.platform || 'web'
+    const tenantRef = (relPath = '') => {
+      const base = `tenants/${window.__TENANT_ID}`;
+      relPath = String(relPath || '').replace(/^\/+/, '');
+      return relPath ? ref(db, `${base}/${relPath}`) : ref(db, base);
     };
-  }
 
-  function renderCounters() {
-    const skeleton = $('loading-skeleton');
-    const grid = $('counters-grid');
-    const empty = $('empty-state');
-    if (!grid || !skeleton || !empty) return;
+    /* ══════════ CONNECTION STATUS ══════════ */
+    const connRef = ref(db, '.info/connected');
+    onValue(connRef, (snap) => {
+      const connected = snap.val() === true;
+      connDot.className = 'conn-dot ' + (connected ? 'live' : 'offline');
+      connLabel.textContent = connected ? 'Live' : 'Offline';
+    });
 
-    if (!tenantState.countersLoaded) {
-      skeleton.style.display = 'grid';
-      grid.style.display = 'none';
-      empty.style.display = 'none';
-      return;
+    /* ══════════ REAL-TIME LISTENERS ══════════ */
+    // Counters
+    onValue(tenantRef('counters'), (snap) => {
+      countersData = (snap && snap.val()) || {};
+      countersLoaded = true;
+      renderCounters();
+    }, (err) => {
+      console.error('Counter listener error', err);
+      if (!countersLoaded) {
+        loadingState.classList.add('hidden');
+        errorState.classList.remove('hidden');
+        $('errorMsg').textContent = 'Firebase error: ' + err.message;
+      }
+    });
+
+    // Queue (for join/cancel popups + waiting counts)
+    onValue(tenantRef('queue'), (snap) => {
+      const newData = (snap && snap.val()) || {};
+
+      if (queueLoaded) {
+        // Detect new joins (new keys with waiting status)
+        for (const [k, entry] of Object.entries(newData)) {
+          if (!entry) continue;
+          if (previousQueueData[k]) continue; // existing item, not a new join
+          const st = String(entry.status || 'waiting').toLowerCase();
+          if (st === 'waiting') {
+            const dedupeKey = `join_${k}`;
+            if (!popupDedupeKeys.has(dedupeKey)) {
+              popupDedupeKeys.add(dedupeKey);
+              const num = entry.number || entry.queueNumber || entry.queueId || k;
+              const cId = entry.counterId || entry.counter || '';
+              const cName = (countersData[cId] && countersData[cId].name) || cId || 'Queue';
+              showCenterPopup('join', num, cName);
+              addPopupHistoryEvent('queue_joined', num, cId, cName);
+            }
+          }
+        }
+
+        // Detect cancellations (status changed to cancelled/canceled)
+        for (const [k, entry] of Object.entries(newData)) {
+          if (!entry) continue;
+          const oldEntry = previousQueueData[k];
+          if (!oldEntry) continue;
+          const oldSt = String(oldEntry.status || 'waiting').toLowerCase();
+          const newSt = String(entry.status || '').toLowerCase();
+          if ((newSt === 'cancelled' || newSt === 'canceled') && oldSt !== 'cancelled' && oldSt !== 'canceled') {
+            const dedupeKey = `cancel_${k}`;
+            if (!popupDedupeKeys.has(dedupeKey)) {
+              popupDedupeKeys.add(dedupeKey);
+              const num = entry.number || entry.queueNumber || entry.queueId || k;
+              const cId = entry.counterId || entry.counter || '';
+              const cName = (countersData[cId] && countersData[cId].name) || cId || 'Queue';
+              showCenterPopup('cancel', num, cName);
+              addPopupHistoryEvent('queue_cancelled', num, cId, cName);
+            }
+          }
+        }
+      } else {
+        // Initial load: seed dedupe keys but don't show popups
+        for (const [k, entry] of Object.entries(newData)) {
+          if (!entry) continue;
+          const st = String(entry.status || 'waiting').toLowerCase();
+          if (st === 'waiting') popupDedupeKeys.add(`join_${k}`);
+          if (st === 'cancelled' || st === 'canceled') popupDedupeKeys.add(`cancel_${k}`);
+        }
+      }
+
+      // Deep copy for next comparison
+      try {
+        previousQueueData = JSON.parse(JSON.stringify(newData));
+      } catch (_) {
+        previousQueueData = {};
+      }
+      queueData = newData;
+      queueLoaded = true;
+      if (countersLoaded) renderCounters();
+    });
+
+    // Notification settings
+    onValue(tenantRef('settings/notifications'), (snap) => {
+      const s = (snap && snap.val()) || {};
+      notifSettings = s;
+      if (s.calledMessage) $('tmplCalled').value = s.calledMessage;
+      if (s.reminderMessage) $('tmplReminder').value = s.reminderMessage;
+      if (s.welcomeMessage) $('tmplWelcome').value = s.welcomeMessage;
+      if (s.cancelMessage) $('tmplCancel').value = s.cancelMessage;
+      if (s.buttonLabel) $('tmplBtnLabel').value = s.buttonLabel;
+      if (s.buttonUrl) $('tmplBtnUrl').value = s.buttonUrl;
+      if (s.footerText) $('tmplFooter').value = s.footerText;
+      if (s.includeFooter === false) {
+        includeFooter = false;
+        $('footerToggle').classList.remove('active');
+      }
+      if (s.toastDurationSec) {
+        toastDismissMs = s.toastDurationSec * 1000;
+        $('toastDuration').value = s.toastDurationSec;
+      }
+      updatePreview();
+    });
+
+    /* ══════════ RENDER COUNTERS ══════════ */
+    function getWaitingCount(counterId) {
+      let count = 0;
+      for (const k of Object.keys(queueData)) {
+        const e = queueData[k];
+        if (!e) continue;
+        const cid = e.counterId || e.counter || e.counterAssigned;
+        if (String(cid) === String(counterId) && (e.status === 'waiting' || !e.status)) count++;
+      }
+      return count;
     }
 
-    skeleton.style.display = 'none';
+    function renderCounters() {
+      if (!countersLoaded) return; // Don't render until counters have loaded
 
-    const counters = getCounterList();
-    if (!counters.length) {
-      grid.style.display = 'none';
-      empty.style.display = 'block';
-      return;
-    }
+      const ids = Object.keys(countersData);
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
 
-    grid.style.display = 'grid';
-    empty.style.display = 'none';
+      if (!ids.length) {
+        countersGrid.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      countersGrid.classList.remove('hidden');
+      countersGrid.innerHTML = '';
 
-    grid.innerHTML = counters.map((c, index) => {
-      const stats = buildStatsForCounter(c);
-      const prefix = normalizePrefix(c.prefix);
-      const nowServingNum = Number(c.nowServing || 0);
-      const lastIssuedNum = Number(c.lastIssued || 0);
-      const nextNumber = ticketFull(prefix, Math.max(lastIssuedNum, 0) + 1);
-      const displayNow = ticketFull(prefix, Math.max(nowServingNum, 1));
-      const displayLast = ticketFull(prefix, Math.max(lastIssuedNum, 1));
-      const currentItem = getCurrentItemForCounter(c);
-      const currentText = currentItem?.number || currentItem?.queueNumber || '—';
-      const lastActionTs = stats.lastTs ? formatTime(stats.lastTs) : '—';
+      ids.forEach((counterId, idx) => {
+        const c = countersData[counterId] || {};
+        if (c.active === false) return; // skip explicitly inactive counters
 
-      const canCall = stats.waiting > 0;
-      const canComplete = !!currentItem;
-      const canCancel = !!currentItem;
+        const prefix = c.prefix || '';
+        const nowServingVal = c.nowServing != null ? c.nowServing : 1;
+        const lastIssuedVal = c.lastIssued != null ? c.lastIssued : 1;
+        const isActive = c.active !== false;
+        const waiting = getWaitingCount(counterId);
 
-      return `
-        <div class="card fade-up" id="counter-card-${escapeHtml(c.id)}" style="animation-delay:${index * 45}ms">
-          <div style="padding:18px 20px 0">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
-              <div style="min-width:0">
-                <h3 style="margin:0 0 6px;font-size:17px;font-weight:800;letter-spacing:-.01em;word-break:break-word">${escapeHtml(c.name || 'Unnamed Counter')}</h3>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                  <span style="font-size:11px;font-weight:800;color:var(--primary);background:#eef2ff;padding:3px 8px;border-radius:999px">${escapeHtml(prefix || '—')}</span>
-                  ${stats.waiting ? `<span style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:3px 8px;border-radius:999px">${stats.waiting} waiting</span>` : ''}
-                  ${stats.serving ? `<span style="font-size:11px;font-weight:800;color:#0f766e;background:#ecfeff;padding:3px 8px;border-radius:999px">${stats.serving} serving</span>` : ''}
-                  ${stats.completed ? `<span style="font-size:11px;font-weight:800;color:#166534;background:#f0fdf4;padding:3px 8px;border-radius:999px">${stats.completed} completed</span>` : ''}
-                  ${stats.cancelled ? `<span style="font-size:11px;font-weight:800;color:#b91c1c;background:#fef2f2;padding:3px 8px;border-radius:999px">${stats.cancelled} cancelled</span>` : ''}
+        // Display: never show 000; baseline 1 shows 001; 0 shows —
+        const servingDisplay = nowServingVal > 0 ? fmt(prefix, nowServingVal) : '—';
+        const lastIssuedDisplay = lastIssuedVal > 0 ? fmt(prefix, lastIssuedVal) : '—';
+        const nextNumDisplay = fmt(prefix, Math.max(lastIssuedVal, 1) + 1);
+
+        const callBtnDisabled = waiting === 0 || !isActive;
+        const callBtnText = waiting > 0 ? 'Call Next' : 'None Waiting';
+
+        const card = document.createElement('div');
+        card.className = 'counter-card animate-fade-in-up';
+        card.style.animationDelay = `${idx * 80}ms`;
+        card.dataset.counterId = counterId;
+
+        card.innerHTML = `
+          <div class="p-5 pb-0">
+            <div class="flex items-start justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-gray-900 leading-tight">${esc(c.name || counterId)}</h3>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="background:linear-gradient(135deg,#eef2ff,#f5f3ff);color:#4338ca">${esc(prefix)} Series</span>
+                  ${waiting > 0 ? `<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">${waiting} waiting</span>` : ''}
                 </div>
+              </div>
+              <div class="flex gap-1.5">
+                <button class="btn-icon editBtn" title="Edit">
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                </button>
+                <button class="btn-icon deleteBtn" title="Delete">
+                  <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                </button>
               </div>
             </div>
           </div>
 
-          <div style="margin:16px 18px 0;padding:18px;border-radius:16px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);text-align:center">
-            <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin-bottom:6px">Now Serving</div>
-            <div style="font-size:34px;line-height:1;font-weight:900;color:#312e81">${escapeHtml(displayNow)}</div>
-            <div style="margin-top:8px;font-size:12px;color:var(--muted)">Live item: ${escapeHtml(currentText)}</div>
-            <div style="margin-top:6px;font-size:11px;color:var(--muted)">Last activity: ${escapeHtml(lastActionTs)}</div>
-          </div>
+          <div class="px-5">
+            <div class="serving-display mb-4">
+              <p class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Now Serving</p>
+              <p class="serving-number">${esc(servingDisplay)}</p>
+            </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 18px 0">
-            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
-              <div style="font-size:11px;color:var(--muted);font-weight:700">Last Issued</div>
-              <div style="margin-top:4px;font-size:18px;font-weight:800">${escapeHtml(displayLast)}</div>
-            </div>
-            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
-              <div style="font-size:11px;color:var(--muted);font-weight:700">Next Number</div>
-              <div style="margin-top:4px;font-size:18px;font-weight:800;color:var(--primary)">${escapeHtml(nextNumber)}</div>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 18px 0">
-            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
-              <div style="font-size:11px;color:var(--muted);font-weight:700">Waiting</div>
-              <div style="margin-top:4px;font-size:18px;font-weight:800">${stats.waiting}</div>
-            </div>
-            <div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:14px;padding:12px;text-align:center">
-              <div style="font-size:11px;color:var(--muted);font-weight:700">Serving / Done</div>
-              <div style="margin-top:4px;font-size:18px;font-weight:800">${stats.serving + stats.completed}</div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="bg-gray-50 rounded-xl p-3">
+                <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Last Issued</p>
+                <p class="text-lg font-bold text-gray-800 tabular-nums">${esc(lastIssuedDisplay)}</p>
+              </div>
+              <div class="bg-gray-50 rounded-xl p-3">
+                <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Next Number</p>
+                <p class="text-lg font-bold text-gray-800 tabular-nums">${esc(nextNumDisplay)}</p>
+              </div>
             </div>
           </div>
 
-          <div style="padding:16px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
-            <button class="btn btn-success" onclick="callNext('${escapeHtml(c.id)}')" ${canCall ? '' : 'disabled'}>${canCall ? 'Call Next' : 'Call Next (none waiting)'}</button>
-            <button class="btn btn-primary" onclick="completeCurrent('${escapeHtml(c.id)}')" ${canComplete ? '' : 'disabled'}>Mark Done</button>
-            <button class="btn btn-warning" onclick="cancelCurrent('${escapeHtml(c.id)}')" ${canCancel ? '' : 'disabled'}>Cancel</button>
-            <button class="btn btn-ghost" onclick="resetCounter('${escapeHtml(c.id)}')">Reset</button>
+          <div class="px-5 pb-5">
+            <div class="flex gap-2">
+              <button class="btn btn-success flex-1 callBtn" ${callBtnDisabled ? 'disabled' : ''}>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+                ${callBtnText}
+              </button>
+              <button class="btn btn-warning resetBtn" title="Reset counter">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+              </button>
+            </div>
           </div>
-        </div>
-      `;
-    }).join('');
-  }
+        `;
 
-  async function setQueueStatus(qid, status, extra = {}) {
-    const tNow = now();
-    const updates = {};
-    updates[`tenants/${tenantState.tenantId}/queue/${qid}/status`] = status;
-    updates[`tenants/${tenantState.tenantId}/queue/${qid}/updatedAt`] = tNow;
-
-    if (status === 'serving') {
-      updates[`tenants/${tenantState.tenantId}/queue/${qid}/calledAt`] = extra.calledAt || tNow;
-      updates[`tenants/${tenantState.tenantId}/queue/${qid}/servedAt`] = extra.calledAt || tNow;
-    }
-    if (status === 'completed') {
-      updates[`tenants/${tenantState.tenantId}/queue/${qid}/completedAt`] = extra.completedAt || tNow;
-    }
-    if (status === 'cancelled') {
-      updates[`tenants/${tenantState.tenantId}/queue/${qid}/cancelledAt`] = extra.cancelledAt || tNow;
-    }
-
-    if (extra.counterId !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/counterId`] = extra.counterId;
-    if (extra.counterPrefix !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/counterPrefix`] = extra.counterPrefix;
-    if (extra.counterName !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/counterName`] = extra.counterName;
-    if (extra.sessionId !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/sessionId`] = extra.sessionId;
-    if (extra.source !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/source`] = extra.source;
-    if (extra.numberVal !== undefined) updates[`tenants/${tenantState.tenantId}/queue/${qid}/numberVal`] = extra.numberVal;
-
-    await update(ref(db), updates);
-  }
-
-  window.callNext = async function(counterId) {
-    const counter = tenantState.counters?.[counterId];
-    if (!counter) {
-      showToast('Counter not found.', 'error');
-      return;
-    }
-
-    const waiting = getWaitingItemsForCounter(counter);
-    if (!waiting.length) {
-      showToast('No waiting customers for this counter.', 'warning');
-      scheduleRender();
-      return;
-    }
-
-    const nextItem = waiting[0];
-    const queuedNumber = normalizeStr(nextItem.number || nextItem.queueNumber || '');
-    const prefix = normalizePrefix(counter.prefix);
-    const numericPart = extractNumericSuffix(queuedNumber);
-    const lastIssued = Number(counter.lastIssued || 0);
-
-    if (Number.isFinite(numericPart) && numericPart > 0 && lastIssued > 0 && numericPart > lastIssued + 1) {
-      showToast(`Cannot call ${escapeHtml(queuedNumber)}: it is beyond the current sequence ${ticketFull(prefix, lastIssued)}.`, 'error');
-      return;
-    }
-
-    const serving = getServingItemsForCounter(counter);
-    const servingItem = serving[0] || null;
-    const tNow = now();
-    const updates = {};
-
-    if (servingItem && servingItem.id !== nextItem.id) {
-      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/status`] = 'completed';
-      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/completedAt`] = tNow;
-      updates[`tenants/${tenantState.tenantId}/queue/${servingItem.id}/updatedAt`] = tNow;
-      updateCompletionAnalytics(updates, servingItem.id, servingItem, { id: counterId, ...counter }, tNow);
-      logStatusEvent('auto_complete_before_next', servingItem.id, servingItem, counter, { fromStatus: 'serving', toStatus: 'completed' });
-    }
-
-    const usedNumber = Number.isFinite(numericPart) && numericPart > 0
-      ? numericPart
-      : Math.max(Number(counter.lastIssued || 0), 1);
-
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/status`] = 'serving';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/calledAt`] = tNow;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/servedAt`] = tNow;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/updatedAt`] = tNow;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterId`] = nextItem.counterId || counterId;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterPrefix`] = nextItem.counterPrefix || counter.prefix || '';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/counterName`] = nextItem.counterName || counter.name || '';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/sessionId`] = nextItem.sessionId || tenantState.sessionId;
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/source`] = nextItem.source || 'counter-panel';
-    updates[`tenants/${tenantState.tenantId}/queue/${nextItem.id}/numberVal`] = Number.isFinite(numericPart) ? numericPart : (nextItem.numberVal || usedNumber);
-
-    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`] = usedNumber;
-    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`] = Math.max(lastIssued, usedNumber);
-    updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
-
-    try {
-      await update(ref(db), updates);
-      logStatusEvent('call_next', nextItem.id, nextItem, counter, { fromStatus: normalizeStatus(nextItem.status) || 'waiting', toStatus: 'serving' });
-
-      try {
-        await fetch(`/.netlify/functions/notifyCounter?slug=${encodeURIComponent(tenantState.slug)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenantId: tenantState.tenantId,
-            slug: tenantState.slug,
-            calledFull: queuedNumber || ticketFull(prefix, usedNumber),
-            counterId,
-            counterName: counter.name || counterId,
-            sessionId: tenantState.sessionId,
-            userAgent: navigator.userAgent,
-            platform: navigator.platform || 'web',
-            recipients: [queueEntryToRecipient(nextItem.id, nextItem)]
-          })
-        }).catch(() => {});
-      } catch (e) {}
-
-      showToast(`📞 <strong>${escapeHtml(queuedNumber || ticketFull(prefix, usedNumber))}</strong> called successfully.`, 'success');
-      scheduleRender();
-    } catch (e) {
-      showToast(`Failed to call next: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.completeCurrent = async function(counterId) {
-    const counter = tenantState.counters?.[counterId];
-    if (!counter) return showToast('Counter not found.', 'error');
-
-    const current = getCurrentItemForCounter(counter);
-    if (!current) return showToast('No serving ticket to mark done.', 'warning');
-
-    const tNow = now();
-    try {
-      await setQueueStatus(current.id, 'completed', {
-        completedAt: tNow,
-        counterId: current.counterId || counterId,
-        counterPrefix: current.counterPrefix || counter.prefix || '',
-        counterName: current.counterName || counter.name || '',
-        sessionId: current.sessionId || tenantState.sessionId,
-        source: current.source || 'counter-panel'
-      });
-
-      const updates = {};
-      updateCompletionAnalytics(updates, current.id, current, { id: counterId, ...counter }, tNow);
-      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
-      await update(ref(db), updates);
-
-      logStatusEvent('manual_complete', current.id, current, counter, { fromStatus: 'serving', toStatus: 'completed' });
-      showToast(`✅ ${escapeHtml(current.number || current.queueNumber || current.id)} marked completed.`, 'success');
-      scheduleRender();
-    } catch (e) {
-      showToast(`Failed to complete: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.cancelCurrent = async function(counterId) {
-    const counter = tenantState.counters?.[counterId];
-    if (!counter) return showToast('Counter not found.', 'error');
-
-    const current = getCurrentItemForCounter(counter);
-    if (!current) return showToast('No serving ticket to cancel.', 'warning');
-
-    const tNow = now();
-    try {
-      await setQueueStatus(current.id, 'cancelled', {
-        cancelledAt: tNow,
-        counterId: current.counterId || counterId,
-        counterPrefix: current.counterPrefix || counter.prefix || '',
-        counterName: current.counterName || counter.name || '',
-        sessionId: current.sessionId || tenantState.sessionId,
-        source: current.source || 'counter-panel'
-      });
-
-      const updates = {};
-      updates[`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`] = tNow;
-      await update(ref(db), updates);
-
-      logStatusEvent('manual_cancel', current.id, current, counter, { fromStatus: 'serving', toStatus: 'cancelled' });
-      showToast(`⛔ ${escapeHtml(current.number || current.queueNumber || current.id)} cancelled.`, 'warning');
-      scheduleRender();
-    } catch (e) {
-      showToast(`Failed to cancel: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.resetCounter = async function(counterId) {
-    if (!confirm('Reset this counter stats only? This does not delete queue items.')) return;
-    const counter = tenantState.counters?.[counterId];
-    if (!counter) return;
-
-    try {
-      const tNow = now();
-      await update(ref(db), {
-        [`tenants/${tenantState.tenantId}/counters/${counterId}/nowServing`]: 0,
-        [`tenants/${tenantState.tenantId}/counters/${counterId}/lastIssued`]: 0,
-        [`tenants/${tenantState.tenantId}/counters/${counterId}/updatedAt`]: tNow
-      });
-      logStatusEvent('counter_reset', '', {}, counter, {});
-      showToast('Counter reset.', 'success');
-      scheduleRender();
-    } catch (e) {
-      showToast(`Reset failed: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.openEditCounterModal = function(id) {
-    const c = tenantState.counters?.[id];
-    if (!c) return;
-    if ($('modal-counter-title')) $('modal-counter-title').textContent = 'Edit Counter';
-    if ($('edit-counter-id')) $('edit-counter-id').value = id;
-    if ($('counter-name')) $('counter-name').value = c.name || '';
-    if ($('counter-prefix')) $('counter-prefix').value = c.prefix || '';
-    if ($('modal-counter')) $('modal-counter').classList.add('show');
-  };
-
-  window.openDeleteModal = function(id) {
-    if ($('delete-counter-id')) $('delete-counter-id').value = id;
-    if ($('modal-delete')) $('modal-delete').classList.add('show');
-  };
-
-  window.closeModal = function(id) {
-    $(id)?.classList.remove('show');
-  };
-
-  window.confirmDeleteCounter = async function() {
-    const id = normalizeStr($('delete-counter-id')?.value);
-    if (!id) return;
-    try {
-      const updates = {};
-      updates[`tenants/${tenantState.tenantId}/counters/${id}`] = null;
-
-      for (const [qid, q] of Object.entries(tenantState.queue || {})) {
-        if (!q) continue;
-        const qCounterId = normalizeStr(q.counterId || q.counter || q.assignedCounterId || q.counterRef || q.counter_id);
-        if (qCounterId === id) updates[`tenants/${tenantState.tenantId}/queue/${qid}`] = null;
-      }
-
-      await update(ref(db), updates);
-      showToast('Counter deleted.', 'success');
-      window.closeModal('modal-delete');
-      scheduleRender();
-    } catch (e) {
-      showToast(`Failed to delete counter: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
-
-  window.saveCounter = async function() {
-    const name = normalizeStr($('counter-name')?.value);
-    const prefix = normalizePrefix($('counter-prefix')?.value);
-    const editId = normalizeStr($('edit-counter-id')?.value);
-
-    if (!name || !prefix) {
-      showToast('Counter name and prefix are required.', 'warning');
-      return;
-    }
-
-    try {
-      if (editId) {
-        await update(tenantRef(`counters/${editId}`), { name, prefix, updatedAt: now() });
-        showToast('Counter updated successfully.', 'success');
-      } else {
-        const newId = push(tenantRef('counters')).key;
-        await set(tenantRef(`counters/${newId}`), {
-          name,
-          prefix,
-          active: true,
-          nowServing: 0,
-          lastIssued: 0,
-          createdAt: now(),
-          updatedAt: now()
+        // Events
+        card.querySelector('.editBtn').addEventListener('click', () => openEditCounter(counterId));
+        card.querySelector('.deleteBtn').addEventListener('click', () => { deleteTargetId = counterId; openModal(deleteModal); });
+        card.querySelector('.callBtn').addEventListener('click', () => {
+          card.classList.add('animate-called-flash');
+          setTimeout(() => card.classList.remove('animate-called-flash'), 900);
+          callNext(counterId);
         });
-        showToast('Counter created successfully.', 'success');
-      }
-      window.closeModal('modal-counter');
-    } catch (e) {
-      showToast(`Failed to save counter: ${escapeHtml(e.message)}`, 'error');
-    }
-  };
+        card.querySelector('.resetBtn').addEventListener('click', () => resetCounter(counterId));
 
-  function setupListeners() {
-    onValue(ref(db, '.info/connected'), (snap) => setConnectionStatus(snap.val() === true));
-
-    onValue(tenantRef('counters'), (snap) => {
-      tenantState.counters = snap.val() || {};
-      tenantState.countersLoaded = true;
-      scheduleRender();
-    }, (err) => {
-      console.error(err);
-      tenantState.countersLoaded = true;
-      showToast('Failed to load counters.', 'error');
-      scheduleRender();
-    });
-
-    onValue(tenantRef('queue'), (snap) => {
-      const nextQueue = snap.val() || {};
-
-      if (!tenantState.initialQueueSnapshot) {
-        tenantState.initialQueueSnapshot = true;
-        tenantState.prevQueue = {};
-        for (const [id, q] of Object.entries(nextQueue)) {
-          tenantState.prevQueue[id] = {
-            status: normalizeStatus(q?.status),
-            number: q?.number || q?.queueNumber || '',
-            updatedAt: q?.updatedAt || q?.createdAt || 0
-          };
-        }
-      } else {
-        const counters = getCounterList();
-        for (const [id, q] of Object.entries(nextQueue)) {
-          if (!q) continue;
-          const prev = tenantState.prevQueue[id];
-          const currStatus = normalizeStatus(q.status);
-          const prevStatus = normalizeStatus(prev?.status);
-
-          const joinedNow =
-            isWaitingLike(q) &&
-            (!prev || !isWaitingLike({ status: prevStatus })) &&
-            !isServingLike(q) &&
-            !isCancelledLike(q) &&
-            !isCompletedLike(q);
-
-          if (joinedNow) {
-            const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
-            const queueNumber = q.number || q.queueNumber || id;
-            const counterLabel = matchedCounter
-              ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id)
-              : (q.counterName || q.counterLabel || q.counterId || q.counter || q.prefix || 'Counter');
-
-            if (typeof showCenterPopup === 'function') {
-              showCenterPopup('queue_joined', queueNumber, counterLabel, 'A new queue item has just arrived.');
-            }
-
-            tenantState.popupHistory.unshift({
-              type: 'queue_joined',
-              queueId: id,
-              queueNumber,
-              counterId: matchedCounter?.id || q.counterId || '',
-              counterName: counterLabel,
-              timestamp: now(),
-              source: q.source || 'customer',
-              message: `${queueNumber} joined the queue at ${counterLabel}`
-            });
-            if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
-          }
-
-          const becameCancelled = isCancelledLike(q) && prevStatus !== 'cancelled';
-          const becameCompleted = isCompletedLike(q) && prevStatus !== 'completed';
-          const becameServing = isServingLike(q) && prevStatus !== 'serving';
-
-          if (becameCancelled) {
-            const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
-            const queueNumber = q.number || q.queueNumber || prev?.number || id;
-            const counterLabel = matchedCounter
-              ? (matchedCounter.name || matchedCounter.prefix || matchedCounter.id)
-              : (q.counterName || q.counterLabel || q.counterId || q.counter || q.prefix || 'Counter');
-
-            if (typeof showCenterPopup === 'function') {
-              showCenterPopup('queue_cancelled', queueNumber, counterLabel, `${queueNumber} has been cancelled. The queue has shifted forward.`);
-            }
-
-            tenantState.popupHistory.unshift({
-              type: 'queue_cancelled',
-              queueId: id,
-              queueNumber,
-              counterId: matchedCounter?.id || q.counterId || '',
-              counterName: counterLabel,
-              timestamp: now(),
-              source: q.source || 'customer',
-              message: `${queueNumber} cancelled from ${counterLabel}`
-            });
-            if (tenantState.popupHistory.length > 20) tenantState.popupHistory = tenantState.popupHistory.slice(0, 20);
-          }
-
-          if (becameCompleted || becameServing) {
-            const matchedCounter = counters.find(c => counterMatchesQueue(c, q)) || null;
-            logStatusEvent(currStatus === 'completed' ? 'queue_completed_snapshot' : 'queue_serving_snapshot', id, q, matchedCounter || {}, {
-              fromStatus: prevStatus,
-              toStatus: currStatus
-            });
-          }
-        }
-
-        tenantState.prevQueue = {};
-        for (const [id, q] of Object.entries(nextQueue)) {
-          if (q) {
-            tenantState.prevQueue[id] = {
-              status: normalizeStatus(q.status),
-              number: q.number || q.queueNumber || '',
-              updatedAt: q.updatedAt || q.createdAt || 0
-            };
-          }
-        }
-      }
-
-      tenantState.queue = nextQueue;
-      tenantState.queueLoaded = true;
-      scheduleRender();
-    }, (err) => {
-      console.error(err);
-      tenantState.queueLoaded = true;
-    });
-  }
-
-  window.togglePopupHistory = function() {
-    const panel = $('popup-history-panel');
-    if (!panel) return;
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  };
-
-  function renderPopupHistory() {
-    const list = $('popup-history-list');
-    const count = $('popup-history-count');
-    if (!list || !count) return;
-
-    if (!tenantState.popupHistory.length) {
-      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No popup events yet.</div>';
-      count.textContent = '';
-      return;
-    }
-
-    count.textContent = `(${tenantState.popupHistory.length})`;
-    list.innerHTML = tenantState.popupHistory.map(evt => {
-      const isCancel = evt.type === 'queue_cancelled';
-      const badgeClass = isCancel ? 'cancelled' : 'joined';
-      const badgeLabel = isCancel ? 'Cancelled' : 'Joined';
-      const ts = evt.timestamp ? formatTime(evt.timestamp) : '';
-      return `
-        <div class="popup-history-item">
-          <span class="popup-history-badge ${badgeClass}">${badgeLabel}</span>
-          <strong style="font-size:14px">${escapeHtml(evt.queueNumber || '—')}</strong>
-          <span style="color:var(--muted);font-size:12px">${escapeHtml(evt.counterName || evt.counterId || '')}</span>
-          <span style="margin-left:auto;color:var(--muted);font-size:11px">${escapeHtml(ts)}</span>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function initModalCleanup() {
-    document.querySelectorAll('.modal').forEach(modal => {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.remove('show');
+        countersGrid.appendChild(card);
       });
+
+      // If all counters were inactive and filtered out, check if grid is empty
+      if (!countersGrid.children.length && ids.length) {
+        // All counters are inactive; still show them but don't show empty state
+        countersGrid.classList.remove('hidden');
+        // Re-render without the active filter? Actually show them all
+        // The spec says "Render only active counters by default, unless active is explicitly false"
+        // So inactive are hidden. If all are inactive, show empty state is OK? 
+        // Actually no — "If there are counters, never show a false empty state."
+        // Re-render showing all:
+        countersGrid.innerHTML = '';
+        ids.forEach((counterId, idx) => {
+          const c = countersData[counterId] || {};
+          const prefix = c.prefix || '';
+          const nowServingVal = c.nowServing != null ? c.nowServing : 1;
+          const lastIssuedVal = c.lastIssued != null ? c.lastIssued : 1;
+          const waiting = getWaitingCount(counterId);
+          const servingDisplay = nowServingVal > 0 ? fmt(prefix, nowServingVal) : '—';
+          const lastIssuedDisplay = lastIssuedVal > 0 ? fmt(prefix, lastIssuedVal) : '—';
+          const nextNumDisplay = fmt(prefix, Math.max(lastIssuedVal, 1) + 1);
+          const callBtnDisabled = waiting === 0;
+          const callBtnText = waiting > 0 ? 'Call Next' : 'None Waiting';
+          const card = document.createElement('div');
+          card.className = 'counter-card animate-fade-in-up';
+          card.style.animationDelay = `${idx * 80}ms`;
+          card.style.opacity = c.active === false ? '0.6' : '1';
+          card.dataset.counterId = counterId;
+          card.innerHTML = `
+            <div class="p-5 pb-0">
+              <div class="flex items-start justify-between mb-4">
+                <div>
+                  <h3 class="text-base font-bold text-gray-900 leading-tight">${esc(c.name || counterId)}${c.active === false ? ' <span class="text-xs text-gray-400">(inactive)</span>' : ''}</h3>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="background:linear-gradient(135deg,#eef2ff,#f5f3ff);color:#4338ca">${esc(prefix)} Series</span>
+                    ${waiting > 0 ? `<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">${waiting} waiting</span>` : ''}
+                  </div>
+                </div>
+                <div class="flex gap-1.5">
+                  <button class="btn-icon editBtn" title="Edit"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg></button>
+                  <button class="btn-icon deleteBtn" title="Delete"><svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="px-5">
+              <div class="serving-display mb-4">
+                <p class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Now Serving</p>
+                <p class="serving-number">${esc(servingDisplay)}</p>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="bg-gray-50 rounded-xl p-3">
+                  <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Last Issued</p>
+                  <p class="text-lg font-bold text-gray-800 tabular-nums">${esc(lastIssuedDisplay)}</p>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3">
+                  <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Next Number</p>
+                  <p class="text-lg font-bold text-gray-800 tabular-nums">${esc(nextNumDisplay)}</p>
+                </div>
+              </div>
+            </div>
+            <div class="px-5 pb-5">
+              <div class="flex gap-2">
+                <button class="btn btn-success flex-1 callBtn" ${callBtnDisabled || c.active === false ? 'disabled' : ''}>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+                  ${callBtnText}
+                </button>
+                <button class="btn btn-warning resetBtn" title="Reset counter">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+                </button>
+              </div>
+            </div>
+          `;
+          card.querySelector('.editBtn').addEventListener('click', () => openEditCounter(counterId));
+          card.querySelector('.deleteBtn').addEventListener('click', () => { deleteTargetId = counterId; openModal(deleteModal); });
+          card.querySelector('.callBtn').addEventListener('click', () => {
+            card.classList.add('animate-called-flash');
+            setTimeout(() => card.classList.remove('animate-called-flash'), 900);
+            callNext(counterId);
+          });
+          card.querySelector('.resetBtn').addEventListener('click', () => resetCounter(counterId));
+          countersGrid.appendChild(card);
+        });
+      }
+    }
+
+    /* ══════════ ADD / EDIT COUNTER ══════════ */
+    function openAddCounter() {
+      counterModalTitle.textContent = 'Add Counter';
+      counterForm.reset();
+      counterIdInput.value = '';
+      openModal(counterModal);
+      counterNameInput.focus();
+    }
+    function openEditCounter(counterId) {
+      const c = countersData[counterId];
+      if (!c) return;
+      counterModalTitle.textContent = 'Edit Counter';
+      counterIdInput.value = counterId;
+      counterNameInput.value = c.name || '';
+      counterPrefixInput.value = c.prefix || '';
+      openModal(counterModal);
+    }
+
+    addCounterBtn.addEventListener('click', openAddCounter);
+    addCounterBtnE?.addEventListener('click', openAddCounter);
+    closeCounterModalBtn.addEventListener('click', () => closeModal(counterModal));
+
+    counterForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = counterNameInput.value.trim();
+      const prefix = (counterPrefixInput.value || '').trim().toUpperCase();
+      if (!name || !prefix || prefix.length > 7) { showToast('Please provide a valid name and prefix (max 7 chars)', 'error'); return; }
+      const editingId = counterIdInput.value;
+      try {
+        if (editingId) {
+          // Edit: preserve existing queue-related values, only update name and prefix
+          await update(tenantRef(`counters/${editingId}`), { name, prefix, updatedAt: Date.now() });
+          showToast(`Counter "${name}" updated`, 'success');
+        } else {
+          // New counter: use push() for safe unique key generation
+          const newRef = push(tenantRef('counters'));
+          await set(newRef, {
+            name, prefix, active: true,
+            nowServing: 1, lastIssued: 1,
+            updatedAt: Date.now()
+          });
+          showToast(`Counter "${name}" created`, 'success');
+        }
+        closeModal(counterModal);
+      } catch (err) {
+        console.error('Save counter error', err);
+        showToast('Failed to save counter: ' + err.message, 'error');
+      }
     });
-  }
 
-  async function init() {
-    const ok = await resolveTenant();
-    if (!ok) return;
+    /* ══════════ DELETE COUNTER ══════════ */
+    confirmDeleteBtn.addEventListener('click', async () => {
+      if (!deleteTargetId) return;
+      try {
+        const name = countersData[deleteTargetId]?.name || deleteTargetId;
+        await remove(tenantRef(`counters/${deleteTargetId}`));
+        closeModal(deleteModal);
+        deleteTargetId = null;
+        showToast(`Counter "${name}" deleted`, 'success');
+      } catch (err) {
+        console.error('Delete error', err);
+        showToast('Failed to delete counter', 'error');
+      }
+    });
+    cancelDeleteBtn.addEventListener('click', () => { closeModal(deleteModal); deleteTargetId = null; });
 
-    initModalCleanup();
-    setupListeners();
-    renderCounters();
-    renderPopupHistory();
-  }
+    /* ══════════ RESET COUNTER ══════════ */
+    async function resetCounter(counterId) {
+      if (!confirm('Reset this counter to baseline (001) and cancel waiting queue items? This cannot be undone.')) return;
+      try {
+        // Reset to baseline 1 (displays as 001)
+        await update(tenantRef(`counters/${counterId}`), { nowServing: 1, lastIssued: 1, updatedAt: Date.now() });
+        // Cancel queue entries for this counter
+        const updates = {};
+        for (const [k, e] of Object.entries(queueData)) {
+          if (!e) continue;
+          const cid = e.counterId || e.counter || e.counterAssigned;
+          if (String(cid) === String(counterId) && (e.status === 'waiting' || e.status === 'serving')) {
+            updates[`queue/${k}/status`] = 'cancelled';
+            updates[`queue/${k}/updatedAt`] = Date.now();
+          }
+        }
+        if (Object.keys(updates).length) {
+          await update(tenantRef(), updates);
+        }
+        showToast('Counter reset to 001 and queue cleared', 'success');
+      } catch (err) {
+        console.error('Reset error', err);
+        showToast('Failed to reset counter', 'error');
+      }
+    }
 
-  init();
+    /* ══════════ CALL NEXT — USES REAL QUEUE ITEMS ONLY ══════════ */
+    async function callNext(counterId) {
+      try {
+        const counter = countersData[counterId];
+        if (!counter) { showToast('Counter not found', 'error'); return; }
+        const prefix = counter.prefix || '';
 
-  // Keep popup history fresh if your UI has the panel
-  setInterval(() => {
-    if ($('popup-history-list')) renderPopupHistory();
-  }, 1000);
-</script>
+        // 1) Find the earliest waiting queue item for this counter
+        let earliestKey = null;
+        let earliestEntry = null;
+        let earliestTs = Infinity;
+
+        for (const [k, e] of Object.entries(queueData)) {
+          if (!e) continue;
+          const cid = String(e.counterId || e.counter || e.counterAssigned || '');
+          if (cid !== String(counterId)) continue;
+          const st = String(e.status || 'waiting').toLowerCase();
+          if (st !== 'waiting') continue;
+          const ts = e.createdAt || e.joinedAt || e.timestamp || 0;
+          const tsNum = typeof ts === 'number' ? ts : (new Date(ts).getTime() || 0);
+          if (tsNum < earliestTs || !earliestKey) {
+            earliestTs = tsNum;
+            earliestKey = k;
+            earliestEntry = e;
+          }
+        }
+
+        if (!earliestKey || !earliestEntry) {
+          showToast('No waiting tickets for this counter', 'info');
+          return;
+        }
+
+        const now = Date.now();
+        const queueNumber = earliestEntry.number || earliestEntry.queueNumber || earliestEntry.queueId || earliestKey;
+        const numVal = earliestEntry.numberVal || parseNumericSuffix(queueNumber);
+        const fbUpdates = {};
+        const completedItems = [];
+
+        // 2) Complete any currently serving items and prepare analytics
+        for (const [k, e] of Object.entries(queueData)) {
+          if (!e) continue;
+          const cid = String(e.counterId || e.counter || e.counterAssigned || '');
+          if (cid !== String(counterId)) continue;
+          if (e.status === 'serving') {
+            fbUpdates[`queue/${k}/status`] = 'completed';
+            fbUpdates[`queue/${k}/completedAt`] = now;
+            fbUpdates[`queue/${k}/updatedAt`] = now;
+
+            const startedAt = e.calledAt || e.servedAt || e.createdAt || e.timestamp || now;
+            const startedAtMs = typeof startedAt === 'number' ? startedAt : (new Date(startedAt).getTime() || now);
+            const serviceMs = Math.max(0, now - startedAtMs);
+            const prevNum = e.number || e.queueNumber || e.queueId || k;
+            completedItems.push({ key: k, entry: e, serviceMs, startedAtMs, queueNumber: prevNum });
+          }
+        }
+
+        // 3) Mark the new item as serving
+        fbUpdates[`queue/${earliestKey}/status`] = 'serving';
+        fbUpdates[`queue/${earliestKey}/calledAt`] = now;
+        fbUpdates[`queue/${earliestKey}/updatedAt`] = now;
+        fbUpdates[`queue/${earliestKey}/counterName`] = counter.name || counterId;
+
+        // 4) Update counter nowServing to the real queue number
+        fbUpdates[`counters/${counterId}/nowServing`] = numVal || 1;
+        fbUpdates[`counters/${counterId}/updatedAt`] = now;
+
+        await update(tenantRef(), fbUpdates);
+
+        // 5) Write analytics for any completed items
+        for (const item of completedItems) {
+          try {
+            await push(tenantRef('analytics/serviceEvents'), {
+              type: 'service_completed',
+              serviceMs: item.serviceMs,
+              startedAt: item.startedAtMs,
+              completedAt: now,
+              timestamp: now,
+              counterId: counterId,
+              counter: counter.name || counterId,
+              queueId: item.key,
+              queueNumber: item.queueNumber,
+              tenantId: window.__TENANT_ID,
+              slug: window.__TENANT_SLUG,
+              sessionId: '',
+              userAgent: navigator.userAgent,
+              platform: 'counter-panel',
+            });
+          } catch (analyticsErr) {
+            console.warn('Failed to write service analytics', analyticsErr);
+          }
+        }
+
+        playBeep();
+
+        // 6) Collect recipients and send notifications via notifyCounter
+        const recipients = [];
+        for (const [k, e] of Object.entries(queueData)) {
+          if (!e) continue;
+          const cid = String(e.counterId || e.counter || e.counterAssigned || '');
+          if (cid !== String(counterId)) continue;
+          const chatId = e.chatId || e.telegramChatId;
+          if (chatId) {
+            recipients.push({
+              chatId: chatId,
+              theirNumber: e.number || e.queueNumber || e.queueId || k,
+              ticketId: k
+            });
+          }
+        }
+
+        try {
+          const payload = {
+            calledFull: queueNumber,
+            counterName: counter.name || counterId,
+            counterId: counterId,
+            recipients,
+            tenantId: window.__TENANT_ID,
+            slug: window.__TENANT_SLUG,
+            sessionId: '',
+            userAgent: navigator.userAgent,
+            platform: 'counter-panel',
+          };
+          const url = `${NOTIFY_ENDPOINT}?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const rj = await res.json().catch(() => null);
+            const sentCount = rj && rj.sent ? rj.sent : 0;
+            showToast(`${queueNumber} called — ${sentCount} notification${sentCount !== 1 ? 's' : ''} sent`, 'success');
+          } else {
+            const txt = await res.text().catch(() => '');
+            console.warn('Notify returned', res.status, txt);
+            showToast(`${queueNumber} called — notification may have failed`, 'error');
+          }
+        } catch (notifyErr) {
+          console.error('Notify error', notifyErr);
+          showToast(`${queueNumber} called — notification failed. Please retry.`, 'error');
+        }
+      } catch (err) {
+        console.error('callNext error', err);
+        showToast('Failed to call next: ' + err.message, 'error');
+      }
+    }
+
+    /* ══════════ QR TICKET ══════════ */
+    $('generateTicketBtn').addEventListener('click', () => {
+      ticketQRCode.innerHTML = '<span class="text-sm text-gray-300">Click "Generate" to create QR</span>';
+      openStatusBtn.classList.add('hidden');
+      downloadQRBtn.classList.add('hidden');
+      copyQRUrlBtn.classList.add('hidden');
+      externalQRLink.classList.add('hidden');
+      openModal(ticketModal);
+    });
+
+    generateBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        let base = window.location.origin.replace(/\/$/, '');
+        qrUrl = `${base}/index.html?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
+        ticketQRCode.innerHTML = '';
+        const canvas = document.createElement('canvas');
+        await new Promise((resolve, reject) => {
+          QRCode.toCanvas(canvas, qrUrl, { width: 420, margin: 2, color: { dark: '#111827', light: '#ffffff' } }, (err) => err ? reject(err) : resolve());
+        });
+        ticketQRCode.appendChild(canvas);
+        lastQRCanvas = canvas;
+        downloadCanvasPNG(canvas, `queuejoy-qr-${Date.now()}.png`);
+        openStatusBtn.classList.remove('hidden');
+        downloadQRBtn.classList.remove('hidden');
+        copyQRUrlBtn.classList.remove('hidden');
+        externalQRLink.classList.remove('hidden');
+
+        openStatusBtn.onclick = () => window.open(qrUrl, '_blank');
+        downloadQRBtn.onclick = () => downloadCanvasPNG(canvas, `queuejoy-qr-${Date.now()}.png`);
+        showToast('QR generated and downloaded', 'success');
+      } catch (err) {
+        console.error('QR generation failed', err);
+        showToast('Failed to generate QR', 'error');
+      }
+    });
+
+    copyQRUrlBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(qrUrl);
+        showToast('QR URL copied to clipboard', 'success');
+      } catch(_) {
+        showToast('Failed to copy URL', 'error');
+      }
+    });
+
+    externalQRLink.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(qrUrl); } catch(_){}
+      showToast('QR link copied — paste it into the online generator', 'info');
+    });
+
+    closeTicketModalBtn.addEventListener('click', () => closeModal(ticketModal));
+
+    function downloadCanvasPNG(canvas, filename) {
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = filename;
+      link.click();
+    }
+
+    /* ══════════ SETTINGS PANEL ══════════ */
+    settingsToggle.addEventListener('click', () => {
+      settingsToggle.classList.toggle('open');
+      settingsBody.classList.toggle('open');
+    });
+
+    $('footerToggle').addEventListener('click', () => {
+      const t = $('footerToggle');
+      t.classList.toggle('active');
+      includeFooter = t.classList.contains('active');
+      updatePreview();
+    });
+
+    // Live preview
+    ['tmplCalled','tmplReminder','tmplWelcome','tmplCancel','tmplBtnLabel','tmplBtnUrl','tmplFooter'].forEach(id => {
+      $(id).addEventListener('input', updatePreview);
+    });
+
+    function updatePreview() {
+      const tmpl = $('tmplCalled').value;
+      const footer = includeFooter ? ('\n\n' + $('tmplFooter').value) : '';
+      const vars = {
+        counterName: 'Counter 1', calledFull: 'COFFEE003', theirNumber: 'COFFEE001',
+        tenantName: window.__TENANT_PUBLIC_CONFIG?.displayName || 'My Business',
+        slug: window.__TENANT_SLUG || 'demo',
+        exploreLabel: $('tmplBtnLabel').value,
+        exploreUrl: $('tmplBtnUrl').value,
+        cancelledNumber: 'COFFEE002',
+        customText: ''
+      };
+      let rendered = tmpl + footer;
+      for (const [k, v] of Object.entries(vars)) {
+        rendered = rendered.replaceAll(`{${k}}`, v);
+      }
+      $('tmplPreview').textContent = rendered;
+    }
+    updatePreview();
+
+    // Save settings
+    $('saveSettingsBtn').addEventListener('click', async () => {
+      const dur = parseInt($('toastDuration').value) || 10;
+      toastDismissMs = dur * 1000;
+      const settings = {
+        calledMessage: $('tmplCalled').value,
+        reminderMessage: $('tmplReminder').value,
+        welcomeMessage: $('tmplWelcome').value,
+        cancelMessage: $('tmplCancel').value,
+        buttonLabel: $('tmplBtnLabel').value,
+        buttonUrl: $('tmplBtnUrl').value,
+        footerText: $('tmplFooter').value,
+        includeFooter,
+        toastDurationSec: dur,
+        updatedAt: Date.now()
+      };
+      try {
+        await set(tenantRef('settings/notifications'), settings);
+        showToast('Notification settings saved', 'success');
+      } catch (err) {
+        console.error('Save settings error', err);
+        showToast('Failed to save settings', 'error');
+      }
+    });
+
+    /* ══════════ CLOSE MODALS ON BACKDROP ══════════ */
+    [counterModal, ticketModal, deleteModal, eventPopup].forEach(modal => {
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); });
+    });
+
+    /* ══════════ KEYBOARD ══════════ */
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        [counterModal, ticketModal, deleteModal, eventPopup].forEach(m => closeModal(m));
+        if (eventPopupTimer) clearTimeout(eventPopupTimer);
+      }
+    });
+
+  </script>
 </body>
 </html>

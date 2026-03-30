@@ -15,6 +15,7 @@
 //   - Customizable Telegram inline buttons
 //   - Full analytics/serviceEvents with all required fields
 //   - Queue cancellation support with notifications
+//   - audit/statusEvents compatibility for admin dashboard
 // ============================================================
 
 const fetch = globalThis.fetch || require('node-fetch');
@@ -347,7 +348,18 @@ async function fetchQueueAllTenant(adminDb, tenantId) {
 async function pushServiceEventTenant(adminDb, tenantId, evt) {
   // Ensure serviceMs is always a number
   if (evt.serviceMs === undefined || evt.serviceMs === null || isNaN(evt.serviceMs)) {
-    evt.serviceMs = 0;
+    // Try to compute from startedAt and completedAt
+    if (evt.startedAt && evt.completedAt) {
+      const start = typeof evt.startedAt === 'number' ? evt.startedAt : new Date(evt.startedAt).getTime();
+      const end = typeof evt.completedAt === 'number' ? evt.completedAt : new Date(evt.completedAt).getTime();
+      if (!isNaN(start) && !isNaN(end)) {
+        evt.serviceMs = Math.max(0, end - start);
+      } else {
+        evt.serviceMs = 0;
+      }
+    } else {
+      evt.serviceMs = 0;
+    }
   }
   evt.serviceMs = Number(evt.serviceMs);
 
@@ -362,7 +374,7 @@ async function pushServiceEventTenant(adminDb, tenantId, evt) {
   } catch (e) { console.warn('pushServiceEventTenant', e?.message); }
 }
 
-// ===== Audit Event =====
+// ===== Audit Event (general) =====
 async function pushAuditEventTenant(adminDb, tenantId, evt) {
   try {
     if (adminDb) {
@@ -373,6 +385,19 @@ async function pushAuditEventTenant(adminDb, tenantId, evt) {
       });
     }
   } catch (e) { console.warn('pushAuditEventTenant', e?.message); }
+}
+
+// ===== Audit Status Event (admin dashboard compatible) =====
+async function pushStatusEventTenant(adminDb, tenantId, evt) {
+  try {
+    if (adminDb) {
+      await adminDb.ref(`tenants/${tenantId}/audit/statusEvents`).push(evt);
+    } else if (DATABASE_URL) {
+      await fetch(`${DATABASE_URL}/tenants/${encodeURIComponent(tenantId)}/audit/statusEvents.json`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evt),
+      });
+    }
+  } catch (e) { console.warn('pushStatusEventTenant', e?.message); }
 }
 
 // ===== Popup History Audit =====
@@ -450,8 +475,8 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
     results.push({ chatId: cancelledChatId, action: 'cancel-notification', queueNumber });
   }
 
-  // 2) Write audit entry for the cancellation (NOT into analytics/serviceEvents)
-  await pushAuditEventTenant(adminDb, tenantId, {
+  // 2) Build the audit/status event payload
+  const auditEvent = {
     type: 'queue_cancelled',
     queueId: queueId || '',
     queueNumber: queueNumber || '',
@@ -463,7 +488,14 @@ async function handleQueueCancellation(payload, adminDb, tenantId, slug) {
     sessionId: payloadSessionId || '',
     userAgent: payload.userAgent || 'server',
     platform: payload.platform || 'netlify-function',
-  });
+    reason: payload.reason || '',
+  };
+
+  // Write to both audit (general) and audit/statusEvents (admin dashboard compatible)
+  await Promise.all([
+    pushAuditEventTenant(adminDb, tenantId, auditEvent),
+    pushStatusEventTenant(adminDb, tenantId, auditEvent),
+  ]);
 
   // 3) Also write to popup history audit
   await pushPopupHistoryEvent(adminDb, tenantId, {
