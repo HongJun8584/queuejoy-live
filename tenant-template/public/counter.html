@@ -548,6 +548,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       measurementId: "G-KWBELWRC5M"
     };
 
+    const SESSION_ID = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
     const $ = (id) => document.getElementById(id);
 
     const loadingState = $('loadingState');
@@ -599,6 +601,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     let popupDedupeKeys = new Set();
     let popupHistory = [];
     const MAX_POPUP_HISTORY = 20;
+    const completedServiceEventKeys = new Set();
+    let callNextLock = false;
 
     const esc = (s) => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const fmt = (prefix, num) => `${prefix}${String(num).padStart(3, '0')}`;
@@ -729,11 +733,11 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
     badgeId.textContent = `id:${tenantId}`;
 
-    let app, db, analytics = null;
+    let app, db, fbAnalytics = null;
     try {
       app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       db = getDatabase(app);
-      try { analytics = getAnalytics(app); } catch(_) {}
+      try { fbAnalytics = getAnalytics(app); } catch(_) {}
     } catch (e) {
       loadingState.classList.add('hidden');
       errorState.classList.remove('hidden');
@@ -741,7 +745,13 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       throw e;
     }
 
-    const TENANT_ROOT = String(window.__TENANT_ID);
+    /* ============================================================
+       CRITICAL FIX: TENANT_ROOT must include "tenants/" prefix
+       The RTDB structure is: tenants/{tenantId}/counters/...
+       NOT just {tenantId}/counters/...
+       ============================================================ */
+    const TENANT_ROOT = 'tenants/' + String(tenantId);
+
     const tenantRef = (relPath = '') => {
       const rel = String(relPath || '').replace(/^\/+/, '');
       return rel ? ref(db, `${TENANT_ROOT}/${rel}`) : ref(db, TENANT_ROOT);
@@ -754,18 +764,19 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     }
 
     async function ensureTenantStructure() {
+      const now = Date.now();
       const metaPayload = {
-        tenantId: TENANT_ROOT,
+        tenantId: String(tenantId),
         slug: window.__TENANT_SLUG || '',
-        name: tenantPublicConfig?.displayName || tenantPublicConfig?.name || window.__TENANT_SLUG || TENANT_ROOT,
+        name: tenantPublicConfig?.displayName || tenantPublicConfig?.name || window.__TENANT_SLUG || tenantId,
         plan: tenantPublicConfig?.plan || 'free',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+        createdAt: now,
+        updatedAt: now
       };
 
       const publicConfigPayload = Object.keys(tenantPublicConfig || {}).length
-        ? { ...tenantPublicConfig, tenantId: TENANT_ROOT, slug: window.__TENANT_SLUG || '', updatedAt: Date.now() }
-        : { tenantId: TENANT_ROOT, slug: window.__TENANT_SLUG || '', displayName: window.__TENANT_SLUG || TENANT_ROOT, updatedAt: Date.now() };
+        ? { ...tenantPublicConfig, tenantId: String(tenantId), slug: window.__TENANT_SLUG || '', updatedAt: now }
+        : { tenantId: String(tenantId), slug: window.__TENANT_SLUG || '', displayName: window.__TENANT_SLUG || tenantId, updatedAt: now };
 
       const paths = [
         ['analytics', {}],
@@ -794,7 +805,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           footerText: $('tmplFooter').value,
           includeFooter: true,
           toastDurationSec: 10,
-          updatedAt: Date.now()
+          updatedAt: now
         }],
         ['telegramTokens', {}],
         ['counters', {}]
@@ -904,26 +915,12 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
     async function repairCounterBaselines() {
       const updates = {};
-      for (const [counterId, c] of Object.entries(countersData || {})) {
+      for (const [cid, c] of Object.entries(countersData || {})) {
         if (!c || typeof c !== 'object') continue;
-        if (!(Number(c.nowServing) > 0)) updates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = 1;
-        if (!(Number(c.lastIssued) > 0)) updates[`${TENANT_ROOT}/counters/${counterId}/lastIssued`] = 1;
+        if (!(Number(c.nowServing) > 0)) updates[`${TENANT_ROOT}/counters/${cid}/nowServing`] = 1;
+        if (!(Number(c.lastIssued) > 0)) updates[`${TENANT_ROOT}/counters/${cid}/lastIssued`] = 1;
       }
       if (Object.keys(updates).length) await update(ref(db), updates);
-    }
-
-    function normalizeCounter(c, now = Date.now()) {
-      return {
-        name: c?.name || '',
-        prefix: String(c?.prefix || '').toUpperCase(),
-        active: c?.active !== false,
-        busy: c?.busy === true ? true : false,
-        nowServing: Number(c?.nowServing) > 0 ? Number(c.nowServing) : 1,
-        lastIssued: Number(c?.lastIssued) > 0 ? Number(c.lastIssued) : 1,
-        createdAt: c?.createdAt || now,
-        updatedAt: now,
-        lastAdvanceAt: c?.lastAdvanceAt || now
-      };
     }
 
     function getQueueNumber(entry, key) {
@@ -941,6 +938,10 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     async function writeServiceEvent({ completedEntry, completedKey, counterId, counterName, now }) {
       if (!completedEntry || !completedKey) return null;
       if (completedEntry.completedAt || completedEntry.serviceEventId || completedEntry.serviceEventWrittenAt) return null;
+      if (completedServiceEventKeys.has(completedKey)) return null;
+
+      completedServiceEventKeys.add(completedKey);
+
       const startedAt = getServiceStart(completedEntry, now);
       const completedAt = now;
       let serviceMs = completedAt - startedAt;
@@ -948,6 +949,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (serviceMs < 1000) serviceMs = 1000;
 
       const queueNumber = getQueueNumber(completedEntry, completedKey);
+      const prefix = String(queueNumber || '').replace(/\d+$/, '');
       const event = {
         type: 'service_completed',
         serviceMs,
@@ -958,11 +960,12 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         counter: String(counterName || counterId || ''),
         queueId: String(completedKey || ''),
         queueNumber: String(queueNumber || ''),
+        series: prefix,
         tenantId: String(window.__TENANT_ID || ''),
         slug: String(window.__TENANT_SLUG || ''),
-        sessionId: '',
+        sessionId: SESSION_ID,
         userAgent: navigator.userAgent,
-        platform: 'counter-panel'
+        platform: navigator.platform || 'counter-panel'
       };
 
       const eventRef = await push(tenantRef('analytics/serviceEvents'), event);
@@ -978,32 +981,52 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       return eventId;
     }
 
-    async function seedCounterSupportNodes(counterId, payload) {
+    function seedCounterSupportNodes(counterId, payload) {
       const now = Date.now();
-      await update(tenantRef(`queueMeta/${counterId}`), {
+      const metaData = {
         counterId,
         prefix: payload.prefix || '',
-        nowServing: 1,
-        lastIssued: 1,
-        nextTicketNumber: 2,
-        nextNumber: 2,
-        nextIssuedNumber: 2,
+        nowServing: payload.nowServing || 1,
+        lastIssued: payload.lastIssued || 1,
+        nextTicketNumber: (payload.lastIssued || 1) + 1,
+        nextNumber: (payload.lastIssued || 1) + 1,
+        nextIssuedNumber: (payload.lastIssued || 1) + 1,
         baselineNumber: 1,
         updatedAt: now
-      });
-      await update(tenantRef(`queueState/${counterId}`), {
-        counterId,
-        nowServing: 1,
-        lastIssued: 1,
-        nextTicketNumber: 2,
-        nextNumber: 2,
-        nextIssuedNumber: 2,
-        baselineNumber: 1,
-        updatedAt: now
-      });
+      };
+      const updates = {};
+      updates[`${TENANT_ROOT}/queueMeta/${counterId}`] = metaData;
+      updates[`${TENANT_ROOT}/queueState/${counterId}`] = metaData;
+      return update(ref(db), updates);
+    }
+
+    function getWaitingCount(counterId) {
+      let count = 0;
+      for (const e of Object.values(queueData)) {
+        if (!e) continue;
+        const cid = e.counterId || e.counter || e.counterAssigned;
+        if (String(cid) === String(counterId) && (e.status === 'waiting' || !e.status)) count++;
+      }
+      return count;
+    }
+
+    function getServingItem(counterId) {
+      for (const [k, e] of Object.entries(queueData)) {
+        if (!e) continue;
+        const cid = e.counterId || e.counter || e.counterAssigned;
+        const st = String(e.status || '').toLowerCase();
+        if (String(cid) === String(counterId) && st === 'serving') return { key: k, entry: e };
+      }
+      return null;
     }
 
     async function callNext(counterId) {
+      if (callNextLock) {
+        showToast('Please wait — processing previous call', 'info');
+        return;
+      }
+      callNextLock = true;
+
       try {
         const counter = countersData[counterId];
         if (!counter) {
@@ -1046,7 +1069,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         const tx = await runTransaction(tenantRef(`queue/${earliestKey}`), current => {
           if (!current) return current;
           const st = String(current.status || 'waiting').toLowerCase();
-          if (st !== 'waiting') return;
+          if (st !== 'waiting') return undefined;
           return {
             ...current,
             status: 'serving',
@@ -1062,24 +1085,13 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           return;
         }
 
-        const updates = {};
-        updates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = numVal || 1;
-        updates[`${TENANT_ROOT}/counters/${counterId}/updatedAt`] = now;
-        updates[`${TENANT_ROOT}/counters/${counterId}/busy`] = false;
-        updates[`${TENANT_ROOT}/queueMeta/${counterId}/nowServing`] = numVal || 1;
-        updates[`${TENANT_ROOT}/queueMeta/${counterId}/updatedAt`] = now;
-        updates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = numVal || 1;
-        updates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = now;
-
         if (servingNow && servingNow.key && servingNow.key !== earliestKey) {
-          updates[`${TENANT_ROOT}/queue/${servingNow.key}/status`] = 'completed';
-          updates[`${TENANT_ROOT}/queue/${servingNow.key}/completedAt`] = now;
-          updates[`${TENANT_ROOT}/queue/${servingNow.key}/updatedAt`] = now;
-        }
+          const completionUpdates = {};
+          completionUpdates[`${TENANT_ROOT}/queue/${servingNow.key}/status`] = 'completed';
+          completionUpdates[`${TENANT_ROOT}/queue/${servingNow.key}/completedAt`] = now;
+          completionUpdates[`${TENANT_ROOT}/queue/${servingNow.key}/updatedAt`] = now;
+          await update(ref(db), completionUpdates);
 
-        await update(ref(db), updates);
-
-        if (servingNow && servingNow.key && servingNow.key !== earliestKey) {
           try {
             await writeServiceEvent({
               completedEntry: servingNow.entry,
@@ -1092,6 +1104,16 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
             console.warn('Failed to write service analytics', analyticsErr);
           }
         }
+
+        const counterUpdates = {};
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = numVal || 1;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/updatedAt`] = now;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/busy`] = false;
+        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/nowServing`] = numVal || 1;
+        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/updatedAt`] = now;
+        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = numVal || 1;
+        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = now;
+        await update(ref(db), counterUpdates);
 
         playBeep();
 
@@ -1118,9 +1140,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
             recipients,
             tenantId: window.__TENANT_ID,
             slug: window.__TENANT_SLUG,
-            sessionId: '',
+            sessionId: SESSION_ID,
             userAgent: navigator.userAgent,
-            platform: 'counter-panel'
+            platform: navigator.platform || 'counter-panel'
           };
           const url = `${NOTIFY_ENDPOINT}?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
           const res = await fetch(url, {
@@ -1144,6 +1166,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       } catch (err) {
         console.error('callNext error', err);
         showToast('Failed to call next: ' + err.message, 'error');
+      } finally {
+        callNextLock = false;
       }
     }
 
@@ -1205,6 +1229,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           const st = String(entry.status || 'waiting').toLowerCase();
           if (st === 'waiting') popupDedupeKeys.add(`join_${k}`);
           if (st === 'cancelled' || st === 'canceled') popupDedupeKeys.add(`cancel_${k}`);
+          if (entry.serviceEventId || entry.serviceEventWrittenAt || entry.completedAt) {
+            completedServiceEventKeys.add(k);
+          }
         }
       }
 
@@ -1240,26 +1267,6 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       updatePreview();
     });
 
-    function getWaitingCount(counterId) {
-      let count = 0;
-      for (const e of Object.values(queueData)) {
-        if (!e) continue;
-        const cid = e.counterId || e.counter || e.counterAssigned;
-        if (String(cid) === String(counterId) && (e.status === 'waiting' || !e.status)) count++;
-      }
-      return count;
-    }
-
-    function getServingItem(counterId) {
-      for (const [k, e] of Object.entries(queueData)) {
-        if (!e) continue;
-        const cid = e.counterId || e.counter || e.counterAssigned;
-        const st = String(e.status || '').toLowerCase();
-        if (String(cid) === String(counterId) && st === 'serving') return { key: k, entry: e };
-      }
-      return null;
-    }
-
     function renderCounters() {
       if (!countersLoaded) return;
 
@@ -1288,8 +1295,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         const waiting = getWaitingCount(counterId);
         const isActive = c.active !== false;
 
-        const servingDisplay = nowServingVal > 0 ? fmt(prefix, nowServingVal) : '—';
-        const lastIssuedDisplay = lastIssuedVal > 0 ? fmt(prefix, lastIssuedVal) : '—';
+        const servingDisplay = fmt(prefix, nowServingVal);
+        const lastIssuedDisplay = fmt(prefix, lastIssuedVal);
         const nextNumDisplay = fmt(prefix, Math.max(lastIssuedVal, 1) + 1);
         const callBtnDisabled = waiting === 0 || !isActive;
         const callBtnText = waiting > 0 ? 'Call Next' : 'None Waiting';
@@ -1389,46 +1396,6 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     addCounterBtnE?.addEventListener('click', openAddCounter);
     closeCounterModalBtn.addEventListener('click', () => closeModal(counterModal));
 
-    function counterPayload({ name, prefix, existing, now }) {
-      const base = normalizeCounter(existing || {}, now);
-      return {
-        name,
-        prefix,
-        active: base.active,
-        busy: false,
-        nowServing: 1,
-        lastIssued: 1,
-        createdAt: base.createdAt || now,
-        updatedAt: now,
-        lastAdvanceAt: now
-      };
-    }
-
-    async function seedCounterSupportNodes(counterId, payload) {
-      const now = Date.now();
-      await set(tenantRef(`queueMeta/${counterId}`), {
-        counterId,
-        prefix: payload.prefix || '',
-        nowServing: 1,
-        lastIssued: 1,
-        nextTicketNumber: 2,
-        nextNumber: 2,
-        nextIssuedNumber: 2,
-        baselineNumber: 1,
-        updatedAt: now
-      });
-      await set(tenantRef(`queueState/${counterId}`), {
-        counterId,
-        nowServing: 1,
-        lastIssued: 1,
-        nextTicketNumber: 2,
-        nextNumber: 2,
-        nextIssuedNumber: 2,
-        baselineNumber: 1,
-        updatedAt: now
-      });
-    }
-
     counterForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = counterNameInput.value.trim();
@@ -1444,13 +1411,35 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
         if (editingId) {
           const existing = countersData[editingId] || (await get(tenantRef(`counters/${editingId}`))).val() || {};
-          const payload = counterPayload({ name, prefix, existing, now });
+          const nowServing = Number(existing.nowServing) > 0 ? Number(existing.nowServing) : 1;
+          const lastIssued = Number(existing.lastIssued) > 0 ? Number(existing.lastIssued) : 1;
+          const payload = {
+            name,
+            prefix,
+            active: existing.active !== false,
+            busy: false,
+            nowServing,
+            lastIssued,
+            createdAt: existing.createdAt || now,
+            updatedAt: now,
+            lastAdvanceAt: existing.lastAdvanceAt || now
+          };
           await set(tenantRef(`counters/${editingId}`), payload);
           await seedCounterSupportNodes(editingId, payload);
           showToast(`Counter "${name}" updated`, 'success');
         } else {
           const newRef = push(tenantRef('counters'));
-          const payload = counterPayload({ name, prefix, existing: null, now });
+          const payload = {
+            name,
+            prefix,
+            active: true,
+            busy: false,
+            nowServing: 1,
+            lastIssued: 1,
+            createdAt: now,
+            updatedAt: now,
+            lastAdvanceAt: now
+          };
           await set(newRef, payload);
           await seedCounterSupportNodes(newRef.key, payload);
           showToast(`Counter "${name}" created`, 'success');
@@ -1486,14 +1475,14 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (!confirm('Reset this counter to baseline (001) and cancel waiting queue items? This cannot be undone.')) return;
       try {
         const now = Date.now();
-        await update(tenantRef(`counters/${counterId}`), {
+        const resetPayload = {
           nowServing: 1,
           lastIssued: 1,
           busy: false,
           updatedAt: now,
           lastAdvanceAt: now
-        });
-        await update(tenantRef(`queueMeta/${counterId}`), {
+        };
+        const metaPayload = {
           nowServing: 1,
           lastIssued: 1,
           nextTicketNumber: 2,
@@ -1501,18 +1490,17 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           nextIssuedNumber: 2,
           baselineNumber: 1,
           updatedAt: now
-        });
-        await update(tenantRef(`queueState/${counterId}`), {
-          nowServing: 1,
-          lastIssued: 1,
-          nextTicketNumber: 2,
-          nextNumber: 2,
-          nextIssuedNumber: 2,
-          baselineNumber: 1,
-          updatedAt: now
-        });
+        };
 
         const updates = {};
+        for (const [key, val] of Object.entries(resetPayload)) {
+          updates[`${TENANT_ROOT}/counters/${counterId}/${key}`] = val;
+        }
+        for (const [key, val] of Object.entries(metaPayload)) {
+          updates[`${TENANT_ROOT}/queueMeta/${counterId}/${key}`] = val;
+          updates[`${TENANT_ROOT}/queueState/${counterId}/${key}`] = val;
+        }
+
         for (const [k, e] of Object.entries(queueData)) {
           if (!e) continue;
           const cid = e.counterId || e.counter || e.counterAssigned;
@@ -1522,33 +1510,13 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
             updates[`${TENANT_ROOT}/queue/${k}/updatedAt`] = now;
           }
         }
-        if (Object.keys(updates).length) await update(ref(db), updates);
 
+        await update(ref(db), updates);
         showToast('Counter reset to 001 and queue cleared', 'success');
       } catch (err) {
         console.error('Reset error', err);
         showToast('Failed to reset counter', 'error');
       }
-    }
-
-    function getWaitingCount(counterId) {
-      let count = 0;
-      for (const e of Object.values(queueData)) {
-        if (!e) continue;
-        const cid = e.counterId || e.counter || e.counterAssigned;
-        if (String(cid) === String(counterId) && (e.status === 'waiting' || !e.status)) count++;
-      }
-      return count;
-    }
-
-    function getServingItem(counterId) {
-      for (const [k, e] of Object.entries(queueData)) {
-        if (!e) continue;
-        const cid = e.counterId || e.counter || e.counterAssigned;
-        const st = String(e.status || '').toLowerCase();
-        if (String(cid) === String(counterId) && st === 'serving') return { key: k, entry: e };
-      }
-      return null;
     }
 
     $('generateTicketBtn').addEventListener('click', () => {
