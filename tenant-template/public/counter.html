@@ -17,84 +17,259 @@
     }
   </script>
   <style>
-    :root{
-      --primary:#667eea; --primary-deep:#764ba2; --success:#10b981; --success-deep:#14b8a6;
-      --danger:#ef4444; --warning:#f97316; --surface:#fff; --page-bg-from:#f0f4ff; --page-bg-to:#fdf2f8;
-      --text-primary:#111827; --text-secondary:#4b5563; --text-muted:#9ca3af; --border-light:#e5e7eb;
-      --card-shadow:0 4px 24px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
-      --card-shadow-hover:0 8px 40px rgba(0,0,0,.1),0 2px 4px rgba(0,0,0,.06);
+    :root {
+      --primary: #667eea;
+      --primary-deep: #764ba2;
+      --success: #10b981;
+      --success-deep: #14b8a6;
+      --danger: #ef4444;
+      --warning: #f97316;
+      --surface: #ffffff;
+      --page-bg-from: #f0f4ff;
+      --page-bg-to: #fdf2f8;
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --text-muted: #9ca3af;
+      --border-light: #e5e7eb;
+      --card-shadow: 0 4px 24px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --card-shadow-hover: 0 8px 40px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
     }
-    *,*::before,*::after{box-sizing:border-box}
-    body{
-      font-family:'Inter',system-ui,-apple-system,sans-serif;margin:0;min-height:100vh;color:var(--text-primary);
-      background:linear-gradient(180deg,var(--page-bg-from),var(--page-bg-to));-webkit-font-smoothing:antialiased;
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text-primary);
+      background: linear-gradient(180deg, var(--page-bg-from) 0%, var(--page-bg-to) 100%);
+      -webkit-font-smoothing: antialiased;
     }
-    .counter-card{background:var(--surface);border-radius:16px;box-shadow:var(--card-shadow);transition:.25s;overflow:hidden}
-    .counter-card:hover{box-shadow:var(--card-shadow-hover);transform:translateY(-2px)}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;border-radius:12px;border:none;cursor:pointer;transition:.15s;font-family:inherit;font-size:14px;line-height:1;padding:12px 20px}
-    .btn:active{transform:scale(.97)} .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-    .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-deep));color:#fff}
-    .btn-success{background:linear-gradient(135deg,var(--success),var(--success-deep));color:#fff}
-    .btn-danger{background:var(--danger);color:#fff}
-    .btn-warning{background:var(--warning);color:#fff}
-    .btn-ghost{background:#f3f4f6;color:var(--text-secondary)}
-    .btn-icon{
-      width:36px;height:36px;padding:0;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
-      background:#f9fafb;border:1px solid var(--border-light);cursor:pointer;transition:background .15s,transform .15s
+    .counter-card {
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: var(--card-shadow);
+      transition: box-shadow .25s ease, transform .25s ease;
+      overflow: hidden;
     }
-    .btn-icon:hover{background:#f3f4f6}.btn-icon:active{transform:scale(.95)}
-    .input-field,.textarea-field{
-      width:100%;padding:12px 16px;border:2px solid var(--border-light);border-radius:12px;font-family:inherit;font-size:15px;
-      transition:border-color .2s,box-shadow .2s;outline:none;background:#fff
+    .counter-card:hover {
+      box-shadow: var(--card-shadow-hover);
+      transform: translateY(-2px);
     }
-    .input-field:focus,.textarea-field:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(102,126,234,.15)}
-    .textarea-field{resize:vertical;min-height:80px;font-size:14px}
-    .modal-overlay{
-      display:none;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center;background:rgba(0,0,0,.4);
-      backdrop-filter:blur(4px);padding:16px
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 600;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1;
+      padding: 12px 20px;
     }
-    .modal-overlay.show{display:flex}
-    .modal-card{background:var(--surface);border-radius:20px;box-shadow:0 25px 80px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;width:100%;position:relative}
-    #toast-container{position:fixed;top:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:8px;max-width:380px;width:100%;pointer-events:none}
-    .toast-item{
-      pointer-events:auto;background:var(--surface);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.12);padding:14px 18px;
-      display:flex;align-items:flex-start;gap:10px;border-left:4px solid var(--primary);position:relative;overflow:hidden
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      color: #fff;
     }
-    .toast-item.toast-success{border-left-color:var(--success)} .toast-item.toast-error{border-left-color:var(--danger)}
-    .toast-item.toast-queue{border-left-color:#8b5cf6} .toast-item.removing{animation:slideOutRight .3s ease both}
-    .toast-progress{position:absolute;bottom:0;left:0;height:3px;background:currentColor;opacity:.3;border-radius:0 0 0 12px;transition:width linear}
-    .skeleton{background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:800px 100%;animation:shimmer 1.8s infinite linear;border-radius:8px}
-    .serving-display{background:linear-gradient(135deg,#eef2ff,#f5f3ff);border-radius:14px;padding:20px;text-align:center;overflow:hidden}
-    .serving-number{font-size:2.75rem;font-weight:800;color:#312e81;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
-    .section-toggle{
-      cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--surface);
-      border-radius:16px;box-shadow:var(--card-shadow);transition:box-shadow .2s
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(102,126,234,.35); }
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), var(--success-deep));
+      color: #fff;
     }
-    .section-toggle:hover{box-shadow:var(--card-shadow-hover)} .section-toggle svg{transition:transform .3s}
-    .section-toggle.open svg{transform:rotate(180deg)}
-    .section-body{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.16,1,.3,1),opacity .3s;opacity:0}
-    .section-body.open{max-height:3000px;opacity:1}
-    .conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-    .conn-dot.live{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.5)}
-    .conn-dot.offline{background:#ef4444}
-    .conn-dot.reconnecting{background:#f59e0b;animation:dotPulse 1.4s infinite ease-in-out}
-    #tenant-slug-badge{
-      position:fixed;right:12px;bottom:12px;background:#7c3aed;color:#fff;padding:6px 12px;border-radius:8px;font-size:11px;z-index:9999;
-      opacity:.9;display:none;font-weight:500;box-shadow:0 2px 8px rgba(124,58,237,.3)
+    .btn-success:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 4px 16px rgba(16,185,129,.35); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-warning { background: var(--warning); color: #fff; }
+    .btn-warning:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-ghost { background: #f3f4f6; color: var(--text-secondary); }
+    .btn-ghost:hover:not(:disabled) { background: #e5e7eb; }
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #f9fafb;
+      border: 1px solid var(--border-light);
+      cursor: pointer;
+      transition: background .15s, transform .15s;
     }
-    @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-    @keyframes slideOutRight{to{transform:translateX(calc(100% + 24px));opacity:0}}
-    @keyframes fadeInUp{from{opacity:0;transform:translateY(12px);filter:blur(4px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
-    @keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-    @keyframes modalBgIn{from{opacity:0}to{opacity:1}}
-    @keyframes dotPulse{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
-    .animate-fade-in-up{animation:fadeInUp .5s cubic-bezier(.16,1,.3,1) both}
-    .animate-modal-in{animation:modalIn .3s cubic-bezier(.16,1,.3,1) both}
-    .animate-modal-bg{animation:modalBgIn .2s ease both}
-    .animate-called-flash{animation:calledFlash .9s ease both}
-    @keyframes calledFlash{0%{box-shadow:0 0 0 0 rgba(16,185,129,.45)}70%{box-shadow:0 0 0 12px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
-    @media (max-width:640px){
-      .serving-number{font-size:2rem} .header-actions{flex-direction:column;gap:8px} .header-actions .btn{width:100%} .modal-card{border-radius:16px}
+    .btn-icon:hover { background: #f3f4f6; }
+    .btn-icon:active { transform: scale(.95); }
+    .input-field {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid var(--border-light);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 15px;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+      background: #fff;
+    }
+    .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102,126,234,.15); }
+    .textarea-field {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid var(--border-light);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+      resize: vertical;
+      min-height: 80px;
+      background: #fff;
+    }
+    .textarea-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102,126,234,.15); }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,.4);
+      backdrop-filter: blur(4px);
+      padding: 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-card {
+      background: var(--surface);
+      border-radius: 20px;
+      box-shadow: 0 25px 80px rgba(0,0,0,.15);
+      max-height: 90vh;
+      overflow-y: auto;
+      width: 100%;
+      position: relative;
+    }
+    #toast-container {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 380px;
+      width: 100%;
+      pointer-events: none;
+    }
+    .toast-item {
+      pointer-events: auto;
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      border-left: 4px solid var(--primary);
+      position: relative;
+      overflow: hidden;
+    }
+    .toast-item.toast-success { border-left-color: var(--success); }
+    .toast-item.toast-error { border-left-color: var(--danger); }
+    .toast-item.toast-queue { border-left-color: #8b5cf6; }
+    .toast-item.removing { animation: slideOutRight .3s ease both; }
+    .toast-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      background: currentColor;
+      opacity: .3;
+      border-radius: 0 0 0 12px;
+      transition: width linear;
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.8s infinite linear;
+      border-radius: 8px;
+    }
+    .serving-display {
+      background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      overflow: hidden;
+    }
+    .serving-number {
+      font-size: 2.75rem;
+      font-weight: 800;
+      color: #312e81;
+      letter-spacing: -.02em;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .section-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: var(--card-shadow);
+      transition: box-shadow .2s;
+    }
+    .section-toggle:hover { box-shadow: var(--card-shadow-hover); }
+    .section-toggle svg { transition: transform .3s; }
+    .section-toggle.open svg { transform: rotate(180deg); }
+    .section-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .4s cubic-bezier(.16,1,.3,1), opacity .3s;
+      opacity: 0;
+    }
+    .section-body.open { max-height: 3000px; opacity: 1; }
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .conn-dot.live { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.5); }
+    .conn-dot.offline { background: #ef4444; }
+    .conn-dot.reconnecting { background: #f59e0b; animation: dotPulse 1.4s infinite ease-in-out; }
+    #tenant-slug-badge {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      background: #7c3aed;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      z-index: 9999;
+      opacity: .9;
+      display: none;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(124,58,237,.3);
+    }
+    @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+    @keyframes slideOutRight { to { transform: translateX(calc(100% + 24px)); opacity: 0; } }
+    @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); filter:blur(4px); } to { opacity:1; transform:translateY(0); filter:blur(0); } }
+    @keyframes modalIn { from { opacity:0; transform:scale(.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    @keyframes modalBgIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes dotPulse { 0%,80%,100% { transform:scale(0); } 40% { transform:scale(1); } }
+    .animate-fade-in-up { animation: fadeInUp .5s cubic-bezier(.16,1,.3,1) both; }
+    .animate-modal-in { animation: modalIn .3s cubic-bezier(.16,1,.3,1) both; }
+    .animate-modal-bg { animation: modalBgIn .2s ease both; }
+    .animate-called-flash { animation: calledFlash .9s ease both; }
+    @keyframes calledFlash {
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,.45); }
+      70% { box-shadow: 0 0 0 12px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+    @media (max-width: 640px) {
+      .serving-number { font-size: 2rem; }
+      .header-actions { flex-direction: column; gap: 8px; }
+      .header-actions .btn { width: 100%; }
+      .modal-card { border-radius: 16px; }
     }
   </style>
 </head>
@@ -131,6 +306,7 @@
   </header>
 
   <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
     <div id="loadingState" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div class="counter-card p-6 space-y-4"><div class="skeleton h-5 w-3/4"></div><div class="skeleton h-24 w-full"></div><div class="flex gap-3"><div class="skeleton h-10 w-1/2"></div><div class="skeleton h-10 w-1/2"></div></div><div class="flex gap-2"><div class="skeleton h-12 flex-1"></div><div class="skeleton h-12 w-20"></div></div></div>
       <div class="counter-card p-6 space-y-4 hidden sm:block"><div class="skeleton h-5 w-3/4"></div><div class="skeleton h-24 w-full"></div><div class="flex gap-3"><div class="skeleton h-10 w-1/2"></div><div class="skeleton h-10 w-1/2"></div></div><div class="flex gap-2"><div class="skeleton h-12 flex-1"></div><div class="skeleton h-12 w-20"></div></div></div>
@@ -205,22 +381,26 @@
 
 Your number {calledFull} has been called. Please proceed to {counterName}. Thank you!</textarea>
           </div>
+
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">🔔 Reminder Message</label>
             <p class="text-xs text-gray-400 mb-2">Sent to customers still waiting when another number is called.</p>
             <textarea id="tmplReminder" class="textarea-field" rows="3">🔔 REMINDER
 Number {calledFull} was just called at {counterName}. Your number is {theirNumber}. Stay nearby — we'll notify you when it's your turn!</textarea>
           </div>
+
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">👋 Welcome Message</label>
             <p class="text-xs text-gray-400 mb-2">Sent when a customer first connects via Telegram.</p>
             <textarea id="tmplWelcome" class="textarea-field" rows="2">👋 Welcome! Your ticket {theirNumber} has been registered at {tenantName}. We'll notify you when it's your turn.</textarea>
           </div>
+
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">❌ Cancel Message</label>
             <p class="text-xs text-gray-400 mb-2">Sent when a customer cancels their ticket. Variables: {cancelledNumber} {counterName} {tenantName} {slug}</p>
             <textarea id="tmplCancel" class="textarea-field" rows="2">❌ Your ticket {cancelledNumber} has been cancelled. Thank you for your patience.</textarea>
           </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1.5">Button Label</label>
@@ -231,24 +411,29 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
               <input id="tmplBtnUrl" class="input-field" value="https://helloqueuejoy.netlify.app" />
             </div>
           </div>
+
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">Footer Text</label>
             <textarea id="tmplFooter" class="textarea-field" rows="2">Curious how this works? Tap the button below to explore tools for your business.</textarea>
           </div>
+
           <div class="flex items-center gap-3">
-            <div class="toggle-track active" id="footerToggle" style="width:44px;height:24px;border-radius:12px;background:#10b981;position:relative;cursor:pointer;transition:background .2s">
+            <div id="footerToggle" style="width:44px;height:24px;border-radius:12px;background:#10b981;position:relative;cursor:pointer;transition:background .2s">
               <div class="toggle-thumb" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s"></div>
             </div>
             <span class="text-sm text-gray-600">Include footer in messages</span>
           </div>
+
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">🔔 Queue Join Popup Duration (seconds)</label>
             <input id="toastDuration" type="number" min="3" max="60" value="10" class="input-field" style="max-width:120px" />
           </div>
+
           <div>
             <h4 class="text-sm font-semibold text-gray-700 mb-2">Preview — Called Message</h4>
             <div class="p-3 bg-green-50 border border-green-100 rounded-xl text-sm leading-6 whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto" id="tmplPreview"></div>
           </div>
+
           <button id="saveSettingsBtn" class="btn btn-primary w-full sm:w-auto">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
             Save Settings
@@ -256,6 +441,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         </div>
       </div>
     </div>
+
   </main>
 
   <div id="counterModal" class="modal-overlay" aria-hidden="true">
@@ -346,18 +532,20 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
     import { getDatabase, ref, onValue, set, update, remove, push, get, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const NOTIFY_ENDPOINT = '/.netlify/functions/notifyCounter';
 
-    const siteFirebaseConfig = {
-      apiKey: "AIzaSyDiRGvkQbnLlpnJT3fEEQrY1A3nwLVIFY0",
-      authDomain: "queue-joy-aa21b.firebaseapp.com",
-      databaseURL: "https://queue-joy-aa21b-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "queue-joy-aa21b",
-      storageBucket: "queue-joy-aa21b.firebasestorage.app",
-      messagingSenderId: "950240394209",
-      appId: "1:950240394209:web:78d4f2471d2d89ac91f0a0"
+    const firebaseConfig = {
+      apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
+      authDomain: "queuejoy-live.firebaseapp.com",
+      databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "queuejoy-live",
+      storageBucket: "queuejoy-live.firebasestorage.app",
+      messagingSenderId: "882772437195",
+      appId: "1:882772437195:web:60a2f1081a139d0810d34e",
+      measurementId: "G-KWBELWRC5M"
     };
 
     const $ = (id) => document.getElementById(id);
@@ -412,22 +600,29 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     let popupHistory = [];
     const MAX_POPUP_HISTORY = 20;
 
-    function esc(s){ return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-    function fmt(prefix, num){ return `${prefix}${String(num).padStart(3,'0')}`; }
-    function parseNumericSuffix(s){ const m = String(s || '').match(/(\d+)$/); return m ? parseInt(m[1],10) : 0; }
-    function isCancelledStatus(status){ const s = String(status || '').toLowerCase(); return s === 'cancelled' || s === 'canceled'; }
-    function playBeep(){
-      try{
+    const esc = (s) => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const fmt = (prefix, num) => `${prefix}${String(num).padStart(3, '0')}`;
+    const parseNumericSuffix = (s) => {
+      const m = String(s || '').match(/(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
+    function playBeep() {
+      try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const o = ctx.createOscillator();
         const g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.12;
-        o.connect(g); g.connect(ctx.destination); o.start();
+        o.type = 'sine';
+        o.frequency.value = 880;
+        g.gain.value = 0.12;
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start();
         setTimeout(() => { try { o.stop(); } catch(_){} try { ctx.close(); } catch(_){} }, 160);
-      }catch(_){}
+      } catch(_) {}
     }
 
-    function showToast(message, type='info', durationMs=null){
+    function showToast(message, type = 'info', durationMs = null) {
       const dur = durationMs || (type === 'queue' ? toastDismissMs : 5000);
       const el = document.createElement('div');
       el.className = `toast-item toast-${type}`;
@@ -443,31 +638,49 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       el.querySelector('button').addEventListener('click', () => removeToast(el));
       toastContainer.appendChild(el);
       const prog = el.querySelector('.toast-progress');
-      requestAnimationFrame(() => { prog.style.width = '0%'; prog.style.transitionDuration = dur + 'ms'; });
+      requestAnimationFrame(() => {
+        prog.style.width = '0%';
+        prog.style.transitionDuration = dur + 'ms';
+      });
       setTimeout(() => removeToast(el), dur);
     }
-    function removeToast(el){ if (!el || !el.isConnected) return; el.classList.add('removing'); setTimeout(() => el.remove(), 300); }
 
-    function openModal(modal){ modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); }
-    function closeModal(modal){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
+    function removeToast(el) {
+      if (!el || !el.isConnected) return;
+      el.classList.add('removing');
+      setTimeout(() => el.remove(), 300);
+    }
 
-    function getSlug(){
-      try{
+    function openModal(modal) {
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal(modal) {
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function getSlug() {
+      try {
         const qp = new URLSearchParams(window.location.search);
         const s = qp.get('slug');
         if (s && s.trim()) return s.trim();
         const parts = window.location.pathname.split('/').filter(Boolean);
         return parts.length ? parts[0] : null;
-      }catch(_){ return null; }
+      } catch(_) {
+        return null;
+      }
     }
 
     const slug = getSlug();
-    if (!slug){
+    if (!slug) {
       loadingState.classList.add('hidden');
       errorState.classList.remove('hidden');
       $('errorMsg').textContent = 'Missing slug — open with ?slug=your-tenant-slug';
       throw new Error('No slug');
     }
+
     window.__TENANT_SLUG = slug;
     badgeSlug.textContent = slug;
     badge.style.display = 'block';
@@ -476,32 +689,36 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     let tenantResolved = false;
     let tenantPublicConfig = {};
 
-    try{
+    try {
       const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
-      if (res.ok){
+      if (res.ok) {
         const j = await res.json();
         tenantId = j.tenantId || (j.config && j.config.tenantId) || null;
-        if (tenantId){
+        if (tenantId) {
           tenantResolved = true;
           tenantPublicConfig = j.config || j.public || {};
         }
       }
-    }catch(e){ console.warn('API tenant resolution failed', e); }
+    } catch (e) {
+      console.warn('API tenant resolution failed', e);
+    }
 
-    if (!tenantResolved){
-      try{
-        const tempApp = initializeApp(siteFirebaseConfig, '__tenantLookup__');
+    if (!tenantResolved) {
+      try {
+        const tempApp = getApps().length ? getApp() : initializeApp(firebaseConfig, '__tenantLookup__');
         const tempDb = getDatabase(tempApp);
         const slugSnap = await get(ref(tempDb, `slugs/${slug}`));
-        if (slugSnap.exists()){
+        if (slugSnap.exists()) {
           const val = slugSnap.val();
           if (typeof val === 'string' && val.trim()) tenantId = val.trim();
           else if (val && typeof val === 'object' && val.tenantId) tenantId = String(val.tenantId);
         }
-      }catch(e){ console.warn('Firebase slug lookup failed', e); }
+      } catch (e) {
+        console.warn('Firebase slug lookup failed', e);
+      }
     }
 
-    if (!tenantId){
+    if (!tenantId) {
       loadingState.classList.add('hidden');
       errorState.classList.remove('hidden');
       $('errorMsg').textContent = `Could not resolve tenant for slug "${slug}". Please check the URL.`;
@@ -512,85 +729,147 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     window.__TENANT_PUBLIC_CONFIG = tenantPublicConfig || {};
     badgeId.textContent = `id:${tenantId}`;
 
-    let app, db;
-    try{
-      app = getApps().length ? getApp() : initializeApp(siteFirebaseConfig);
+    let app, db, analytics = null;
+    try {
+      app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       db = getDatabase(app);
-    }catch(e){
+      try { analytics = getAnalytics(app); } catch(_) {}
+    } catch (e) {
       loadingState.classList.add('hidden');
       errorState.classList.remove('hidden');
       $('errorMsg').textContent = 'Failed to initialize Firebase: ' + e.message;
       throw e;
     }
 
-    const tenantRef = (relPath='') => {
-      const base = `tenants/${window.__TENANT_ID}`;
-      relPath = String(relPath || '').replace(/^\/+/, '');
-      return relPath ? ref(db, `${base}/${relPath}`) : ref(db, base);
+    const TENANT_ROOT = String(window.__TENANT_ID);
+    const tenantRef = (relPath = '') => {
+      const rel = String(relPath || '').replace(/^\/+/, '');
+      return rel ? ref(db, `${TENANT_ROOT}/${rel}`) : ref(db, TENANT_ROOT);
     };
 
-    async function ensureBaseStructure(){
-      const paths = [
-        'counters',
-        'queue',
-        'analytics',
-        'analytics/serviceEvents',
-        'audit',
-        'settings',
-        'settings/notifications'
-      ];
-      for (const p of paths){
-        try{
-          const snap = await get(tenantRef(p));
-          if (!snap.exists()) await set(tenantRef(p), {});
-        }catch(err){
-          console.warn('ensureBaseStructure failed for', p, err);
+    async function ensurePath(path, value = {}) {
+      const r = tenantRef(path);
+      const snap = await get(r);
+      if (!snap.exists()) await set(r, value);
+    }
+
+    async function ensureTenantStructure() {
+      const rootSeeds = {
+        [`${TENANT_ROOT}/analytics`]: {},
+        [`${TENANT_ROOT}/analytics/serviceEvents`]: {},
+        [`${TENANT_ROOT}/audit`]: {},
+        [`${TENANT_ROOT}/integrations`]: {},
+        [`${TENANT_ROOT}/meta`]: {},
+        [`${TENANT_ROOT}/notifications`]: {},
+        [`${TENANT_ROOT}/public`]: {},
+        [`${TENANT_ROOT}/queue`]: {},
+        [`${TENANT_ROOT}/queueMeta`]: {},
+        [`${TENANT_ROOT}/queueState`]: {},
+        [`${TENANT_ROOT}/settings`]: {},
+        [`${TENANT_ROOT}/settings/notifications`]: {
+          calledMessage: $('tmplCalled').value,
+          reminderMessage: $('tmplReminder').value,
+          welcomeMessage: $('tmplWelcome').value,
+          cancelMessage: $('tmplCancel').value,
+          buttonLabel: $('tmplBtnLabel').value,
+          buttonUrl: $('tmplBtnUrl').value,
+          footerText: $('tmplFooter').value,
+          includeFooter: true,
+          toastDurationSec: 10,
+          updatedAt: Date.now()
+        },
+        [`${TENANT_ROOT}/telegramTokens`]: {},
+        [`${TENANT_ROOT}/counters`]: {}
+      };
+
+      for (const [path, value] of Object.entries(rootSeeds)) {
+        try {
+          await ensurePath(path.replace(`${TENANT_ROOT}/`, ''), value);
+        } catch (err) {
+          console.warn('ensurePath failed:', path, err);
         }
       }
-    }
 
-    async function cleanupLegacyPaths(){
-      const legacy = [
-        'counter',
-        'currentCounter',
-        'activeCounter',
-        'legacyCounters',
-        'oldCounters',
-        'current',
-        'settings/notification',
-        'analytics/serviceEvent'
-      ];
-      const updates = {};
-      for (const p of legacy) updates[`/${p}`] = null;
-      // Intentionally only clean obvious old root-like leftovers if they exist under this tenant later.
-      // No-op here unless your old schema used these exact paths.
-    }
-
-    async function repairCounterBaselines(){
-      const updates = {};
-      for (const [counterId, c] of Object.entries(countersData || {})){
-        if (!c || typeof c !== 'object') continue;
-        const nowServing = Number(c.nowServing);
-        const lastIssued = Number(c.lastIssued);
-        if (!Number.isFinite(nowServing) || nowServing < 1) updates[`counters/${counterId}/nowServing`] = 1;
-        if (!Number.isFinite(lastIssued) || lastIssued < 1) updates[`counters/${counterId}/lastIssued`] = 1;
+      try {
+        const meta = await get(tenantRef('meta'));
+        if (!meta.exists()) {
+          await set(tenantRef('meta'), {
+            tenantId: TENANT_ROOT,
+            slug: window.__TENANT_SLUG || '',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+        } else {
+          await update(tenantRef('meta'), {
+            tenantId: TENANT_ROOT,
+            slug: window.__TENANT_SLUG || '',
+            updatedAt: Date.now()
+          });
+        }
+      } catch (err) {
+        console.warn('meta seed failed', err);
       }
-      if (Object.keys(updates).length) await update(tenantRef(), updates);
-    }
 
-    async function ensureTenantReady(){
-      await ensureBaseStructure();
-      await cleanupLegacyPaths();
+      if (tenantPublicConfig && Object.keys(tenantPublicConfig).length) {
+        try {
+          await set(tenantRef('public/config'), {
+            ...tenantPublicConfig,
+            tenantId: TENANT_ROOT,
+            slug: window.__TENANT_SLUG || '',
+            updatedAt: Date.now()
+          });
+        } catch (err) {
+          console.warn('public/config seed failed', err);
+        }
+      }
+
+      // Keep queue defaults aligned with the 001 -> 002 rule.
+      // The first ticket issued by the join flow should start at 002.
+      try {
+        const queueMeta = await get(tenantRef('queueMeta'));
+        if (!queueMeta.exists()) await set(tenantRef('queueMeta'), {});
+      } catch(_) {}
+      try {
+        const queueState = await get(tenantRef('queueState'));
+        if (!queueState.exists()) await set(tenantRef('queueState'), {});
+      } catch(_) {}
     }
 
     const connRef = ref(db, '.info/connected');
-    onValue(connRef, snap => {
+    onValue(connRef, (snap) => {
       const connected = snap.val() === true;
       connDot.className = 'conn-dot ' + (connected ? 'live' : 'offline');
       connLabel.textContent = connected ? 'Live' : 'Offline';
     });
 
-    function addPopupHistoryEvent(type, queueNumber, counterId, counterName, tenantIdVal, slugVal){
+    const popupHistorySection = $('popupHistorySection');
+    function renderPopupHistory() {
+      const list = $('popupHistoryList');
+      if (!popupHistory.length) {
+        list.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No events yet</p>';
+        return;
+      }
+      list.innerHTML = popupHistory.map(ev => {
+        const isJoin = ev.type === 'queue_joined';
+        const badgeText = isJoin
+          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">Joined</span>'
+          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700">Cancelled</span>';
+        const icon = isJoin ? '🎫' : '❌';
+        const time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
+        return `
+          <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <span class="text-lg flex-shrink-0">${icon}</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-gray-800">${esc(ev.queueNumber || '—')}</p>
+              <p class="text-xs text-gray-400 truncate">${esc(ev.counterName || '')} · ${time}</p>
+            </div>
+            ${badgeText}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addPopupHistoryEvent(type, queueNumber, counterId, counterName, tenantIdVal, slugVal) {
       const event = {
         type,
         queueNumber: queueNumber || '',
@@ -607,33 +886,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       popupHistory.unshift(event);
       if (popupHistory.length > MAX_POPUP_HISTORY) popupHistory.pop();
       renderPopupHistory();
-      try{ push(tenantRef('audit/popupHistory'), event).catch(err => console.warn('Failed to write popup history', err)); }catch(_){}
-    }
-
-    function renderPopupHistory(){
-      const list = $('popupHistoryList');
-      if (!popupHistory.length){
-        list.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No events yet</p>';
-        return;
-      }
-      list.innerHTML = popupHistory.map(ev => {
-        const isJoin = ev.type === 'queue_joined';
-        const badge = isJoin
-          ? '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">Joined</span>'
-          : '<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700">Cancelled</span>';
-        const icon = isJoin ? '🎫' : '❌';
-        const time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
-        return `
-          <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-            <span class="text-lg flex-shrink-0">${icon}</span>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-gray-800">${esc(ev.queueNumber || '—')}</p>
-              <p class="text-xs text-gray-400 truncate">${esc(ev.counterName || '')} · ${time}</p>
-            </div>
-            ${badge}
-          </div>
-        `;
-      }).join('');
+      try {
+        push(tenantRef('audit/popupHistory'), event).catch(err => console.warn('Failed to write popup history', err));
+      } catch(_) {}
     }
 
     $('popupHistoryToggle').addEventListener('click', () => {
@@ -641,20 +896,20 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       $('popupHistoryBody').classList.toggle('open');
     });
 
-    function showCenterPopup(type, queueNumber, counterName){
+    function showCenterPopup(type, queueNumber, counterName) {
       const icon = $('eventPopupIcon');
       const title = $('eventPopupTitle');
       const message = $('eventPopupMessage');
       const numDisplay = $('eventPopupNumber');
 
-      if (type === 'join'){
+      if (type === 'join') {
         icon.style.background = '#eef2ff';
         icon.querySelector('span').textContent = '🎫';
         title.textContent = 'New Ticket Joined';
         message.textContent = `A customer has joined the queue at ${counterName || 'the counter'}`;
         numDisplay.textContent = queueNumber;
         numDisplay.style.color = '#4338ca';
-      }else{
+      } else {
         icon.style.background = '#fef2f2';
         icon.querySelector('span').textContent = '❌';
         title.textContent = 'Ticket Cancelled';
@@ -674,32 +929,42 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       closeModal(eventPopup);
     });
 
-    onValue(tenantRef('counters'), snap => {
+    async function repairCounterBaselines() {
+      const updates = {};
+      for (const [counterId, c] of Object.entries(countersData || {})) {
+        if (!c || typeof c !== 'object') continue;
+        if (!(Number(c.nowServing) > 0)) updates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = 1;
+        if (!(Number(c.lastIssued) > 0)) updates[`${TENANT_ROOT}/counters/${counterId}/lastIssued`] = 1;
+      }
+      if (Object.keys(updates).length) await update(ref(db), updates);
+    }
+
+    onValue(tenantRef('counters'), (snap) => {
       countersData = snap.val() || {};
       countersLoaded = true;
       repairCounterBaselines().catch(err => console.warn('repairCounterBaselines failed', err));
       renderCounters();
-    }, err => {
+    }, (err) => {
       console.error('Counter listener error', err);
-      if (!countersLoaded){
+      if (!countersLoaded) {
         loadingState.classList.add('hidden');
         errorState.classList.remove('hidden');
         $('errorMsg').textContent = 'Firebase error: ' + err.message;
       }
     });
 
-    onValue(tenantRef('queue'), snap => {
+    onValue(tenantRef('queue'), (snap) => {
       const newData = snap.val() || {};
 
-      if (queueLoaded){
-        for (const [k, entry] of Object.entries(newData)){
+      if (queueLoaded) {
+        for (const [k, entry] of Object.entries(newData)) {
           if (!entry) continue;
           const oldEntry = previousQueueData[k];
           const st = String(entry.status || 'waiting').toLowerCase();
 
-          if (!oldEntry && st === 'waiting'){
+          if (!oldEntry && st === 'waiting') {
             const dedupeKey = `join_${k}`;
-            if (!popupDedupeKeys.has(dedupeKey)){
+            if (!popupDedupeKeys.has(dedupeKey)) {
               popupDedupeKeys.add(dedupeKey);
               if (popupDedupeKeys.size > 1000) popupDedupeKeys.clear();
               const num = entry.number || entry.queueNumber || entry.queueId || k;
@@ -710,11 +975,11 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
             }
           }
 
-          if (oldEntry){
+          if (oldEntry) {
             const oldSt = String(oldEntry.status || 'waiting').toLowerCase();
-            if ((st === 'cancelled' || st === 'canceled') && oldSt !== 'cancelled' && oldSt !== 'canceled'){
+            if ((st === 'cancelled' || st === 'canceled') && oldSt !== 'cancelled' && oldSt !== 'canceled') {
               const dedupeKey = `cancel_${k}`;
-              if (!popupDedupeKeys.has(dedupeKey)){
+              if (!popupDedupeKeys.has(dedupeKey)) {
                 popupDedupeKeys.add(dedupeKey);
                 if (popupDedupeKeys.size > 1000) popupDedupeKeys.clear();
                 const num = entry.number || entry.queueNumber || entry.queueId || k;
@@ -726,8 +991,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
             }
           }
         }
-      }else{
-        for (const [k, entry] of Object.entries(newData)){
+      } else {
+        for (const [k, entry] of Object.entries(newData)) {
           if (!entry) continue;
           const st = String(entry.status || 'waiting').toLowerCase();
           if (st === 'waiting') popupDedupeKeys.add(`join_${k}`);
@@ -735,13 +1000,17 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         }
       }
 
-      previousQueueData = JSON.parse(JSON.stringify(newData || {}));
+      try {
+        previousQueueData = JSON.parse(JSON.stringify(newData));
+      } catch (_) {
+        previousQueueData = {};
+      }
       queueData = newData;
       queueLoaded = true;
       if (countersLoaded) renderCounters();
     });
 
-    onValue(tenantRef('settings/notifications'), snap => {
+    onValue(tenantRef('settings/notifications'), (snap) => {
       const s = snap.val() || {};
       notifSettings = s;
       if (s.calledMessage) $('tmplCalled').value = s.calledMessage;
@@ -751,23 +1020,21 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (s.buttonLabel) $('tmplBtnLabel').value = s.buttonLabel;
       if (s.buttonUrl) $('tmplBtnUrl').value = s.buttonUrl;
       if (s.footerText) $('tmplFooter').value = s.footerText;
-      if (s.includeFooter === false){
-        includeFooter = false;
-        $('footerToggle').style.background = '#d1d5db';
-      }else{
-        includeFooter = true;
-        $('footerToggle').style.background = '#10b981';
-      }
-      if (s.toastDurationSec){
+      includeFooter = s.includeFooter !== false;
+      const ft = $('footerToggle');
+      ft.style.background = includeFooter ? '#10b981' : '#d1d5db';
+      const thumb = ft.querySelector('.toggle-thumb');
+      if (thumb) thumb.style.transform = includeFooter ? 'translateX(20px)' : 'translateX(0px)';
+      if (s.toastDurationSec) {
         toastDismissMs = s.toastDurationSec * 1000;
         $('toastDuration').value = s.toastDurationSec;
       }
       updatePreview();
     });
 
-    function getWaitingCount(counterId){
+    function getWaitingCount(counterId) {
       let count = 0;
-      for (const e of Object.values(queueData)){
+      for (const e of Object.values(queueData)) {
         if (!e) continue;
         const cid = e.counterId || e.counter || e.counterAssigned;
         if (String(cid) === String(counterId) && (e.status === 'waiting' || !e.status)) count++;
@@ -775,24 +1042,24 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       return count;
     }
 
-    function getServingItem(counterId){
-      for (const [k, e] of Object.entries(queueData)){
+    function getServingItem(counterId) {
+      for (const [k, e] of Object.entries(queueData)) {
         if (!e) continue;
         const cid = e.counterId || e.counter || e.counterAssigned;
         const st = String(e.status || '').toLowerCase();
-        if (String(cid) === String(counterId) && st === 'serving') return { key:k, entry:e };
+        if (String(cid) === String(counterId) && st === 'serving') return { key: k, entry: e };
       }
       return null;
     }
 
-    function renderCounters(){
+    function renderCounters() {
       if (!countersLoaded) return;
 
       const ids = Object.keys(countersData || {});
       loadingState.classList.add('hidden');
       errorState.classList.add('hidden');
 
-      if (!ids.length){
+      if (!ids.length) {
         countersGrid.classList.add('hidden');
         emptyState.classList.remove('hidden');
         return;
@@ -834,16 +1101,22 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
                 </div>
               </div>
               <div class="flex gap-1.5">
-                <button class="btn-icon editBtn" title="Edit"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg></button>
-                <button class="btn-icon deleteBtn" title="Delete"><svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button>
+                <button class="btn-icon editBtn" title="Edit">
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                </button>
+                <button class="btn-icon deleteBtn" title="Delete">
+                  <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                </button>
               </div>
             </div>
           </div>
+
           <div class="px-5">
             <div class="serving-display mb-4">
               <p class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Now Serving</p>
               <p class="serving-number">${esc(servingDisplay)}</p>
             </div>
+
             <div class="grid grid-cols-2 gap-3 mb-4">
               <div class="bg-gray-50 rounded-xl p-3">
                 <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Last Issued</p>
@@ -855,6 +1128,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
               </div>
             </div>
           </div>
+
           <div class="px-5 pb-5">
             <div class="flex gap-2">
               <button class="btn btn-success flex-1 callBtn" ${callBtnDisabled ? 'disabled' : ''}>
@@ -879,23 +1153,21 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         countersGrid.appendChild(card);
       });
 
-      if (!countersGrid.children.length){
+      if (!countersGrid.children.length) {
         countersGrid.classList.remove('hidden');
         emptyState.classList.remove('hidden');
       }
     }
 
-    function openAddCounter(){
+    function openAddCounter() {
       counterModalTitle.textContent = 'Add Counter';
       counterForm.reset();
       counterIdInput.value = '';
-      counterNameInput.value = '';
-      counterPrefixInput.value = '';
       openModal(counterModal);
       counterNameInput.focus();
     }
 
-    function openEditCounter(counterId){
+    function openEditCounter(counterId) {
       const c = countersData[counterId];
       if (!c) return;
       counterModalTitle.textContent = 'Edit Counter';
@@ -909,42 +1181,70 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     addCounterBtnE?.addEventListener('click', openAddCounter);
     closeCounterModalBtn.addEventListener('click', () => closeModal(counterModal));
 
-    function buildCounterPayload({ name, prefix, existing, now }){
+    function counterPayload({ name, prefix, existing, now }) {
       return {
         name,
         prefix,
         active: existing?.active !== false,
-        nowServing: Number.isFinite(Number(existing?.nowServing)) && Number(existing.nowServing) > 0 ? Number(existing.nowServing) : 1,
-        lastIssued: Number.isFinite(Number(existing?.lastIssued)) && Number(existing.lastIssued) > 0 ? Number(existing.lastIssued) : 1,
+        nowServing: Number(existing?.nowServing) > 0 ? Number(existing.nowServing) : 1,
+        lastIssued: Number(existing?.lastIssued) > 0 ? Number(existing.lastIssued) : 1,
         createdAt: existing?.createdAt || now,
         updatedAt: now
       };
+    }
+
+    async function seedCounterSupportNodes(counterId, payload) {
+      const now = Date.now();
+      await set(tenantRef(`queueMeta/${counterId}`), {
+        counterId,
+        prefix: payload.prefix || '',
+        nowServing: 1,
+        lastIssued: 1,
+        nextNumber: 2,
+        baselineNumber: 1,
+        updatedAt: now
+      });
+      await set(tenantRef(`queueState/${counterId}`), {
+        counterId,
+        nowServing: 1,
+        lastIssued: 1,
+        nextTicketNumber: 2,
+        updatedAt: now
+      });
     }
 
     counterForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = counterNameInput.value.trim();
       const prefix = (counterPrefixInput.value || '').trim().toUpperCase();
-      if (!name || !prefix || prefix.length > 7){
+      if (!name || !prefix || prefix.length > 7) {
         showToast('Please provide a valid name and prefix (max 7 chars)', 'error');
         return;
       }
+
       const editingId = counterIdInput.value;
-      try{
+      try {
         const now = Date.now();
-        if (editingId){
+
+        if (editingId) {
           const existing = countersData[editingId] || (await get(tenantRef(`counters/${editingId}`))).val() || {};
-          const payload = buildCounterPayload({ name, prefix, existing, now });
-          await set(tenantRef(`counters/${editingId}`), payload); // replace full node so stale fields are removed
+          const payload = counterPayload({ name, prefix, existing, now });
+
+          // Replace the whole node so stale fields are removed.
+          await set(tenantRef(`counters/${editingId}`), payload);
+          await seedCounterSupportNodes(editingId, payload);
+
           showToast(`Counter "${name}" updated`, 'success');
-        }else{
+        } else {
           const newRef = push(tenantRef('counters'));
-          const payload = buildCounterPayload({ name, prefix, existing: null, now });
+          const payload = counterPayload({ name, prefix, existing: null, now });
           await set(newRef, payload);
+          await seedCounterSupportNodes(newRef.key, payload);
           showToast(`Counter "${name}" created`, 'success');
         }
+
         closeModal(counterModal);
-      }catch(err){
+      } catch (err) {
         console.error('Save counter error', err);
         showToast('Failed to save counter: ' + err.message, 'error');
       }
@@ -952,55 +1252,73 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
     confirmDeleteBtn.addEventListener('click', async () => {
       if (!deleteTargetId) return;
-      try{
+      try {
         const name = countersData[deleteTargetId]?.name || deleteTargetId;
-        await remove(tenantRef(`counters/${deleteTargetId}`));
+        const updates = {};
+        updates[`${TENANT_ROOT}/counters/${deleteTargetId}`] = null;
+        updates[`${TENANT_ROOT}/queueMeta/${deleteTargetId}`] = null;
+        updates[`${TENANT_ROOT}/queueState/${deleteTargetId}`] = null;
+        await update(ref(db), updates);
         closeModal(deleteModal);
         deleteTargetId = null;
         showToast(`Counter "${name}" deleted`, 'success');
-      }catch(err){
+      } catch (err) {
         console.error('Delete error', err);
         showToast('Failed to delete counter', 'error');
       }
     });
+
     cancelDeleteBtn.addEventListener('click', () => { closeModal(deleteModal); deleteTargetId = null; });
 
-    async function resetCounter(counterId){
+    async function resetCounter(counterId) {
       if (!confirm('Reset this counter to baseline (001) and cancel waiting queue items? This cannot be undone.')) return;
-      try{
+      try {
         const now = Date.now();
         await update(tenantRef(`counters/${counterId}`), { nowServing: 1, lastIssued: 1, updatedAt: now });
+        await update(tenantRef(`queueMeta/${counterId}`), { nowServing: 1, lastIssued: 1, nextNumber: 2, baselineNumber: 1, updatedAt: now });
+        await update(tenantRef(`queueState/${counterId}`), { nowServing: 1, lastIssued: 1, nextTicketNumber: 2, updatedAt: now });
+
         const updates = {};
-        for (const [k, e] of Object.entries(queueData)){
+        for (const [k, e] of Object.entries(queueData)) {
           if (!e) continue;
           const cid = e.counterId || e.counter || e.counterAssigned;
           const st = String(e.status || '').toLowerCase();
-          if (String(cid) === String(counterId) && (st === 'waiting' || st === 'serving')){
-            updates[`queue/${k}/status`] = 'cancelled';
-            updates[`queue/${k}/updatedAt`] = now;
+          if (String(cid) === String(counterId) && (st === 'waiting' || st === 'serving')) {
+            updates[`${TENANT_ROOT}/queue/${k}/status`] = 'cancelled';
+            updates[`${TENANT_ROOT}/queue/${k}/updatedAt`] = now;
           }
         }
-        if (Object.keys(updates).length) await update(tenantRef(), updates);
+        if (Object.keys(updates).length) await update(ref(db), updates);
+
         showToast('Counter reset to 001 and queue cleared', 'success');
-      }catch(err){
+      } catch (err) {
         console.error('Reset error', err);
         showToast('Failed to reset counter', 'error');
       }
     }
 
-    async function writeServiceEventFromCompletedItem({ completedEntry, completedKey, counterId, counterName, now }){
-      if (!completedEntry || !completedKey) return null;
-      const alreadyDone = completedEntry.completedAt || completedEntry.serviceEventId || completedEntry.serviceEventWrittenAt;
-      if (alreadyDone) return null;
+    function getQueueNumber(entry, key) {
+      return entry?.number || entry?.queueNumber || entry?.queueId || key;
+    }
 
-      const startedAtRaw = completedEntry.calledAt || completedEntry.updatedAt || completedEntry.timestamp || completedEntry.createdAt || now;
-      const startedAt = Number.isFinite(Number(startedAtRaw)) ? Number(startedAtRaw) : (new Date(startedAtRaw).getTime() || now);
+    function getServiceStart(entry, fallbackNow) {
+      const raw = entry?.calledAt || entry?.updatedAt || entry?.timestamp || entry?.createdAt || fallbackNow;
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) return n;
+      const d = new Date(raw).getTime();
+      return Number.isFinite(d) && d > 0 ? d : fallbackNow;
+    }
+
+    async function writeServiceEvent({ completedEntry, completedKey, counterId, counterName, now }) {
+      if (!completedEntry || !completedKey) return null;
+      if (completedEntry.completedAt || completedEntry.serviceEventId || completedEntry.serviceEventWrittenAt) return null;
+      const startedAt = getServiceStart(completedEntry, now);
       const completedAt = now;
       let serviceMs = completedAt - startedAt;
       if (!Number.isFinite(serviceMs) || serviceMs <= 0) serviceMs = 1000;
       if (serviceMs < 1000) serviceMs = 1000;
 
-      const queueNumber = completedEntry.number || completedEntry.queueNumber || completedEntry.queueId || completedKey;
+      const queueNumber = getQueueNumber(completedEntry, completedKey);
       const event = {
         type: 'service_completed',
         serviceMs,
@@ -1022,28 +1340,30 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       const eventId = eventRef.key;
 
       const qUpdates = {};
-      qUpdates[`queue/${completedKey}/completedAt`] = completedAt;
-      qUpdates[`queue/${completedKey}/serviceEventId`] = eventId;
-      qUpdates[`queue/${completedKey}/serviceEventWrittenAt`] = completedAt;
-      qUpdates[`queue/${completedKey}/updatedAt`] = completedAt;
-      await update(tenantRef(), qUpdates);
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/completedAt`] = completedAt;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/serviceEventId`] = eventId;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/serviceEventWrittenAt`] = completedAt;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/updatedAt`] = completedAt;
+      await update(ref(db), qUpdates);
 
       return eventId;
     }
 
-    async function callNext(counterId){
-      try{
+    async function callNext(counterId) {
+      try {
         const counter = countersData[counterId];
-        if (!counter){ showToast('Counter not found', 'error'); return; }
+        if (!counter) {
+          showToast('Counter not found', 'error');
+          return;
+        }
 
-        const prefix = counter.prefix || '';
         const servingNow = getServingItem(counterId);
 
         let earliestKey = null;
         let earliestEntry = null;
         let earliestTs = Infinity;
 
-        for (const [k, e] of Object.entries(queueData)){
+        for (const [k, e] of Object.entries(queueData)) {
           if (!e) continue;
           const cid = String(e.counterId || e.counter || e.counterAssigned || '');
           if (cid !== String(counterId)) continue;
@@ -1051,20 +1371,20 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           if (st !== 'waiting') continue;
           const ts = e.createdAt || e.joinedAt || e.timestamp || e.updatedAt || 0;
           const tsNum = typeof ts === 'number' ? ts : (new Date(ts).getTime() || 0);
-          if (tsNum < earliestTs || !earliestKey){
+          if (tsNum < earliestTs || !earliestKey) {
             earliestTs = tsNum;
             earliestKey = k;
             earliestEntry = e;
           }
         }
 
-        if (!earliestKey || !earliestEntry){
+        if (!earliestKey || !earliestEntry) {
           showToast('No waiting tickets for this counter', 'info');
           return;
         }
 
         const now = Date.now();
-        const queueNumber = earliestEntry.number || earliestEntry.queueNumber || earliestEntry.queueId || earliestKey;
+        const queueNumber = getQueueNumber(earliestEntry, earliestKey);
         const numVal = Number.isFinite(Number(earliestEntry.numberVal))
           ? Number(earliestEntry.numberVal)
           : parseNumericSuffix(queueNumber);
@@ -1083,57 +1403,63 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           };
         });
 
-        if (!tx.committed){
+        if (!tx.committed) {
           showToast('That ticket was already taken. Try again.', 'error');
           return;
         }
 
         const updates = {};
-        updates[`counters/${counterId}/nowServing`] = numVal || 1;
-        updates[`counters/${counterId}/updatedAt`] = now;
+        updates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = numVal || 1;
+        updates[`${TENANT_ROOT}/counters/${counterId}/updatedAt`] = now;
+        updates[`${TENANT_ROOT}/queueMeta/${counterId}/nowServing`] = numVal || 1;
+        updates[`${TENANT_ROOT}/queueMeta/${counterId}/updatedAt`] = now;
+        updates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = numVal || 1;
+        updates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = now;
 
-        if (servingNow && servingNow.key && servingNow.key !== earliestKey){
-          updates[`queue/${servingNow.key}/status`] = 'completed';
-          updates[`queue/${servingNow.key}/completedAt`] = now;
-          updates[`queue/${servingNow.key}/updatedAt`] = now;
+        if (servingNow && servingNow.key && servingNow.key !== earliestKey) {
+          updates[`${TENANT_ROOT}/queue/${servingNow.key}/status`] = 'completed';
+          updates[`${TENANT_ROOT}/queue/${servingNow.key}/completedAt`] = now;
+          updates[`${TENANT_ROOT}/queue/${servingNow.key}/updatedAt`] = now;
         }
 
-        await update(tenantRef(), updates);
+        await update(ref(db), updates);
 
-        if (servingNow && servingNow.key && servingNow.key !== earliestKey){
-          try{
-            await writeServiceEventFromCompletedItem({
+        if (servingNow && servingNow.key && servingNow.key !== earliestKey) {
+          try {
+            await writeServiceEvent({
               completedEntry: servingNow.entry,
               completedKey: servingNow.key,
               counterId,
               counterName: counter.name || counterId,
               now
             });
-          }catch(analyticsErr){
+          } catch (analyticsErr) {
             console.warn('Failed to write service analytics', analyticsErr);
           }
         }
 
+        playBeep();
+
         const recipients = [];
-        for (const [k, e] of Object.entries(queueData)){
+        for (const [k, e] of Object.entries(queueData)) {
           if (!e) continue;
           const cid = String(e.counterId || e.counter || e.counterAssigned || '');
           if (cid !== String(counterId)) continue;
           const chatId = e.chatId || e.telegramChatId;
-          if (chatId){
+          if (chatId) {
             recipients.push({
               chatId,
-              theirNumber: e.number || e.queueNumber || e.queueId || k,
+              theirNumber: getQueueNumber(e, k),
               ticketId: k
             });
           }
         }
 
-        try{
+        try {
           const payload = {
             calledFull: queueNumber,
             counterName: counter.name || counterId,
-            counterId: counterId,
+            counterId,
             recipients,
             tenantId: window.__TENANT_ID,
             slug: window.__TENANT_SLUG,
@@ -1147,20 +1473,20 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          if (res.ok){
+          if (res.ok) {
             const rj = await res.json().catch(() => null);
             const sentCount = rj && rj.sent ? rj.sent : 0;
             showToast(`${queueNumber} called — ${sentCount} notification${sentCount !== 1 ? 's' : ''} sent`, 'success');
-          }else{
+          } else {
             const txt = await res.text().catch(() => '');
             console.warn('Notify returned', res.status, txt);
             showToast(`${queueNumber} called — notification may have failed`, 'error');
           }
-        }catch(notifyErr){
+        } catch (notifyErr) {
           console.error('Notify error', notifyErr);
           showToast(`${queueNumber} called — notification failed. Please retry.`, 'error');
         }
-      }catch(err){
+      } catch (err) {
         console.error('callNext error', err);
         showToast('Failed to call next: ' + err.message, 'error');
       }
@@ -1177,7 +1503,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
     generateBtn.addEventListener('click', async (e) => {
       e.preventDefault();
-      try{
+      try {
         const base = window.location.origin.replace(/\/$/, '');
         qrUrl = `${base}/index.html?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
         ticketQRCode.innerHTML = '';
@@ -1194,29 +1520,29 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         openStatusBtn.onclick = () => window.open(qrUrl, '_blank');
         downloadQRBtn.onclick = () => downloadCanvasPNG(canvas, `queuejoy-qr-${Date.now()}.png`);
         showToast('QR generated', 'success');
-      }catch(err){
+      } catch (err) {
         console.error('QR generation failed', err);
         showToast('Failed to generate QR', 'error');
       }
     });
 
     copyQRUrlBtn.addEventListener('click', async () => {
-      try{
+      try {
         await navigator.clipboard.writeText(qrUrl);
         showToast('QR URL copied to clipboard', 'success');
-      }catch(_){
+      } catch(_) {
         showToast('Failed to copy URL', 'error');
       }
     });
 
     externalQRLink.addEventListener('click', async () => {
-      try{ await navigator.clipboard.writeText(qrUrl); }catch(_){}
+      try { await navigator.clipboard.writeText(qrUrl); } catch(_) {}
       showToast('QR link copied — paste it into the online generator', 'info');
     });
 
     closeTicketModalBtn.addEventListener('click', () => closeModal(ticketModal));
 
-    function downloadCanvasPNG(canvas, filename){
+    function downloadCanvasPNG(canvas, filename) {
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
       link.download = filename;
@@ -1231,10 +1557,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     $('footerToggle').addEventListener('click', () => {
       const t = $('footerToggle');
       const thumb = t.querySelector('.toggle-thumb');
-      const active = !includeFooter;
-      includeFooter = active;
-      t.style.background = active ? '#10b981' : '#d1d5db';
-      if (thumb) thumb.style.transform = active ? 'translateX(20px)' : 'translateX(0px)';
+      includeFooter = !includeFooter;
+      t.style.background = includeFooter ? '#10b981' : '#d1d5db';
+      if (thumb) thumb.style.transform = includeFooter ? 'translateX(20px)' : 'translateX(0px)';
       updatePreview();
     });
 
@@ -1242,7 +1567,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       $(id).addEventListener('input', updatePreview);
     });
 
-    function updatePreview(){
+    function updatePreview() {
       const tmpl = $('tmplCalled').value;
       const footer = includeFooter ? ('\n\n' + $('tmplFooter').value) : '';
       const vars = {
@@ -1257,7 +1582,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         customText: ''
       };
       let rendered = tmpl + footer;
-      for (const [k, v] of Object.entries(vars)) rendered = rendered.replaceAll(`{${k}}`, v);
+      for (const [k, v] of Object.entries(vars)) {
+        rendered = rendered.replaceAll(`{${k}}`, v);
+      }
       $('tmplPreview').textContent = rendered;
     }
     updatePreview();
@@ -1277,47 +1604,45 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         toastDurationSec: dur,
         updatedAt: Date.now()
       };
-      try{
+      try {
         await set(tenantRef('settings/notifications'), settings);
         showToast('Notification settings saved', 'success');
-      }catch(err){
+      } catch (err) {
         console.error('Save settings error', err);
         showToast('Failed to save settings', 'error');
       }
     });
 
     [counterModal, ticketModal, deleteModal, eventPopup].forEach(modal => {
-      modal.addEventListener('click', e => { if (e.target === modal) closeModal(modal); });
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); });
     });
 
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape'){
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
         [counterModal, ticketModal, deleteModal, eventPopup].forEach(m => closeModal(m));
         if (eventPopupTimer) clearTimeout(eventPopupTimer);
       }
     });
 
-    async function init(){
-      try{
-        await ensureTenantReady();
-      }catch(err){
-        console.warn('Tenant base structure init warning', err);
+    async function init() {
+      try {
+        await ensureTenantStructure();
+      } catch (err) {
+        console.warn('Tenant structure init warning', err);
       }
 
-      // Ensure the canonical counter container exists even on empty tenants.
-      try{
+      try {
         const countersSnap = await get(tenantRef('counters'));
         if (!countersSnap.exists()) await set(tenantRef('counters'), {});
-      }catch(err){
+      } catch (err) {
         console.warn('Counter container init failed', err);
       }
     }
 
     await init();
 
-    // If there are no counters, show the empty state after the first load.
     setTimeout(() => {
-      if (countersLoaded && Object.keys(countersData || {}).length === 0){
+      if (countersLoaded && Object.keys(countersData || {}).length === 0) {
         loadingState.classList.add('hidden');
         countersGrid.classList.add('hidden');
         emptyState.classList.remove('hidden');
