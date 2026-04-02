@@ -1,16 +1,20 @@
 'use strict';
 
 /*
-  createTelegramLink.js - Netlify function (FIXED)
-  - Writes tokens to ALL THREE paths:
-      telegramTokens/{token}                                    (global lookup)
-      tenants/{tenantId}/integrations/telegram/tokens/{token}   (tenant integration path)
-      tenants/{tenantId}/telegramTokens/{token}                 (tenant lookup - used by webhook scan)
-  - Includes full metadata: queueKey, queueId, counterId, counterName
-  - Tries firebase-admin first, falls back to RTDB REST PUT
+  createTelegramLink.js â€” QueueJoy Tenant-Aware Telegram Link Generator
+  Netlify Serverless Function
+
+  Writes tokens to ALL THREE paths:
+    telegramTokens/{token}                                    (global lookup)
+    tenants/{tenantId}/integrations/telegram/tokens/{token}   (tenant integration path)
+    tenants/{tenantId}/telegramTokens/{token}                 (tenant lookup - used by webhook scan)
+
+  Includes full metadata: queueKey, queueId, queueNumber, counterId, counterName, slug, tenantId
+  Tries firebase-admin first, falls back to RTDB REST PUT
 */
 
 const { nanoid } = require('nanoid');
+const fetch = globalThis.fetch || require('node-fetch');
 
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 24 * 60 * 60 * 1000);
 
@@ -38,9 +42,7 @@ function parseBody(event) {
   if (!event || !event.body) return {};
   try {
     return event.isBase64Encoded ? JSON.parse(Buffer.from(event.body, 'base64').toString('utf8')) : JSON.parse(event.body);
-  } catch (e) {
-    return {};
-  }
+  } catch (e) { return {}; }
 }
 
 function pickTenantCandidate(event, body) {
@@ -111,6 +113,7 @@ exports.handler = async function (event) {
   const body = parseBody(event);
   const queueKey = sanitize(body.queueKey || '');
   const queueId = sanitize(body.queueId || body.queueKey || '');
+  const queueNumber = sanitize(body.queueNumber || body.number || '');
   const counterId = sanitize(body.counterId || '');
   const counterName = sanitize(body.counterName || '');
   const slug = sanitize(body.slug || '');
@@ -126,11 +129,12 @@ exports.handler = async function (event) {
   const userAgent = (event.headers && (event.headers['user-agent'] || event.headers['User-Agent'])) || null;
   const ip = (event.headers && (event.headers['x-forwarded-for'] || event.headers['X-Forwarded-For'] || event.headers['x-nf-client-connection-ip'])) || null;
 
-  // Full token payload — includes all useful context for webhook resolution
+  // Full token payload â€” includes all useful context for webhook resolution
   const payload = {
     token,
     queueKey,
     queueId,
+    queueNumber,
     counterId,
     counterName,
     slug,
@@ -162,7 +166,6 @@ exports.handler = async function (event) {
       }
 
       if (!resolved) {
-        // No tenant resolved — return error instead of broken token
         return json(400, {
           ok: false,
           error: 'tenant_not_resolved',
@@ -175,8 +178,12 @@ exports.handler = async function (event) {
 
       // Write to ALL THREE paths atomically
       const db = admin.database();
+      const globalRecord = {
+        tenantId, queueKey, queueId, queueNumber, token, createdAt, expiresAt,
+        counterId, counterName, slug, used: false,
+      };
       const updates = {};
-      updates[`telegramTokens/${token}`] = { tenantId, queueKey, queueId, token, createdAt, expiresAt, counterId, counterName, slug };
+      updates[`telegramTokens/${token}`] = globalRecord;
       updates[`tenants/${tenantId}/integrations/telegram/tokens/${token}`] = fullPayload;
       updates[`tenants/${tenantId}/telegramTokens/${token}`] = fullPayload;
 
@@ -229,10 +236,14 @@ exports.handler = async function (event) {
   }
 
   const fullPayload = { ...payload, tenantId: tenantCandidate };
+  const globalRecord = {
+    tenantId: tenantCandidate, queueKey, queueId, queueNumber, token,
+    createdAt, expiresAt, counterId, counterName, slug, used: false,
+  };
 
   // Write all three paths via REST
   const restResults = await Promise.allSettled([
-    restPut(`/telegramTokens/${encodeURIComponent(token)}.json`, { tenantId: tenantCandidate, queueKey, queueId, token, createdAt, expiresAt, counterId, counterName, slug }),
+    restPut(`/telegramTokens/${encodeURIComponent(token)}.json`, globalRecord),
     restPut(`/tenants/${encodeURIComponent(tenantCandidate)}/integrations/telegram/tokens/${encodeURIComponent(token)}.json`, fullPayload),
     restPut(`/tenants/${encodeURIComponent(tenantCandidate)}/telegramTokens/${encodeURIComponent(token)}.json`, fullPayload),
   ]);
