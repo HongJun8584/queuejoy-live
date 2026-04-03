@@ -599,9 +599,17 @@
 </div>
 
 <!-- Firebase SDK -->
+<!-- Keep your existing HTML/CSS above this point.
+     Restore this ad panel block under the main card if it is missing: -->
+<div id="adPanel" class="ad-panel hidden">
+  <div class="ad-label">Advertisement</div>
+  <div id="adContainer"></div>
+  <div id="adTextEl" class="ad-text hidden"></div>
+</div>
+
 <script type="module">
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, off, get, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, onValue, off, get, update, push, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 /* =========================
    CONFIG
@@ -618,17 +626,17 @@ const CONFIG = {
     measurementId: "G-KWBELWRC5M"
   },
   endpoints: {
-    getTenant: "/.netlify/functions/getTenant",
-    getFirebaseConfig: "/.netlify/functions/getFirebaseConfig",
+    getTenant: "/.netlify/functions/get-tenant",
+    getFirebaseConfig: "/.netlify/functions/get-firebase-config",
     createLink: "/.netlify/functions/createTelegramLink",
     markTokenUsed: "/.netlify/functions/markTokenUsed",
   },
   telegramBotUrl: "https://t.me/QueueJoyBot",
-  maxInitRetries: 3,
-  initRetryDelayMs: 3000,
-  redirectDelay: 8000,
+  maxInitRetries: 5,
+  initRetryDelayMs: 1800,
+  redirectDelay: 9000,
   defaultAvgServiceMin: 3,
-  maxAhead: 20,
+  maxAhead: 30,
 };
 
 /* =========================
@@ -674,7 +682,7 @@ const I18N = {
     canceled: "❌ Canceled",
     thank_you_title: "Thank You!",
     thank_you_desc: "Your ticket has been cancelled. You may leave this page now. Thank you for your patience!",
-    tg_no_app: "Don't have Telegram? Download it free from your app store, then come back and tap Connect.",
+    tg_no_app: "Don't have Telegram? Download it free, then come back and tap Connect Telegram.",
   },
   zh: {
     in_queue: "你在排队中",
@@ -715,7 +723,7 @@ const I18N = {
     canceled: "❌ 已取消",
     thank_you_title: "谢谢！",
     thank_you_desc: "你的票已被取消。你现在可以离开此页面。感谢你的耐心！",
-    tg_no_app: "没有 Telegram？从应用商店免费下载，然后回来点击连接。",
+    tg_no_app: "没有 Telegram？先下载安装，然后回来点击连接。",
   },
   bm: {
     in_queue: "Anda dalam barisan",
@@ -747,7 +755,7 @@ const I18N = {
     not_found: "Barisan tidak dijumpai. Mencuba semula...",
     est_now: "Sekarang",
     people_1: "1 orang di hadapan",
-    play_game: "🎮 Snake",
+    play_game: "🎮 Snake Game",
     cancel_btn: "❌ Batal",
     cancel_title: "Batalkan nombor ini?",
     cancel_desc: "Ini akan menanda tiket sebagai dibatalkan dan melangkauinya dalam barisan.",
@@ -756,7 +764,7 @@ const I18N = {
     canceled: "❌ Dibatalkan",
     thank_you_title: "Terima Kasih!",
     thank_you_desc: "Tiket anda telah dibatalkan. Anda boleh meninggalkan halaman ini sekarang. Terima kasih atas kesabaran anda!",
-    tg_no_app: "Tiada Telegram? Muat turun percuma dari kedai aplikasi, kemudian kembali dan ketik Sambung.",
+    tg_no_app: "Tiada Telegram? Muat turun dahulu, kemudian kembali dan tekan Sambung Telegram.",
   }
 };
 
@@ -779,6 +787,8 @@ const state = {
   linkGenerating: false,
   initResolved: false,
   configLoaded: false,
+  queueResolved: false,
+  queuePathUsed: null,
 };
 
 let db = null;
@@ -786,8 +796,8 @@ let qRef = null;
 let counterRef = null;
 let adRef = null;
 let analyticsRef = null;
-let configRef = null;
 let currentCounterId = null;
+let attemptedQueuePaths = [];
 
 /* =========================
    DOM
@@ -798,9 +808,22 @@ const $ = id => document.getElementById(id);
    HELPERS
    ========================= */
 function safeString(value, fallback = "") {
-  if (typeof value === "string") { const s = value.trim(); return s || fallback; }
+  if (typeof value === "string") {
+    const s = value.trim();
+    return s || fallback;
+  }
   if (value === 0) return "0";
   return fallback;
+}
+
+function getPath(obj, path) {
+  if (!obj || typeof obj !== "object") return undefined;
+  let cur = obj;
+  for (const part of String(path).split(".")) {
+    if (!cur || typeof cur !== "object") return undefined;
+    cur = cur[part];
+  }
+  return cur;
 }
 
 function extractNumber(str) {
@@ -834,9 +857,14 @@ function getSlugFromUrl() {
   return null;
 }
 
+function getTenantIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("tenantId") || params.get("tenant") || params.get("tid") || null;
+}
+
 function getQueueKeyFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("queueId") || params.get("queueKey") || params.get("qid") || params.get("id") || null;
+  return params.get("queueKey") || params.get("queueId") || params.get("qid") || params.get("id") || null;
 }
 
 function getVisibleTicket(d) {
@@ -887,15 +915,6 @@ function applyThemeColor(color) {
   if (!color) return;
   document.documentElement.style.setProperty("--primary-hex", color);
   document.getElementById("metaTheme")?.setAttribute("content", color);
-  // Compute darker shade
-  try {
-    const el = document.createElement("div");
-    el.style.color = color;
-    document.body.appendChild(el);
-    const rgb = getComputedStyle(el).color;
-    document.body.removeChild(el);
-    // Simple darkening: we just keep the original for now
-  } catch {}
 }
 
 function setLang(lang) {
@@ -958,12 +977,33 @@ function formatServingNumber(raw) {
 function animateStatChange(elId, newText) {
   const el = $(elId);
   if (!el) return;
-  const current = el.textContent;
-  if (current === newText) return;
+  const current = el.textContent.trim();
+  if (current === String(newText).trim()) return;
   el.textContent = newText;
   el.classList.remove("pop");
-  void el.offsetWidth; // reflow
+  void el.offsetWidth;
   el.classList.add("pop");
+}
+
+function setLoadingPlaceholders() {
+  $("yourNumber").innerHTML = '<span class="skeleton skeleton-text"></span>';
+  $("nowServing").innerHTML = '<span class="skeleton skeleton-text"></span>';
+  $("peopleAhead").innerHTML = '<span class="skeleton skeleton-text"></span>';
+  $("estimatedWait").innerHTML = '<span class="skeleton skeleton-text"></span>';
+  $("progressCaption").textContent = "...";
+  $("progressFill").style.width = "8%";
+}
+
+function normalizeQueueData(raw) {
+  const d = raw || {};
+  const number = d.queueNumber || d.number || d.ticketNumber || d.queueId || "—";
+  const counterName = d.counterName || d.counter || "—";
+  return {
+    ...d,
+    queueNumber: d.queueNumber || d.number || d.queueId || null,
+    number: d.number || d.queueNumber || d.queueId || null,
+    counterName,
+  };
 }
 
 /* =========================
@@ -975,8 +1015,11 @@ function renderData() {
 
   const t = I18N[state.lang];
 
-  const ticket = getVisibleTicket(d);
-  animateStatChange("yourNumber", ticket);
+  animateStatChange("yourNumber", getVisibleTicket(d));
+
+  const servingRaw = state.counterData ? getServingRaw(state.counterData) : d.nowServing ?? null;
+  const servingDisplay = formatServingNumber(servingRaw);
+  animateStatChange("nowServing", servingDisplay);
 
   const ahead = d._computedAhead ?? d.peopleAhead ?? null;
   if (ahead !== null && ahead !== undefined && !Number.isNaN(Number(ahead))) {
@@ -1022,25 +1065,22 @@ function renderData() {
   const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id || d.chatId);
   setTelegramUI(hasTg);
 
-  // Counter name
-  const cName = d.counterName || d.counter || null;
+  const counterName = d.counterName || state.counterData?.name || d.counter || null;
   const badge = $("counterBadge");
-  if (cName && badge) {
-    $("counterNameLabel").textContent = cName;
+  if (counterName && badge) {
+    $("counterNameLabel").textContent = counterName;
     badge.classList.remove("hidden");
   }
 
-  // Cancel state
   const cancelBtn = $("btnCancel");
   if (cancelBtn) {
-    if (status === "canceled" || status === "cancelled" || status === "served" || status === "completed" || status === "called" || status === "serving") {
+    if (["canceled", "cancelled", "served", "completed", "called", "serving"].includes(status)) {
       cancelBtn.disabled = true;
     } else {
       cancelBtn.disabled = false;
     }
   }
 
-  // Show thank you if canceled
   if ((status === "canceled" || status === "cancelled") && !state.isCanceled) {
     showThankYou();
   }
@@ -1049,9 +1089,12 @@ function renderData() {
 function showThankYou() {
   state.isCanceled = true;
   $("mainCard")?.classList.add("hidden");
+  $("adPanel")?.classList.add("hidden");
   $("actionsStack")?.classList.add("hidden");
   $("thankYouCard")?.classList.remove("hidden");
   $("bannerWarning")?.classList.add("hidden");
+  $("bannerSuccess")?.classList.add("hidden");
+  $("errorBanner")?.classList.add("hidden");
 }
 
 /* =========================
@@ -1070,16 +1113,28 @@ function redirectToTurn() {
   }
 
   setTimeout(() => {
-    window.location.href = `your_turn.html?queueId=${encodeURIComponent(state.queueKey || "")}&slug=${encodeURIComponent(state.slug || "")}`;
+    const url = new URL("your_turn.html", window.location.href);
+    if (state.queueKey) url.searchParams.set("queueId", state.queueKey);
+    if (state.slug) url.searchParams.set("slug", state.slug);
+    if (state.tenantId) url.searchParams.set("tenantId", state.tenantId);
+    window.location.href = url.toString();
   }, 600);
 }
 
 /* =========================
-   FIREBASE
+   TENANT / FIREBASE
    ========================= */
 async function resolveTenant() {
+  const urlTenantId = getTenantIdFromUrl();
   const slug = getSlugFromUrl();
   state.slug = slug;
+  window.__TENANT_SLUG = slug || "";
+
+  if (urlTenantId) {
+    state.tenantId = urlTenantId;
+    window.__TENANT_ID = urlTenantId;
+    return;
+  }
 
   if (slug) {
     try {
@@ -1094,6 +1149,7 @@ async function resolveTenant() {
       state.tenantId = slug;
     }
   }
+  window.__TENANT_ID = state.tenantId || "";
 }
 
 async function initFirebase() {
@@ -1109,42 +1165,41 @@ async function initFirebase() {
           cfg = tenantCfg;
         }
       }
-    } catch { /* keep default */ }
+    } catch {
+      /* keep default */
+    }
   }
 
   if (!getApps().length) initializeApp(cfg);
   db = getDatabase(getApps()[0]);
 }
 
-/* =========================
-   LOAD TENANT CONFIG
-   ========================= */
 async function loadTenantConfig() {
   if (!db || !state.tenantId) return;
+
   try {
     const path = `tenants/${state.tenantId}/public/config`;
     const snap = await get(ref(db, path));
     if (snap?.exists?.()) {
-      const config = snap.val();
+      const config = snap.val() || {};
       state.configLoaded = true;
 
-      // Theme color
-      if (config.theme?.color) applyThemeColor(config.theme.color);
+      const themeColor = getPath(config, "theme.color");
+      if (themeColor) applyThemeColor(themeColor);
 
-      // Display name
       if (config.displayName) $("displayName").textContent = config.displayName;
       if (config.mainHeading) $("displayName").textContent = config.mainHeading;
 
-      // Small text
       if (config.smallTextOnTop) {
         const el = $("smallTextTop");
-        if (el) { el.textContent = config.smallTextOnTop; el.classList.remove("hidden"); }
+        if (el) {
+          el.textContent = config.smallTextOnTop;
+          el.classList.remove("hidden");
+        }
       }
 
-      // Description
       if (config.description) $("headerDesc").textContent = config.description;
 
-      // Logo — centerLogoUrl first, then logoUrl, then QJ text
       const logoUrl = config.centerLogoUrl || config.logoUrl || null;
       if (logoUrl) {
         const img = $("logoImg");
@@ -1154,108 +1209,179 @@ async function loadTenantConfig() {
             $("logoText")?.classList.add("hidden");
             img.classList.remove("hidden");
           };
-          img.onerror = () => { /* keep QJ text */ };
+          img.onerror = () => {
+            $("logoText")?.classList.remove("hidden");
+            img.classList.add("hidden");
+          };
         }
       }
 
-      // Timezone
-      if (config.timezone) state.timezone = config.timezone;
+      renderAd(config);
     }
-  } catch { /* non-critical */ }
+  } catch (e) {
+    console.warn("[QJ] loadTenantConfig failed", e);
+  }
 }
 
-/* =========================
-   WATCHERS
-   ========================= */
-async function startQueueWatcher() {
-  if (!db || !state.queueKey) return;
-  if (qRef) { off(qRef); qRef = null; }
+function queuePathsToTry() {
+  const t = state.tenantId;
+  const k = state.queueKey;
+  return [
+    `tenants/${t}/queue/${k}`,
+    `tenants/${t}/public/queues/${k}`,
+    `tenants/${t}/public/queue/${k}`,
+  ];
+}
 
-  if (!state.tenantId) {
-    showError("Tenant not resolved. Please check your link.");
-    return;
+function isQueueObjectMatch(obj) {
+  if (!obj || typeof obj !== "object") return false;
+  const visible = safeString(obj.queueNumber || obj.number || obj.queueId || "");
+  const key = safeString(obj.queueKey || "");
+  const qid = safeString(obj.queueId || "");
+  return Boolean(visible || key || qid);
+}
+
+async function findQueueByFallback() {
+  const candidates = [
+    `tenants/${state.tenantId}/queue`,
+    `tenants/${state.tenantId}/public/queues`,
+  ];
+
+  for (const base of candidates) {
+    try {
+      const snap = await get(ref(db, base));
+      if (!snap?.exists?.()) continue;
+      const all = snap.val() || {};
+      for (const [k, v] of Object.entries(all)) {
+        const q = v || {};
+        const visible = String(q.queueNumber || q.number || q.queueId || "").trim();
+        const matchesQueueKey = k === state.queueKey || q.queueKey === state.queueKey;
+        const matchesQueueId = String(q.queueId || "").trim() === String(state.queueKey).trim();
+        const matchesNumber = String(visible).trim() === String(state.queueNumber || "").trim();
+        if (matchesQueueKey || matchesQueueId || matchesNumber) {
+          return { key: k, data: q, path: `${base}/${k}` };
+        }
+      }
+    } catch {}
+  }
+  return null;
+}
+
+async function attachQueueListeners(queuePath) {
+  if (qRef) {
+    try { off(qRef); } catch {}
+    qRef = null;
   }
 
-  const path = `tenants/${state.tenantId}/queue/${state.queueKey}`;
-  qRef = ref(db, path);
-
+  qRef = ref(db, queuePath);
   onValue(qRef, snap => {
     if (!snap || !snap.exists || !snap.exists()) {
-      if (!state.initResolved) console.warn("[QJ] Queue data not yet available at", path);
+      if (!state.initResolved) console.warn("[QJ] Queue data not yet available at", queuePath);
       return;
     }
 
     state.initResolved = true;
-    const data = snap.val() || {};
+    state.queueResolved = true;
+    state.queuePathUsed = queuePath;
+
+    const data = normalizeQueueData(snap.val() || {});
     state.data = data;
     localStorage.setItem("qj_last_data", JSON.stringify(data));
-    localStorage.setItem("qj_last_queueId", state.queueKey);
+    localStorage.setItem("qj_last_queueId", state.queueKey || "");
 
     const st = String(data.status || "").toLowerCase();
-    if (st === "called" || st === "serving" || st === "your_turn" || data.called === true || data.notifiedAt || data.calledAt) {
+    if (["called", "serving", "your_turn"].includes(st) || data.called === true || data.notifiedAt || data.calledAt) {
       redirectToTurn();
       return;
     }
 
-    if (st === "canceled" || st === "cancelled") {
+    if (["canceled", "cancelled"].includes(st)) {
       renderData();
+      showThankYou();
       return;
     }
 
     const cid = data.counterId || data.counter || data.counterAssigned;
     if (cid && cid !== currentCounterId) {
-      if (counterRef) off(counterRef);
       currentCounterId = cid;
       watchCounter(cid);
+    } else if (state.counterData) {
+      computeAhead(data, getServingRaw(state.counterData));
     } else {
       computeAhead(data);
     }
 
-    // Counter name from queue record
-    if (data.counterName && !$("counterNameLabel")?.textContent?.trim()) {
-      $("counterNameLabel").textContent = data.counterName;
-      $("counterBadge")?.classList.remove("hidden");
-    }
-
     const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id || data.chatId);
-    if (!hasTg && !state.isCanceled && !$("obModal").classList.contains("show") && !localStorage.getItem("qj_modal_skipped_" + state.queueKey)) {
+    if (!hasTg && !state.isCanceled && !$("obModal").classList.contains("show") && !localStorage.getItem("qj_modal_skipped_" + (state.queueKey || ""))) {
       openModal();
     }
 
     renderData();
   });
+}
 
-  setTimeout(() => {
+async function startQueueWatcher() {
+  if (!db || !state.queueKey || !state.tenantId) return;
+
+  const paths = queuePathsToTry();
+  attemptedQueuePaths = [...paths];
+
+  for (const path of paths) {
+    try {
+      const snap = await get(ref(db, path));
+      if (snap?.exists?.()) {
+        await attachQueueListeners(path);
+        return;
+      }
+    } catch {}
+  }
+
+  const fallback = await findQueueByFallback();
+  if (fallback && fallback.path) {
+    state.queueKey = fallback.key || state.queueKey;
+    window.__TENANT_ID = state.tenantId || "";
+    await attachQueueListeners(fallback.path);
+    return;
+  }
+
+  setTimeout(async () => {
+    if (state.queueResolved || state.isRedirecting) return;
+    const fallback2 = await findQueueByFallback();
+    if (fallback2 && fallback2.path) {
+      state.queueKey = fallback2.key || state.queueKey;
+      await attachQueueListeners(fallback2.path);
+      return;
+    }
+
     if (!state.initResolved && !state.isRedirecting) {
       showError(I18N[state.lang].not_found);
       setTimeout(() => {
         if (!state.initResolved && !state.isRedirecting) {
-          window.location.href = state.slug
-            ? `index.html?error=not_found&slug=${encodeURIComponent(state.slug)}`
-            : "index.html?error=not_found";
+          const url = new URL("index.html", window.location.href);
+          url.searchParams.set("error", "not_found");
+          if (state.slug) url.searchParams.set("slug", state.slug);
+          window.location.href = url.toString();
         }
       }, CONFIG.redirectDelay);
     }
   }, CONFIG.maxInitRetries * CONFIG.initRetryDelayMs);
 }
 
-async function watchCounter(counterId) {
-  if (!state.tenantId) return;
+function watchCounter(counterId) {
+  if (!state.tenantId || !counterId) return;
+  if (counterRef) {
+    try { off(counterRef); } catch {}
+    counterRef = null;
+  }
+
   const path = `tenants/${state.tenantId}/counters/${counterId}`;
-  if (counterRef) off(counterRef);
   counterRef = ref(db, path);
 
   onValue(counterRef, snap => {
     if (!snap || !snap.exists || !snap.exists()) return;
-    const cData = snap.val() || {};
-    const serving = getServingRaw(cData);
+    state.counterData = snap.val() || {};
+    const serving = getServingRaw(state.counterData);
     animateStatChange("nowServing", formatServingNumber(serving));
-
-    // Update counter name from counter record
-    if (cData.name) {
-      $("counterNameLabel").textContent = cData.name;
-      $("counterBadge")?.classList.remove("hidden");
-    }
 
     if (state.data) {
       computeAhead(state.data, serving);
@@ -1267,6 +1393,7 @@ async function watchCounter(counterId) {
 async function watchAnalytics() {
   if (!db || !state.tenantId) return;
   const path = `tenants/${state.tenantId}/analytics/serviceEvents`;
+
   try {
     analyticsRef = ref(db, path);
     onValue(analyticsRef, snap => {
@@ -1286,32 +1413,12 @@ async function watchAnalytics() {
         renderData();
       }
     });
-  } catch { /* non-critical */ }
+  } catch {}
 }
 
-async function watchAds() {
-  if (!db || !state.tenantId) return;
-  try {
-    // Try public/config first for ad data
-    const configPath = `tenants/${state.tenantId}/public/config`;
-    const snap = await get(ref(db, configPath));
-    if (snap?.exists?.()) {
-      const config = snap.val();
-      if (config.ad) {
-        showAd(config.ad, config.adText || null);
-        return;
-      }
-    }
-    // Fallback to settings/adImage
-    const adPath = `tenants/${state.tenantId}/settings/adImage`;
-    adRef = ref(db, adPath);
-    onValue(adRef, snap => {
-      const url = snap?.exists?.() ? snap.val() : null;
-      showAd(url);
-    });
-  } catch { /* non-critical */ }
-}
-
+/* =========================
+   AD PANEL
+   ========================= */
 function showAd(adData, adText) {
   const panel = $("adPanel");
   const container = $("adContainer");
@@ -1319,9 +1426,15 @@ function showAd(adData, adText) {
   if (!panel || !container) return;
 
   container.innerHTML = "";
-  if (textEl) { textEl.classList.add("hidden"); textEl.textContent = ""; }
+  if (textEl) {
+    textEl.classList.add("hidden");
+    textEl.textContent = "";
+  }
 
-  if (!adData) { panel.classList.add("hidden"); return; }
+  if (!adData) {
+    panel.classList.add("hidden");
+    return;
+  }
 
   let url = null;
   let linkHref = null;
@@ -1334,15 +1447,16 @@ function showAd(adData, adText) {
     if (!adText) adText = adData.text || adData.description || null;
   }
 
-  if (!url) { panel.classList.add("hidden"); return; }
+  if (!url) {
+    panel.classList.add("hidden");
+    return;
+  }
 
-  // Show ad text if available
   if (adText && textEl) {
     textEl.textContent = adText;
     textEl.classList.remove("hidden");
   }
 
-  // Video embed
   if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
     let embedSrc = url;
     try {
@@ -1363,7 +1477,10 @@ function showAd(adData, adText) {
     const v = document.createElement("video");
     v.src = url;
     v.className = "ad-media";
-    v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
+    v.autoplay = true;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
     v.addEventListener("loadedmetadata", () => panel.classList.remove("hidden"));
     v.addEventListener("error", () => panel.classList.add("hidden"));
     container.appendChild(v);
@@ -1371,7 +1488,6 @@ function showAd(adData, adText) {
     return;
   }
 
-  // Image
   const wrapper = linkHref ? document.createElement("a") : document.createElement("div");
   if (linkHref) {
     wrapper.href = linkHref;
@@ -1387,6 +1503,26 @@ function showAd(adData, adText) {
   img.onerror = () => panel.classList.add("hidden");
   wrapper.appendChild(img);
   container.appendChild(wrapper);
+}
+
+async function refreshAdFromTenantConfig() {
+  if (!db || !state.tenantId) return;
+  try {
+    const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
+    if (snap?.exists?.()) {
+      const cfg = snap.val() || {};
+      if (cfg.ad) {
+        showAd(cfg.ad, cfg.adText || null);
+        return;
+      }
+    }
+    const fallback = await get(ref(db, `tenants/${state.tenantId}/settings/adImage`));
+    if (fallback?.exists?.()) {
+      showAd(fallback.val(), null);
+      return;
+    }
+    $("adPanel")?.classList.add("hidden");
+  } catch {}
 }
 
 /* =========================
@@ -1454,7 +1590,7 @@ async function generateLink() {
   state.linkGenerating = false;
 }
 
-async function openTelegram() {
+function openTelegram() {
   if (state.linkGenerating) return;
 
   const btn = $("obFinish");
@@ -1468,10 +1604,8 @@ async function openTelegram() {
     return;
   }
 
-  // Try to open Telegram
   const win = window.open(url, "_blank", "noopener,noreferrer");
   if (!win) {
-    // Fallback link click
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
@@ -1496,7 +1630,7 @@ async function openTelegram() {
     if (btn) btn.disabled = false;
     if (content) content.innerHTML = "✅ Opened!";
     setTimeout(closeModal, 1200);
-  }, 400);
+  }, 500);
 }
 
 /* =========================
@@ -1555,7 +1689,10 @@ function closeCancelModal() {
 
 async function confirmCancel() {
   const d = state.data;
-  if (!d) { closeCancelModal(); return; }
+  if (!d) {
+    closeCancelModal();
+    return;
+  }
 
   const st = String(d.status || "").toLowerCase();
   if (["canceled", "cancelled", "served", "completed"].includes(st)) {
@@ -1574,13 +1711,17 @@ async function confirmCancel() {
       return;
     }
 
-    const path = `tenants/${state.tenantId}/queue/${state.queueKey}`;
-    await update(ref(db, path), {
+    const queuePaths = [
+      `tenants/${state.tenantId}/queue/${state.queueKey}`,
+      `tenants/${state.tenantId}/public/queues/${state.queueKey}`
+    ];
+
+    await Promise.all(queuePaths.map(p => update(ref(db, p), {
       status: "canceled",
       canceledAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       canceledBy: "customer"
-    });
+    }).catch(() => null)));
   } catch (e) {
     console.error("[QJ] Cancel failed:", e);
     showError("Cancel failed. Please try again.");
@@ -1588,6 +1729,7 @@ async function confirmCancel() {
 
   btn.disabled = false;
   closeCancelModal();
+  showThankYou();
 }
 
 /* =========================
@@ -1598,11 +1740,11 @@ function hydrateFromCache() {
     const cached = localStorage.getItem("qj_last_data");
     const cachedId = localStorage.getItem("qj_last_queueId");
     if (cached && cachedId === state.queueKey) {
-      state.cachedData = JSON.parse(cached);
+      state.cachedData = normalizeQueueData(JSON.parse(cached));
       state.data = state.cachedData;
       renderData();
     }
-  } catch { /* ignore */ }
+  } catch {}
 }
 
 /* =========================
@@ -1616,22 +1758,23 @@ async function init() {
 
   if (!state.queueKey) {
     showError("Queue ID missing.");
-    setTimeout(() => { window.location.href = "index.html"; }, 2000);
+    setTimeout(() => {
+      window.location.href = state.slug ? `index.html?slug=${encodeURIComponent(state.slug)}` : "index.html";
+    }, 2000);
     return;
   }
 
+  setLoadingPlaceholders();
   setLang(state.lang);
   hydrateFromCache();
 
   await resolveTenant();
   await initFirebase();
-
-  // Load tenant config (logo, theme, display name, ads)
   await loadTenantConfig();
+  await refreshAdFromTenantConfig();
 
   startQueueWatcher();
   watchAnalytics();
-  watchAds();
 
   window.addEventListener("beforeunload", () => {
     if (qRef) off(qRef);
@@ -1653,7 +1796,7 @@ $("obNext2").onclick = () => showSlide(2);
 $("obBack1").onclick = () => showSlide(0);
 $("obBack2").onclick = () => showSlide(1);
 $("obSkip").onclick = () => {
-  localStorage.setItem("qj_modal_skipped_" + state.queueKey, "true");
+  localStorage.setItem("qj_modal_skipped_" + (state.queueKey || ""), "true");
   closeModal();
 };
 $("obDone").onclick = closeModal;
@@ -1661,11 +1804,14 @@ $("obFinish").onclick = openTelegram;
 $("obModal").onclick = (e) => { if (e.target === $("obModal")) closeModal(); };
 
 $("btnConnect").onclick = () => {
-  // Direct open: generate link then open Telegram immediately
   if (state.latestConnectLink) {
     openTelegram();
   } else {
     openModal();
+    if (!state.latestConnectLink) {
+      showSlide(2);
+      generateLink();
+    }
   }
 };
 
@@ -1674,6 +1820,7 @@ $("btnGame").onclick = () => {
   if (state.queueKey) params.set("queueId", state.queueKey);
   if (state.slug) params.set("slug", state.slug);
   if (state.tenantId) params.set("tenantId", state.tenantId);
+  if (state.queueNumber) params.set("queueNumber", state.queueNumber);
   window.open(`game.html?${params.toString()}`, "_blank");
 };
 
@@ -1683,7 +1830,7 @@ $("btnKeepNumber").onclick = closeCancelModal;
 $("cancelModal").onclick = (e) => { if (e.target === $("cancelModal")) closeCancelModal(); };
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !state.isRedirecting) {
+  if (document.visibilityState === "visible" && !state.isRedirecting && state.queueKey && state.tenantId) {
     startQueueWatcher();
   }
 });
