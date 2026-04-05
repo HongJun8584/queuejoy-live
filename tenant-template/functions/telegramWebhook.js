@@ -5,12 +5,12 @@
   Netlify Serverless Function
 
   - Token resolution checks ALL 3 paths
-  - /start without token gives helpful instructions (not failure)
-  - Messages use HTML parse_mode matching notifyCounter.js style
-  - Explore QueueJoy inline button on all messages
-  - Tenant-aware chat→queue resolution
-  - Records chatId into queue record, telegramChatIndex, telegramConnected, announcement/chatIds
-  - Resolves queueNumber and counterName from actual records, never shows Unknown/Unassigned if data exists
+  - /start without token gives friendly onboarding (not failure)
+  - Messages use HTML parse_mode
+  - Records chatId into queue record, telegramChatIndex, telegramConnected
+  - Logs notification-performed entries
+  - Resolves queueNumber and counterName from actual records
+  - Friendly, customer-focused language throughout
 */
 
 const fetch = globalThis.fetch || require('node-fetch');
@@ -23,9 +23,7 @@ const EXPLORE_LABEL = '👉 Explore QueueJoy';
 const EXPLORE_URL = process.env.EXPLORE_URL || 'https://helloqueuejoy.netlify.app';
 const SITE_BASE = process.env.SITE_BASE || 'https://queuejoy.netlify.app';
 
-function makeHeaders() {
-  return { 'Content-Type': 'application/json' };
-}
+/* ========== helpers ========== */
 
 function isNonEmpty(v) {
   return v !== undefined && v !== null && String(v).trim() !== '';
@@ -48,14 +46,10 @@ function normalizeToken(raw) {
       const u = new URL(t, 'https://example.invalid');
       if (u.searchParams.has('start')) return u.searchParams.get('start');
     }
-  } catch (e) {}
+  } catch { }
   const idx = t.indexOf('start=');
   if (idx !== -1) return t.slice(idx + 6).split('&')[0];
   return t || null;
-}
-
-function normalizeStatus(status) {
-  return safeString(status).toLowerCase();
 }
 
 function makeTicketLabel(entry, tokenRecord) {
@@ -66,7 +60,7 @@ function makeTicketLabel(entry, tokenRecord) {
     entry?.queueKey,
     tokenRecord?.queueNumber,
     tokenRecord?.queueId,
-    tokenRecord?.queueKey
+    tokenRecord?.queueKey,
   ];
   for (const c of candidates) {
     if (isNonEmpty(c)) return safeString(c);
@@ -87,44 +81,57 @@ function makeConnectedKeyboard(queueKey, slug, tenantId, queueNumber) {
     inline_keyboard: [
       [{ text: '📲 Open Queue Status', url: statusUrl }],
       [{ text: EXPLORE_LABEL, url: EXPLORE_URL }],
-      [{ text: '📄 Help', callback_data: 'help' }]
-    ]
+      [{ text: '📊 Check Status', callback_data: 'status' }, { text: '❓ Help', callback_data: 'help' }],
+    ],
   };
 }
 
 function makeExploreKeyboard() {
-  return { inline_keyboard: [[{ text: EXPLORE_LABEL, url: EXPLORE_URL }]] };
+  return {
+    inline_keyboard: [
+      [{ text: EXPLORE_LABEL, url: EXPLORE_URL }],
+    ],
+  };
 }
 
-/* ---------- firebase-admin init ---------- */
+/* ========== firebase-admin init ========== */
+
 function tryInitAdmin() {
   let admin = null;
   try {
     admin = require('firebase-admin');
-  } catch (e) {
+  } catch {
     return { ok: false, reason: 'firebase-admin-not-installed' };
   }
 
   if (admin.apps && admin.apps.length > 0) return { ok: true, admin };
 
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_JSON || null;
+  const raw =
+    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    null;
   let sa = null;
   if (raw) {
     try {
-      const maybe = Buffer.from(raw, 'base64').toString('utf8');
-      sa = JSON.parse(maybe);
-    } catch (e) {
+      sa = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+    } catch {
       try {
         sa = JSON.parse(raw);
-      } catch (e2) {
+      } catch {
         sa = null;
       }
     }
   }
 
-  const dbUrl = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || process.env.FIREBASE_RTDB_URL || undefined;
+  const dbUrl =
+    process.env.FIREBASE_DATABASE_URL ||
+    process.env.FIREBASE_DB_URL ||
+    process.env.FIREBASE_RTDB_URL ||
+    undefined;
   try {
-    if (sa) admin.initializeApp({ credential: admin.credential.cert(sa), ...(dbUrl ? { databaseURL: dbUrl } : {}) });
+    if (sa)
+      admin.initializeApp({ credential: admin.credential.cert(sa), ...(dbUrl ? { databaseURL: dbUrl } : {}) });
     else admin.initializeApp({ ...(dbUrl ? { databaseURL: dbUrl } : {}) });
     return { ok: true, admin };
   } catch (err) {
@@ -132,13 +139,14 @@ function tryInitAdmin() {
   }
 }
 
-/* ---------- Telegram helpers ---------- */
+/* ========== Telegram API ========== */
+
 async function sendTelegram(chatId, text, extra = {}) {
   if (!BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
   const body = { chat_id: chatId, text, disable_web_page_preview: true, parse_mode: 'HTML', ...extra };
   try {
-    const res = await fetch(url, { method: 'POST', headers: makeHeaders(), body: JSON.stringify(body) });
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const json = await res.json().catch(() => null);
     if (!res.ok) return { ok: false, error: json || res.status };
     return { ok: true, data: json };
@@ -150,28 +158,23 @@ async function sendTelegram(chatId, text, extra = {}) {
 
 async function answerCallback(callbackQueryId, text = '') {
   if (!BOT_TOKEN) return;
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`;
   try {
-    await fetch(url, {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
       method: 'POST',
-      headers: makeHeaders(),
-      body: JSON.stringify({
-        callback_query_id: callbackQueryId,
-        text,
-        show_alert: false
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text, show_alert: false }),
     });
-  } catch (e) {}
+  } catch { }
 }
 
-/* ---------- token resolution ---------- */
+/* ========== Token resolution ========== */
+
 async function resolveTokenToTenant(adminDb, token) {
   if (!adminDb || !token) return null;
 
-  // Path 1: global telegramTokens/{token}
   try {
     const gSnap = await adminDb.ref(`telegramTokens/${token}`).get().catch(() => null);
-    if (gSnap && gSnap.exists && gSnap.exists()) {
+    if (gSnap?.exists?.()) {
       const val = gSnap.val() || {};
       const tenantId = val.tenantId || val.tenant || null;
       if (tenantId) return { tenantId, tokenRecord: val, source: 'global' };
@@ -180,23 +183,22 @@ async function resolveTokenToTenant(adminDb, token) {
     console.warn('resolveToken: global check failed', e?.message);
   }
 
-  // Path 2 and 3: tenant token paths
   try {
     const slugsSnap = await adminDb.ref('slugs').get().catch(() => null);
-    if (slugsSnap && slugsSnap.exists && slugsSnap.exists()) {
+    if (slugsSnap?.exists?.()) {
       const slugs = slugsSnap.val() || {};
       for (const slugKey of Object.keys(slugs)) {
         const mapping = slugs[slugKey];
-        const tenantId = (typeof mapping === 'string') ? mapping : (mapping?.tenantId || null);
+        const tenantId = typeof mapping === 'string' ? mapping : mapping?.tenantId || null;
         if (!tenantId) continue;
 
         const intSnap = await adminDb.ref(`tenants/${tenantId}/integrations/telegram/tokens/${token}`).get().catch(() => null);
-        if (intSnap && intSnap.exists && intSnap.exists()) {
+        if (intSnap?.exists?.()) {
           return { tenantId, tokenRecord: intSnap.val() || {}, source: `tenant-integrations:${tenantId}` };
         }
 
         const tSnap = await adminDb.ref(`tenants/${tenantId}/telegramTokens/${token}`).get().catch(() => null);
-        if (tSnap && tSnap.exists && tSnap.exists()) {
+        if (tSnap?.exists?.()) {
           return { tenantId, tokenRecord: tSnap.val() || {}, source: `tenant-tokens:${tenantId}` };
         }
       }
@@ -208,7 +210,8 @@ async function resolveTokenToTenant(adminDb, token) {
   return null;
 }
 
-/* ---------- exact queue resolution ---------- */
+/* ========== Queue resolution ========== */
+
 async function resolveExactQueue(adminDb, tenantId, tokenRecord) {
   if (!adminDb || !tenantId || !tokenRecord) return null;
 
@@ -218,58 +221,45 @@ async function resolveExactQueue(adminDb, tenantId, tokenRecord) {
 
   const directPaths = [];
   if (queueKey) {
-    directPaths.push(`tenants/${tenantId}/queue/${queueKey}`);
     directPaths.push(`tenants/${tenantId}/public/queues/${queueKey}`);
+    directPaths.push(`tenants/${tenantId}/queue/${queueKey}`);
   }
 
   for (const p of directPaths) {
     try {
       const snap = await adminDb.ref(p).get().catch(() => null);
-      if (snap && snap.exists && snap.exists()) {
+      if (snap?.exists?.()) {
         return { queueKey: queueKey || p.split('/').pop(), entry: snap.val() || {}, path: p, via: 'direct' };
       }
-    } catch (e) {}
+    } catch { }
   }
 
-  const bases = [
-    `tenants/${tenantId}/queue`,
-    `tenants/${tenantId}/public/queues`
-  ];
-
+  const bases = [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/queue`];
   for (const base of bases) {
     try {
       const snap = await adminDb.ref(base).get().catch(() => null);
-      if (!snap || !snap.exists || !snap.exists()) continue;
-
+      if (!snap?.exists?.()) continue;
       const all = snap.val() || {};
       for (const [k, v] of Object.entries(all)) {
         const q = v || {};
-        const visibleLabel = safeString(q.queueNumber || q.number || q.queueId || k);
         const matchesQueueKey = queueKey && (k === queueKey || safeString(q.queueKey) === queueKey);
         const matchesQueueId = queueId && safeString(q.queueId) === queueId;
         const matchesQueueNumber = queueNumber && safeString(q.queueNumber || q.number) === queueNumber;
-        const matchesLabel = queueNumber && visibleLabel === queueNumber;
-
-        if (matchesQueueKey || matchesQueueId || matchesQueueNumber || matchesLabel) {
+        if (matchesQueueKey || matchesQueueId || matchesQueueNumber) {
           return { queueKey: k, entry: q, path: `${base}/${k}`, via: `scan:${base}` };
         }
       }
-    } catch (e) {}
+    } catch { }
   }
 
   return null;
 }
 
-/* ---------- counter name ---------- */
-async function resolveCounterName(adminDb, tenantId, entry, tokenRecord) {
-  const directCandidates = [
-    entry?.counterName,
-    tokenRecord?.counterName,
-    entry?.counter,
-    tokenRecord?.counter
-  ];
+/* ========== Counter name resolution ========== */
 
-  for (const c of directCandidates) {
+async function resolveCounterName(adminDb, tenantId, entry, tokenRecord) {
+  const candidates = [entry?.counterName, tokenRecord?.counterName, entry?.counter, tokenRecord?.counter];
+  for (const c of candidates) {
     if (isNonEmpty(c) && safeString(c) !== 'Unassigned') return safeString(c);
   }
 
@@ -277,101 +267,106 @@ async function resolveCounterName(adminDb, tenantId, entry, tokenRecord) {
   if (counterId && adminDb) {
     try {
       const cSnap = await adminDb.ref(`tenants/${tenantId}/counters/${counterId}`).get().catch(() => null);
-      if (cSnap && cSnap.exists && cSnap.exists()) {
+      if (cSnap?.exists?.()) {
         const val = cSnap.val() || {};
         const name = val.name || val.displayName || val.label || null;
         if (isNonEmpty(name)) return safeString(name);
       }
-    } catch (e) {}
+    } catch { }
   }
 
   return null;
 }
 
-/* ---------- chat resolution ---------- */
+/* ========== Chat → tenant resolution ========== */
+
 async function resolveChatToTenantAndEntry(adminDb, chatId) {
   if (!adminDb || !chatId) return null;
 
-  // Fast path: telegramChatIndex/{chatId}
   try {
     const idxSnap = await adminDb.ref(`telegramChatIndex/${chatId}`).get().catch(() => null);
-    if (idxSnap && idxSnap.exists && idxSnap.exists()) {
+    if (idxSnap?.exists?.()) {
       const rec = idxSnap.val() || {};
       const tenantId = safeString(rec.tenantId);
       const queueKey = safeString(rec.queueKey);
       if (tenantId && queueKey) {
-        const qSnap = await adminDb.ref(`tenants/${tenantId}/queue/${queueKey}`).get().catch(() => null);
-        if (qSnap && qSnap.exists && qSnap.exists()) {
-          return { tenantId, queueKey, entry: qSnap.val() || {}, slug: safeString(rec.slug, ''), source: 'telegramChatIndex' };
-        }
-        const pSnap = await adminDb.ref(`tenants/${tenantId}/public/queues/${queueKey}`).get().catch(() => null);
-        if (pSnap && pSnap.exists && pSnap.exists()) {
-          return { tenantId, queueKey, entry: pSnap.val() || {}, slug: safeString(rec.slug, ''), source: 'telegramChatIndex-public' };
+        for (const base of [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/queue`]) {
+          const qSnap = await adminDb.ref(`${base}/${queueKey}`).get().catch(() => null);
+          if (qSnap?.exists?.()) {
+            return { tenantId, queueKey, entry: qSnap.val() || {}, slug: safeString(rec.slug), source: 'telegramChatIndex' };
+          }
         }
       }
     }
-  } catch (e) {}
+  } catch { }
 
-  // Fallback: scan tenant queues for chatId
   try {
     const slugsSnap = await adminDb.ref('slugs').get().catch(() => null);
-    if (!slugsSnap || !slugsSnap.exists || !slugsSnap.exists()) return null;
+    if (!slugsSnap?.exists?.()) return null;
     const slugs = slugsSnap.val() || {};
     for (const slugKey of Object.keys(slugs)) {
       const mapping = slugs[slugKey];
-      const tenantId = (typeof mapping === 'string') ? mapping : (mapping?.tenantId || null);
+      const tenantId = typeof mapping === 'string' ? mapping : mapping?.tenantId || null;
       if (!tenantId) continue;
 
-      for (const base of [`tenants/${tenantId}/queue`, `tenants/${tenantId}/public/queues`]) {
+      for (const base of [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/queue`]) {
         try {
           const qSnap = await adminDb.ref(base).orderByChild('chatId').equalTo(chatId).get().catch(() => null);
-          if (qSnap && qSnap.exists && qSnap.exists()) {
+          if (qSnap?.exists?.()) {
             const val = qSnap.val() || {};
             const firstKey = Object.keys(val)[0];
             return { tenantId, queueKey: firstKey, entry: val[firstKey] || {}, slug: slugKey, source: `chatScan:${base}` };
           }
 
           const tSnap = await adminDb.ref(base).orderByChild('telegramChatId').equalTo(chatId).get().catch(() => null);
-          if (tSnap && tSnap.exists && tSnap.exists()) {
+          if (tSnap?.exists?.()) {
             const val = tSnap.val() || {};
             const firstKey = Object.keys(val)[0];
             return { tenantId, queueKey: firstKey, entry: val[firstKey] || {}, slug: slugKey, source: `telegramChatIdScan:${base}` };
           }
-        } catch (e) {}
+        } catch { }
       }
     }
-  } catch (e) {}
+  } catch { }
 
   return null;
 }
 
-/* ---------- attach chat to queue ---------- */
+/* ========== Attach chat to queue ========== */
+
 async function attachChatToQueue(adminDb, tenantId, tokenRecord, chatId) {
   if (!tenantId || !chatId) return { ok: false, reason: 'missing' };
 
   const nowIso = new Date().toISOString();
-
   const resolvedQueue = await resolveExactQueue(adminDb, tenantId, tokenRecord);
-  if (!resolvedQueue || !resolvedQueue.queueKey) {
+  if (!resolvedQueue?.queueKey) {
     return { ok: false, reason: 'no-queue-match' };
   }
 
   const queueKey = resolvedQueue.queueKey;
   const entry = resolvedQueue.entry || {};
-  const queuePaths = [
-    `tenants/${tenantId}/queue/${queueKey}`,
-    `tenants/${tenantId}/public/queues/${queueKey}`
-  ];
+  const slug = safeString(tokenRecord?.slug || entry?.slug || '');
 
   const updatePayload = {
-    chatId: chatId,
+    chatId,
     telegramChatId: chatId,
     telegramConnected: true,
     connectedAt: nowIso,
     telegramToken: tokenRecord?.token || null,
     telegramTokenUsedAt: nowIso,
-    updatedAt: nowIso
+    updatedAt: nowIso,
   };
+
+  const queuePaths = [
+    `tenants/${tenantId}/public/queues/${queueKey}`,
+    `tenants/${tenantId}/queue/${queueKey}`,
+  ];
+
+  for (const p of queuePaths) {
+    try {
+      await adminDb.ref(p).update(updatePayload);
+    } catch { }
+  }
 
   try {
     await adminDb.ref().update({
@@ -379,41 +374,37 @@ async function attachChatToQueue(adminDb, tenantId, tokenRecord, chatId) {
         tenantId,
         queueKey,
         connectedAt: nowIso,
-        slug: safeString(tokenRecord?.slug || '', '')
+        slug,
       },
       [`tenants/${tenantId}/telegramConnected/${chatId}`]: {
         connectedAt: nowIso,
         queueKey,
-        slug: safeString(tokenRecord?.slug || '', '')
+        slug,
       },
       [`tenants/${tenantId}/announcement/chatIds/${chatId}`]: true,
     });
-  } catch (e) {}
+  } catch { }
 
-  for (const p of queuePaths) {
-    try {
-      await adminDb.ref(p).update(updatePayload);
-    } catch (e) {}
-  }
-
-  return { ok: true, queueKey, entry, via: resolvedQueue.via };
+  return { ok: true, queueKey, entry, slug, via: resolvedQueue.via };
 }
 
-/* ---------- token mark used ---------- */
+/* ========== Mark token used in all paths ========== */
+
 async function markTokenUsedAllPaths(adminDb, tenantId, token, chatId) {
   const nowIso = new Date().toISOString();
   const updates = {};
-  updates[`telegramTokens/${token}/used`] = true;
-  updates[`telegramTokens/${token}/usedAt`] = nowIso;
-  updates[`telegramTokens/${token}/chatId`] = chatId;
 
-  updates[`tenants/${tenantId}/telegramTokens/${token}/used`] = true;
-  updates[`tenants/${tenantId}/telegramTokens/${token}/usedAt`] = nowIso;
-  updates[`tenants/${tenantId}/telegramTokens/${token}/chatId`] = chatId;
+  const paths = [
+    `telegramTokens/${token}`,
+    `tenants/${tenantId}/telegramTokens/${token}`,
+    `tenants/${tenantId}/integrations/telegram/tokens/${token}`,
+  ];
 
-  updates[`tenants/${tenantId}/integrations/telegram/tokens/${token}/used`] = true;
-  updates[`tenants/${tenantId}/integrations/telegram/tokens/${token}/usedAt`] = nowIso;
-  updates[`tenants/${tenantId}/integrations/telegram/tokens/${token}/chatId`] = chatId;
+  for (const p of paths) {
+    updates[`${p}/used`] = true;
+    updates[`${p}/usedAt`] = nowIso;
+    updates[`${p}/chatId`] = chatId;
+  }
 
   try {
     await adminDb.ref().update(updates);
@@ -422,37 +413,69 @@ async function markTokenUsedAllPaths(adminDb, tenantId, token, chatId) {
   }
 }
 
-/* ---------- /status ---------- */
+/* ========== Notification-performed log ========== */
+
+async function logNotificationPerformed(adminDb, { tenantId, queueKey, queueId, queueNumber, chatId, token, messageType, extra }) {
+  if (!adminDb || !tenantId) return;
+
+  const nowIso = new Date().toISOString();
+  const logEntry = {
+    timestamp: nowIso,
+    tenantId,
+    queueKey: queueKey || '',
+    queueId: queueId || '',
+    queueNumber: queueNumber || '',
+    chatId: chatId || '',
+    token: token || '',
+    messageType: messageType || 'telegram_connected',
+    source: 'telegramWebhook',
+    ...(extra || {}),
+  };
+
+  try {
+    const logRef = adminDb.ref(`tenants/${tenantId}/notifications/performed`);
+    await logRef.push(logEntry);
+  } catch (e) {
+    console.warn('logNotificationPerformed failed', e?.message);
+  }
+}
+
+/* ========== /status command ========== */
+
 async function handleStatusCommand(adminDb, chatId) {
   if (!adminDb) {
-    await sendTelegram(chatId, '⚠️ Status lookup is temporarily unavailable. Please open your QueueJoy status page.', {
-      reply_markup: makeExploreKeyboard()
-    });
+    await sendTelegram(chatId, [
+      '⚠️ Status lookup is temporarily unavailable.',
+      '',
+      'Please open your QueueJoy status page to check your position.',
+    ].join('\n'), { reply_markup: makeExploreKeyboard() });
     return { statusCode: 200, body: 'OK' };
   }
 
   const resolved = await resolveChatToTenantAndEntry(adminDb, chatId);
-  if (resolved && resolved.tenantId && resolved.queueKey) {
+  if (resolved?.tenantId && resolved?.queueKey) {
     const ent = resolved.entry || {};
     const ticketLabel = makeTicketLabel(ent, {});
-    const counterName = await resolveCounterName(adminDb, resolved.tenantId, ent, {}) || 'Not yet assigned';
-    const status = normalizeStatus(ent.status || 'waiting');
+    const counterName = (await resolveCounterName(adminDb, resolved.tenantId, ent, {})) || 'Not yet assigned';
+    const status = safeString(ent.status || 'waiting').toLowerCase();
     const statusEmoji =
       status === 'called' || status === 'serving' || status === 'your_turn' ? '🎉' :
-      status === 'canceled' || status === 'cancelled' ? '❌' :
-      status === 'completed' ? '✅' : '⏳';
+        status === 'canceled' || status === 'cancelled' ? '❌' :
+          status === 'completed' ? '✅' : '⏳';
 
     const reply = [
       '📊 <b>Your Queue Status</b>',
       '',
-      `🧾 Number: <b>${ticketLabel}</b>`,
+      `🧾 Ticket: <b>${ticketLabel}</b>`,
       `🪑 Counter: <b>${counterName}</b>`,
       `${statusEmoji} Status: <b>${status}</b>`,
-      `✅ Telegram: Connected`,
+      '✅ Telegram: Connected',
+      '',
+      '💡 We\'ll alert you here when it\'s your turn!',
     ].join('\n');
 
     await sendTelegram(chatId, reply, {
-      reply_markup: makeConnectedKeyboard(resolved.queueKey, resolved.slug, resolved.tenantId, ticketLabel)
+      reply_markup: makeConnectedKeyboard(resolved.queueKey, resolved.slug, resolved.tenantId, ticketLabel),
     });
     return { statusCode: 200, body: 'OK' };
   }
@@ -460,29 +483,39 @@ async function handleStatusCommand(adminDb, chatId) {
   await sendTelegram(chatId, [
     '🔍 No active queue found for this chat.',
     '',
-    'To connect a new ticket, open your QueueJoy status page and tap <b>📲 Connect Telegram</b>.'
+    'To connect a new ticket:',
+    '1️⃣ Open your QueueJoy status page',
+    '2️⃣ Tap <b>📲 Connect Telegram</b>',
+    '',
+    'We\'ll link your ticket right away! 😊',
   ].join('\n'), { reply_markup: makeExploreKeyboard() });
 
   return { statusCode: 200, body: 'OK' };
 }
 
-/* ---------- main handler ---------- */
+/* ========== Main handler ========== */
+
 exports.handler = async function (event) {
   try {
     if (!event || event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
     const init = tryInitAdmin();
     const adminDb = init.ok && init.admin ? init.admin.database() : null;
-    const FIREBASE_DB_URL = (process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || process.env.FIREBASE_RTDB_URL || '').replace(/\/$/, '');
+    const FIREBASE_DB_URL = (
+      process.env.FIREBASE_DATABASE_URL ||
+      process.env.FIREBASE_DB_URL ||
+      process.env.FIREBASE_RTDB_URL ||
+      ''
+    ).replace(/\/$/, '');
 
     let update = {};
     try {
       update = JSON.parse(event.body || '{}');
-    } catch (e) {
+    } catch {
       return { statusCode: 400, body: 'Invalid JSON' };
     }
 
-    // callback_query
+    /* ---------- callback_query ---------- */
     if (update.callback_query) {
       const cb = update.callback_query;
       const chatId = cb.message?.chat?.id || cb.from?.id;
@@ -495,7 +528,12 @@ exports.handler = async function (event) {
           '📊 /status — Check your queue position',
           '❓ /help — Show this help message',
           '',
-          'To connect a new ticket, open your QueueJoy status page and tap <b>Connect Telegram</b>.',
+          'To connect a new ticket, open your QueueJoy status page and tap <b>📲 Connect Telegram</b>.',
+          '',
+          '🔔 Once connected, you\'ll receive alerts for:',
+          '• Your turn notifications',
+          '• Exclusive discounts & promotions',
+          '• Important updates from the venue',
         ].join('\n'), { reply_markup: makeExploreKeyboard() });
         return { statusCode: 200, body: 'OK' };
       }
@@ -507,14 +545,14 @@ exports.handler = async function (event) {
       return { statusCode: 200, body: 'OK' };
     }
 
-    // messages
+    /* ---------- message ---------- */
     const msg = update.message || update.edited_message || null;
     const chatId = msg?.chat?.id ?? msg?.from?.id ?? null;
     if (!chatId) return { statusCode: 200, body: 'No chat id' };
 
-    const messageText = safeString(msg?.text || msg?.caption || '', '');
+    const messageText = safeString(msg?.text || msg?.caption || '');
 
-    // /help
+    /* ---------- /help ---------- */
     if (messageText === '/help' || messageText.startsWith('/help@')) {
       await sendTelegram(chatId, [
         '💡 <b>QueueJoy Help</b>',
@@ -522,46 +560,54 @@ exports.handler = async function (event) {
         '📊 /status — Check your queue position',
         '❓ /help — Show this help message',
         '',
-        'To connect a new ticket, open your QueueJoy status page and tap <b>Connect Telegram</b>.',
+        'To connect a new ticket, open your QueueJoy status page and tap <b>📲 Connect Telegram</b>.',
+        '',
+        '🔔 Once connected, you\'ll receive:',
+        '• Turn notifications when it\'s your time',
+        '• Exclusive discounts & promotions',
+        '• Important updates from the venue',
       ].join('\n'), {
         reply_markup: {
           inline_keyboard: [
             [{ text: '📊 Status', callback_data: 'status' }],
-            [{ text: EXPLORE_LABEL, url: EXPLORE_URL }]
-          ]
-        }
+            [{ text: EXPLORE_LABEL, url: EXPLORE_URL }],
+          ],
+        },
       });
       return { statusCode: 200, body: 'OK' };
     }
 
-    // /status
+    /* ---------- /status ---------- */
     if (messageText === '/status' || messageText.startsWith('/status@')) {
       return await handleStatusCommand(adminDb, chatId);
     }
 
-    // /start <token> or raw token
+    /* ---------- /start or token ---------- */
     let token = null;
     const startMatch = messageText.match(/^\/start(?:@[\w_]+)?(?:\s+(.+))?$/i);
     if (startMatch) {
-      token = safeString(startMatch[1], '') || null;
+      token = safeString(startMatch[1]) || null;
+
       if (!token) {
         const text = [
           '👋 <b>Welcome to QueueJoy!</b>',
           '',
-          'I help you get notified when your queue number is called — no need to keep the browser open!',
+          'I\'m your queue assistant! I\'ll notify you right here on Telegram when it\'s your turn — so you don\'t need to keep checking your phone. 📱',
           '',
-          '<b>How to connect:</b>',
+          '<b>Here\'s how to get started:</b>',
           '1️⃣ Open your QueueJoy status page',
           '2️⃣ Tap <b>📲 Connect Telegram</b>',
-          '3️⃣ Your ticket will be linked automatically',
+          '3️⃣ Your ticket will be linked automatically!',
           '',
-          '💡 You can also paste your token link here.',
+          '💡 You can also paste your token link here if you have one.',
           '',
-          'Once connected, you’ll receive:',
-          '• 🔔 Turn notifications',
-          '• 🎁 Exclusive discounts',
-          '• 📢 Important updates',
-          '• 🏷️ Promotions',
+          '<b>Once connected, you\'ll receive:</b>',
+          '🔔 Turn notifications — never miss your number',
+          '🎁 Exclusive discounts & deals',
+          '📢 Important updates from the venue',
+          '🏷️ Special promotions just for you',
+          '',
+          'Sit back, relax, and let us handle the waiting! ☕',
         ].join('\n');
 
         await sendTelegram(chatId, text, { reply_markup: makeExploreKeyboard() });
@@ -571,12 +617,15 @@ exports.handler = async function (event) {
       token = messageText;
     }
 
+    /* ---------- Token connection flow ---------- */
     if (token) {
       const normalized = normalizeToken(token);
       if (!normalized) {
-        await sendTelegram(chatId, '⚠️ That does not look like a valid token. Please open your QueueJoy status page and tap <b>Connect Telegram</b> to get a fresh link.', {
-          reply_markup: makeExploreKeyboard()
-        });
+        await sendTelegram(chatId, [
+          'Hmm, that doesn\'t look like a valid token. 🤔',
+          '',
+          'No worries! Just go to your QueueJoy status page and tap <b>📲 Connect Telegram</b> to get a fresh link.',
+        ].join('\n'), { reply_markup: makeExploreKeyboard() });
         return { statusCode: 200, body: 'OK' };
       }
 
@@ -586,91 +635,94 @@ exports.handler = async function (event) {
       } else if (FIREBASE_DB_URL) {
         try {
           const tokenRec = await fetch(`${FIREBASE_DB_URL}/telegramTokens/${encodeURIComponent(normalized)}.json`)
-            .then(r => r.json())
+            .then((r) => r.json())
             .catch(() => null);
           if (tokenRec) resolved = { tenantId: tokenRec.tenantId || tokenRec.tenant || null, tokenRecord: tokenRec, source: 'global-rest' };
-        } catch (e) {}
+        } catch { }
       }
 
-      if (!resolved || !resolved.tenantId) {
+      if (!resolved?.tenantId) {
         await sendTelegram(chatId, [
-          '⚠️ This token has expired or could not be found.',
+          'This token seems to have expired or isn\'t recognized. 😕',
           '',
-          'No worries — go back to your QueueJoy status page and tap <b>📲 Connect Telegram</b> to get a fresh link.'
+          'Don\'t worry — just go back to your QueueJoy status page and tap <b>📲 Connect Telegram</b> to get a new link.',
+          '',
+          'It only takes a moment! 🚀',
         ].join('\n'), { reply_markup: makeExploreKeyboard() });
         return { statusCode: 200, body: 'OK' };
       }
 
       const tenantId = resolved.tenantId;
       const tokenRecord = resolved.tokenRecord || {};
-      const slug = safeString(tokenRecord.slug || '', '');
+      const slug = safeString(tokenRecord.slug || '');
 
+      /* ---- Admin SDK connection ---- */
       if (adminDb) {
         const attach = await attachChatToQueue(adminDb, tenantId, tokenRecord, chatId);
 
-        if (attach && attach.ok) {
+        if (attach?.ok) {
           const nowIso = new Date().toISOString();
 
           await markTokenUsedAllPaths(adminDb, tenantId, normalized, chatId);
 
-          // ensure indexes exist even if earlier update partial
-          try {
-            await adminDb.ref(`telegramChatIndex/${chatId}`).set({
-              tenantId,
-              queueKey: attach.queueKey || null,
-              connectedAt: nowIso,
-              slug: slug || null
-            });
-          } catch (e) {}
-
-          try {
-            await adminDb.ref(`tenants/${tenantId}/telegramConnected/${chatId}`).set({
-              connectedAt: nowIso,
-              queueKey: attach.queueKey || null,
-              slug: slug || null
-            });
-          } catch (e) {}
-
-          try {
-            await adminDb.ref(`tenants/${tenantId}/announcement/chatIds/${chatId}`).set(true);
-          } catch (e) {}
-
           const entry = attach.entry || {};
           const ticketLabel = makeTicketLabel(entry, tokenRecord);
-          const counterName = await resolveCounterName(adminDb, tenantId, entry, tokenRecord) || 'your assigned counter';
-          const queueNumber = safeString(entry.queueNumber || entry.number || tokenRecord.queueNumber || tokenRecord.queueId || ticketLabel);
+          const counterName = (await resolveCounterName(adminDb, tenantId, entry, tokenRecord)) || 'your assigned counter';
+          const queueNumber = safeString(
+            entry.queueNumber || entry.number || tokenRecord.queueNumber || tokenRecord.queueId || ticketLabel
+          );
+
+          await logNotificationPerformed(adminDb, {
+            tenantId,
+            queueKey: attach.queueKey || '',
+            queueId: safeString(entry.queueId || tokenRecord.queueId || ''),
+            queueNumber,
+            chatId,
+            token: normalized,
+            messageType: 'telegram_connected',
+            extra: {
+              counterName,
+              slug: slug || attach.slug || '',
+              via: attach.via,
+            },
+          });
+
           const reply = [
-            '✅ <b>Connected to QueueJoy!</b>',
+            '✅ <b>You\'re connected to QueueJoy!</b>',
             '',
-            `🧾 Your number: <b>${ticketLabel || queueNumber}</b>`,
+            `🧾 Your ticket: <b>${ticketLabel || queueNumber}</b>`,
             `🪑 Counter: <b>${counterName}</b>`,
             '',
-            '🔔 We will notify you via this chat when your number is called.',
+            '🔔 We\'ll send you a notification right here when your number is called.',
             '',
-            'You can close this chat or even your phone — notifications arrive automatically!'
+            'Feel free to close this chat or put your phone away — your alert will arrive automatically! 😊',
           ].join('\n');
 
           await sendTelegram(chatId, reply, {
-            reply_markup: makeConnectedKeyboard(attach.queueKey, slug, tenantId, ticketLabel || queueNumber)
+            reply_markup: makeConnectedKeyboard(attach.queueKey, slug || attach.slug, tenantId, ticketLabel || queueNumber),
           });
 
           return { statusCode: 200, body: 'OK' };
         }
 
         await sendTelegram(chatId, [
-          '⚠️ We found your token but could not locate the queue ticket.',
+          'We found your token, but couldn\'t locate the ticket just yet. 🔍',
           '',
-          'Please go back to your QueueJoy status page and tap <b>📲 Connect Telegram</b> again.'
+          'This can happen if the ticket was recently created. Please go back to your QueueJoy status page and tap <b>📲 Connect Telegram</b> to try again.',
+          '',
+          'We\'re here to help! 💪',
         ].join('\n'), { reply_markup: makeExploreKeyboard() });
 
         return { statusCode: 200, body: 'OK' };
       }
 
-      // REST fallback
+      /* ---- REST fallback connection ---- */
       if (FIREBASE_DB_URL && tokenRecord.queueKey) {
         const nowIso = new Date().toISOString();
-        const queuePath = `${FIREBASE_DB_URL}/tenants/${encodeURIComponent(tenantId)}/queue/${encodeURIComponent(tokenRecord.queueKey)}.json`;
-        const publicQueuePath = `${FIREBASE_DB_URL}/tenants/${encodeURIComponent(tenantId)}/public/queues/${encodeURIComponent(tokenRecord.queueKey)}.json`;
+        const queuePaths = [
+          `${FIREBASE_DB_URL}/tenants/${encodeURIComponent(tenantId)}/public/queues/${encodeURIComponent(tokenRecord.queueKey)}.json`,
+          `${FIREBASE_DB_URL}/tenants/${encodeURIComponent(tenantId)}/queue/${encodeURIComponent(tokenRecord.queueKey)}.json`,
+        ];
 
         try {
           const patchBody = {
@@ -680,27 +732,37 @@ exports.handler = async function (event) {
             connectedAt: nowIso,
             telegramToken: normalized,
             telegramTokenUsedAt: nowIso,
-            updatedAt: nowIso
+            updatedAt: nowIso,
           };
 
-          await fetch(queuePath, { method: 'PATCH', headers: makeHeaders(), body: JSON.stringify(patchBody) });
-          await fetch(publicQueuePath, { method: 'PATCH', headers: makeHeaders(), body: JSON.stringify(patchBody) }).catch(() => {});
+          const headers = { 'Content-Type': 'application/json' };
+
+          await Promise.allSettled(
+            queuePaths.map((p) => fetch(p, { method: 'PATCH', headers, body: JSON.stringify(patchBody) }))
+          );
 
           await Promise.allSettled([
             fetch(`${FIREBASE_DB_URL}/telegramTokens/${encodeURIComponent(normalized)}.json`, {
-              method: 'PATCH',
-              headers: makeHeaders(),
-              body: JSON.stringify({ used: true, usedAt: nowIso, chatId })
+              method: 'PATCH', headers, body: JSON.stringify({ used: true, usedAt: nowIso, chatId }),
             }),
             fetch(`${FIREBASE_DB_URL}/tenants/${encodeURIComponent(tenantId)}/telegramTokens/${encodeURIComponent(normalized)}.json`, {
-              method: 'PATCH',
-              headers: makeHeaders(),
-              body: JSON.stringify({ used: true, usedAt: nowIso, chatId })
+              method: 'PATCH', headers, body: JSON.stringify({ used: true, usedAt: nowIso, chatId }),
             }),
             fetch(`${FIREBASE_DB_URL}/telegramChatIndex/${encodeURIComponent(chatId)}.json`, {
-              method: 'PUT',
-              headers: makeHeaders(),
-              body: JSON.stringify({ tenantId, queueKey: tokenRecord.queueKey, connectedAt: nowIso, slug })
+              method: 'PUT', headers, body: JSON.stringify({ tenantId, queueKey: tokenRecord.queueKey, connectedAt: nowIso, slug }),
+            }),
+            fetch(`${FIREBASE_DB_URL}/tenants/${encodeURIComponent(tenantId)}/notifications/performed.json`, {
+              method: 'POST', headers, body: JSON.stringify({
+                timestamp: nowIso,
+                tenantId,
+                queueKey: tokenRecord.queueKey,
+                queueId: tokenRecord.queueId || '',
+                queueNumber: tokenRecord.queueNumber || tokenRecord.queueId || '',
+                chatId,
+                token: normalized,
+                messageType: 'telegram_connected',
+                source: 'telegramWebhook',
+              }),
             }),
           ]);
 
@@ -708,12 +770,12 @@ exports.handler = async function (event) {
           const counterName = tokenRecord.counterName || 'your assigned counter';
 
           await sendTelegram(chatId, [
-            '✅ <b>Connected to QueueJoy!</b>',
+            '✅ <b>You\'re connected to QueueJoy!</b>',
             '',
-            `🧾 Your number: <b>${ticketLabel}</b>`,
+            `🧾 Your ticket: <b>${ticketLabel}</b>`,
             `🪑 Counter: <b>${counterName}</b>`,
             '',
-            '🔔 We will notify you when your number is called!'
+            '🔔 We\'ll notify you when your number is called! 😊',
           ].join('\n'), { reply_markup: makeExploreKeyboard() });
 
           return { statusCode: 200, body: 'OK' };
@@ -722,53 +784,57 @@ exports.handler = async function (event) {
         }
       }
 
-      await sendTelegram(chatId, 'Server cannot complete connection right now. Please try again in a moment.', {
-        reply_markup: makeExploreKeyboard()
-      });
+      await sendTelegram(chatId, [
+        'We\'re having a brief hiccup connecting right now. 😅',
+        '',
+        'Please try again in a moment, or go back to your QueueJoy status page and tap <b>📲 Connect Telegram</b>.',
+      ].join('\n'), { reply_markup: makeExploreKeyboard() });
       return { statusCode: 200, body: 'OK' };
     }
 
-    // no token, no command — show linked queue if available
+    /* ---------- No token, no command — show linked queue or onboarding ---------- */
     if (adminDb) {
       const resolved = await resolveChatToTenantAndEntry(adminDb, chatId);
-      if (resolved && resolved.tenantId && resolved.queueKey) {
+      if (resolved?.tenantId && resolved?.queueKey) {
         const ent = resolved.entry || {};
         const ticketLabel = makeTicketLabel(ent, {});
-        const counterName = await resolveCounterName(adminDb, resolved.tenantId, ent, {}) || 'Not yet assigned';
+        const counterName = (await resolveCounterName(adminDb, resolved.tenantId, ent, {})) || 'Not yet assigned';
 
         const reply = [
           'ℹ️ <b>Your Queue Status</b>',
           '',
-          `🧾 Number: <b>${ticketLabel}</b>`,
+          `🧾 Ticket: <b>${ticketLabel}</b>`,
           `🪑 Counter: <b>${counterName}</b>`,
           `📌 Status: <b>${safeString(ent.status || 'waiting')}</b>`,
-          `✅ Telegram: Connected`
+          '✅ Telegram: Connected',
+          '',
+          '💡 We\'ll alert you when it\'s your turn!',
         ].join('\n');
 
         await sendTelegram(chatId, reply, {
-          reply_markup: makeConnectedKeyboard(resolved.queueKey, resolved.slug, resolved.tenantId, ticketLabel)
+          reply_markup: makeConnectedKeyboard(resolved.queueKey, resolved.slug, resolved.tenantId, ticketLabel),
         });
         return { statusCode: 200, body: 'OK' };
       }
     }
 
-    const connectInstructions = [
+    await sendTelegram(chatId, [
       '👋 <b>Hi there!</b>',
       '',
-      'I could not find a queue linked to this chat yet.',
+      'I\'m the QueueJoy assistant! I don\'t see a ticket linked to this chat yet.',
       '',
       '<b>To connect your ticket:</b>',
       '1️⃣ Open your QueueJoy status page',
       '2️⃣ Tap <b>📲 Connect Telegram</b>',
       '',
-      'Or paste the token link you received and I will connect you right away!'
-    ].join('\n');
-
-    await sendTelegram(chatId, connectInstructions, { reply_markup: makeExploreKeyboard() });
+      'Or paste the token link you received and I\'ll connect you right away! 🚀',
+      '',
+      'Once connected, you\'ll get turn notifications, exclusive deals, and more — all in this chat! 🎁',
+    ].join('\n'), { reply_markup: makeExploreKeyboard() });
     return { statusCode: 200, body: 'OK' };
 
   } catch (err) {
-    console.error('Handler error', err && (err.stack || err));
+    console.error('Handler error', err?.stack || err);
     return { statusCode: 500, body: 'Internal Server Error' };
   }
 };
