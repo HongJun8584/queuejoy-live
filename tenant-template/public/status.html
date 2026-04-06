@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,1835 +9,1966 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-
   <style>
     :root {
-      --primary: 263 70% 66%;
       --primary-hex: #8b5cf6;
-      --primary-dark: 263 70% 50%;
       --primary-dark-hex: #6d28d9;
       --primary-light: #a78bfa;
-      --tg-blue: #0088cc;
-      --tg-dark: #006699;
       --success: #10b981;
       --success-dark: #059669;
-      --warning-bg: #fffbeb;
-      --warning-border: #fef3c7;
-      --warning-text: #92400e;
       --success-bg: #ecfdf5;
       --success-border: #d1fae5;
       --success-text: #065f46;
-      --bg: #f8fafc;
-      --bg-gradient: linear-gradient(160deg, #f6f5ff 0%, #ede9fe 50%, #f0fdf4 100%);
-      --card: #ffffff;
+      --warning-bg: #fffbeb;
+      --warning-border: #fef3c7;
+      --warning-text: #92400e;
+      --bg: #f7f7ff;
+      --bg-gradient: radial-gradient(circle at top, #f8f7ff 0%, #efecff 42%, #edfdf4 100%);
+      --card: rgba(255,255,255,.88);
+      --card-border: rgba(255,255,255,.7);
       --text-main: #0f172a;
       --text-muted: #64748b;
-      --stat-bg: #f8fafc;
-      --stat-border: #f1f5f9;
-      --track-bg: #f1f5f9;
-      --radius-lg: 24px;
+      --track-bg: #eef2ff;
+      --radius-xl: 28px;
+      --radius-lg: 22px;
       --radius-md: 16px;
-      --shadow-card: 0 20px 40px -12px rgba(0,0,0,0.1), 0 8px 16px -8px rgba(0,0,0,0.06);
-      --shadow-glow: 0 0 40px -10px;
-      --ease: cubic-bezier(0.4, 0, 0.2, 1);
-      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --shadow-card: 0 24px 60px rgba(15,23,42,.12), 0 6px 20px rgba(15,23,42,.08);
+      --shadow-soft: 0 10px 28px rgba(139,92,246,.16);
+      --ease: cubic-bezier(.2,.8,.2,1);
+      --spring: cubic-bezier(.34,1.56,.64,1);
+      --panel-w: 330px;
+      --panel-mobile-w: min(92vw, 360px);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
+    html, body { width: 100%; height: 100%; }
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg-gradient);
       background-attachment: fixed;
       color: var(--text-main);
-      line-height: 1.5;
-      min-height: 100vh;
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px 16px 160px;
+      min-height: 100svh;
+      overflow: hidden;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
 
-    .page-wrapper { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+    .app-shell {
+      min-height: 100svh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: clamp(10px, 1.6vw, 18px);
+      position: relative;
+      isolation: isolate;
+    }
 
-    /* Language Switcher */
-    .lang-nav { display: flex; justify-content: flex-end; gap: 6px; }
+    .page-wrapper {
+      width: min(100%, 840px);
+      display: grid;
+      gap: 10px;
+      padding-right: calc(var(--panel-w) + 18px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .lang-nav {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-right: 2px;
+    }
     .lang-btn {
-      background: none; border: 1px solid transparent; font-size: 12px; font-weight: 600;
-      color: var(--text-muted); cursor: pointer; padding: 5px 10px; border-radius: 8px;
-      transition: all 0.2s var(--ease); font-family: inherit;
+      appearance: none;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.68);
+      backdrop-filter: blur(14px);
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .01em;
+      padding: 6px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform .18s var(--ease), background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
     }
-    .lang-btn:hover { background: rgba(139, 92, 246, 0.06); }
-    .lang-btn.active { color: var(--primary-hex); background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.15); }
+    .lang-btn:hover { background: rgba(255,255,255,.85); }
+    .lang-btn.active {
+      color: var(--primary-dark-hex);
+      border-color: rgba(139,92,246,.18);
+      background: rgba(139,92,246,.09);
+    }
+    .lang-btn:active { transform: scale(.97); }
 
-    /* Banners */
+    .banner, .error-banner, .thank-you-card, .status-card, .ad-panel {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
     .banner {
-      padding: 14px 18px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600;
-      display: flex; align-items: center; gap: 10px; line-height: 1.5;
-      animation: slideDown 0.5s var(--spring);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+      animation: slideDown .42s var(--spring);
     }
-    .banner-warning { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
-    .banner-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
+    .banner-warning { background: rgba(255,251,235,.94); border: 1px solid var(--warning-border); color: var(--warning-text); }
+    .banner-success { background: rgba(236,253,245,.94); border: 1px solid var(--success-border); color: var(--success-text); }
 
-    @keyframes slideDown { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-    @keyframes shimmer {
-      0% { background-position: -200px 0; }
-      100% { background-position: calc(200px + 100%) 0; }
+    .error-banner {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(254,242,242,.96);
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+      font-weight: 600;
+      font-size: 12px;
+      text-align: center;
+      animation: slideDown .42s var(--spring);
     }
 
-    /* Main Card */
     .status-card {
-      background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
-      padding: 28px 24px; position: relative; overflow: hidden;
-      animation: scaleIn 0.5s var(--spring);
+      background: linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(255,255,255,.84) 100%);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow-card);
+      border-radius: var(--radius-xl);
+      padding: clamp(16px, 2vw, 22px);
+      position: relative;
+      overflow: hidden;
+      animation: scaleIn .42s var(--spring);
+      display: grid;
+      gap: 12px;
+      min-height: calc(100svh - 110px);
+      align-content: start;
     }
     .status-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-      background: linear-gradient(90deg, var(--primary-hex), var(--primary-light), var(--primary-hex));
-      background-size: 200% 100%;
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex), var(--primary-light), var(--primary-dark-hex));
+      background-size: 300% 100%;
       animation: shimmer 3s linear infinite;
     }
 
-    .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+    .header {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: center;
+      padding-top: 4px;
+    }
     .logo-container {
-      width: 60px; height: 60px; border-radius: 16px; flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      flex-shrink: 0;
       background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
-      display: flex; align-items: center; justify-content: center;
-      color: white; font-weight: 900; font-size: 22px;
-      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
-      transition: transform 0.3s var(--spring);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: -.04em;
+      box-shadow: 0 10px 24px rgba(139,92,246,.26);
       overflow: hidden;
     }
-    .logo-container:hover { transform: scale(1.05); }
-    .logo-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 16px; }
+    .logo-container img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .header-info { min-width: 0; }
+    .small-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--primary-dark-hex);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 2px;
+    }
+    .header-info h1 {
+      font-size: clamp(18px, 2.4vw, 24px);
+      line-height: 1.08;
+      font-weight: 900;
+      letter-spacing: -.04em;
+    }
+    .header-info p {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      max-width: 54ch;
+    }
 
-    .header-info h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
-    .header-info .small-text { font-size: 11px; color: var(--primary-hex); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
-    .header-info p { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
+    .body-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(250px, .9fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .left-stack, .right-stack { display: grid; gap: 10px; }
 
-    /* Progress */
-    .progress-area { margin-bottom: 28px; }
-    .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .progress-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-    .progress-value { font-size: 13px; font-weight: 700; color: var(--primary-hex); transition: color 0.3s; }
-    .progress-track { height: 14px; background: var(--track-bg); border-radius: 99px; overflow: hidden; position: relative; }
+    .counter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+      background: rgba(139,92,246,.09);
+      color: var(--primary-dark-hex);
+      border: 1px solid rgba(139,92,246,.14);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 8px 20px rgba(139,92,246,.06);
+    }
+
+    .progress-area {
+      background: rgba(248,250,252,.76);
+      border: 1px solid rgba(226,232,240,.95);
+      border-radius: var(--radius-lg);
+      padding: 12px;
+    }
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .progress-label {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+    .progress-value {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary-dark-hex);
+      text-align: right;
+      min-height: 1em;
+    }
+    .progress-track {
+      height: 12px;
+      background: var(--track-bg);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
     .progress-fill {
-      height: 100%; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex), var(--primary-light));
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex), var(--primary-light));
       background-size: 200% 100%;
-      width: 0%; border-radius: 99px;
-      transition: width 1s var(--spring);
-      box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
-      animation: shimmer 2s linear infinite;
+      box-shadow: 0 6px 16px rgba(139,92,246,.25);
+      transition: width .9s var(--spring);
+      animation: shimmer 2.6s linear infinite;
       position: relative;
     }
     .progress-fill::after {
-      content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-      width: 8px; height: 8px; border-radius: 50%; background: white;
-      box-shadow: 0 0 6px rgba(0,0,0,0.15);
-      opacity: 0; transition: opacity 0.3s;
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      transform: translate(35%,-50%);
+      background: white;
+      box-shadow: 0 0 0 4px rgba(255,255,255,.16);
+      opacity: 0;
+      transition: opacity .2s;
     }
     .progress-fill.has-progress::after { opacity: 1; }
 
-    /* Stats Grid */
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
     .stat-box {
-      background: var(--stat-bg); border: 1px solid var(--stat-border);
-      padding: 18px 16px; border-radius: var(--radius-md);
-      transition: transform 0.25s var(--spring), box-shadow 0.25s;
+      background: rgba(248,250,252,.86);
+      border: 1px solid rgba(241,245,249,.95);
+      border-radius: var(--radius-lg);
+      padding: 14px 12px;
+      box-shadow: 0 8px 20px rgba(15,23,42,.04);
+      transition: transform .2s var(--spring), box-shadow .2s var(--ease);
+      min-height: 96px;
+      display: grid;
+      align-content: start;
     }
-    .stat-box:active { transform: scale(0.97); }
-    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
+    .stat-box:active { transform: scale(.98); }
+    .stat-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: .08em;
+      line-height: 1.2;
+    }
     .stat-number {
-      font-size: 28px; font-weight: 900; margin-top: 6px; color: var(--text-main); line-height: 1;
-      word-break: break-word; transition: color 0.3s, transform 0.3s var(--spring);
+      margin-top: 6px;
+      font-size: clamp(22px, 3vw, 30px);
+      font-weight: 900;
+      line-height: .96;
+      letter-spacing: -.05em;
+      word-break: break-word;
     }
-    .stat-number.highlight { color: var(--primary-hex); }
-    .stat-number.pop { animation: popIn 0.4s var(--spring); }
-    @keyframes popIn { 0% { transform: scale(0.8); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    .stat-number.highlight { color: var(--primary-dark-hex); }
+    .stat-number.pop { animation: popIn .35s var(--spring); }
 
-    /* Skeleton */
-    .skeleton {
-      background: linear-gradient(90deg, var(--track-bg) 25%, #e2e8f0 37%, var(--track-bg) 63%);
-      background-size: 200px 100%;
-      animation: shimmer 1.4s ease-in-out infinite;
-      border-radius: 6px;
-    }
-    .skeleton-text { display: inline-block; width: 60px; height: 28px; vertical-align: middle; }
-    .skeleton-block { width: 100%; height: 14px; margin-top: 6px; }
-
-    /* Telegram CTA */
     .tg-cta {
-      background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+      background: linear-gradient(135deg, rgba(239,246,255,.96), rgba(224,242,254,.96));
       border: 1px solid #bae6fd;
-      padding: 22px 20px; border-radius: var(--radius-md);
-      display: flex; flex-direction: column; gap: 14px;
-      transition: all 0.4s var(--ease);
-      margin-top: 8px;
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: grid;
+      gap: 10px;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 10px 24px rgba(14,165,233,.08);
     }
     .tg-cta::before {
-      content: ''; position: absolute; top: -50%; right: -50%;
-      width: 100%; height: 100%;
-      background: radial-gradient(circle, rgba(0,136,204,0.06) 0%, transparent 70%);
+      content: '';
+      position: absolute;
+      inset: -35% -40% auto auto;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,136,204,.08) 0%, transparent 68%);
       pointer-events: none;
     }
     .tg-cta.connected {
-      background: linear-gradient(135deg, var(--success-bg), #d1fae5);
+      background: linear-gradient(135deg, rgba(236,253,245,.98), rgba(209,250,229,.98));
       border-color: var(--success-border);
     }
-    .tg-cta-header { display: flex; gap: 12px; align-items: flex-start; }
-    .tg-icon {
-      font-size: 28px; flex-shrink: 0; width: 44px; height: 44px;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,136,204,0.1); border-radius: 12px;
+    .tg-cta-header {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: start;
     }
-    .tg-cta.connected .tg-icon { background: rgba(16,185,129,0.1); }
-    .tg-cta-text h4 { font-size: 15px; font-weight: 700; color: #0369a1; }
-    .tg-cta-text p { font-size: 12px; color: #0c4a6e; opacity: 0.8; margin-top: 4px; line-height: 1.5; }
+    .tg-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: rgba(0,136,204,.11);
+      flex-shrink: 0;
+      font-size: 22px;
+    }
+    .tg-cta.connected .tg-icon { background: rgba(16,185,129,.12); }
+    .tg-cta-text h4 {
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #0369a1;
+    }
     .tg-cta.connected .tg-cta-text h4 { color: var(--success-text); }
-    .tg-cta.connected .tg-cta-text p { color: var(--success-text); opacity: 0.7; }
-
+    .tg-cta-text p {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #0c4a6e;
+      opacity: .88;
+    }
+    .tg-cta.connected .tg-cta-text p { color: var(--success-text); opacity: .72; }
     .tg-features {
-      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
     }
     .tg-feature {
-      font-size: 11px; font-weight: 600; color: #0369a1; background: rgba(0,136,204,0.08);
-      padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0369a1;
+      background: rgba(0,136,204,.08);
+      padding: 4px 9px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .tg-cta.connected .tg-feature {
+      color: var(--success-text);
+      background: rgba(16,185,129,.08);
     }
 
-    .btn-tg {
-      background: linear-gradient(135deg, var(--tg-blue), var(--tg-dark));
-      color: white; border: none;
-      padding: 15px; border-radius: 14px; font-weight: 700; font-size: 15px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-      box-shadow: 0 6px 20px rgba(0, 136, 204, 0.35);
-      transition: all 0.25s var(--ease); font-family: inherit;
-      position: relative; overflow: hidden;
+    .btn-tg, .btn-game, .btn-cancel, .btn-primary, .btn-outline, .btn-confirm-cancel, .btn-keep {
+      font: inherit;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease), opacity .18s var(--ease);
+      position: relative;
+      overflow: hidden;
     }
+    .btn-tg {
+      min-height: 48px;
+      padding: 0 16px;
+      border-radius: 14px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #0ea5e9, #0369a1);
+      box-shadow: 0 10px 24px rgba(2,132,199,.28);
+    }
+    .btn-tg.pulse { animation: shadowPulse 2s infinite; }
     .btn-tg::after {
-      content: ''; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-      transform: translateX(-100%);
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+      transform: translateX(-120%);
       animation: btnShine 3s ease-in-out infinite;
     }
-    @keyframes btnShine {
-      0%, 100% { transform: translateX(-100%); }
-      50% { transform: translateX(100%); }
-    }
-    .btn-tg:active { transform: scale(0.97); box-shadow: 0 3px 10px rgba(0, 136, 204, 0.3); }
-    .btn-tg:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .btn-tg.btn-connected {
-      background: linear-gradient(135deg, var(--success), var(--success-dark));
-      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
-    }
+    .btn-tg.btn-connected { background: linear-gradient(135deg, var(--success), var(--success-dark)); box-shadow: 0 10px 24px rgba(16,185,129,.28); }
     .btn-tg.btn-connected::after { display: none; }
+    .btn-tg:disabled { cursor: not-allowed; opacity: .68; box-shadow: none; }
+    .btn-tg:active, .btn-game:active, .btn-cancel:active, .btn-primary:active, .btn-outline:active, .btn-confirm-cancel:active, .btn-keep:active { transform: scale(.98); }
 
-    .pulse { animation: shadowPulse 2s infinite; }
-    @keyframes shadowPulse {
-      0% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0.45); }
-      70% { box-shadow: 0 0 0 14px rgba(0, 136, 204, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0); }
-    }
-
-    /* Action Buttons */
-    .actions-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .actions-stack { display: grid; gap: 10px; }
     .actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
     .btn-game {
-      background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;
-      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
-      transition: all 0.25s var(--ease); font-family: inherit; width: 100%;
+      min-height: 46px;
+      padding: 0 14px;
+      border-radius: 14px;
+      color: white;
+      font-size: 13px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      box-shadow: 0 10px 22px rgba(16,185,129,.24);
     }
-    .btn-game:active { transform: scale(0.97); }
-
     .btn-cancel {
-      background: white; color: #b91c1c; border: 2px solid #fecaca;
-      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-      transition: all 0.25s var(--ease); font-family: inherit; width: 100%;
+      min-height: 46px;
+      padding: 0 14px;
+      border-radius: 14px;
+      background: #fff;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      font-size: 13px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    .btn-cancel:hover { background: #fef2f2; border-color: #f87171; }
-    .btn-cancel:active { transform: scale(0.97); }
-    .btn-cancel:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-cancel:hover { background: #fef2f2; }
+    .btn-cancel:disabled { opacity: .42; cursor: not-allowed; }
 
-    /* Error */
-    .error-banner {
-      padding: 14px; border-radius: 14px; background: #fef2f2; border: 1px solid #fecaca;
-      color: #b91c1c; font-weight: 600; font-size: 13px; text-align: center;
-      animation: slideDown 0.4s var(--spring);
-    }
-
-    /* Thank You Message */
     .thank-you-card {
-      background: linear-gradient(135deg, #ecfdf5, #d1fae5);
-      border: 1px solid #a7f3d0; border-radius: var(--radius-lg);
-      padding: 32px 24px; text-align: center;
-      animation: scaleIn 0.5s var(--spring);
+      display: grid;
+      place-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, rgba(236,253,245,.98), rgba(209,250,229,.98));
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius-xl);
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: var(--shadow-card);
+      animation: scaleIn .42s var(--spring);
+      min-height: 320px;
     }
-    .thank-you-icon { font-size: 56px; margin-bottom: 16px; }
-    .thank-you-title { font-size: 22px; font-weight: 800; color: #065f46; margin-bottom: 8px; }
-    .thank-you-desc { font-size: 14px; color: #047857; line-height: 1.6; }
+    .thank-you-icon { font-size: 54px; }
+    .thank-you-title { font-size: 22px; font-weight: 900; color: #065f46; letter-spacing: -.03em; }
+    .thank-you-desc { font-size: 14px; color: #047857; line-height: 1.55; max-width: 34ch; }
 
-    /* Onboarding Modal */
-    .modal-overlay {
-      position: fixed; inset: 0; z-index: 1000;
-      background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      display: flex; align-items: center; justify-content: center; padding: 20px;
-      opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
+    .ad-panel {
+      position: fixed;
+      top: clamp(14px, 3vh, 28px);
+      right: clamp(14px, 2vw, 24px);
+      width: var(--panel-w);
+      max-width: calc(100vw - 24px);
+      z-index: 20;
+      background: rgba(255,255,255,.9);
+      border: 1px solid rgba(226,232,240,.95);
+      border-radius: 22px;
+      box-shadow: 0 18px 50px rgba(15,23,42,.12);
+      padding: 12px;
+      overflow: hidden;
+      display: grid;
+      gap: 8px;
+      animation: fadeIn .36s var(--ease);
     }
-    .modal-overlay.show { opacity: 1; visibility: visible; }
-
-    .modal-card {
-      background: white; width: 100%; max-width: 380px;
-      border-radius: var(--radius-lg); padding: 32px 24px;
-      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.4);
-      transform: translateY(24px) scale(0.95);
-      transition: transform 0.35s var(--spring);
+    .ad-label {
+      font-size: 9px;
+      color: #94a3b8;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: .11em;
+      font-weight: 800;
     }
-    .modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
-
-    .modal-icon {
-      width: 88px; height: 88px; margin: 0 auto; border-radius: 22px;
-      background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
-      display: flex; align-items: center; justify-content: center; font-size: 40px; color: white;
-      box-shadow: 0 12px 30px rgba(139, 92, 246, 0.3);
+    #adContainer { display: grid; gap: 8px; }
+    .ad-media {
+      width: 100%;
+      border-radius: 14px;
+      display: block;
+      object-fit: cover;
+      max-height: 180px;
+      background: #f8fafc;
     }
-    .modal-icon.success { background: linear-gradient(135deg, var(--success), #059669); box-shadow: 0 12px 30px rgba(16, 185, 129, 0.3); }
-
-    .modal-title { margin-top: 24px; font-size: 22px; font-weight: 800; text-align: center; }
-    .modal-desc { color: var(--text-muted); margin-top: 12px; font-size: 14px; line-height: 1.6; text-align: center; }
-
-    .step-dots { display: flex; gap: 8px; justify-content: center; margin: 20px 0; }
-    .step-dot { width: 8px; height: 8px; border-radius: 99px; background: #e5e7eb; transition: all 0.3s var(--spring); }
-    .step-dot.active { width: 28px; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex)); box-shadow: 0 4px 10px rgba(139, 92, 246, 0.35); }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary-dark-hex), var(--primary-hex));
-      color: white; padding: 14px 20px; border-radius: 14px; font-weight: 700; border: none;
-      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3); cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      font-size: 14px; width: 100%; min-height: 48px; font-family: inherit;
-      transition: transform 0.2s, box-shadow 0.2s;
+    .ad-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      text-align: center;
+      padding: 0 4px 2px;
     }
-    .btn-primary:active { transform: scale(0.98); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .ad-link { display: block; text-decoration: none; }
 
-    .btn-outline {
-      border: 2px solid rgba(139, 92, 246, 0.15); padding: 14px; border-radius: 14px;
-      background: white; font-weight: 600; cursor: pointer; font-size: 14px; color: var(--text-muted);
-      display: flex; align-items: center; justify-content: center; width: 100%; font-family: inherit;
-      transition: background 0.2s;
+    .footer-brand {
+      text-align: center;
+      padding-top: 2px;
+      font-size: 10px;
+      color: rgba(148,163,184,.86);
+      font-weight: 600;
+      letter-spacing: .02em;
     }
-    .btn-outline:active { background: #f9fafb; }
+    .footer-brand a { color: var(--primary-light); text-decoration: none; }
+
+    .modal-overlay, .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(15,23,42,.68);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .24s var(--ease), visibility .24s var(--ease);
+    }
+    .confirm-overlay { z-index: 1100; }
+    .modal-overlay.show, .confirm-overlay.show { opacity: 1; visibility: visible; }
+
+    .modal-card, .confirm-card {
+      width: 100%;
+      border-radius: 26px;
+      background: rgba(255,255,255,.98);
+      box-shadow: 0 24px 60px rgba(15,23,42,.36);
+      transform: translateY(18px) scale(.97);
+      transition: transform .28s var(--spring);
+      overflow: hidden;
+    }
+    .modal-overlay.show .modal-card, .confirm-overlay.show .confirm-card { transform: translateY(0) scale(1); }
+    .modal-card { max-width: 390px; padding: 22px 18px 18px; }
+    .confirm-card { max-width: 350px; padding: 24px 18px 18px; text-align: center; }
 
     .slide { display: none; }
     .slide.active { display: block; }
+    .modal-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 22px;
+      margin: 0 auto;
+      display: grid;
+      place-items: center;
+      font-size: 36px;
+      color: white;
+      background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
+      box-shadow: 0 12px 28px rgba(139,92,246,.28);
+    }
+    .modal-icon.success { background: linear-gradient(135deg, var(--success), var(--success-dark)); box-shadow: 0 12px 28px rgba(16,185,129,.28); }
+    .modal-title { margin-top: 16px; font-size: 21px; font-weight: 900; text-align: center; letter-spacing: -.03em; }
+    .modal-desc { margin-top: 10px; color: var(--text-muted); font-size: 13px; line-height: 1.55; text-align: center; }
+    .step-dots { display: flex; justify-content: center; gap: 8px; margin: 16px 0 18px; }
+    .step-dot { width: 8px; height: 8px; border-radius: 999px; background: #e5e7eb; transition: all .24s var(--spring); }
+    .step-dot.active { width: 26px; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex)); box-shadow: 0 4px 10px rgba(139,92,246,.28); }
 
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-dark-hex), var(--primary-hex));
+      color: white;
+      padding: 13px 16px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 14px;
+      width: 100%;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 10px 22px rgba(139,92,246,.25);
+    }
+    .btn-outline {
+      background: white;
+      color: var(--text-muted);
+      border: 1px solid #e5e7eb;
+      padding: 13px 16px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 14px;
+      width: 100%;
+      min-height: 46px;
+    }
+    .btn-outline:hover { background: #f9fafb; }
     .spinner {
-      width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.25);
-      border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 3px solid rgba(255,255,255,.26);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Ad Panel */
-    .ad-panel {
-      background: white; border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-      border: 1px solid var(--stat-border);
-      padding: 12px; overflow: hidden;
-      animation: fadeIn 0.5s var(--ease);
-    }
-    .ad-label { font-size: 9px; color: #9ca3af; text-align: center; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
-    .ad-media { width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; display: block; }
-    .ad-text { font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 8px; line-height: 1.4; }
-    .ad-link { display: block; text-decoration: none; }
-
-    /* Cancel Confirm Modal */
-    .confirm-overlay {
-      position: fixed; inset: 0; z-index: 1100;
-      background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      display: flex; align-items: center; justify-content: center; padding: 20px;
-      opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
-    }
-    .confirm-overlay.show { opacity: 1; visibility: visible; }
-    .confirm-card {
-      background: white; width: 100%; max-width: 340px;
-      border-radius: var(--radius-lg); padding: 28px 24px;
-      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.4);
-      transform: translateY(24px) scale(0.95);
-      transition: transform 0.35s var(--spring);
-      text-align: center;
-    }
-    .confirm-overlay.show .confirm-card { transform: translateY(0) scale(1); }
-    .confirm-icon { font-size: 48px; margin-bottom: 16px; }
-    .confirm-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
-    .confirm-desc { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
-    .confirm-actions { display: flex; flex-direction: column; gap: 10px; }
+    .confirm-icon { font-size: 46px; margin-bottom: 10px; }
+    .confirm-title { font-size: 19px; font-weight: 900; letter-spacing: -.03em; }
+    .confirm-desc { font-size: 13px; color: var(--text-muted); line-height: 1.55; margin: 8px auto 18px; max-width: 30ch; }
+    .confirm-actions { display: grid; gap: 10px; }
     .btn-confirm-cancel {
-      background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; border: none;
-      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
-      cursor: pointer; font-family: inherit; width: 100%;
-      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
-      transition: all 0.2s;
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: white;
+      padding: 13px 16px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 14px;
+      min-height: 48px;
+      box-shadow: 0 8px 20px rgba(220,38,38,.24);
     }
-    .btn-confirm-cancel:hover { opacity: 0.9; }
-    .btn-confirm-cancel:active { transform: scale(0.98); }
     .btn-keep {
-      background: white; color: var(--text-main); border: 2px solid #e5e7eb;
-      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
-      cursor: pointer; font-family: inherit; width: 100%;
-      transition: background 0.2s;
+      background: white;
+      color: var(--text-main);
+      border: 1px solid #e5e7eb;
+      padding: 13px 16px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 14px;
+      min-height: 46px;
     }
-    .btn-keep:hover { background: #f9fafb; }
-
     .hidden { display: none !important; }
 
-    /* Counter name badge */
-    .counter-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(139,92,246,0.08); color: var(--primary-hex);
-      padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
-      margin-top: 8px;
+    @keyframes slideDown { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleIn { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes shimmer { 0% { background-position: -240px 0; } 100% { background-position: calc(240px + 100%) 0; } }
+    @keyframes popIn { 0% { transform: scale(.86); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes btnShine { 0%,100% { transform: translateX(-120%); } 50% { transform: translateX(120%); } }
+    @keyframes shadowPulse { 0% { box-shadow: 0 0 0 0 rgba(0,136,204,.42); } 70% { box-shadow: 0 0 0 14px rgba(0,136,204,0); } 100% { box-shadow: 0 0 0 0 rgba(0,136,204,0); } }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      .app-shell { align-items: flex-start; padding-bottom: 16px; }
+      .page-wrapper { width: min(100%, 760px); padding-right: 0; }
+      .status-card { min-height: auto; }
+      .ad-panel {
+        top: auto;
+        right: 12px;
+        left: 12px;
+        bottom: 12px;
+        width: auto;
+        max-width: none;
+      }
     }
 
-    /* Footer brand */
-    .footer-brand {
-      text-align: center; padding: 16px 0 8px; font-size: 11px; color: #cbd5e1; font-weight: 500;
+    @media (max-width: 760px) {
+      .app-shell { padding: 10px 10px 132px; }
+      .page-wrapper { gap: 8px; }
+      .banner { padding: 9px 12px; font-size: 11px; border-radius: 12px; }
+      .status-card { padding: 14px; gap: 10px; border-radius: 24px; }
+      .header { gap: 12px; }
+      .logo-container { width: 48px; height: 48px; border-radius: 14px; font-size: 18px; }
+      .header-info p { font-size: 11px; }
+      .body-grid { grid-template-columns: 1fr; }
+      .stats-grid { gap: 8px; }
+      .stat-box { min-height: 86px; padding: 12px 10px; border-radius: 18px; }
+      .progress-area, .tg-cta { border-radius: 18px; padding: 12px; }
+      .actions-row { gap: 8px; }
+      .btn-game, .btn-cancel { min-height: 44px; font-size: 12px; }
+      .btn-tg { width: 100%; }
+      .ad-panel { padding: 10px; border-radius: 20px; }
+      .ad-media { max-height: 128px; }
+      .footer-brand { display: none; }
     }
-    .footer-brand a { color: var(--primary-light); text-decoration: none; }
+
+    @media (min-width: 761px) and (max-width: 980px) {
+      .status-card { min-height: auto; }
+    }
+
+    @media (min-width: 1260px) {
+      .page-wrapper { width: min(100%, 900px); }
+      :root { --panel-w: 360px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
   </style>
 </head>
 <body>
+  <div class="app-shell">
+    <div class="page-wrapper">
+      <nav class="lang-nav" id="langNav" aria-label="Language switcher">
+        <button class="lang-btn active" data-lang="en" type="button">EN</button>
+        <button class="lang-btn" data-lang="zh" type="button">中文</button>
+        <button class="lang-btn" data-lang="bm" type="button">BM</button>
+      </nav>
 
-<div class="page-wrapper">
-
-  <!-- Language Switcher -->
-  <nav class="lang-nav" id="langNav">
-    <button class="lang-btn active" data-lang="en">EN</button>
-    <button class="lang-btn" data-lang="zh">中文</button>
-    <button class="lang-btn" data-lang="bm">BM</button>
-  </nav>
-
-  <!-- Warning Banner -->
-  <div id="bannerWarning" class="banner banner-warning">
-    <span>⚠️</span>
-    <span data-t="stay_on_page">Stay on this page — only Telegram can notify you when closed.</span>
-  </div>
-
-  <!-- Success Banner -->
-  <div id="bannerSuccess" class="banner banner-success hidden">
-    <span>✅</span>
-    <span data-t="all_set">You're all set! We'll notify you on Telegram.</span>
-  </div>
-
-  <!-- Error Banner -->
-  <div id="errorBanner" class="error-banner hidden"></div>
-
-  <!-- Thank You (shown after cancel) -->
-  <div id="thankYouCard" class="thank-you-card hidden">
-    <div class="thank-you-icon">🙏</div>
-    <h2 class="thank-you-title" data-t="thank_you_title">Thank You!</h2>
-    <p class="thank-you-desc" data-t="thank_you_desc">Your ticket has been cancelled. You may leave this page now. Thank you for your patience!</p>
-  </div>
-
-  <!-- Main Card -->
-  <main id="mainCard" class="status-card">
-    <div class="header">
-      <div class="logo-container" id="logoBox">
-        <span id="logoText">QJ</span>
-        <img id="logoImg" class="hidden" alt="Logo" />
+      <div id="bannerWarning" class="banner banner-warning">
+        <span>⚠️</span>
+        <span data-t="stay_on_page">Stay on this page — only Telegram can notify you when closed.</span>
       </div>
-      <div class="header-info">
-        <div id="smallTextTop" class="small-text hidden"></div>
-        <h1 id="displayName" data-t="in_queue">You're in the queue</h1>
-        <p id="headerDesc" data-t="tracking_realtime">We're tracking your spot in real-time.</p>
-      </div>
-    </div>
 
-    <!-- Counter Badge -->
-    <div id="counterBadge" class="counter-badge hidden">
-      <span>🪑</span> <span id="counterNameLabel">—</span>
-    </div>
+      <div id="bannerSuccess" class="banner banner-success hidden">
+        <span>✅</span>
+        <span data-t="all_set">You're all set! We'll notify you on Telegram.</span>
+      </div>
 
-    <section class="progress-area" style="margin-top:16px">
-      <div class="progress-meta">
-        <span class="progress-label" data-t="progress">Queue Progress</span>
-        <span id="progressCaption" class="progress-value">...</span>
-      </div>
-      <div class="progress-track">
-        <div id="progressFill" class="progress-fill"></div>
-      </div>
-    </section>
+      <div id="errorBanner" class="error-banner hidden"></div>
 
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-label" data-t="your_ticket">Your Ticket</div>
-        <div id="yourNumber" class="stat-number"><span class="skeleton skeleton-text"></span></div>
+      <div id="thankYouCard" class="thank-you-card hidden">
+        <div class="thank-you-icon">🙏</div>
+        <h2 class="thank-you-title" data-t="thank_you_title">Thank You!</h2>
+        <p class="thank-you-desc" data-t="thank_you_desc">Your ticket has been cancelled. You may leave this page now. Thank you for your patience!</p>
       </div>
-      <div class="stat-box">
-        <div class="stat-label" data-t="now_serving">Now Serving</div>
-        <div id="nowServing" class="stat-number"><span class="skeleton skeleton-text"></span></div>
-      </div>
-    </div>
 
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-label" data-t="people_ahead">People Ahead</div>
-        <div id="peopleAhead" class="stat-number"><span class="skeleton skeleton-text"></span></div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label" data-t="est_wait">Est. Wait</div>
-        <div id="estimatedWait" class="stat-number highlight"><span class="skeleton skeleton-text"></span></div>
-      </div>
-    </div>
-
-    <!-- Telegram CTA -->
-    <div id="tgCta" class="tg-cta">
-      <div class="tg-cta-header">
-        <div class="tg-icon">📲</div>
-        <div class="tg-cta-text">
-          <h4 id="tgTitle" data-t="tg_title">Get Notified via Telegram</h4>
-          <p id="tgDesc" data-t="tg_desc">Get turn alerts, promotions, discounts & important updates — even after you leave this page.</p>
+      <main id="mainCard" class="status-card">
+        <div class="header">
+          <div class="logo-container" id="logoBox">
+            <span id="logoText">QJ</span>
+            <img id="logoImg" class="hidden" alt="QueueJoy logo" />
+          </div>
+          <div class="header-info">
+            <div id="smallTextTop" class="small-text hidden"></div>
+            <h1 id="displayName" data-t="in_queue">You're in the queue</h1>
+            <p id="headerDesc" data-t="tracking_realtime">We're tracking your spot in real-time.</p>
+          </div>
         </div>
-      </div>
-      <div class="tg-features">
-        <span class="tg-feature">🔔 Turn alerts</span>
-        <span class="tg-feature">🎁 Discounts</span>
-        <span class="tg-feature">📢 Updates</span>
-        <span class="tg-feature">🏷️ Promos</span>
-      </div>
-      <button id="btnConnect" class="btn-tg pulse" data-t-inner="connect_btn">📲 Connect Telegram</button>
-    </div>
 
-    <!-- Action Buttons -->
-    <div class="actions-stack" id="actionsStack">
-      <div class="actions-row">
-        <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Snake Game</button>
-        <button id="btnCancel" class="btn-cancel" data-t-inner="cancel_btn">❌ Cancel</button>
-      </div>
-    </div>
-  </main>
+        <div class="body-grid">
+          <section class="left-stack">
+            <div id="counterBadge" class="counter-badge hidden">
+              <span>🪑</span><span id="counterNameLabel">—</span>
+            </div>
 
-  <!-- Ad Panel -->
-  <div id="adPanel" class="ad-panel hidden">
+            <section class="progress-area">
+              <div class="progress-meta">
+                <span class="progress-label" data-t="progress">Queue Progress</span>
+                <span id="progressCaption" class="progress-value">...</span>
+              </div>
+              <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+            </section>
+
+            <div id="tgCta" class="tg-cta">
+              <div class="tg-cta-header">
+                <div class="tg-icon">📲</div>
+                <div class="tg-cta-text">
+                  <h4 id="tgTitle" data-t="tg_title">Get Notified via Telegram</h4>
+                  <p id="tgDesc" data-t="tg_desc">Get turn alerts, promotions, discounts & important updates — even after you leave this page.</p>
+                </div>
+              </div>
+              <div id="tgFeatures" class="tg-features">
+                <span class="tg-feature">🔔 Turn alerts</span>
+                <span class="tg-feature">🎁 Discounts</span>
+                <span class="tg-feature">📢 Updates</span>
+                <span class="tg-feature">🏷️ Promos</span>
+              </div>
+              <button id="btnConnect" class="btn-tg pulse" type="button" data-t-inner="connect_btn">📲 Connect Telegram</button>
+            </div>
+
+            <div class="actions-stack" id="actionsStack">
+              <div class="actions-row">
+                <button id="btnGame" class="btn-game" type="button" data-t-inner="play_game">🎮 Snake Game</button>
+                <button id="btnCancel" class="btn-cancel" type="button" data-t-inner="cancel_btn">❌ Cancel</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="right-stack">
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="stat-label" data-t="your_ticket">Your Ticket</div>
+                <div id="yourNumber" class="stat-number"><span class="skeleton skeleton-text"></span></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label" data-t="now_serving">Now Serving</div>
+                <div id="nowServing" class="stat-number"><span class="skeleton skeleton-text"></span></div>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="stat-label" data-t="people_ahead">People Ahead</div>
+                <div id="peopleAhead" class="stat-number"><span class="skeleton skeleton-text"></span></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label" data-t="est_wait">Est. Wait</div>
+                <div id="estimatedWait" class="stat-number highlight"><span class="skeleton skeleton-text"></span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <div class="footer-brand">Powered by <a href="https://helloqueuejoy.netlify.app" target="_blank" rel="noopener noreferrer">QueueJoy</a></div>
+    </div>
+  </div>
+
+  <div id="adPanel" class="ad-panel hidden" aria-label="Sponsored content">
     <div class="ad-label">Sponsored</div>
     <div id="adContainer"></div>
     <div id="adTextEl" class="ad-text hidden"></div>
   </div>
 
-  <!-- Footer -->
-  <div class="footer-brand">Powered by <a href="https://helloqueuejoy.netlify.app" target="_blank">QueueJoy</a></div>
-</div>
-
-<!-- Onboarding Modal -->
-<div id="obModal" class="modal-overlay" aria-hidden="true">
-  <div class="modal-card" role="dialog" aria-modal="true">
-
-    <div class="slide active" data-slide="0">
-      <div class="modal-icon">✉️</div>
-      <h2 class="modal-title" data-t="modal_title">Never Miss Your Turn</h2>
-      <p class="modal-desc" data-t="modal_desc">Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.</p>
-      <div class="step-dots"><span class="step-dot active"></span><span class="step-dot"></span><span class="step-dot"></span></div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button id="obNext" class="btn-primary" data-t-inner="modal_continue">Continue →</button>
-        <button id="obSkip" class="btn-outline" data-t-inner="skip">Skip for now</button>
+  <div id="obModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+      <div class="slide active" data-slide="0">
+        <div class="modal-icon">✉️</div>
+        <h2 id="obTitle" class="modal-title" data-t="modal_title">Never Miss Your Turn</h2>
+        <p class="modal-desc" data-t="modal_desc">Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.</p>
+        <div class="step-dots"><span class="step-dot active"></span><span class="step-dot"></span><span class="step-dot"></span></div>
+        <div style="display:grid;gap:10px">
+          <button id="obNext" class="btn-primary" type="button" data-t-inner="modal_continue">Continue →</button>
+          <button id="obSkip" class="btn-outline" type="button" data-t-inner="skip">Skip for now</button>
+        </div>
       </div>
-    </div>
 
-    <div class="slide" data-slide="1">
-      <div class="modal-icon">📲</div>
-      <h2 class="modal-title" data-t="modal_step2_title">Tap "Start" in Telegram</h2>
-      <p class="modal-desc" data-t="modal_step2_desc">We'll open our bot. Tap <strong>Start</strong> to activate notifications.</p>
-      <div class="step-dots"><span class="step-dot"></span><span class="step-dot active"></span><span class="step-dot"></span></div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button id="obNext2" class="btn-primary" data-t-inner="modal_continue">Continue →</button>
-        <button id="obBack1" class="btn-outline">← Back</button>
+      <div class="slide" data-slide="1">
+        <div class="modal-icon">📲</div>
+        <h2 class="modal-title" data-t="modal_step2_title">Tap "Start" in Telegram</h2>
+        <p class="modal-desc" data-t="modal_step2_desc">We'll open our bot. Tap <strong>Start</strong> to activate notifications.</p>
+        <div class="step-dots"><span class="step-dot"></span><span class="step-dot active"></span><span class="step-dot"></span></div>
+        <div style="display:grid;gap:10px">
+          <button id="obNext2" class="btn-primary" type="button" data-t-inner="modal_continue">Continue →</button>
+          <button id="obBack1" class="btn-outline" type="button">← Back</button>
+        </div>
       </div>
-    </div>
 
-    <div class="slide" data-slide="2">
-      <div class="modal-icon">🚀</div>
-      <h2 class="modal-title" data-t="modal_step3_title">Ready to Connect</h2>
-      <p class="modal-desc" id="obStatusText">Creating your secure link...</p>
-      <div class="step-dots"><span class="step-dot"></span><span class="step-dot"></span><span class="step-dot active"></span></div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <button id="obFinish" class="btn-tg" disabled><span id="obFinishContent"><span class="spinner"></span> Generating...</span></button>
-        <button id="obBack2" class="btn-outline">← Back</button>
+      <div class="slide" data-slide="2">
+        <div class="modal-icon">🚀</div>
+        <h2 class="modal-title" data-t="modal_step3_title">Ready to Connect</h2>
+        <p class="modal-desc" id="obStatusText">Creating your secure link...</p>
+        <div class="step-dots"><span class="step-dot"></span><span class="step-dot"></span><span class="step-dot active"></span></div>
+        <div style="display:grid;gap:10px">
+          <button id="obFinish" class="btn-tg" type="button" disabled><span id="obFinishContent"><span class="spinner"></span> Generating...</span></button>
+          <button id="obBack2" class="btn-outline" type="button">← Back</button>
+        </div>
       </div>
-    </div>
 
-    <div class="slide" data-slide="connected">
-      <div class="modal-icon success">✅</div>
-      <h2 class="modal-title" data-t="modal_connected_title">You're Connected!</h2>
-      <p class="modal-desc" data-t="modal_connected_desc">You'll get a Telegram notification when it's your turn.</p>
-      <div style="margin-top:20px">
-        <button id="obDone" class="btn-primary">👍 Got it</button>
+      <div class="slide" data-slide="connected">
+        <div class="modal-icon success">✅</div>
+        <h2 class="modal-title" data-t="modal_connected_title">You're Connected!</h2>
+        <p class="modal-desc" data-t="modal_connected_desc">You'll get a Telegram notification when it's your turn.</p>
+        <div style="margin-top:18px">
+          <button id="obDone" class="btn-primary" type="button">👍 Got it</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- Cancel Confirm Modal -->
-<div id="cancelModal" class="confirm-overlay" aria-hidden="true">
-  <div class="confirm-card">
-    <div class="confirm-icon">⚠️</div>
-    <h3 id="cancelConfirmTitle" class="confirm-title" data-t="cancel_title">Cancel this number?</h3>
-    <p id="cancelConfirmDesc" class="confirm-desc" data-t="cancel_desc">This will mark the ticket as canceled and skip it in the queue.</p>
-    <div class="confirm-actions">
-      <button id="btnConfirmCancel" class="btn-confirm-cancel" data-t-inner="cancel_confirm">Confirm Cancel</button>
-      <button id="btnKeepNumber" class="btn-keep" data-t-inner="cancel_keep">Keep Number</button>
+  <div id="cancelModal" class="confirm-overlay" aria-hidden="true">
+    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="cancelConfirmTitle">
+      <div class="confirm-icon">⚠️</div>
+      <h3 id="cancelConfirmTitle" class="confirm-title" data-t="cancel_title">Cancel this number?</h3>
+      <p id="cancelConfirmDesc" class="confirm-desc" data-t="cancel_desc">This will mark the ticket as canceled and skip it in the queue.</p>
+      <div class="confirm-actions">
+        <button id="btnConfirmCancel" class="btn-confirm-cancel" type="button" data-t-inner="cancel_confirm">Confirm Cancel</button>
+        <button id="btnKeepNumber" class="btn-keep" type="button" data-t-inner="cancel_keep">Keep Number</button>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- Firebase SDK -->
-<!-- Keep your existing HTML/CSS above this point.
-     Restore this ad panel block under the main card if it is missing: -->
-<div id="adPanel" class="ad-panel hidden">
-  <div class="ad-label">Advertisement</div>
-  <div id="adContainer"></div>
-  <div id="adTextEl" class="ad-text hidden"></div>
-</div>
-
-<script type="module">
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, off, get, update, push, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-/* =========================
-   CONFIG
-   ========================= */
-const CONFIG = {
-  firebase: {
-    apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
-    authDomain: "queuejoy-live.firebaseapp.com",
-    databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "queuejoy-live",
-    storageBucket: "queuejoy-live.firebasestorage.app",
-    messagingSenderId: "882772437195",
-    appId: "1:882772437195:web:60a2f1081a139d0810d34e",
-    measurementId: "G-KWBELWRC5M"
-  },
-  endpoints: {
-    getTenant: "/.netlify/functions/get-tenant",
-    getFirebaseConfig: "/.netlify/functions/get-firebase-config",
-    createLink: "/.netlify/functions/createTelegramLink",
-    markTokenUsed: "/.netlify/functions/markTokenUsed",
-  },
-  telegramBotUrl: "https://t.me/QueueJoyBot",
-  maxInitRetries: 5,
-  initRetryDelayMs: 1800,
-  redirectDelay: 9000,
-  defaultAvgServiceMin: 3,
-  maxAhead: 30,
-};
-
-/* =========================
-   I18N
-   ========================= */
-const I18N = {
-  en: {
-    in_queue: "You're in the queue",
-    tracking_realtime: "We're tracking your spot in real-time.",
-    stay_on_page: "Stay on this page — only Telegram can notify you when closed.",
-    all_set: "You're all set! We'll notify you on Telegram.",
-    progress: "Queue Progress",
-    your_ticket: "Your Ticket",
-    now_serving: "Now Serving",
-    people_ahead: "People Ahead",
-    est_wait: "Est. Wait",
-    tg_title: "Get Notified via Telegram",
-    tg_desc: "Get turn alerts, promotions, discounts & important updates — even after you leave this page.",
-    tg_title_connected: "Telegram Connected ✅",
-    tg_desc_connected: "We'll notify you when your number is called.",
-    connect_btn: "📲 Connect Telegram",
-    modal_title: "Never Miss Your Turn",
-    modal_desc: "Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.",
-    modal_continue: "Continue →",
-    skip: "Skip for now",
-    modal_step2_title: 'Tap "Start" in Telegram',
-    modal_step2_desc: "We'll open our bot. Tap <strong>Start</strong> to activate notifications.",
-    modal_step3_title: "Ready to Connect",
-    modal_connected_title: "You're Connected!",
-    modal_connected_desc: "You'll get a Telegram notification when it's your turn.",
-    your_turn: "🎉 It's your turn!",
-    next: "You're next!",
-    loading: "Loading...",
-    not_found: "Queue not found. Retrying...",
-    est_now: "Now",
-    people_1: "1 person ahead",
-    play_game: "🎮 Snake Game",
-    cancel_btn: "❌ Cancel",
-    cancel_title: "Cancel this number?",
-    cancel_desc: "This will mark the ticket as canceled and skip it in the queue.",
-    cancel_confirm: "Confirm Cancel",
-    cancel_keep: "Keep Number",
-    canceled: "❌ Canceled",
-    thank_you_title: "Thank You!",
-    thank_you_desc: "Your ticket has been cancelled. You may leave this page now. Thank you for your patience!",
-    tg_no_app: "Don't have Telegram? Download it free, then come back and tap Connect Telegram.",
-  },
-  zh: {
-    in_queue: "你在排队中",
-    tracking_realtime: "我们正在实时追踪你的位置。",
-    stay_on_page: "请留在此页面 — 只有 Telegram 能在你离开时通知你。",
-    all_set: "一切就绪！我们会通过 Telegram 通知你。",
-    progress: "排队进度",
-    your_ticket: "你的号码",
-    now_serving: "正在服务",
-    people_ahead: "前方人数",
-    est_wait: "预计等待",
-    tg_title: "通过 Telegram 获取通知",
-    tg_desc: "获取轮次提醒、促销、折扣和重要更新 — 离开页面也能收到。",
-    tg_title_connected: "Telegram 已连接 ✅",
-    tg_desc_connected: "我们会在叫到你的号码时通知你。",
-    connect_btn: "📲 连接 Telegram",
-    modal_title: "别错过你的号",
-    modal_desc: "浏览器可能休眠。Telegram 确保你手机锁屏也能收到通知。",
-    modal_continue: "继续 →",
-    skip: "暂时跳过",
-    modal_step2_title: '在 Telegram 中点击 "Start"',
-    modal_step2_desc: "我们会打开机器人。点击 <strong>Start</strong> 激活通知。",
-    modal_step3_title: "准备连接",
-    modal_connected_title: "已连接！",
-    modal_connected_desc: "你会在轮到时收到 Telegram 通知。",
-    your_turn: "🎉 轮到你了！",
-    next: "你是下一个！",
-    loading: "加载中...",
-    not_found: "未找到队列，正在重试...",
-    est_now: "现在",
-    people_1: "前方 1 人",
-    play_game: "🎮 贪吃蛇",
-    cancel_btn: "❌ 取消",
-    cancel_title: "取消此号码？",
-    cancel_desc: "这将标记票据为已取消，并在排队中跳过。",
-    cancel_confirm: "确认取消",
-    cancel_keep: "保留号码",
-    canceled: "❌ 已取消",
-    thank_you_title: "谢谢！",
-    thank_you_desc: "你的票已被取消。你现在可以离开此页面。感谢你的耐心！",
-    tg_no_app: "没有 Telegram？先下载安装，然后回来点击连接。",
-  },
-  bm: {
-    in_queue: "Anda dalam barisan",
-    tracking_realtime: "Kami menjejaki kedudukan anda secara langsung.",
-    stay_on_page: "Kekal di halaman ini — hanya Telegram boleh memberitahu anda apabila ditutup.",
-    all_set: "Semuanya siap! Kami akan memberitahu anda melalui Telegram.",
-    progress: "Kemajuan Barisan",
-    your_ticket: "Tiket Anda",
-    now_serving: "Sedang Dilayan",
-    people_ahead: "Orang di Hadapan",
-    est_wait: "Anggaran Tunggu",
-    tg_title: "Dapatkan Notifikasi Telegram",
-    tg_desc: "Dapatkan pemberitahuan giliran, promosi, diskaun & kemas kini penting — walaupun selepas meninggalkan halaman ini.",
-    tg_title_connected: "Telegram Disambung ✅",
-    tg_desc_connected: "Kami akan memberitahu anda apabila nombor anda dipanggil.",
-    connect_btn: "📲 Sambung Telegram",
-    modal_title: "Jangan Terlepas Giliran",
-    modal_desc: "Tab pelayar boleh tidur. Telegram memastikan anda mendapat amaran walaupun telefon anda terkunci.",
-    modal_continue: "Teruskan →",
-    skip: "Langkau buat masa ini",
-    modal_step2_title: 'Ketik "Start" dalam Telegram',
-    modal_step2_desc: "Kami akan membuka bot kami. Ketik <strong>Start</strong> untuk mengaktifkan pemberitahuan.",
-    modal_step3_title: "Sedia untuk Sambung",
-    modal_connected_title: "Anda Disambung!",
-    modal_connected_desc: "Anda akan mendapat pemberitahuan Telegram apabila giliran anda.",
-    your_turn: "🎉 Giliran anda!",
-    next: "Anda seterusnya!",
-    loading: "Memuatkan...",
-    not_found: "Barisan tidak dijumpai. Mencuba semula...",
-    est_now: "Sekarang",
-    people_1: "1 orang di hadapan",
-    play_game: "🎮 Snake Game",
-    cancel_btn: "❌ Batal",
-    cancel_title: "Batalkan nombor ini?",
-    cancel_desc: "Ini akan menanda tiket sebagai dibatalkan dan melangkauinya dalam barisan.",
-    cancel_confirm: "Sahkan Batal",
-    cancel_keep: "Kekal Nombor",
-    canceled: "❌ Dibatalkan",
-    thank_you_title: "Terima Kasih!",
-    thank_you_desc: "Tiket anda telah dibatalkan. Anda boleh meninggalkan halaman ini sekarang. Terima kasih atas kesabaran anda!",
-    tg_no_app: "Tiada Telegram? Muat turun dahulu, kemudian kembali dan tekan Sambung Telegram.",
-  }
-};
-
-/* =========================
-   STATE
-   ========================= */
-const state = {
-  lang: localStorage.getItem("qj_lang") || "en",
-  slug: null,
-  tenantId: null,
-  queueKey: null,
-  queueNumber: null,
-  data: null,
-  cachedData: null,
-  isTgConnected: false,
-  isRedirecting: false,
-  isCanceled: false,
-  avgServiceTimeMin: CONFIG.defaultAvgServiceMin,
-  latestConnectLink: null,
-  linkGenerating: false,
-  initResolved: false,
-  configLoaded: false,
-  queueResolved: false,
-  queuePathUsed: null,
-};
-
-let db = null;
-let qRef = null;
-let counterRef = null;
-let adRef = null;
-let analyticsRef = null;
-let currentCounterId = null;
-let attemptedQueuePaths = [];
-
-/* =========================
-   DOM
-   ========================= */
-const $ = id => document.getElementById(id);
-
-/* =========================
-   HELPERS
-   ========================= */
-function safeString(value, fallback = "") {
-  if (typeof value === "string") {
-    const s = value.trim();
-    return s || fallback;
-  }
-  if (value === 0) return "0";
-  return fallback;
-}
-
-function getPath(obj, path) {
-  if (!obj || typeof obj !== "object") return undefined;
-  let cur = obj;
-  for (const part of String(path).split(".")) {
-    if (!cur || typeof cur !== "object") return undefined;
-    cur = cur[part];
-  }
-  return cur;
-}
-
-function extractNumber(str) {
-  if (str == null) return null;
-  const m = String(str).trim().match(/(\d+)$/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function formatMinutes(m) {
-  const mm = Math.max(0, Math.round(m));
-  if (mm === 0) return I18N[state.lang].est_now;
-  if (mm < 60) return `${mm} min`;
-  const h = Math.floor(mm / 60), r = mm % 60;
-  return r === 0 ? `${h}h` : `${h}h ${r}m`;
-}
-
-function showError(msg) {
-  const el = $("errorBanner");
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.remove("hidden");
-  setTimeout(() => el.classList.add("hidden"), 7000);
-}
-
-function getSlugFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const s = params.get("slug");
-  if (s) return s;
-  const parts = location.pathname.replace(/^\/+|\/+$/g, "").split("/");
-  if (parts.length > 1 && !parts[0].includes(".html")) return parts[0];
-  return null;
-}
-
-function getTenantIdFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("tenantId") || params.get("tenant") || params.get("tid") || null;
-}
-
-function getQueueKeyFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("queueKey") || params.get("queueId") || params.get("qid") || params.get("id") || null;
-}
-
-function getVisibleTicket(d) {
-  return d?.queueNumber || d?.number || d?.ticketNumber || d?.ticket || d?.queueId || "—";
-}
-
-function getTicketPrefix(d) {
-  const ticket = getVisibleTicket(d);
-  return String(ticket).replace(/\d+$/, "");
-}
-
-function getServingRaw(cData) {
-  return cData?.nowServing ?? cData?.serving ?? cData?.now ?? cData?.current ?? cData?.lastCalled ?? null;
-}
-
-function getServingDisplay(raw, prefix = "") {
-  if (raw == null) return "—";
-  const num = extractNumber(raw);
-  if (num == null) return String(raw);
-  if (num <= 0) return "—";
-  const len = Math.max(3, String(num).length);
-  return prefix ? `${prefix}${String(num).padStart(len, "0")}` : String(num);
-}
-
-function getTicketNumber(d) {
-  return extractNumber(getVisibleTicket(d));
-}
-
-function computeAhead(data, servingRaw) {
-  const myNum = getTicketNumber(data);
-  const servNum = servingRaw != null ? extractNumber(servingRaw) : extractNumber($("nowServing")?.textContent);
-
-  if (myNum !== null && servNum !== null) {
-    if (servNum >= myNum) {
-      data._computedAhead = 0;
-      if (servNum === myNum) redirectToTurn();
-    } else {
-      data._computedAhead = myNum - servNum;
-    }
-  } else if (data.peopleAhead != null) {
-    data._computedAhead = Number(data.peopleAhead);
-  } else {
-    data._computedAhead = null;
-  }
-}
-
-function applyThemeColor(color) {
-  if (!color) return;
-  document.documentElement.style.setProperty("--primary-hex", color);
-  document.getElementById("metaTheme")?.setAttribute("content", color);
-}
-
-function setLang(lang) {
-  state.lang = lang;
-  localStorage.setItem("qj_lang", lang);
-  document.querySelectorAll(".lang-btn").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
-  const t = I18N[lang];
-  document.querySelectorAll("[data-t]").forEach(el => {
-    const key = el.getAttribute("data-t");
-    if (t[key]) {
-      if (t[key].includes("<")) el.innerHTML = t[key];
-      else el.textContent = t[key];
-    }
-  });
-  document.querySelectorAll("[data-t-inner]").forEach(el => {
-    const key = el.getAttribute("data-t-inner");
-    if (t[key]) el.textContent = t[key];
-  });
-  renderData();
-}
-
-function setTelegramUI(connected) {
-  state.isTgConnected = connected;
-  const t = I18N[state.lang];
-  const tgCta = $("tgCta");
-  const btn = $("btnConnect");
-  const features = tgCta?.querySelector(".tg-features");
-  if (!tgCta || !btn) return;
-
-  if (connected) {
-    tgCta.classList.add("connected");
-    $("tgTitle").textContent = t.tg_title_connected;
-    $("tgDesc").textContent = t.tg_desc_connected;
-    btn.innerHTML = "✅ Connected";
-    btn.disabled = true;
-    btn.classList.remove("pulse");
-    btn.classList.add("btn-connected");
-    if (features) features.classList.add("hidden");
-    $("bannerWarning")?.classList.add("hidden");
-    $("bannerSuccess")?.classList.remove("hidden");
-  } else {
-    tgCta.classList.remove("connected");
-    $("tgTitle").textContent = t.tg_title;
-    $("tgDesc").textContent = t.tg_desc;
-    btn.textContent = t.connect_btn;
-    btn.disabled = false;
-    btn.classList.add("pulse");
-    btn.classList.remove("btn-connected");
-    if (features) features.classList.remove("hidden");
-    $("bannerWarning")?.classList.remove("hidden");
-    $("bannerSuccess")?.classList.add("hidden");
-  }
-}
-
-function formatServingNumber(raw) {
-  const prefix = getTicketPrefix(state.data || state.cachedData || {});
-  return getServingDisplay(raw, prefix);
-}
-
-function animateStatChange(elId, newText) {
-  const el = $(elId);
-  if (!el) return;
-  const current = el.textContent.trim();
-  if (current === String(newText).trim()) return;
-  el.textContent = newText;
-  el.classList.remove("pop");
-  void el.offsetWidth;
-  el.classList.add("pop");
-}
-
-function setLoadingPlaceholders() {
-  $("yourNumber").innerHTML = '<span class="skeleton skeleton-text"></span>';
-  $("nowServing").innerHTML = '<span class="skeleton skeleton-text"></span>';
-  $("peopleAhead").innerHTML = '<span class="skeleton skeleton-text"></span>';
-  $("estimatedWait").innerHTML = '<span class="skeleton skeleton-text"></span>';
-  $("progressCaption").textContent = "...";
-  $("progressFill").style.width = "8%";
-}
-
-function normalizeQueueData(raw) {
-  const d = raw || {};
-  const number = d.queueNumber || d.number || d.ticketNumber || d.queueId || "—";
-  const counterName = d.counterName || d.counter || "—";
-  return {
-    ...d,
-    queueNumber: d.queueNumber || d.number || d.queueId || null,
-    number: d.number || d.queueNumber || d.queueId || null,
-    counterName,
-  };
-}
-
-/* =========================
-   RENDER
-   ========================= */
-function renderData() {
-  const d = state.data || state.cachedData;
-  if (!d) return;
-
-  const t = I18N[state.lang];
-
-  animateStatChange("yourNumber", getVisibleTicket(d));
-
-  const servingRaw = state.counterData ? getServingRaw(state.counterData) : d.nowServing ?? null;
-  const servingDisplay = formatServingNumber(servingRaw);
-  animateStatChange("nowServing", servingDisplay);
-
-  const ahead = d._computedAhead ?? d.peopleAhead ?? null;
-  if (ahead !== null && ahead !== undefined && !Number.isNaN(Number(ahead))) {
-    animateStatChange("peopleAhead", String(ahead));
-    animateStatChange("estimatedWait", ahead === 0 ? t.next : formatMinutes(Number(ahead) * state.avgServiceTimeMin));
-  } else {
-    animateStatChange("peopleAhead", "—");
-    animateStatChange("estimatedWait", "—");
-  }
-
-  const status = String(d.status || "").toLowerCase();
-  const fill = $("progressFill");
-  const caption = $("progressCaption");
-
-  if (status === "called" || status === "serving" || status === "your_turn") {
-    fill.style.width = "100%";
-    fill.classList.add("has-progress");
-    caption.textContent = t.your_turn;
-    caption.style.color = "#10b981";
-  } else if (status === "canceled" || status === "cancelled") {
-    fill.style.width = "0%";
-    fill.classList.remove("has-progress");
-    caption.textContent = t.canceled;
-    caption.style.color = "#b91c1c";
-  } else if (ahead === 0) {
-    fill.style.width = "95%";
-    fill.classList.add("has-progress");
-    caption.textContent = "🎯 " + t.next;
-    caption.style.color = "var(--primary-hex)";
-  } else if (ahead !== null && ahead > 0) {
-    const pct = Math.max(5, Math.min(90, 100 - (Number(ahead) / CONFIG.maxAhead * 100)));
-    fill.style.width = `${pct}%`;
-    fill.classList.add("has-progress");
-    caption.textContent = Number(ahead) === 1 ? t.people_1 : `${ahead} ${t.people_ahead.toLowerCase()}`;
-    caption.style.color = "var(--text-muted)";
-  } else {
-    fill.style.width = "8%";
-    fill.classList.remove("has-progress");
-    caption.textContent = t.loading;
-    caption.style.color = "var(--text-muted)";
-  }
-
-  const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id || d.chatId);
-  setTelegramUI(hasTg);
-
-  const counterName = d.counterName || state.counterData?.name || d.counter || null;
-  const badge = $("counterBadge");
-  if (counterName && badge) {
-    $("counterNameLabel").textContent = counterName;
-    badge.classList.remove("hidden");
-  }
-
-  const cancelBtn = $("btnCancel");
-  if (cancelBtn) {
-    if (["canceled", "cancelled", "served", "completed", "called", "serving"].includes(status)) {
-      cancelBtn.disabled = true;
-    } else {
-      cancelBtn.disabled = false;
-    }
-  }
-
-  if ((status === "canceled" || status === "cancelled") && !state.isCanceled) {
-    showThankYou();
-  }
-}
-
-function showThankYou() {
-  state.isCanceled = true;
-  $("mainCard")?.classList.add("hidden");
-  $("adPanel")?.classList.add("hidden");
-  $("actionsStack")?.classList.add("hidden");
-  $("thankYouCard")?.classList.remove("hidden");
-  $("bannerWarning")?.classList.add("hidden");
-  $("bannerSuccess")?.classList.add("hidden");
-  $("errorBanner")?.classList.add("hidden");
-}
-
-/* =========================
-   REDIRECT
-   ========================= */
-function redirectToTurn() {
-  if (state.isRedirecting) return;
-  state.isRedirecting = true;
-
-  const fill = $("progressFill");
-  const caption = $("progressCaption");
-  if (fill && caption) {
-    fill.style.width = "100%";
-    caption.textContent = I18N[state.lang].your_turn;
-    caption.style.color = "#10b981";
-  }
-
-  setTimeout(() => {
-    const url = new URL("your_turn.html", window.location.href);
-    if (state.queueKey) url.searchParams.set("queueId", state.queueKey);
-    if (state.slug) url.searchParams.set("slug", state.slug);
-    if (state.tenantId) url.searchParams.set("tenantId", state.tenantId);
-    window.location.href = url.toString();
-  }, 600);
-}
-
-/* =========================
-   TENANT / FIREBASE
-   ========================= */
-async function resolveTenant() {
-  const urlTenantId = getTenantIdFromUrl();
-  const slug = getSlugFromUrl();
-  state.slug = slug;
-  window.__TENANT_SLUG = slug || "";
-
-  if (urlTenantId) {
-    state.tenantId = urlTenantId;
-    window.__TENANT_ID = urlTenantId;
-    return;
-  }
-
-  if (slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        state.tenantId = data?.tenantId || data?.tenant || slug;
-      } else {
-        state.tenantId = slug;
-      }
-    } catch {
-      state.tenantId = slug;
-    }
-  }
-  window.__TENANT_ID = state.tenantId || "";
-}
-
-async function initFirebase() {
-  let cfg = CONFIG.firebase;
-
-  if (state.slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`, { cache: "no-store" });
-      if (res.ok) {
-        const j = await res.json();
-        const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
-        if (tenantCfg?.databaseURL && !String(tenantCfg.databaseURL).includes("demo.firebaseio.com")) {
-          cfg = tenantCfg;
-        }
-      }
-    } catch {
-      /* keep default */
-    }
-  }
-
-  if (!getApps().length) initializeApp(cfg);
-  db = getDatabase(getApps()[0]);
-}
-
-async function loadTenantConfig() {
-  if (!db || !state.tenantId) return;
-
-  try {
-    const path = `tenants/${state.tenantId}/public/config`;
-    const snap = await get(ref(db, path));
-    if (snap?.exists?.()) {
-      const config = snap.val() || {};
-      state.configLoaded = true;
-
-      const themeColor = getPath(config, "theme.color");
-      if (themeColor) applyThemeColor(themeColor);
-
-      if (config.displayName) $("displayName").textContent = config.displayName;
-      if (config.mainHeading) $("displayName").textContent = config.mainHeading;
-
-      if (config.smallTextOnTop) {
-        const el = $("smallTextTop");
-        if (el) {
-          el.textContent = config.smallTextOnTop;
-          el.classList.remove("hidden");
-        }
-      }
-
-      if (config.description) $("headerDesc").textContent = config.description;
-
-      const logoUrl = config.centerLogoUrl || config.logoUrl || null;
-      if (logoUrl) {
-        const img = $("logoImg");
-        if (img) {
-          img.src = String(logoUrl);
-          img.onload = () => {
-            $("logoText")?.classList.add("hidden");
-            img.classList.remove("hidden");
-          };
-          img.onerror = () => {
-            $("logoText")?.classList.remove("hidden");
-            img.classList.add("hidden");
-          };
-        }
-      }
-
-      renderAd(config);
-    }
-  } catch (e) {
-    console.warn("[QJ] loadTenantConfig failed", e);
-  }
-}
-
-function queuePathsToTry() {
-  const t = state.tenantId;
-  const k = state.queueKey;
-  return [
-    `tenants/${t}/queue/${k}`,
-    `tenants/${t}/public/queues/${k}`,
-    `tenants/${t}/public/queue/${k}`,
-  ];
-}
-
-function isQueueObjectMatch(obj) {
-  if (!obj || typeof obj !== "object") return false;
-  const visible = safeString(obj.queueNumber || obj.number || obj.queueId || "");
-  const key = safeString(obj.queueKey || "");
-  const qid = safeString(obj.queueId || "");
-  return Boolean(visible || key || qid);
-}
-
-async function findQueueByFallback() {
-  const candidates = [
-    `tenants/${state.tenantId}/queue`,
-    `tenants/${state.tenantId}/public/queues`,
-  ];
-
-  for (const base of candidates) {
-    try {
-      const snap = await get(ref(db, base));
-      if (!snap?.exists?.()) continue;
-      const all = snap.val() || {};
-      for (const [k, v] of Object.entries(all)) {
-        const q = v || {};
-        const visible = String(q.queueNumber || q.number || q.queueId || "").trim();
-        const matchesQueueKey = k === state.queueKey || q.queueKey === state.queueKey;
-        const matchesQueueId = String(q.queueId || "").trim() === String(state.queueKey).trim();
-        const matchesNumber = String(visible).trim() === String(state.queueNumber || "").trim();
-        if (matchesQueueKey || matchesQueueId || matchesNumber) {
-          return { key: k, data: q, path: `${base}/${k}` };
-        }
-      }
-    } catch {}
-  }
-  return null;
-}
-
-async function attachQueueListeners(queuePath) {
-  if (qRef) {
-    try { off(qRef); } catch {}
-    qRef = null;
-  }
-
-  qRef = ref(db, queuePath);
-  onValue(qRef, snap => {
-    if (!snap || !snap.exists || !snap.exists()) {
-      if (!state.initResolved) console.warn("[QJ] Queue data not yet available at", queuePath);
-      return;
-    }
-
-    state.initResolved = true;
-    state.queueResolved = true;
-    state.queuePathUsed = queuePath;
-
-    const data = normalizeQueueData(snap.val() || {});
-    state.data = data;
-    localStorage.setItem("qj_last_data", JSON.stringify(data));
-    localStorage.setItem("qj_last_queueId", state.queueKey || "");
-
-    const st = String(data.status || "").toLowerCase();
-    if (["called", "serving", "your_turn"].includes(st) || data.called === true || data.notifiedAt || data.calledAt) {
-      redirectToTurn();
-      return;
-    }
-
-    if (["canceled", "cancelled"].includes(st)) {
-      renderData();
-      showThankYou();
-      return;
-    }
-
-    const cid = data.counterId || data.counter || data.counterAssigned;
-    if (cid && cid !== currentCounterId) {
-      currentCounterId = cid;
-      watchCounter(cid);
-    } else if (state.counterData) {
-      computeAhead(data, getServingRaw(state.counterData));
-    } else {
-      computeAhead(data);
-    }
-
-    const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id || data.chatId);
-    if (!hasTg && !state.isCanceled && !$("obModal").classList.contains("show") && !localStorage.getItem("qj_modal_skipped_" + (state.queueKey || ""))) {
-      openModal();
-    }
-
-    renderData();
-  });
-}
-
-async function startQueueWatcher() {
-  if (!db || !state.queueKey || !state.tenantId) return;
-
-  const paths = queuePathsToTry();
-  attemptedQueuePaths = [...paths];
-
-  for (const path of paths) {
-    try {
-      const snap = await get(ref(db, path));
-      if (snap?.exists?.()) {
-        await attachQueueListeners(path);
-        return;
-      }
-    } catch {}
-  }
-
-  const fallback = await findQueueByFallback();
-  if (fallback && fallback.path) {
-    state.queueKey = fallback.key || state.queueKey;
-    window.__TENANT_ID = state.tenantId || "";
-    await attachQueueListeners(fallback.path);
-    return;
-  }
-
-  setTimeout(async () => {
-    if (state.queueResolved || state.isRedirecting) return;
-    const fallback2 = await findQueueByFallback();
-    if (fallback2 && fallback2.path) {
-      state.queueKey = fallback2.key || state.queueKey;
-      await attachQueueListeners(fallback2.path);
-      return;
-    }
-
-    if (!state.initResolved && !state.isRedirecting) {
-      showError(I18N[state.lang].not_found);
-      setTimeout(() => {
-        if (!state.initResolved && !state.isRedirecting) {
-          const url = new URL("index.html", window.location.href);
-          url.searchParams.set("error", "not_found");
-          if (state.slug) url.searchParams.set("slug", state.slug);
-          window.location.href = url.toString();
-        }
-      }, CONFIG.redirectDelay);
-    }
-  }, CONFIG.maxInitRetries * CONFIG.initRetryDelayMs);
-}
-
-function watchCounter(counterId) {
-  if (!state.tenantId || !counterId) return;
-  if (counterRef) {
-    try { off(counterRef); } catch {}
-    counterRef = null;
-  }
-
-  const path = `tenants/${state.tenantId}/counters/${counterId}`;
-  counterRef = ref(db, path);
-
-  onValue(counterRef, snap => {
-    if (!snap || !snap.exists || !snap.exists()) return;
-    state.counterData = snap.val() || {};
-    const serving = getServingRaw(state.counterData);
-    animateStatChange("nowServing", formatServingNumber(serving));
-
-    if (state.data) {
-      computeAhead(state.data, serving);
-      renderData();
-    }
-  });
-}
-
-async function watchAnalytics() {
-  if (!db || !state.tenantId) return;
-  const path = `tenants/${state.tenantId}/analytics/serviceEvents`;
-
-  try {
-    analyticsRef = ref(db, path);
-    onValue(analyticsRef, snap => {
-      if (!snap || !snap.exists || !snap.exists()) return;
-      const events = snap.val() || {};
-      const times = [];
-      for (const k in events) {
-        const ms = events[k]?.serviceMs;
-        if (ms > 0) {
-          const m = ms / 60000;
-          if (m <= 120) times.push(m);
-        }
-      }
-      if (times.length > 0) {
-        const recent = times.slice(-10);
-        state.avgServiceTimeMin = Math.max(1, Math.round(recent.reduce((a, b) => a + b, 0) / recent.length));
-        renderData();
-      }
-    });
-  } catch {}
-}
-
-/* =========================
-   AD PANEL
-   ========================= */
-function showAd(adData, adText) {
-  const panel = $("adPanel");
-  const container = $("adContainer");
-  const textEl = $("adTextEl");
-  if (!panel || !container) return;
-
-  container.innerHTML = "";
-  if (textEl) {
-    textEl.classList.add("hidden");
-    textEl.textContent = "";
-  }
-
-  if (!adData) {
-    panel.classList.add("hidden");
-    return;
-  }
-
-  let url = null;
-  let linkHref = null;
-
-  if (typeof adData === "string") {
-    url = adData.trim();
-  } else if (typeof adData === "object") {
-    url = adData.image || adData.video || adData.url || adData.src || null;
-    linkHref = adData.link || adData.href || null;
-    if (!adText) adText = adData.text || adData.description || null;
-  }
-
-  if (!url) {
-    panel.classList.add("hidden");
-    return;
-  }
-
-  if (adText && textEl) {
-    textEl.textContent = adText;
-    textEl.classList.remove("hidden");
-  }
-
-  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
-    let embedSrc = url;
-    try {
-      if (/youtube\.com\/watch\?v=/.test(url)) {
-        const vid = new URL(url).searchParams.get("v");
-        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1`;
-      } else if (/youtu\.be\//.test(url)) {
-        const id = url.split("youtu.be/")[1].split(/[?#]/)[0];
-        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
-      }
-    } catch {}
-    container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px"></iframe></div>`;
-    panel.classList.remove("hidden");
-    return;
-  }
-
-  if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url)) {
-    const v = document.createElement("video");
-    v.src = url;
-    v.className = "ad-media";
-    v.autoplay = true;
-    v.muted = true;
-    v.loop = true;
-    v.playsInline = true;
-    v.addEventListener("loadedmetadata", () => panel.classList.remove("hidden"));
-    v.addEventListener("error", () => panel.classList.add("hidden"));
-    container.appendChild(v);
-    v.play().catch(() => {});
-    return;
-  }
-
-  const wrapper = linkHref ? document.createElement("a") : document.createElement("div");
-  if (linkHref) {
-    wrapper.href = linkHref;
-    wrapper.target = "_blank";
-    wrapper.rel = "noopener noreferrer";
-    wrapper.className = "ad-link";
-  }
-  const img = document.createElement("img");
-  img.src = url;
-  img.className = "ad-media";
-  img.alt = "Promotion";
-  img.onload = () => panel.classList.remove("hidden");
-  img.onerror = () => panel.classList.add("hidden");
-  wrapper.appendChild(img);
-  container.appendChild(wrapper);
-}
-
-async function refreshAdFromTenantConfig() {
-  if (!db || !state.tenantId) return;
-  try {
-    const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
-    if (snap?.exists?.()) {
-      const cfg = snap.val() || {};
-      if (cfg.ad) {
-        showAd(cfg.ad, cfg.adText || null);
-        return;
-      }
-    }
-    const fallback = await get(ref(db, `tenants/${state.tenantId}/settings/adImage`));
-    if (fallback?.exists?.()) {
-      showAd(fallback.val(), null);
-      return;
-    }
-    $("adPanel")?.classList.add("hidden");
-  } catch {}
-}
-
-/* =========================
-   TELEGRAM LINK
-   ========================= */
-async function generateLink() {
-  if (state.linkGenerating || state.latestConnectLink) return;
-  state.linkGenerating = true;
-
-  const btn = $("obFinish");
-  const content = $("obFinishContent");
-  const statusText = $("obStatusText");
-
-  if (btn) btn.disabled = true;
-  if (content) content.innerHTML = '<span class="spinner"></span> Generating...';
-  if (statusText) statusText.textContent = "Creating secure link...";
-
-  try {
-    const d = state.data || {};
-    const payload = {
-      queueKey: state.queueKey,
-      queueId: d.queueId || d.queueNumber || state.queueKey,
-      queueNumber: d.queueNumber || d.number || d.queueId || null,
-      tenantId: state.tenantId || undefined,
-      slug: state.slug || undefined,
-      counterId: d.counterId || d.counter || undefined,
-      counterName: d.counterName || undefined,
+  <script type="module">
+    import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getDatabase, ref, onValue, off, get, update } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
+      authDomain: "queuejoy-live.firebaseapp.com",
+      databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "queuejoy-live",
+      storageBucket: "queuejoy-live.firebasestorage.app",
+      messagingSenderId: "882772437195",
+      appId: "1:882772437195:web:60a2f1081a139d0810d34e",
+      measurementId: "G-KWBELWRC5M"
     };
 
-    const res = await fetch(CONFIG.endpoints.createLink, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    const CONFIG = {
+      firebase: firebaseConfig,
+      endpoints: {
+        getTenant: '/.netlify/functions/get-tenant',
+        getFirebaseConfig: '/.netlify/functions/get-firebase-config',
+        createLink: '/.netlify/functions/createTelegramLink',
+        markTokenUsed: '/.netlify/functions/markTokenUsed',
+      },
+      telegramBotUrl: 'https://t.me/QueueJoyBot',
+      defaultAvgServiceMin: 3,
+      maxAhead: 30,
+      redirectDelay: 9000,
+      maxInitRetries: 5,
+      initRetryDelayMs: 1800,
+    };
 
-    if (!res.ok) throw new Error("API error " + res.status);
-    const j = await res.json();
-    state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
-  } catch (e) {
-    console.warn("[QJ] Link generation failed:", e.message);
-  }
+    const I18N = {
+      en: {
+        in_queue: "You're in the queue",
+        tracking_realtime: "We're tracking your spot in real-time.",
+        stay_on_page: "Stay on this page — only Telegram can notify you when closed.",
+        all_set: "You're all set! We'll notify you on Telegram.",
+        progress: 'Queue Progress',
+        your_ticket: 'Your Ticket',
+        now_serving: 'Now Serving',
+        people_ahead: 'People Ahead',
+        est_wait: 'Est. Wait',
+        tg_title: 'Get Notified via Telegram',
+        tg_desc: 'Get turn alerts, promotions, discounts & important updates — even after you leave this page.',
+        tg_title_connected: 'Telegram Connected ✅',
+        tg_desc_connected: 'We\'ll notify you when your number is called.',
+        connect_btn: '📲 Connect Telegram',
+        modal_title: 'Never Miss Your Turn',
+        modal_desc: 'Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.',
+        modal_continue: 'Continue →',
+        skip: 'Skip for now',
+        modal_step2_title: 'Tap "Start" in Telegram',
+        modal_step2_desc: "We'll open our bot. Tap <strong>Start</strong> to activate notifications.",
+        modal_step3_title: 'Ready to Connect',
+        modal_connected_title: "You're Connected!",
+        modal_connected_desc: "You'll get a Telegram notification when it's your turn.",
+        your_turn: "🎉 It's your turn!",
+        next: "You're next!",
+        loading: 'Loading...',
+        not_found: 'Queue not found. Retrying...',
+        est_now: 'Now',
+        people_1: '1 person ahead',
+        play_game: '🎮 Snake Game',
+        cancel_btn: '❌ Cancel',
+        cancel_title: 'Cancel this number?',
+        cancel_desc: 'This will mark the ticket as canceled and skip it in the queue.',
+        cancel_confirm: 'Confirm Cancel',
+        cancel_keep: 'Keep Number',
+        canceled: '❌ Canceled',
+        thank_you_title: 'Thank You!',
+        thank_you_desc: 'Your ticket has been cancelled. You may leave this page now. Thank you for your patience!',
+        tg_no_app: "Don't have Telegram? Download it free, then come back and tap Connect Telegram.",
+      },
+      zh: {
+        in_queue: '你在排队中',
+        tracking_realtime: '我们正在实时追踪你的位置。',
+        stay_on_page: '请留在此页面 — 只有 Telegram 能在你离开时通知你。',
+        all_set: '一切就绪！我们会通过 Telegram 通知你。',
+        progress: '排队进度',
+        your_ticket: '你的号码',
+        now_serving: '正在服务',
+        people_ahead: '前方人数',
+        est_wait: '预计等待',
+        tg_title: '通过 Telegram 获取通知',
+        tg_desc: '获取轮次提醒、促销、折扣和重要更新 — 离开页面也能收到。',
+        tg_title_connected: 'Telegram 已连接 ✅',
+        tg_desc_connected: '我们会在叫到你的号码时通知你。',
+        connect_btn: '📲 连接 Telegram',
+        modal_title: '别错过你的号',
+        modal_desc: '浏览器可能休眠。Telegram 确保你手机锁屏也能收到通知。',
+        modal_continue: '继续 →',
+        skip: '暂时跳过',
+        modal_step2_title: '在 Telegram 中点击 "Start"',
+        modal_step2_desc: '我们会打开机器人。点击 <strong>Start</strong> 激活通知。',
+        modal_step3_title: '准备连接',
+        modal_connected_title: '已连接！',
+        modal_connected_desc: '你会在轮到时收到 Telegram 通知。',
+        your_turn: '🎉 轮到你了！',
+        next: '你是下一个！',
+        loading: '加载中...',
+        not_found: '未找到队列，正在重试...',
+        est_now: '现在',
+        people_1: '前方 1 人',
+        play_game: '🎮 贪吃蛇',
+        cancel_btn: '❌ 取消',
+        cancel_title: '取消此号码？',
+        cancel_desc: '这将标记票据为已取消，并在排队中跳过。',
+        cancel_confirm: '确认取消',
+        cancel_keep: '保留号码',
+        canceled: '❌ 已取消',
+        thank_you_title: '谢谢！',
+        thank_you_desc: '你的票已被取消。你现在可以离开此页面。感谢你的耐心！',
+        tg_no_app: '没有 Telegram？先下载安装，然后回来点击连接。',
+      },
+      bm: {
+        in_queue: 'Anda dalam barisan',
+        tracking_realtime: 'Kami menjejaki kedudukan anda secara langsung.',
+        stay_on_page: 'Kekal di halaman ini — hanya Telegram boleh memberitahu anda apabila ditutup.',
+        all_set: 'Semuanya siap! Kami akan memberitahu anda melalui Telegram.',
+        progress: 'Kemajuan Barisan',
+        your_ticket: 'Tiket Anda',
+        now_serving: 'Sedang Dilayan',
+        people_ahead: 'Orang di Hadapan',
+        est_wait: 'Anggaran Tunggu',
+        tg_title: 'Dapatkan Notifikasi Telegram',
+        tg_desc: 'Dapatkan pemberitahuan giliran, promosi, diskaun & kemas kini penting — walaupun selepas meninggalkan halaman ini.',
+        tg_title_connected: 'Telegram Disambung ✅',
+        tg_desc_connected: 'Kami akan memberitahu anda apabila nombor anda dipanggil.',
+        connect_btn: '📲 Sambung Telegram',
+        modal_title: 'Jangan Terlepas Giliran',
+        modal_desc: 'Tab pelayar boleh tidur. Telegram memastikan anda mendapat amaran walaupun telefon anda terkunci.',
+        modal_continue: 'Teruskan →',
+        skip: 'Langkau buat masa ini',
+        modal_step2_title: 'Ketik "Start" dalam Telegram',
+        modal_step2_desc: 'Kami akan membuka bot kami. Ketik <strong>Start</strong> untuk mengaktifkan pemberitahuan.',
+        modal_step3_title: 'Sedia untuk Sambung',
+        modal_connected_title: 'Anda Disambung!',
+        modal_connected_desc: 'Anda akan mendapat pemberitahuan Telegram apabila giliran anda.',
+        your_turn: '🎉 Giliran anda!',
+        next: 'Anda seterusnya!',
+        loading: 'Memuatkan...',
+        not_found: 'Barisan tidak dijumpai. Mencuba semula...',
+        est_now: 'Sekarang',
+        people_1: '1 orang di hadapan',
+        play_game: '🎮 Snake Game',
+        cancel_btn: '❌ Batal',
+        cancel_title: 'Batalkan nombor ini?',
+        cancel_desc: 'Ini akan menanda tiket sebagai dibatalkan dan melangkauinya dalam barisan.',
+        cancel_confirm: 'Sahkan Batal',
+        cancel_keep: 'Kekal Nombor',
+        canceled: '❌ Dibatalkan',
+        thank_you_title: 'Terima Kasih!',
+        thank_you_desc: 'Tiket anda telah dibatalkan. Anda boleh meninggalkan halaman ini sekarang. Terima kasih atas kesabaran anda!',
+        tg_no_app: 'Tiada Telegram? Muat turun dahulu, kemudian kembali dan tekan Sambung Telegram.',
+      }
+    };
 
-  if (!state.latestConnectLink) {
-    if (statusText) statusText.textContent = "Link generation failed. Tap to retry.";
-    if (btn) {
-      btn.disabled = false;
-      content.innerHTML = "🔄 Retry";
-      state.linkGenerating = false;
-      btn.onclick = () => {
-        state.latestConnectLink = null;
-        state.linkGenerating = false;
-        btn.onclick = openTelegram;
-        generateLink();
+    const state = {
+      lang: localStorage.getItem('qj_lang') || 'en',
+      slug: null,
+      tenantId: null,
+      queueKey: null,
+      queueNumber: null,
+      data: null,
+      cachedData: null,
+      counterData: null,
+      isTgConnected: false,
+      isRedirecting: false,
+      isCanceled: false,
+      avgServiceTimeMin: CONFIG.defaultAvgServiceMin,
+      latestConnectLink: null,
+      linkGenerating: false,
+      initResolved: false,
+      configLoaded: false,
+      queueResolved: false,
+      queuePathUsed: null,
+    };
+
+    let db = null;
+    let qRef = null;
+    let counterRef = null;
+    let analyticsRef = null;
+    let currentCounterId = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function safeString(value, fallback = '') {
+      if (typeof value === 'string') {
+        const s = value.trim();
+        return s || fallback;
+      }
+      if (value === 0) return '0';
+      if (value === null || value === undefined) return fallback;
+      return String(value).trim() || fallback;
+    }
+
+    function getPath(obj, path) {
+      if (!obj || typeof obj !== 'object') return undefined;
+      let cur = obj;
+      for (const part of String(path).split('.')) {
+        if (!cur || typeof cur !== 'object') return undefined;
+        cur = cur[part];
+      }
+      return cur;
+    }
+
+    function extractNumber(str) {
+      if (str == null) return null;
+      const m = String(str).trim().match(/(\d+)$/);
+      return m ? parseInt(m[1], 10) : null;
+    }
+
+    function formatMinutes(m) {
+      const mm = Math.max(0, Math.round(m));
+      if (mm === 0) return I18N[state.lang].est_now;
+      if (mm < 60) return `${mm} min`;
+      const h = Math.floor(mm / 60), r = mm % 60;
+      return r === 0 ? `${h}h` : `${h}h ${r}m`;
+    }
+
+    function showError(msg) {
+      const el = $('errorBanner');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 7000);
+    }
+
+    function getSlugFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('slug');
+      if (s) return s;
+      const parts = location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+      if (parts.length > 1 && !parts[0].includes('.html')) return parts[0];
+      return null;
+    }
+
+    function getTenantIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('tenantId') || params.get('tenant') || params.get('tid') || null;
+    }
+
+    function getQueueKeyFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('queueKey') || params.get('queueId') || params.get('qid') || params.get('id') || null;
+    }
+
+    function getVisibleTicket(d) {
+      return d?.queueNumber || d?.number || d?.ticketNumber || d?.ticket || d?.queueId || '—';
+    }
+
+    function getTicketPrefix(d) {
+      const ticket = getVisibleTicket(d);
+      return String(ticket).replace(/\d+$/, '');
+    }
+
+    function getServingRaw(cData) {
+      return cData?.nowServing ?? cData?.serving ?? cData?.now ?? cData?.current ?? cData?.lastCalled ?? null;
+    }
+
+    function getServingDisplay(raw, prefix = '') {
+      if (raw == null) return '—';
+      const num = extractNumber(raw);
+      if (num == null) return String(raw);
+      if (num <= 0) return '—';
+      const len = Math.max(3, String(num).length);
+      return prefix ? `${prefix}${String(num).padStart(len, '0')}` : String(num);
+    }
+
+    function getTicketNumber(d) {
+      return extractNumber(getVisibleTicket(d));
+    }
+
+    function animateStatChange(elId, newText) {
+      const el = $(elId);
+      if (!el) return;
+      const current = el.textContent.trim();
+      if (current === String(newText).trim()) return;
+      el.textContent = newText;
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+    }
+
+    function applyThemeColor(color) {
+      if (!color) return;
+      document.documentElement.style.setProperty('--primary-hex', color);
+      document.documentElement.style.setProperty('--primary-dark-hex', color);
+      $('metaTheme')?.setAttribute('content', color);
+    }
+
+    function setLoadingPlaceholders() {
+      $('yourNumber').innerHTML = '<span class="skeleton skeleton-text"></span>';
+      $('nowServing').innerHTML = '<span class="skeleton skeleton-text"></span>';
+      $('peopleAhead').innerHTML = '<span class="skeleton skeleton-text"></span>';
+      $('estimatedWait').innerHTML = '<span class="skeleton skeleton-text"></span>';
+      $('progressCaption').textContent = '...';
+      $('progressFill').style.width = '8%';
+    }
+
+    function normalizeQueueData(raw) {
+      const d = raw || {};
+      return {
+        ...d,
+        queueKey: d.queueKey || d.queueId || d.id || null,
+        queueId: d.queueId || d.queueKey || d.id || null,
+        queueNumber: d.queueNumber || d.number || d.ticketNumber || d.queueId || null,
+        counterName: d.counterName || d.counter || null,
       };
     }
-    return;
-  }
 
-  if (statusText) statusText.textContent = "Ready! Tap below to open Telegram.";
-  if (btn) {
-    btn.disabled = false;
-    content.innerHTML = "🚀 Open Telegram";
-    btn.onclick = openTelegram;
-  }
-  state.linkGenerating = false;
-}
-
-function openTelegram() {
-  if (state.linkGenerating) return;
-
-  const btn = $("obFinish");
-  const content = $("obFinishContent");
-  if (btn) btn.disabled = true;
-  if (content) content.innerHTML = '<span class="spinner"></span> Opening...';
-
-  const url = state.latestConnectLink;
-  if (!url) {
-    generateLink();
-    return;
-  }
-
-  const win = window.open(url, "_blank", "noopener,noreferrer");
-  if (!win) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
-
-  try {
-    const token = url.split("start=")[1];
-    if (token) {
-      fetch(CONFIG.endpoints.markTokenUsed, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queueKey: state.queueKey, token, tenantId: state.tenantId })
-      }).catch(() => {});
-    }
-  } catch {}
-
-  setTimeout(() => {
-    if (btn) btn.disabled = false;
-    if (content) content.innerHTML = "✅ Opened!";
-    setTimeout(closeModal, 1200);
-  }, 500);
-}
-
-/* =========================
-   MODALS
-   ========================= */
-function showSlide(idx) {
-  document.querySelectorAll(".slide").forEach(s => s.classList.remove("active"));
-  document.querySelectorAll(".step-dot").forEach(d => d.classList.remove("active"));
-  const slide = document.querySelector(`[data-slide="${idx}"]`);
-  if (slide) slide.classList.add("active");
-  if (typeof idx === "number") {
-    const dots = document.querySelectorAll(".step-dot");
-    if (dots[idx]) dots[idx].classList.add("active");
-  }
-  if (idx === 2) generateLink();
-}
-
-function openModal() {
-  const modal = $("obModal");
-  if (!modal) return;
-  modal.classList.add("show");
-  modal.setAttribute("aria-hidden", "false");
-  if (state.isTgConnected) showSlide("connected");
-  else showSlide(0);
-}
-
-function closeModal() {
-  const modal = $("obModal");
-  if (!modal) return;
-  modal.classList.remove("show");
-  modal.setAttribute("aria-hidden", "true");
-}
-
-/* =========================
-   CANCEL
-   ========================= */
-function openCancelModal() {
-  const d = state.data;
-  if (!d) return;
-  const st = String(d.status || "").toLowerCase();
-  if (["canceled", "cancelled", "served", "completed", "called", "serving"].includes(st)) return;
-
-  const t = I18N[state.lang];
-  $("cancelConfirmTitle").textContent = t.cancel_title;
-  $("cancelConfirmDesc").textContent = t.cancel_desc;
-  $("btnConfirmCancel").textContent = t.cancel_confirm;
-  $("btnKeepNumber").textContent = t.cancel_keep;
-  $("cancelModal").classList.add("show");
-  $("cancelModal").setAttribute("aria-hidden", "false");
-}
-
-function closeCancelModal() {
-  $("cancelModal").classList.remove("show");
-  $("cancelModal").setAttribute("aria-hidden", "true");
-}
-
-async function confirmCancel() {
-  const d = state.data;
-  if (!d) {
-    closeCancelModal();
-    return;
-  }
-
-  const st = String(d.status || "").toLowerCase();
-  if (["canceled", "cancelled", "served", "completed"].includes(st)) {
-    closeCancelModal();
-    return;
-  }
-
-  const btn = $("btnConfirmCancel");
-  btn.disabled = true;
-  btn.textContent = "...";
-
-  try {
-    if (!state.tenantId || !state.queueKey) {
-      showError("Tenant not resolved.");
-      closeCancelModal();
-      return;
-    }
-
-    const queuePaths = [
-      `tenants/${state.tenantId}/queue/${state.queueKey}`,
-      `tenants/${state.tenantId}/public/queues/${state.queueKey}`
-    ];
-
-    await Promise.all(queuePaths.map(p => update(ref(db, p), {
-      status: "canceled",
-      canceledAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      canceledBy: "customer"
-    }).catch(() => null)));
-  } catch (e) {
-    console.error("[QJ] Cancel failed:", e);
-    showError("Cancel failed. Please try again.");
-  }
-
-  btn.disabled = false;
-  closeCancelModal();
-  showThankYou();
-}
-
-/* =========================
-   CACHE
-   ========================= */
-function hydrateFromCache() {
-  try {
-    const cached = localStorage.getItem("qj_last_data");
-    const cachedId = localStorage.getItem("qj_last_queueId");
-    if (cached && cachedId === state.queueKey) {
-      state.cachedData = normalizeQueueData(JSON.parse(cached));
-      state.data = state.cachedData;
+    function setLang(lang) {
+      state.lang = lang;
+      localStorage.setItem('qj_lang', lang);
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+      const t = I18N[lang];
+      document.querySelectorAll('[data-t]').forEach(el => {
+        const key = el.getAttribute('data-t');
+        if (t[key]) {
+          if (t[key].includes('<')) el.innerHTML = t[key];
+          else el.textContent = t[key];
+        }
+      });
+      document.querySelectorAll('[data-t-inner]').forEach(el => {
+        const key = el.getAttribute('data-t-inner');
+        if (t[key]) el.textContent = t[key];
+      });
       renderData();
     }
-  } catch {}
-}
 
-/* =========================
-   INIT
-   ========================= */
-async function init() {
-  const params = new URLSearchParams(window.location.search);
-  state.queueKey = getQueueKeyFromUrl();
-  state.queueNumber = params.get("queueNumber") || params.get("queue") || null;
-  state.slug = getSlugFromUrl();
+    function setTelegramUI(connected) {
+      state.isTgConnected = connected;
+      const t = I18N[state.lang];
+      const tgCta = $('tgCta');
+      const btn = $('btnConnect');
+      const features = $('tgFeatures');
+      if (!tgCta || !btn) return;
 
-  if (!state.queueKey) {
-    showError("Queue ID missing.");
-    setTimeout(() => {
-      window.location.href = state.slug ? `index.html?slug=${encodeURIComponent(state.slug)}` : "index.html";
-    }, 2000);
-    return;
-  }
-
-  setLoadingPlaceholders();
-  setLang(state.lang);
-  hydrateFromCache();
-
-  await resolveTenant();
-  await initFirebase();
-  await loadTenantConfig();
-  await refreshAdFromTenantConfig();
-
-  startQueueWatcher();
-  watchAnalytics();
-
-  window.addEventListener("beforeunload", () => {
-    if (qRef) off(qRef);
-    if (counterRef) off(counterRef);
-    if (adRef) off(adRef);
-    if (analyticsRef) off(analyticsRef);
-  });
-}
-
-/* =========================
-   EVENT BINDINGS
-   ========================= */
-document.querySelectorAll(".lang-btn").forEach(btn => {
-  btn.addEventListener("click", () => setLang(btn.dataset.lang));
-});
-
-$("obNext").onclick = () => showSlide(1);
-$("obNext2").onclick = () => showSlide(2);
-$("obBack1").onclick = () => showSlide(0);
-$("obBack2").onclick = () => showSlide(1);
-$("obSkip").onclick = () => {
-  localStorage.setItem("qj_modal_skipped_" + (state.queueKey || ""), "true");
-  closeModal();
-};
-$("obDone").onclick = closeModal;
-$("obFinish").onclick = openTelegram;
-$("obModal").onclick = (e) => { if (e.target === $("obModal")) closeModal(); };
-
-$("btnConnect").onclick = () => {
-  if (state.latestConnectLink) {
-    openTelegram();
-  } else {
-    openModal();
-    if (!state.latestConnectLink) {
-      showSlide(2);
-      generateLink();
+      if (connected) {
+        tgCta.classList.add('connected');
+        $('tgTitle').textContent = t.tg_title_connected;
+        $('tgDesc').textContent = t.tg_desc_connected;
+        btn.innerHTML = '✅ Connected';
+        btn.disabled = true;
+        btn.classList.remove('pulse');
+        btn.classList.add('btn-connected');
+        features?.classList.add('hidden');
+        $('bannerWarning')?.classList.add('hidden');
+        $('bannerSuccess')?.classList.remove('hidden');
+      } else {
+        tgCta.classList.remove('connected');
+        $('tgTitle').textContent = t.tg_title;
+        $('tgDesc').textContent = t.tg_desc;
+        btn.textContent = t.connect_btn;
+        btn.disabled = false;
+        btn.classList.add('pulse');
+        btn.classList.remove('btn-connected');
+        features?.classList.remove('hidden');
+        $('bannerWarning')?.classList.remove('hidden');
+        $('bannerSuccess')?.classList.add('hidden');
+      }
     }
-  }
-};
 
-$("btnGame").onclick = () => {
-  const params = new URLSearchParams();
-  if (state.queueKey) params.set("queueId", state.queueKey);
-  if (state.slug) params.set("slug", state.slug);
-  if (state.tenantId) params.set("tenantId", state.tenantId);
-  if (state.queueNumber) params.set("queueNumber", state.queueNumber);
-  window.open(`game.html?${params.toString()}`, "_blank");
-};
+    function formatServingNumber(raw) {
+      const prefix = getTicketPrefix(state.data || state.cachedData || {});
+      return getServingDisplay(raw, prefix);
+    }
 
-$("btnCancel").onclick = openCancelModal;
-$("btnConfirmCancel").onclick = confirmCancel;
-$("btnKeepNumber").onclick = closeCancelModal;
-$("cancelModal").onclick = (e) => { if (e.target === $("cancelModal")) closeCancelModal(); };
+    function computeAhead(data, servingRaw) {
+      const myNum = getTicketNumber(data);
+      const servNum = servingRaw != null ? extractNumber(servingRaw) : extractNumber($('nowServing')?.textContent);
+      if (myNum !== null && servNum !== null) {
+        data._computedAhead = servNum >= myNum ? 0 : myNum - servNum;
+        if (servNum === myNum) redirectToTurn();
+      } else if (data.peopleAhead != null) {
+        data._computedAhead = Number(data.peopleAhead);
+      } else {
+        data._computedAhead = null;
+      }
+    }
 
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !state.isRedirecting && state.queueKey && state.tenantId) {
-    startQueueWatcher();
-  }
-});
+    function renderData() {
+      const d = state.data || state.cachedData;
+      if (!d) return;
+      const t = I18N[state.lang];
 
-init().catch(e => {
-  console.error("[QJ] Init failed:", e);
-  showError("Something went wrong. Please refresh.");
-});
-</script>
+      $('displayName').textContent = d.status && ['canceled','cancelled'].includes(String(d.status).toLowerCase()) ? t.canceled : $('displayName').textContent;
+      animateStatChange('yourNumber', getVisibleTicket(d));
+
+      const servingRaw = state.counterData ? getServingRaw(state.counterData) : (d.nowServing ?? null);
+      animateStatChange('nowServing', formatServingNumber(servingRaw));
+
+      const ahead = d._computedAhead ?? d.peopleAhead ?? null;
+      if (ahead !== null && ahead !== undefined && !Number.isNaN(Number(ahead))) {
+        animateStatChange('peopleAhead', String(ahead));
+        animateStatChange('estimatedWait', ahead === 0 ? t.next : formatMinutes(Number(ahead) * state.avgServiceTimeMin));
+      } else {
+        animateStatChange('peopleAhead', '—');
+        animateStatChange('estimatedWait', '—');
+      }
+
+      const status = String(d.status || '').toLowerCase();
+      const fill = $('progressFill');
+      const caption = $('progressCaption');
+
+      if (status === 'called' || status === 'serving' || status === 'your_turn') {
+        fill.style.width = '100%';
+        fill.classList.add('has-progress');
+        caption.textContent = t.your_turn;
+        caption.style.color = 'var(--success)';
+      } else if (status === 'canceled' || status === 'cancelled') {
+        fill.style.width = '0%';
+        fill.classList.remove('has-progress');
+        caption.textContent = t.canceled;
+        caption.style.color = '#b91c1c';
+      } else if (ahead === 0) {
+        fill.style.width = '95%';
+        fill.classList.add('has-progress');
+        caption.textContent = '🎯 ' + t.next;
+        caption.style.color = 'var(--primary-dark-hex)';
+      } else if (ahead !== null && ahead > 0) {
+        const pct = Math.max(5, Math.min(90, 100 - (Number(ahead) / CONFIG.maxAhead * 100)));
+        fill.style.width = `${pct}%`;
+        fill.classList.add('has-progress');
+        caption.textContent = Number(ahead) === 1 ? t.people_1 : `${ahead} ${t.people_ahead.toLowerCase()}`;
+        caption.style.color = 'var(--text-muted)';
+      } else {
+        fill.style.width = '8%';
+        fill.classList.remove('has-progress');
+        caption.textContent = t.loading;
+        caption.style.color = 'var(--text-muted)';
+      }
+
+      const hasTg = Boolean(d.telegramConnected || d.tgConnected || d.telegramChatId || d.telegram_chat_id || d.chatId);
+      setTelegramUI(hasTg);
+
+      const counterName = d.counterName || state.counterData?.name || d.counter || null;
+      if (counterName) {
+        $('counterNameLabel').textContent = counterName;
+        $('counterBadge').classList.remove('hidden');
+      } else {
+        $('counterBadge').classList.add('hidden');
+      }
+
+      const cancelBtn = $('btnCancel');
+      if (cancelBtn) {
+        cancelBtn.disabled = ['canceled','cancelled','served','completed','called','serving'].includes(status);
+      }
+
+      if ((status === 'canceled' || status === 'cancelled') && !state.isCanceled) showThankYou();
+    }
+
+    function showThankYou() {
+      state.isCanceled = true;
+      $('mainCard')?.classList.add('hidden');
+      $('adPanel')?.classList.add('hidden');
+      $('actionsStack')?.classList.add('hidden');
+      $('thankYouCard')?.classList.remove('hidden');
+      $('bannerWarning')?.classList.add('hidden');
+      $('bannerSuccess')?.classList.add('hidden');
+      $('errorBanner')?.classList.add('hidden');
+    }
+
+    function redirectToTurn() {
+      if (state.isRedirecting) return;
+      state.isRedirecting = true;
+      const fill = $('progressFill');
+      const caption = $('progressCaption');
+      if (fill && caption) {
+        fill.style.width = '100%';
+        caption.textContent = I18N[state.lang].your_turn;
+        caption.style.color = 'var(--success)';
+      }
+      setTimeout(() => {
+        const url = new URL('your_turn.html', window.location.href);
+        if (state.queueKey) {
+          url.searchParams.set('queueId', state.queueKey);
+          url.searchParams.set('queueKey', state.queueKey);
+        }
+        if (state.slug) url.searchParams.set('slug', state.slug);
+        if (state.tenantId) url.searchParams.set('tenantId', state.tenantId);
+        if (state.queueNumber) url.searchParams.set('queueNumber', state.queueNumber);
+        window.location.href = url.toString();
+      }, 600);
+    }
+
+    async function resolveTenant() {
+      const urlTenantId = getTenantIdFromUrl();
+      const slug = getSlugFromUrl();
+      state.slug = slug;
+      window.__TENANT_SLUG = slug || '';
+
+      if (urlTenantId) {
+        state.tenantId = urlTenantId;
+        window.__TENANT_ID = urlTenantId;
+        return;
+      }
+
+      if (slug) {
+        try {
+          const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            state.tenantId = data?.tenantId || data?.tenant || slug;
+          } else {
+            state.tenantId = slug;
+          }
+        } catch {
+          state.tenantId = slug;
+        }
+      }
+      window.__TENANT_ID = state.tenantId || '';
+    }
+
+    async function initFirebase() {
+      let cfg = CONFIG.firebase;
+      if (state.slug) {
+        try {
+          const res = await fetch(`${CONFIG.endpoints.getFirebaseConfig}?slug=${encodeURIComponent(state.slug)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const j = await res.json();
+            const tenantCfg = j?.firebaseClientConfig || j?.firebaseConfig || j?.config?.firebaseClientConfig;
+            if (tenantCfg?.databaseURL && !String(tenantCfg.databaseURL).includes('demo.firebaseio.com')) cfg = tenantCfg;
+          }
+        } catch {}
+      }
+      if (!getApps().length) initializeApp(cfg);
+      db = getDatabase(getApps()[0]);
+    }
+
+    async function loadTenantConfig() {
+      if (!db || !state.tenantId) return;
+      try {
+        const path = `tenants/${state.tenantId}/public/config`;
+        const snap = await get(ref(db, path));
+        if (snap?.exists?.()) {
+          const config = snap.val() || {};
+          state.configLoaded = true;
+          const themeColor = getPath(config, 'theme.color');
+          if (themeColor) applyThemeColor(themeColor);
+
+          if (config.displayName) $('displayName').textContent = config.displayName;
+          if (config.mainHeading) $('displayName').textContent = config.mainHeading;
+          if (config.smallTextOnTop) {
+            $('smallTextTop').textContent = config.smallTextOnTop;
+            $('smallTextTop').classList.remove('hidden');
+          }
+          if (config.description) $('headerDesc').textContent = config.description;
+
+          const logoUrl = config.centerLogoUrl || config.logoUrl || null;
+          if (logoUrl) {
+            const img = $('logoImg');
+            img.src = String(logoUrl);
+            img.onload = () => {
+              $('logoText')?.classList.add('hidden');
+              img.classList.remove('hidden');
+            };
+            img.onerror = () => {
+              $('logoText')?.classList.remove('hidden');
+              img.classList.add('hidden');
+            };
+          }
+
+          renderAd(config);
+        }
+      } catch (e) {
+        console.warn('[QJ] loadTenantConfig failed', e);
+      }
+    }
+
+    function queuePathsToTry() {
+      const t = state.tenantId;
+      const k = state.queueKey;
+      return [
+        `tenants/${t}/queue/${k}`,
+        `tenants/${t}/public/queues/${k}`,
+        `tenants/${t}/public/queue/${k}`,
+      ];
+    }
+
+    async function findQueueByFallback() {
+      const candidates = [`tenants/${state.tenantId}/queue`, `tenants/${state.tenantId}/public/queues`];
+      for (const base of candidates) {
+        try {
+          const snap = await get(ref(db, base));
+          if (!snap?.exists?.()) continue;
+          const all = snap.val() || {};
+          for (const [k, v] of Object.entries(all)) {
+            const q = v || {};
+            const visible = String(q.queueNumber || q.number || q.queueId || '').trim();
+            const matchesQueueKey = k === state.queueKey || q.queueKey === state.queueKey;
+            const matchesQueueId = String(q.queueId || '').trim() === String(state.queueKey).trim();
+            const matchesNumber = String(visible).trim() === String(state.queueNumber || '').trim();
+            if (matchesQueueKey || matchesQueueId || matchesNumber) return { key: k, data: q, path: `${base}/${k}` };
+          }
+        } catch {}
+      }
+      return null;
+    }
+
+    async function attachQueueListeners(queuePath) {
+      if (qRef) { try { off(qRef); } catch {} qRef = null; }
+      qRef = ref(db, queuePath);
+      onValue(qRef, snap => {
+        if (!snap || !snap.exists || !snap.exists()) return;
+        state.initResolved = true;
+        state.queueResolved = true;
+        state.queuePathUsed = queuePath;
+        const data = normalizeQueueData(snap.val() || {});
+        state.data = data;
+        localStorage.setItem('qj_last_data', JSON.stringify(data));
+        localStorage.setItem('qj_last_queueId', state.queueKey || '');
+
+        const st = String(data.status || '').toLowerCase();
+        if (['called','serving','your_turn'].includes(st) || data.called === true || data.notifiedAt || data.calledAt) {
+          redirectToTurn();
+          return;
+        }
+        if (['canceled','cancelled'].includes(st)) {
+          renderData();
+          showThankYou();
+          return;
+        }
+
+        const cid = data.counterId || data.counter || data.counterAssigned;
+        if (cid && cid !== currentCounterId) {
+          currentCounterId = cid;
+          watchCounter(cid);
+        } else if (state.counterData) {
+          computeAhead(data, getServingRaw(state.counterData));
+        } else {
+          computeAhead(data);
+        }
+
+        const hasTg = Boolean(data.telegramConnected || data.tgConnected || data.telegramChatId || data.telegram_chat_id || data.chatId);
+        if (!hasTg && !state.isCanceled && !$('obModal').classList.contains('show') && !localStorage.getItem('qj_modal_skipped_' + (state.queueKey || ''))) {
+          openModal();
+        }
+
+        renderData();
+      });
+    }
+
+    async function startQueueWatcher() {
+      if (!db || !state.queueKey || !state.tenantId) return;
+      for (const path of queuePathsToTry()) {
+        try {
+          const snap = await get(ref(db, path));
+          if (snap?.exists?.()) {
+            await attachQueueListeners(path);
+            return;
+          }
+        } catch {}
+      }
+      const fallback = await findQueueByFallback();
+      if (fallback && fallback.path) {
+        state.queueKey = fallback.key || state.queueKey;
+        await attachQueueListeners(fallback.path);
+        return;
+      }
+      setTimeout(async () => {
+        if (state.queueResolved || state.isRedirecting) return;
+        const fallback2 = await findQueueByFallback();
+        if (fallback2 && fallback2.path) {
+          state.queueKey = fallback2.key || state.queueKey;
+          await attachQueueListeners(fallback2.path);
+          return;
+        }
+        if (!state.initResolved && !state.isRedirecting) {
+          showError(I18N[state.lang].not_found);
+          setTimeout(() => {
+            if (!state.initResolved && !state.isRedirecting) {
+              const url = new URL('index.html', window.location.href);
+              url.searchParams.set('error', 'not_found');
+              if (state.slug) url.searchParams.set('slug', state.slug);
+              window.location.href = url.toString();
+            }
+          }, CONFIG.redirectDelay);
+        }
+      }, CONFIG.maxInitRetries * CONFIG.initRetryDelayMs);
+    }
+
+    function watchCounter(counterId) {
+      if (!state.tenantId || !counterId) return;
+      if (counterRef) { try { off(counterRef); } catch {} counterRef = null; }
+      const path = `tenants/${state.tenantId}/counters/${counterId}`;
+      counterRef = ref(db, path);
+      onValue(counterRef, snap => {
+        if (!snap || !snap.exists || !snap.exists()) return;
+        state.counterData = snap.val() || {};
+        const serving = getServingRaw(state.counterData);
+        animateStatChange('nowServing', formatServingNumber(serving));
+        if (state.data) {
+          computeAhead(state.data, serving);
+          renderData();
+        }
+      });
+    }
+
+    async function watchAnalytics() {
+      if (!db || !state.tenantId) return;
+      const path = `tenants/${state.tenantId}/analytics/serviceEvents`;
+      try {
+        analyticsRef = ref(db, path);
+        onValue(analyticsRef, snap => {
+          if (!snap || !snap.exists || !snap.exists()) return;
+          const events = snap.val() || {};
+          const times = [];
+          for (const k in events) {
+            const ms = events[k]?.serviceMs;
+            if (ms > 0) {
+              const m = ms / 60000;
+              if (m <= 120) times.push(m);
+            }
+          }
+          if (times.length > 0) {
+            const recent = times.slice(-10);
+            state.avgServiceTimeMin = Math.max(1, Math.round(recent.reduce((a, b) => a + b, 0) / recent.length));
+            renderData();
+          }
+        });
+      } catch {}
+    }
+
+    function showAd(adData, adText) {
+      const panel = $('adPanel');
+      const container = $('adContainer');
+      const textEl = $('adTextEl');
+      if (!panel || !container) return;
+      container.innerHTML = '';
+      if (textEl) { textEl.classList.add('hidden'); textEl.textContent = ''; }
+
+      if (!adData) { panel.classList.add('hidden'); return; }
+
+      let url = null;
+      let linkHref = null;
+      if (typeof adData === 'string') {
+        url = adData.trim();
+      } else if (typeof adData === 'object') {
+        url = adData.image || adData.video || adData.url || adData.src || null;
+        linkHref = adData.link || adData.href || null;
+        if (!adText) adText = adData.text || adData.description || null;
+      }
+
+      if (!url) { panel.classList.add('hidden'); return; }
+      if (adText && textEl) { textEl.textContent = adText; textEl.classList.remove('hidden'); }
+
+      if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
+        let embedSrc = url;
+        try {
+          if (/youtube\.com\/watch\?v=/.test(url)) {
+            const vid = new URL(url).searchParams.get('v');
+            if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1`;
+          } else if (/youtu\.be\//.test(url)) {
+            const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
+            embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
+          }
+        } catch {}
+        container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:14px"></iframe></div>`;
+        panel.classList.remove('hidden');
+        return;
+      }
+
+      if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url)) {
+        const v = document.createElement('video');
+        v.src = url;
+        v.className = 'ad-media';
+        v.autoplay = true;
+        v.muted = true;
+        v.loop = true;
+        v.playsInline = true;
+        v.addEventListener('loadedmetadata', () => panel.classList.remove('hidden'));
+        v.addEventListener('error', () => panel.classList.add('hidden'));
+        container.appendChild(v);
+        v.play().catch(() => {});
+        return;
+      }
+
+      const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
+      if (linkHref) {
+        wrapper.href = linkHref;
+        wrapper.target = '_blank';
+        wrapper.rel = 'noopener noreferrer';
+        wrapper.className = 'ad-link';
+      }
+      const img = document.createElement('img');
+      img.src = url;
+      img.className = 'ad-media';
+      img.alt = 'Promotion';
+      img.onload = () => panel.classList.remove('hidden');
+      img.onerror = () => panel.classList.add('hidden');
+      wrapper.appendChild(img);
+      container.appendChild(wrapper);
+    }
+
+    async function refreshAdFromTenantConfig() {
+      if (!db || !state.tenantId) return;
+      try {
+        const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
+        if (snap?.exists?.()) {
+          const cfg = snap.val() || {};
+          if (cfg.ad) { showAd(cfg.ad, cfg.adText || null); return; }
+        }
+        const fallback = await get(ref(db, `tenants/${state.tenantId}/settings/adImage`));
+        if (fallback?.exists?.()) { showAd(fallback.val(), null); return; }
+        $('adPanel')?.classList.add('hidden');
+      } catch {}
+    }
+
+    function showSlide(idx) {
+      document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.step-dot').forEach(d => d.classList.remove('active'));
+      const slide = document.querySelector(`[data-slide="${idx}"]`);
+      if (slide) slide.classList.add('active');
+      if (typeof idx === 'number') {
+        const dots = document.querySelectorAll('.step-dot');
+        if (dots[idx]) dots[idx].classList.add('active');
+      }
+      if (idx === 2) generateLink();
+    }
+
+    function openModal() {
+      const modal = $('obModal');
+      if (!modal) return;
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      if (state.isTgConnected) showSlide('connected');
+      else showSlide(0);
+    }
+
+    function closeModal() {
+      const modal = $('obModal');
+      if (!modal) return;
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    async function generateLink() {
+      if (state.linkGenerating || state.latestConnectLink) return;
+      state.linkGenerating = true;
+      const btn = $('obFinish');
+      const content = $('obFinishContent');
+      const statusText = $('obStatusText');
+      if (btn) btn.disabled = true;
+      if (content) content.innerHTML = '<span class="spinner"></span> Generating...';
+      if (statusText) statusText.textContent = 'Creating secure link...';
+
+      try {
+        const d = state.data || {};
+        const payload = {
+          queueKey: state.queueKey,
+          queueId: d.queueId || d.queueNumber || state.queueKey,
+          queueNumber: d.queueNumber || d.number || d.queueId || null,
+          tenantId: state.tenantId || undefined,
+          slug: state.slug || undefined,
+          counterId: d.counterId || d.counter || d.counterAssigned || undefined,
+          counterName: d.counterName || d.counter || undefined,
+        };
+        const res = await fetch(CONFIG.endpoints.createLink, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('API error ' + res.status);
+        const j = await res.json();
+        state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
+      } catch (e) {
+        console.warn('[QJ] Link generation failed:', e.message);
+      }
+
+      if (!state.latestConnectLink) {
+        if (statusText) statusText.textContent = 'Link generation failed. Tap to retry.';
+        if (btn) {
+          btn.disabled = false;
+          content.innerHTML = '🔄 Retry';
+          state.linkGenerating = false;
+          btn.onclick = () => {
+            state.latestConnectLink = null;
+            state.linkGenerating = false;
+            btn.onclick = openTelegram;
+            generateLink();
+          };
+        }
+        return;
+      }
+
+      if (statusText) statusText.textContent = 'Ready! Tap below to open Telegram.';
+      if (btn) {
+        btn.disabled = false;
+        content.innerHTML = '🚀 Open Telegram';
+        btn.onclick = openTelegram;
+      }
+      state.linkGenerating = false;
+    }
+
+    function openTelegram() {
+      if (state.linkGenerating) return;
+      const btn = $('obFinish');
+      const content = $('obFinishContent');
+      if (btn) btn.disabled = true;
+      if (content) content.innerHTML = '<span class="spinner"></span> Opening...';
+
+      const url = state.latestConnectLink;
+      if (!url) {
+        generateLink();
+        return;
+      }
+
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      try {
+        const token = url.split('start=')[1];
+        if (token) {
+          fetch(CONFIG.endpoints.markTokenUsed, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ queueKey: state.queueKey, token, tenantId: state.tenantId })
+          }).catch(() => {});
+        }
+      } catch {}
+
+      setTimeout(() => {
+        if (btn) btn.disabled = false;
+        if (content) content.innerHTML = '✅ Opened!';
+        setTimeout(closeModal, 1200);
+      }, 500);
+    }
+
+    function openCancelModal() {
+      const d = state.data;
+      if (!d) return;
+      const st = String(d.status || '').toLowerCase();
+      if (['canceled','cancelled','served','completed','called','serving'].includes(st)) return;
+      const t = I18N[state.lang];
+      $('cancelConfirmTitle').textContent = t.cancel_title;
+      $('cancelConfirmDesc').textContent = t.cancel_desc;
+      $('btnConfirmCancel').textContent = t.cancel_confirm;
+      $('btnKeepNumber').textContent = t.cancel_keep;
+      $('cancelModal').classList.add('show');
+      $('cancelModal').setAttribute('aria-hidden', 'false');
+    }
+
+    function closeCancelModal() {
+      $('cancelModal').classList.remove('show');
+      $('cancelModal').setAttribute('aria-hidden', 'true');
+    }
+
+    async function confirmCancel() {
+      const d = state.data;
+      if (!d) { closeCancelModal(); return; }
+      const st = String(d.status || '').toLowerCase();
+      if (['canceled','cancelled','served','completed'].includes(st)) { closeCancelModal(); return; }
+      const btn = $('btnConfirmCancel');
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        if (!state.tenantId || !state.queueKey) {
+          showError('Tenant not resolved.');
+          closeCancelModal();
+          return;
+        }
+        const queuePaths = [
+          `tenants/${state.tenantId}/queue/${state.queueKey}`,
+          `tenants/${state.tenantId}/public/queues/${state.queueKey}`
+        ];
+        await Promise.all(queuePaths.map(p => update(ref(db, p), {
+          status: 'canceled',
+          canceledAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          canceledBy: 'customer'
+        }).catch(() => null)));
+      } catch (e) {
+        console.error('[QJ] Cancel failed:', e);
+        showError('Cancel failed. Please try again.');
+      }
+      btn.disabled = false;
+      closeCancelModal();
+      showThankYou();
+    }
+
+    function hydrateFromCache() {
+      try {
+        const cached = localStorage.getItem('qj_last_data');
+        const cachedId = localStorage.getItem('qj_last_queueId');
+        if (cached && cachedId === state.queueKey) {
+          state.cachedData = normalizeQueueData(JSON.parse(cached));
+          state.data = state.cachedData;
+          renderData();
+        }
+      } catch {}
+    }
+
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      state.queueKey = getQueueKeyFromUrl();
+      state.queueNumber = params.get('queueNumber') || params.get('queue') || null;
+      state.slug = getSlugFromUrl();
+
+      if (!state.queueKey) {
+        showError('Queue ID missing.');
+        setTimeout(() => {
+          window.location.href = state.slug ? `index.html?slug=${encodeURIComponent(state.slug)}` : 'index.html';
+        }, 2000);
+        return;
+      }
+
+      setLoadingPlaceholders();
+      setLang(state.lang);
+      hydrateFromCache();
+
+      await resolveTenant();
+      await initFirebase();
+      await loadTenantConfig();
+      await refreshAdFromTenantConfig();
+      startQueueWatcher();
+      watchAnalytics();
+
+      window.addEventListener('beforeunload', () => {
+        if (qRef) off(qRef);
+        if (counterRef) off(counterRef);
+        if (analyticsRef) off(analyticsRef);
+      });
+    }
+
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLang(btn.dataset.lang));
+    });
+
+    $('obNext').onclick = () => showSlide(1);
+    $('obNext2').onclick = () => showSlide(2);
+    $('obBack1').onclick = () => showSlide(0);
+    $('obBack2').onclick = () => showSlide(1);
+    $('obSkip').onclick = () => { localStorage.setItem('qj_modal_skipped_' + (state.queueKey || ''), 'true'); closeModal(); };
+    $('obDone').onclick = closeModal;
+    $('obFinish').onclick = openTelegram;
+    $('obModal').onclick = (e) => { if (e.target === $('obModal')) closeModal(); };
+
+    $('btnConnect').onclick = () => {
+      if (state.latestConnectLink) {
+        openTelegram();
+      } else {
+        openModal();
+        if (!state.latestConnectLink) {
+          showSlide(2);
+          generateLink();
+        }
+      }
+    };
+
+    $('btnGame').onclick = () => {
+      const params = new URLSearchParams();
+      if (state.queueKey) { params.set('queueId', state.queueKey); params.set('queueKey', state.queueKey); }
+      if (state.slug) params.set('slug', state.slug);
+      if (state.tenantId) params.set('tenantId', state.tenantId);
+      if (state.queueNumber) params.set('queueNumber', state.queueNumber);
+      window.open(`game.html?${params.toString()}`, '_blank');
+    };
+
+    $('btnCancel').onclick = openCancelModal;
+    $('btnConfirmCancel').onclick = confirmCancel;
+    $('btnKeepNumber').onclick = closeCancelModal;
+    $('cancelModal').onclick = (e) => { if (e.target === $('cancelModal')) closeCancelModal(); };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && !state.isRedirecting && state.queueKey && state.tenantId) {
+        startQueueWatcher();
+      }
+    });
+
+    init().catch(e => {
+      console.error('[QJ] Init failed:', e);
+      showError('Something went wrong. Please refresh.');
+    });
+  </script>
 </body>
 </html>
