@@ -36,54 +36,39 @@
       --stat-bg: #f8fafc;
       --stat-border: #f1f5f9;
       --track-bg: #f1f5f9;
-      --radius-lg: 20px;
-      --radius-md: 14px;
-      --shadow-card: 0 12px 32px -8px rgba(0,0,0,0.1), 0 4px 12px -4px rgba(0,0,0,0.06);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --shadow-card: 0 20px 40px -12px rgba(0,0,0,0.1), 0 8px 16px -8px rgba(0,0,0,0.06);
+      --shadow-glow: 0 0 40px -10px;
       --ease: cubic-bezier(0.4, 0, 0.2, 1);
       --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-    html, body {
-      height: 100%;
-      overflow: hidden;
-    }
-
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg-gradient);
       background-attachment: fixed;
       color: var(--text-main);
-      line-height: 1.4;
+      line-height: 1.5;
+      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 8px 12px;
+      padding: 16px 16px 160px;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
 
-    .page-wrapper {
-      width: 100%;
-      max-width: 400px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-height: 100vh;
-      max-height: 100dvh;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .page-wrapper::-webkit-scrollbar { display: none; }
+    .page-wrapper { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
 
     /* Language Switcher */
-    .lang-nav { display: flex; justify-content: flex-end; gap: 4px; flex-shrink: 0; }
+    .lang-nav { display: flex; justify-content: flex-end; gap: 6px; }
     .lang-btn {
-      background: none; border: 1px solid transparent; font-size: 11px; font-weight: 600;
-      color: var(--text-muted); cursor: pointer; padding: 3px 8px; border-radius: 6px;
+      background: none; border: 1px solid transparent; font-size: 12px; font-weight: 600;
+      color: var(--text-muted); cursor: pointer; padding: 5px 10px; border-radius: 8px;
       transition: all 0.2s var(--ease); font-family: inherit;
     }
     .lang-btn:hover { background: rgba(139, 92, 246, 0.06); }
@@ -91,190 +76,194 @@
 
     /* Banners */
     .banner {
-      padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;
-      display: flex; align-items: center; gap: 8px; line-height: 1.4;
-      animation: slideDown 0.4s var(--spring); flex-shrink: 0;
+      padding: 14px 18px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 10px; line-height: 1.5;
+      animation: slideDown 0.5s var(--spring);
     }
     .banner-warning { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
     .banner-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
 
-    @keyframes slideDown { from { transform: translateY(-8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes slideDown { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes scaleIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-    @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+    @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes shimmer {
+      0% { background-position: -200px 0; }
+      100% { background-position: calc(200px + 100%) 0; }
+    }
 
     /* Main Card */
     .status-card {
       background: var(--card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
-      padding: 16px 16px 12px; position: relative; overflow: hidden;
-      animation: scaleIn 0.4s var(--spring); flex-shrink: 0;
+      padding: 28px 24px; position: relative; overflow: hidden;
+      animation: scaleIn 0.5s var(--spring);
     }
     .status-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
       background: linear-gradient(90deg, var(--primary-hex), var(--primary-light), var(--primary-hex));
       background-size: 200% 100%;
       animation: shimmer 3s linear infinite;
     }
 
-    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
     .logo-container {
-      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      width: 60px; height: 60px; border-radius: 16px; flex-shrink: 0;
       background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
       display: flex; align-items: center; justify-content: center;
-      color: white; font-weight: 900; font-size: 16px;
-      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+      color: white; font-weight: 900; font-size: 22px;
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+      transition: transform 0.3s var(--spring);
       overflow: hidden;
     }
-    .logo-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    .logo-container:hover { transform: scale(1.05); }
+    .logo-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 16px; }
 
-    .header-info h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
-    .header-info .small-text { font-size: 10px; color: var(--primary-hex); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1px; }
-    .header-info p { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
-
-    /* Counter badge */
-    .counter-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      background: rgba(139,92,246,0.08); color: var(--primary-hex);
-      padding: 3px 10px; border-radius: 16px; font-size: 11px; font-weight: 600;
-      margin-bottom: 8px;
-    }
+    .header-info h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    .header-info .small-text { font-size: 11px; color: var(--primary-hex); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+    .header-info p { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
 
     /* Progress */
-    .progress-area { margin-bottom: 10px; }
-    .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .progress-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-    .progress-value { font-size: 11px; font-weight: 700; color: var(--primary-hex); }
-    .progress-track { height: 10px; background: var(--track-bg); border-radius: 99px; overflow: hidden; position: relative; }
+    .progress-area { margin-bottom: 28px; }
+    .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .progress-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+    .progress-value { font-size: 13px; font-weight: 700; color: var(--primary-hex); transition: color 0.3s; }
+    .progress-track { height: 14px; background: var(--track-bg); border-radius: 99px; overflow: hidden; position: relative; }
     .progress-fill {
       height: 100%; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex), var(--primary-light));
       background-size: 200% 100%;
       width: 0%; border-radius: 99px;
-      transition: width 0.8s var(--spring);
-      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+      transition: width 1s var(--spring);
+      box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
       animation: shimmer 2s linear infinite;
       position: relative;
     }
     .progress-fill::after {
       content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-      width: 6px; height: 6px; border-radius: 50%; background: white;
-      box-shadow: 0 0 4px rgba(0,0,0,0.15);
+      width: 8px; height: 8px; border-radius: 50%; background: white;
+      box-shadow: 0 0 6px rgba(0,0,0,0.15);
       opacity: 0; transition: opacity 0.3s;
     }
     .progress-fill.has-progress::after { opacity: 1; }
 
-    /* Stats Grid — 2x2 compact */
-    .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
     .stat-box {
       background: var(--stat-bg); border: 1px solid var(--stat-border);
-      padding: 10px 10px; border-radius: var(--radius-md);
-      transition: transform 0.2s var(--spring);
+      padding: 18px 16px; border-radius: var(--radius-md);
+      transition: transform 0.25s var(--spring), box-shadow 0.25s;
     }
-    .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
+    .stat-box:active { transform: scale(0.97); }
+    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
     .stat-number {
-      font-size: 22px; font-weight: 900; margin-top: 2px; color: var(--text-main); line-height: 1;
+      font-size: 28px; font-weight: 900; margin-top: 6px; color: var(--text-main); line-height: 1;
       word-break: break-word; transition: color 0.3s, transform 0.3s var(--spring);
     }
     .stat-number.highlight { color: var(--primary-hex); }
-    .stat-number.pop { animation: popIn 0.35s var(--spring); }
-    @keyframes popIn { 0% { transform: scale(0.85); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    .stat-number.pop { animation: popIn 0.4s var(--spring); }
+    @keyframes popIn { 0% { transform: scale(0.8); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
     /* Skeleton */
     .skeleton {
       background: linear-gradient(90deg, var(--track-bg) 25%, #e2e8f0 37%, var(--track-bg) 63%);
       background-size: 200px 100%;
       animation: shimmer 1.4s ease-in-out infinite;
-      border-radius: 4px;
+      border-radius: 6px;
     }
-    .skeleton-text { display: inline-block; width: 50px; height: 22px; vertical-align: middle; }
+    .skeleton-text { display: inline-block; width: 60px; height: 28px; vertical-align: middle; }
+    .skeleton-block { width: 100%; height: 14px; margin-top: 6px; }
 
-    /* Telegram CTA — compact */
+    /* Telegram CTA */
     .tg-cta {
       background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
       border: 1px solid #bae6fd;
-      padding: 12px 14px; border-radius: var(--radius-md);
-      display: flex; flex-direction: column; gap: 8px;
-      transition: all 0.3s var(--ease);
-      position: relative; overflow: hidden;
+      padding: 22px 20px; border-radius: var(--radius-md);
+      display: flex; flex-direction: column; gap: 14px;
+      transition: all 0.4s var(--ease);
+      margin-top: 8px;
+      position: relative;
+      overflow: hidden;
     }
     .tg-cta::before {
       content: ''; position: absolute; top: -50%; right: -50%;
       width: 100%; height: 100%;
-      background: radial-gradient(circle, rgba(0,136,204,0.05) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(0,136,204,0.06) 0%, transparent 70%);
       pointer-events: none;
     }
     .tg-cta.connected {
       background: linear-gradient(135deg, var(--success-bg), #d1fae5);
       border-color: var(--success-border);
     }
-    .tg-cta-header { display: flex; gap: 10px; align-items: center; }
+    .tg-cta-header { display: flex; gap: 12px; align-items: flex-start; }
     .tg-icon {
-      font-size: 22px; flex-shrink: 0; width: 36px; height: 36px;
+      font-size: 28px; flex-shrink: 0; width: 44px; height: 44px;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(0,136,204,0.1); border-radius: 10px;
+      background: rgba(0,136,204,0.1); border-radius: 12px;
     }
     .tg-cta.connected .tg-icon { background: rgba(16,185,129,0.1); }
-    .tg-cta-text h4 { font-size: 13px; font-weight: 700; color: #0369a1; }
-    .tg-cta-text p { font-size: 11px; color: #0c4a6e; opacity: 0.8; margin-top: 2px; line-height: 1.4; }
+    .tg-cta-text h4 { font-size: 15px; font-weight: 700; color: #0369a1; }
+    .tg-cta-text p { font-size: 12px; color: #0c4a6e; opacity: 0.8; margin-top: 4px; line-height: 1.5; }
     .tg-cta.connected .tg-cta-text h4 { color: var(--success-text); }
     .tg-cta.connected .tg-cta-text p { color: var(--success-text); opacity: 0.7; }
 
-    .tg-features { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tg-features {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+    }
     .tg-feature {
-      font-size: 10px; font-weight: 600; color: #0369a1; background: rgba(0,136,204,0.08);
-      padding: 2px 8px; border-radius: 16px; white-space: nowrap;
+      font-size: 11px; font-weight: 600; color: #0369a1; background: rgba(0,136,204,0.08);
+      padding: 4px 10px; border-radius: 20px; white-space: nowrap;
     }
 
     .btn-tg {
       background: linear-gradient(135deg, var(--tg-blue), var(--tg-dark));
       color: white; border: none;
-      padding: 11px; border-radius: 12px; font-weight: 700; font-size: 13px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-      box-shadow: 0 4px 14px rgba(0, 136, 204, 0.35);
-      transition: all 0.2s var(--ease); font-family: inherit;
+      padding: 15px; border-radius: 14px; font-weight: 700; font-size: 15px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 6px 20px rgba(0, 136, 204, 0.35);
+      transition: all 0.25s var(--ease); font-family: inherit;
       position: relative; overflow: hidden;
     }
     .btn-tg::after {
       content: ''; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
       transform: translateX(-100%);
       animation: btnShine 3s ease-in-out infinite;
     }
-    @keyframes btnShine { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
-    .btn-tg:active { transform: scale(0.97); }
+    @keyframes btnShine {
+      0%, 100% { transform: translateX(-100%); }
+      50% { transform: translateX(100%); }
+    }
+    .btn-tg:active { transform: scale(0.97); box-shadow: 0 3px 10px rgba(0, 136, 204, 0.3); }
     .btn-tg:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
     .btn-tg.btn-connected {
       background: linear-gradient(135deg, var(--success), var(--success-dark));
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
     }
     .btn-tg.btn-connected::after { display: none; }
 
     .pulse { animation: shadowPulse 2s infinite; }
     @keyframes shadowPulse {
       0% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0.45); }
-      70% { box-shadow: 0 0 0 10px rgba(0, 136, 204, 0); }
+      70% { box-shadow: 0 0 0 14px rgba(0, 136, 204, 0); }
       100% { box-shadow: 0 0 0 0 rgba(0, 136, 204, 0); }
     }
 
-    /* Action Buttons — single row */
-    .actions-row {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-      margin-top: 8px; flex-shrink: 0;
-    }
+    /* Action Buttons */
+    .actions-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
     .btn-game {
       background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;
-      padding: 10px; border-radius: 12px; font-weight: 700; font-size: 12px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-      box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);
-      transition: all 0.2s var(--ease); font-family: inherit; width: 100%;
+      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+      transition: all 0.25s var(--ease); font-family: inherit; width: 100%;
     }
     .btn-game:active { transform: scale(0.97); }
 
     .btn-cancel {
       background: white; color: #b91c1c; border: 2px solid #fecaca;
-      padding: 10px; border-radius: 12px; font-weight: 700; font-size: 12px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-      transition: all 0.2s var(--ease); font-family: inherit; width: 100%;
+      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all 0.25s var(--ease); font-family: inherit; width: 100%;
     }
     .btn-cancel:hover { background: #fef2f2; border-color: #f87171; }
     .btn-cancel:active { transform: scale(0.97); }
@@ -282,130 +271,69 @@
 
     /* Error */
     .error-banner {
-      padding: 10px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca;
-      color: #b91c1c; font-weight: 600; font-size: 12px; text-align: center;
-      animation: slideDown 0.4s var(--spring); flex-shrink: 0;
+      padding: 14px; border-radius: 14px; background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; font-weight: 600; font-size: 13px; text-align: center;
+      animation: slideDown 0.4s var(--spring);
     }
 
-    /* Thank You */
+    /* Thank You Message */
     .thank-you-card {
       background: linear-gradient(135deg, #ecfdf5, #d1fae5);
       border: 1px solid #a7f3d0; border-radius: var(--radius-lg);
-      padding: 24px 20px; text-align: center;
-      animation: scaleIn 0.4s var(--spring);
+      padding: 32px 24px; text-align: center;
+      animation: scaleIn 0.5s var(--spring);
     }
-    .thank-you-icon { font-size: 48px; margin-bottom: 12px; }
-    .thank-you-title { font-size: 20px; font-weight: 800; color: #065f46; margin-bottom: 6px; }
-    .thank-you-desc { font-size: 13px; color: #047857; line-height: 1.5; }
-
-    /* Floating Ad Panel */
-    .ad-float {
-      position: fixed;
-      z-index: 50;
-      animation: fadeIn 0.5s var(--ease);
-    }
-
-    /* Desktop: float right side */
-    @media (min-width: 860px) {
-      .ad-float {
-        top: 50%;
-        right: 20px;
-        transform: translateY(-50%);
-        width: 220px;
-      }
-    }
-
-    /* Mobile: fixed bottom bar */
-    @media (max-width: 859px) {
-      .ad-float {
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: 100%;
-        padding: 0;
-      }
-      .ad-float .ad-panel-inner {
-        border-radius: 16px 16px 0 0;
-        max-height: 100px;
-      }
-      .ad-float .ad-media {
-        max-height: 64px;
-        object-fit: cover;
-      }
-      body {
-        padding-bottom: 108px;
-      }
-    }
-
-    .ad-panel-inner {
-      background: white;
-      border-radius: var(--radius-md);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
-      border: 1px solid var(--stat-border);
-      padding: 8px;
-      overflow: hidden;
-      position: relative;
-    }
-    .ad-close {
-      position: absolute; top: 4px; right: 6px;
-      background: rgba(0,0,0,0.05); border: none; border-radius: 50%;
-      width: 20px; height: 20px; font-size: 10px; color: #9ca3af;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: background 0.2s;
-    }
-    .ad-close:hover { background: rgba(0,0,0,0.1); }
-    .ad-label { font-size: 8px; color: #9ca3af; text-align: center; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
-    .ad-media { width: 100%; max-height: 160px; object-fit: cover; border-radius: 10px; display: block; }
-    .ad-text { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 6px; line-height: 1.3; }
-    .ad-link { display: block; text-decoration: none; }
+    .thank-you-icon { font-size: 56px; margin-bottom: 16px; }
+    .thank-you-title { font-size: 22px; font-weight: 800; color: #065f46; margin-bottom: 8px; }
+    .thank-you-desc { font-size: 14px; color: #047857; line-height: 1.6; }
 
     /* Onboarding Modal */
     .modal-overlay {
       position: fixed; inset: 0; z-index: 1000;
       background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      display: flex; align-items: center; justify-content: center; padding: 16px;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
       opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
     }
     .modal-overlay.show { opacity: 1; visibility: visible; }
 
     .modal-card {
-      background: white; width: 100%; max-width: 360px;
-      border-radius: var(--radius-lg); padding: 24px 20px;
+      background: white; width: 100%; max-width: 380px;
+      border-radius: var(--radius-lg); padding: 32px 24px;
       box-shadow: 0 24px 60px rgba(15, 23, 42, 0.4);
-      transform: translateY(20px) scale(0.96);
-      transition: transform 0.3s var(--spring);
+      transform: translateY(24px) scale(0.95);
+      transition: transform 0.35s var(--spring);
     }
     .modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
 
     .modal-icon {
-      width: 72px; height: 72px; margin: 0 auto; border-radius: 18px;
+      width: 88px; height: 88px; margin: 0 auto; border-radius: 22px;
       background: linear-gradient(135deg, var(--primary-hex), var(--primary-dark-hex));
-      display: flex; align-items: center; justify-content: center; font-size: 32px; color: white;
-      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+      display: flex; align-items: center; justify-content: center; font-size: 40px; color: white;
+      box-shadow: 0 12px 30px rgba(139, 92, 246, 0.3);
     }
-    .modal-icon.success { background: linear-gradient(135deg, var(--success), #059669); box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3); }
+    .modal-icon.success { background: linear-gradient(135deg, var(--success), #059669); box-shadow: 0 12px 30px rgba(16, 185, 129, 0.3); }
 
-    .modal-title { margin-top: 16px; font-size: 18px; font-weight: 800; text-align: center; }
-    .modal-desc { color: var(--text-muted); margin-top: 8px; font-size: 13px; line-height: 1.5; text-align: center; }
+    .modal-title { margin-top: 24px; font-size: 22px; font-weight: 800; text-align: center; }
+    .modal-desc { color: var(--text-muted); margin-top: 12px; font-size: 14px; line-height: 1.6; text-align: center; }
 
-    .step-dots { display: flex; gap: 6px; justify-content: center; margin: 14px 0; }
-    .step-dot { width: 6px; height: 6px; border-radius: 99px; background: #e5e7eb; transition: all 0.3s var(--spring); }
-    .step-dot.active { width: 22px; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex)); box-shadow: 0 3px 8px rgba(139, 92, 246, 0.35); }
+    .step-dots { display: flex; gap: 8px; justify-content: center; margin: 20px 0; }
+    .step-dot { width: 8px; height: 8px; border-radius: 99px; background: #e5e7eb; transition: all 0.3s var(--spring); }
+    .step-dot.active { width: 28px; background: linear-gradient(90deg, var(--primary-dark-hex), var(--primary-hex)); box-shadow: 0 4px 10px rgba(139, 92, 246, 0.35); }
 
     .btn-primary {
       background: linear-gradient(135deg, var(--primary-dark-hex), var(--primary-hex));
-      color: white; padding: 12px 16px; border-radius: 12px; font-weight: 700; border: none;
-      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.3); cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-      font-size: 13px; width: 100%; min-height: 42px; font-family: inherit;
-      transition: transform 0.2s;
+      color: white; padding: 14px 20px; border-radius: 14px; font-weight: 700; border: none;
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-size: 14px; width: 100%; min-height: 48px; font-family: inherit;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
     .btn-primary:active { transform: scale(0.98); }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
     .btn-outline {
-      border: 2px solid rgba(139, 92, 246, 0.15); padding: 10px; border-radius: 12px;
-      background: white; font-weight: 600; cursor: pointer; font-size: 13px; color: var(--text-muted);
+      border: 2px solid rgba(139, 92, 246, 0.15); padding: 14px; border-radius: 14px;
+      background: white; font-weight: 600; cursor: pointer; font-size: 14px; color: var(--text-muted);
       display: flex; align-items: center; justify-content: center; width: 100%; font-family: inherit;
       transition: background 0.2s;
     }
@@ -415,51 +343,74 @@
     .slide.active { display: block; }
 
     .spinner {
-      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.25);
+      width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.25);
       border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Ad Panel */
+    .ad-panel {
+      background: white; border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+      border: 1px solid var(--stat-border);
+      padding: 12px; overflow: hidden;
+      animation: fadeIn 0.5s var(--ease);
+    }
+    .ad-label { font-size: 9px; color: #9ca3af; text-align: center; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+    .ad-media { width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; display: block; }
+    .ad-text { font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 8px; line-height: 1.4; }
+    .ad-link { display: block; text-decoration: none; }
 
     /* Cancel Confirm Modal */
     .confirm-overlay {
       position: fixed; inset: 0; z-index: 1100;
       background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      display: flex; align-items: center; justify-content: center; padding: 16px;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
       opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
     }
     .confirm-overlay.show { opacity: 1; visibility: visible; }
     .confirm-card {
-      background: white; width: 100%; max-width: 320px;
-      border-radius: var(--radius-lg); padding: 24px 20px;
+      background: white; width: 100%; max-width: 340px;
+      border-radius: var(--radius-lg); padding: 28px 24px;
       box-shadow: 0 24px 60px rgba(15, 23, 42, 0.4);
-      transform: translateY(20px) scale(0.96);
-      transition: transform 0.3s var(--spring);
+      transform: translateY(24px) scale(0.95);
+      transition: transform 0.35s var(--spring);
       text-align: center;
     }
     .confirm-overlay.show .confirm-card { transform: translateY(0) scale(1); }
-    .confirm-icon { font-size: 40px; margin-bottom: 12px; }
-    .confirm-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
-    .confirm-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px; }
-    .confirm-actions { display: flex; flex-direction: column; gap: 8px; }
+    .confirm-icon { font-size: 48px; margin-bottom: 16px; }
+    .confirm-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+    .confirm-desc { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
+    .confirm-actions { display: flex; flex-direction: column; gap: 10px; }
     .btn-confirm-cancel {
       background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; border: none;
-      padding: 12px; border-radius: 12px; font-weight: 700; font-size: 13px;
+      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
       cursor: pointer; font-family: inherit; width: 100%;
-      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+      transition: all 0.2s;
     }
+    .btn-confirm-cancel:hover { opacity: 0.9; }
     .btn-confirm-cancel:active { transform: scale(0.98); }
     .btn-keep {
       background: white; color: var(--text-main); border: 2px solid #e5e7eb;
-      padding: 12px; border-radius: 12px; font-weight: 700; font-size: 13px;
+      padding: 14px; border-radius: 14px; font-weight: 700; font-size: 14px;
       cursor: pointer; font-family: inherit; width: 100%;
+      transition: background 0.2s;
     }
     .btn-keep:hover { background: #f9fafb; }
 
     .hidden { display: none !important; }
 
-    /* Footer */
+    /* Counter name badge */
+    .counter-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(139,92,246,0.08); color: var(--primary-hex);
+      padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      margin-top: 8px;
+    }
+
+    /* Footer brand */
     .footer-brand {
-      text-align: center; padding: 4px 0; font-size: 10px; color: #cbd5e1; font-weight: 500; flex-shrink: 0;
+      text-align: center; padding: 16px 0 8px; font-size: 11px; color: #cbd5e1; font-weight: 500;
     }
     .footer-brand a { color: var(--primary-light); text-decoration: none; }
   </style>
@@ -468,7 +419,7 @@
 
 <div class="page-wrapper">
 
-  <!-- Language -->
+  <!-- Language Switcher -->
   <nav class="lang-nav" id="langNav">
     <button class="lang-btn active" data-lang="en">EN</button>
     <button class="lang-btn" data-lang="zh">中文</button>
@@ -516,7 +467,7 @@
       <span>🪑</span> <span id="counterNameLabel">—</span>
     </div>
 
-    <section class="progress-area">
+    <section class="progress-area" style="margin-top:16px">
       <div class="progress-meta">
         <span class="progress-label" data-t="progress">Queue Progress</span>
         <span id="progressCaption" class="progress-value">...</span>
@@ -526,8 +477,7 @@
       </div>
     </section>
 
-    <!-- Stats: 2x2 grid -->
-    <div class="stats-row">
+    <div class="stats-grid">
       <div class="stat-box">
         <div class="stat-label" data-t="your_ticket">Your Ticket</div>
         <div id="yourNumber" class="stat-number"><span class="skeleton skeleton-text"></span></div>
@@ -537,7 +487,8 @@
         <div id="nowServing" class="stat-number"><span class="skeleton skeleton-text"></span></div>
       </div>
     </div>
-    <div class="stats-row">
+
+    <div class="stats-grid">
       <div class="stat-box">
         <div class="stat-label" data-t="people_ahead">People Ahead</div>
         <div id="peopleAhead" class="stat-number"><span class="skeleton skeleton-text"></span></div>
@@ -558,33 +509,32 @@
         </div>
       </div>
       <div class="tg-features">
-        <span class="tg-feature">🔔 Alerts</span>
+        <span class="tg-feature">🔔 Turn alerts</span>
         <span class="tg-feature">🎁 Discounts</span>
         <span class="tg-feature">📢 Updates</span>
         <span class="tg-feature">🏷️ Promos</span>
       </div>
       <button id="btnConnect" class="btn-tg pulse" data-t-inner="connect_btn">📲 Connect Telegram</button>
     </div>
+
+    <!-- Action Buttons -->
+    <div class="actions-stack" id="actionsStack">
+      <div class="actions-row">
+        <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Snake Game</button>
+        <button id="btnCancel" class="btn-cancel" data-t-inner="cancel_btn">❌ Cancel</button>
+      </div>
+    </div>
   </main>
 
-  <!-- Action Buttons -->
-  <div class="actions-row" id="actionsStack">
-    <button id="btnGame" class="btn-game" data-t-inner="play_game">🎮 Snake Game</button>
-    <button id="btnCancel" class="btn-cancel" data-t-inner="cancel_btn">❌ Cancel</button>
-  </div>
-
-  <!-- Footer -->
-  <div class="footer-brand">Powered by <a href="https://helloqueuejoy.netlify.app" target="_blank">QueueJoy</a></div>
-</div>
-
-<!-- Floating Ad Panel -->
-<div id="adFloat" class="ad-float hidden">
-  <div class="ad-panel-inner">
-    <button id="adClose" class="ad-close" aria-label="Close ad">✕</button>
+  <!-- Ad Panel -->
+  <div id="adPanel" class="ad-panel hidden">
     <div class="ad-label">Sponsored</div>
     <div id="adContainer"></div>
     <div id="adTextEl" class="ad-text hidden"></div>
   </div>
+
+  <!-- Footer -->
+  <div class="footer-brand">Powered by <a href="https://helloqueuejoy.netlify.app" target="_blank">QueueJoy</a></div>
 </div>
 
 <!-- Onboarding Modal -->
@@ -596,7 +546,7 @@
       <h2 class="modal-title" data-t="modal_title">Never Miss Your Turn</h2>
       <p class="modal-desc" data-t="modal_desc">Browser tabs can sleep. Telegram ensures you get the alert even if your phone is locked.</p>
       <div class="step-dots"><span class="step-dot active"></span><span class="step-dot"></span><span class="step-dot"></span></div>
-      <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;flex-direction:column;gap:10px">
         <button id="obNext" class="btn-primary" data-t-inner="modal_continue">Continue →</button>
         <button id="obSkip" class="btn-outline" data-t-inner="skip">Skip for now</button>
       </div>
@@ -607,7 +557,7 @@
       <h2 class="modal-title" data-t="modal_step2_title">Tap "Start" in Telegram</h2>
       <p class="modal-desc" data-t="modal_step2_desc">We'll open our bot. Tap <strong>Start</strong> to activate notifications.</p>
       <div class="step-dots"><span class="step-dot"></span><span class="step-dot active"></span><span class="step-dot"></span></div>
-      <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;flex-direction:column;gap:10px">
         <button id="obNext2" class="btn-primary" data-t-inner="modal_continue">Continue →</button>
         <button id="obBack1" class="btn-outline">← Back</button>
       </div>
@@ -618,7 +568,7 @@
       <h2 class="modal-title" data-t="modal_step3_title">Ready to Connect</h2>
       <p class="modal-desc" id="obStatusText">Creating your secure link...</p>
       <div class="step-dots"><span class="step-dot"></span><span class="step-dot"></span><span class="step-dot active"></span></div>
-      <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;flex-direction:column;gap:10px">
         <button id="obFinish" class="btn-tg" disabled><span id="obFinishContent"><span class="spinner"></span> Generating...</span></button>
         <button id="obBack2" class="btn-outline">← Back</button>
       </div>
@@ -628,7 +578,7 @@
       <div class="modal-icon success">✅</div>
       <h2 class="modal-title" data-t="modal_connected_title">You're Connected!</h2>
       <p class="modal-desc" data-t="modal_connected_desc">You'll get a Telegram notification when it's your turn.</p>
-      <div style="margin-top:16px">
+      <div style="margin-top:20px">
         <button id="obDone" class="btn-primary">👍 Got it</button>
       </div>
     </div>
@@ -648,7 +598,15 @@
   </div>
 </div>
 
-<!-- Firebase SDK + App Logic -->
+<!-- Firebase SDK -->
+<!-- Keep your existing HTML/CSS above this point.
+     Restore this ad panel block under the main card if it is missing: -->
+<div id="adPanel" class="ad-panel hidden">
+  <div class="ad-label">Advertisement</div>
+  <div id="adContainer"></div>
+  <div id="adTextEl" class="ad-text hidden"></div>
+</div>
+
 <script type="module">
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue, off, get, update, push, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -1038,6 +996,7 @@ function setLoadingPlaceholders() {
 
 function normalizeQueueData(raw) {
   const d = raw || {};
+  const number = d.queueNumber || d.number || d.ticketNumber || d.queueId || "—";
   const counterName = d.counterName || d.counter || "—";
   return {
     ...d,
@@ -1115,7 +1074,11 @@ function renderData() {
 
   const cancelBtn = $("btnCancel");
   if (cancelBtn) {
-    cancelBtn.disabled = ["canceled", "cancelled", "served", "completed", "called", "serving"].includes(status);
+    if (["canceled", "cancelled", "served", "completed", "called", "serving"].includes(status)) {
+      cancelBtn.disabled = true;
+    } else {
+      cancelBtn.disabled = false;
+    }
   }
 
   if ((status === "canceled" || status === "cancelled") && !state.isCanceled) {
@@ -1126,7 +1089,7 @@ function renderData() {
 function showThankYou() {
   state.isCanceled = true;
   $("mainCard")?.classList.add("hidden");
-  $("adFloat")?.classList.add("hidden");
+  $("adPanel")?.classList.add("hidden");
   $("actionsStack")?.classList.add("hidden");
   $("thankYouCard")?.classList.remove("hidden");
   $("bannerWarning")?.classList.add("hidden");
@@ -1202,7 +1165,9 @@ async function initFirebase() {
           cfg = tenantCfg;
         }
       }
-    } catch {}
+    } catch {
+      /* keep default */
+    }
   }
 
   if (!getApps().length) initializeApp(cfg);
@@ -1227,7 +1192,10 @@ async function loadTenantConfig() {
 
       if (config.smallTextOnTop) {
         const el = $("smallTextTop");
-        if (el) { el.textContent = config.smallTextOnTop; el.classList.remove("hidden"); }
+        if (el) {
+          el.textContent = config.smallTextOnTop;
+          el.classList.remove("hidden");
+        }
       }
 
       if (config.description) $("headerDesc").textContent = config.description;
@@ -1237,8 +1205,14 @@ async function loadTenantConfig() {
         const img = $("logoImg");
         if (img) {
           img.src = String(logoUrl);
-          img.onload = () => { $("logoText")?.classList.add("hidden"); img.classList.remove("hidden"); };
-          img.onerror = () => { $("logoText")?.classList.remove("hidden"); img.classList.add("hidden"); };
+          img.onload = () => {
+            $("logoText")?.classList.add("hidden");
+            img.classList.remove("hidden");
+          };
+          img.onerror = () => {
+            $("logoText")?.classList.remove("hidden");
+            img.classList.add("hidden");
+          };
         }
       }
 
@@ -1253,8 +1227,8 @@ function queuePathsToTry() {
   const t = state.tenantId;
   const k = state.queueKey;
   return [
-    `tenants/${t}/public/queues/${k}`,
     `tenants/${t}/queue/${k}`,
+    `tenants/${t}/public/queues/${k}`,
     `tenants/${t}/public/queue/${k}`,
   ];
 }
@@ -1269,8 +1243,8 @@ function isQueueObjectMatch(obj) {
 
 async function findQueueByFallback() {
   const candidates = [
-    `tenants/${state.tenantId}/public/queues`,
     `tenants/${state.tenantId}/queue`,
+    `tenants/${state.tenantId}/public/queues`,
   ];
 
   for (const base of candidates) {
@@ -1294,7 +1268,10 @@ async function findQueueByFallback() {
 }
 
 async function attachQueueListeners(queuePath) {
-  if (qRef) { try { off(qRef); } catch {} qRef = null; }
+  if (qRef) {
+    try { off(qRef); } catch {}
+    qRef = null;
+  }
 
   qRef = ref(db, queuePath);
   onValue(qRef, snap => {
@@ -1360,8 +1337,9 @@ async function startQueueWatcher() {
   }
 
   const fallback = await findQueueByFallback();
-  if (fallback?.path) {
+  if (fallback && fallback.path) {
     state.queueKey = fallback.key || state.queueKey;
+    window.__TENANT_ID = state.tenantId || "";
     await attachQueueListeners(fallback.path);
     return;
   }
@@ -1369,7 +1347,7 @@ async function startQueueWatcher() {
   setTimeout(async () => {
     if (state.queueResolved || state.isRedirecting) return;
     const fallback2 = await findQueueByFallback();
-    if (fallback2?.path) {
+    if (fallback2 && fallback2.path) {
       state.queueKey = fallback2.key || state.queueKey;
       await attachQueueListeners(fallback2.path);
       return;
@@ -1391,13 +1369,16 @@ async function startQueueWatcher() {
 
 function watchCounter(counterId) {
   if (!state.tenantId || !counterId) return;
-  if (counterRef) { try { off(counterRef); } catch {} counterRef = null; }
+  if (counterRef) {
+    try { off(counterRef); } catch {}
+    counterRef = null;
+  }
 
   const path = `tenants/${state.tenantId}/counters/${counterId}`;
   counterRef = ref(db, path);
 
   onValue(counterRef, snap => {
-    if (!snap?.exists?.()) return;
+    if (!snap || !snap.exists || !snap.exists()) return;
     state.counterData = snap.val() || {};
     const serving = getServingRaw(state.counterData);
     animateStatChange("nowServing", formatServingNumber(serving));
@@ -1416,7 +1397,7 @@ async function watchAnalytics() {
   try {
     analyticsRef = ref(db, path);
     onValue(analyticsRef, snap => {
-      if (!snap?.exists?.()) return;
+      if (!snap || !snap.exists || !snap.exists()) return;
       const events = snap.val() || {};
       const times = [];
       for (const k in events) {
@@ -1436,24 +1417,24 @@ async function watchAnalytics() {
 }
 
 /* =========================
-   AD PANEL (FLOATING)
+   AD PANEL
    ========================= */
-function renderAd(config) {
-  const adData = config?.ad || null;
-  const adText = config?.adText || null;
-  showAd(adData, adText);
-}
-
 function showAd(adData, adText) {
-  const floater = $("adFloat");
+  const panel = $("adPanel");
   const container = $("adContainer");
   const textEl = $("adTextEl");
-  if (!floater || !container) return;
+  if (!panel || !container) return;
 
   container.innerHTML = "";
-  if (textEl) { textEl.classList.add("hidden"); textEl.textContent = ""; }
+  if (textEl) {
+    textEl.classList.add("hidden");
+    textEl.textContent = "";
+  }
 
-  if (!adData) { floater.classList.add("hidden"); return; }
+  if (!adData) {
+    panel.classList.add("hidden");
+    return;
+  }
 
   let url = null;
   let linkHref = null;
@@ -1466,7 +1447,10 @@ function showAd(adData, adText) {
     if (!adText) adText = adData.text || adData.description || null;
   }
 
-  if (!url) { floater.classList.add("hidden"); return; }
+  if (!url) {
+    panel.classList.add("hidden");
+    return;
+  }
 
   if (adText && textEl) {
     textEl.textContent = adText;
@@ -1484,27 +1468,39 @@ function showAd(adData, adText) {
         embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1`;
       }
     } catch {}
-    container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px"></iframe></div>`;
-    floater.classList.remove("hidden");
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%"><iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px"></iframe></div>`;
+    panel.classList.remove("hidden");
     return;
   }
 
   if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url)) {
     const v = document.createElement("video");
-    v.src = url; v.className = "ad-media"; v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true;
-    v.addEventListener("loadedmetadata", () => floater.classList.remove("hidden"));
-    v.addEventListener("error", () => floater.classList.add("hidden"));
+    v.src = url;
+    v.className = "ad-media";
+    v.autoplay = true;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.addEventListener("loadedmetadata", () => panel.classList.remove("hidden"));
+    v.addEventListener("error", () => panel.classList.add("hidden"));
     container.appendChild(v);
     v.play().catch(() => {});
     return;
   }
 
   const wrapper = linkHref ? document.createElement("a") : document.createElement("div");
-  if (linkHref) { wrapper.href = linkHref; wrapper.target = "_blank"; wrapper.rel = "noopener noreferrer"; wrapper.className = "ad-link"; }
+  if (linkHref) {
+    wrapper.href = linkHref;
+    wrapper.target = "_blank";
+    wrapper.rel = "noopener noreferrer";
+    wrapper.className = "ad-link";
+  }
   const img = document.createElement("img");
-  img.src = url; img.className = "ad-media"; img.alt = "Promotion";
-  img.onload = () => floater.classList.remove("hidden");
-  img.onerror = () => floater.classList.add("hidden");
+  img.src = url;
+  img.className = "ad-media";
+  img.alt = "Promotion";
+  img.onload = () => panel.classList.remove("hidden");
+  img.onerror = () => panel.classList.add("hidden");
   wrapper.appendChild(img);
   container.appendChild(wrapper);
 }
@@ -1515,11 +1511,17 @@ async function refreshAdFromTenantConfig() {
     const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
     if (snap?.exists?.()) {
       const cfg = snap.val() || {};
-      if (cfg.ad) { showAd(cfg.ad, cfg.adText || null); return; }
+      if (cfg.ad) {
+        showAd(cfg.ad, cfg.adText || null);
+        return;
+      }
     }
     const fallback = await get(ref(db, `tenants/${state.tenantId}/settings/adImage`));
-    if (fallback?.exists?.()) { showAd(fallback.val(), null); return; }
-    $("adFloat")?.classList.add("hidden");
+    if (fallback?.exists?.()) {
+      showAd(fallback.val(), null);
+      return;
+    }
+    $("adPanel")?.classList.add("hidden");
   } catch {}
 }
 
@@ -1597,13 +1599,20 @@ function openTelegram() {
   if (content) content.innerHTML = '<span class="spinner"></span> Opening...';
 
   const url = state.latestConnectLink;
-  if (!url) { generateLink(); return; }
+  if (!url) {
+    generateLink();
+    return;
+  }
 
   const win = window.open(url, "_blank", "noopener,noreferrer");
   if (!win) {
     const a = document.createElement("a");
-    a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   try {
@@ -1680,10 +1689,16 @@ function closeCancelModal() {
 
 async function confirmCancel() {
   const d = state.data;
-  if (!d) { closeCancelModal(); return; }
+  if (!d) {
+    closeCancelModal();
+    return;
+  }
 
   const st = String(d.status || "").toLowerCase();
-  if (["canceled", "cancelled", "served", "completed"].includes(st)) { closeCancelModal(); return; }
+  if (["canceled", "cancelled", "served", "completed"].includes(st)) {
+    closeCancelModal();
+    return;
+  }
 
   const btn = $("btnConfirmCancel");
   btn.disabled = true;
@@ -1697,8 +1712,8 @@ async function confirmCancel() {
     }
 
     const queuePaths = [
-      `tenants/${state.tenantId}/public/queues/${state.queueKey}`,
       `tenants/${state.tenantId}/queue/${state.queueKey}`,
+      `tenants/${state.tenantId}/public/queues/${state.queueKey}`
     ];
 
     await Promise.all(queuePaths.map(p => update(ref(db, p), {
@@ -1813,9 +1828,6 @@ $("btnCancel").onclick = openCancelModal;
 $("btnConfirmCancel").onclick = confirmCancel;
 $("btnKeepNumber").onclick = closeCancelModal;
 $("cancelModal").onclick = (e) => { if (e.target === $("cancelModal")) closeCancelModal(); };
-
-// Ad close button
-$("adClose").onclick = () => { $("adFloat")?.classList.add("hidden"); };
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && !state.isRedirecting && state.queueKey && state.tenantId) {
