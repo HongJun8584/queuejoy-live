@@ -1,37 +1,41 @@
 'use strict';
 
 /*
-  createTelegramLink.js — QueueJoy Tenant-Aware Telegram Link Generator
+  createTelegramLink.js — QueueJoy Telegram link generator
   Netlify Serverless Function
 
-  Writes tokens to ALL THREE paths:
-    telegramTokens/{token}                                    (global lookup)
-    tenants/{tenantId}/integrations/telegram/tokens/{token}   (tenant integration path)
-    tenants/{tenantId}/telegramTokens/{token}                 (tenant lookup)
-
-  Includes full metadata: queueKey, queueId, queueNumber, counterId, counterName, slug, tenantId
-  Tries firebase-admin first, falls back to RTDB REST PUT
+  Goals:
+  - Resolve tenant safely from tenantId or slug
+  - Generate a reliable Telegram deep link
+  - Write the same complete token payload to:
+      1) telegramTokens/{token}
+      2) tenants/{tenantId}/integrations/telegram/tokens/{token}
+      3) tenants/{tenantId}/telegramTokens/{token}
+  - Keep compatibility with status.html and telegramWebhook.js
 */
 
-const { nanoid } = require('nanoid');
+const crypto = require('crypto');
 const fetch = globalThis.fetch || require('node-fetch');
 
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 24 * 60 * 60 * 1000);
-
-/* -------- helpers -------- */
+const BOT_USERNAME_ENV = process.env.BOT_USERNAME || process.env.BOT_USER || 'QueueJoyBot';
 
 function makeHeaders(origin) {
-  const CORS = process.env.ALLOWED_ORIGIN || origin || '*';
+  const cors = process.env.ALLOWED_ORIGIN || origin || '*';
   return {
-    'Access-Control-Allow-Origin': CORS,
+    'Access-Control-Allow-Origin': cors,
     'Access-Control-Allow-Headers': 'Content-Type, Accept, x-tenant, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
   };
 }
 
-function json(status, payload, origin) {
-  return { statusCode: status, headers: makeHeaders(origin), body: JSON.stringify(payload) };
+function json(statusCode, payload, origin) {
+  return {
+    statusCode,
+    headers: makeHeaders(origin),
+    body: JSON.stringify(payload),
+  };
 }
 
 function sanitize(v, max = 2000) {
@@ -43,25 +47,22 @@ function sanitize(v, max = 2000) {
 function parseBody(event) {
   if (!event || !event.body) return {};
   try {
-    return event.isBase64Encoded
-      ? JSON.parse(Buffer.from(event.body, 'base64').toString('utf8'))
-      : JSON.parse(event.body);
+    const raw = event.isBase64Encoded
+      ? Buffer.from(event.body, 'base64').toString('utf8')
+      : event.body;
+    return JSON.parse(raw);
   } catch {
     return {};
   }
 }
 
-function pickTenantCandidate(event, body) {
-  if (body && (body.tenantId || body.tenant || body.slug))
-    return sanitize(body.tenantId || body.tenant || body.slug);
-  if (event?.queryStringParameters?.slug)
-    return sanitize(event.queryStringParameters.slug);
-  if (event?.headers) {
-    const low = {};
-    for (const k of Object.keys(event.headers || {})) low[k.toLowerCase()] = event.headers[k];
-    if (low['x-tenant']) return sanitize(low['x-tenant']);
+function safeToken() {
+  try {
+    const { nanoid } = require('nanoid');
+    return nanoid(12);
+  } catch {
+    return crypto.randomBytes(9).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '');
   }
-  return '';
 }
 
 function isLikelyTenantId(v) {
@@ -70,7 +71,20 @@ function isLikelyTenantId(v) {
   return /^[A-Za-z0-9_-]+$/.test(s);
 }
 
-/* -------- firebase-admin init -------- */
+function pickTenantCandidate(event, body) {
+  if (body && (body.tenantId || body.tenant || body.slug)) {
+    return sanitize(body.tenantId || body.tenant || body.slug);
+  }
+  if (event?.queryStringParameters?.slug) {
+    return sanitize(event.queryStringParameters.slug);
+  }
+  if (event?.headers) {
+    const low = {};
+    for (const k of Object.keys(event.headers || {})) low[k.toLowerCase()] = event.headers[k];
+    if (low['x-tenant']) return sanitize(low['x-tenant']);
+  }
+  return '';
+}
 
 function tryInitAdmin() {
   let admin = null;
@@ -87,8 +101,8 @@ function tryInitAdmin() {
     process.env.FIREBASE_SERVICE_ACCOUNT ||
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
     null;
-  let sa = null;
 
+  let sa = null;
   if (raw) {
     try {
       sa = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
@@ -108,37 +122,45 @@ function tryInitAdmin() {
     undefined;
 
   try {
-    if (sa)
-      admin.initializeApp({ credential: admin.credential.cert(sa), ...(dbUrl ? { databaseURL: dbUrl } : {}) });
-    else admin.initializeApp({ ...(dbUrl ? { databaseURL: dbUrl } : {}) });
+    if (sa) {
+      admin.initializeApp({
+        credential: admin.credential.cert(sa),
+        ...(dbUrl ? { databaseURL: dbUrl } : {}),
+      });
+    } else {
+      admin.initializeApp({
+        ...(dbUrl ? { databaseURL: dbUrl } : {}),
+      });
+    }
     return { ok: true, admin };
   } catch (err) {
     return { ok: false, reason: 'init_failed', detail: err?.message || String(err) };
   }
 }
 
-/* -------- tenant resolution -------- */
-
 async function resolveTenantIdWithAdmin(admin, candidate) {
   const db = admin.database();
   const c = sanitize(candidate);
   if (!c) return null;
 
-  // Check slugs/{candidate}
   try {
-    const sSnap = await db.ref(`slugs/${c}`).get().catch(() => null);
-    if (sSnap?.exists?.()) {
-      const val = sSnap.val();
-      if (typeof val === 'string' && val.trim()) return { tenantId: val.trim(), source: 'slugs.value' };
-      if (val && typeof val === 'object' && (val.tenantId || val.id))
+    const slugSnap = await db.ref(`slugs/${c}`).get().catch(() => null);
+    if (slugSnap?.exists?.()) {
+      const val = slugSnap.val();
+      if (typeof val === 'string' && val.trim()) {
+        return { tenantId: val.trim(), source: 'slugs.value' };
+      }
+      if (val && typeof val === 'object' && (val.tenantId || val.id)) {
         return { tenantId: String(val.tenantId || val.id), source: 'slugs.obj' };
+      }
     }
   } catch {}
 
-  // Check tenants/{candidate}/meta
   try {
-    const tSnap = await db.ref(`tenants/${c}/meta`).get().catch(() => null);
-    if (tSnap?.exists?.()) return { tenantId: c, source: 'tenants.meta' };
+    const metaSnap = await db.ref(`tenants/${c}/meta`).get().catch(() => null);
+    if (metaSnap?.exists?.()) {
+      return { tenantId: c, source: 'tenants.meta' };
+    }
   } catch {}
 
   return null;
@@ -161,42 +183,58 @@ async function resolveTenantIdWithRest(dbUrlRaw, candidate) {
 
   const slugRec = await getJson(`/slugs/${encodeURIComponent(c)}.json`);
   if (slugRec) {
-    if (typeof slugRec === 'string' && slugRec.trim())
+    if (typeof slugRec === 'string' && slugRec.trim()) {
       return { tenantId: slugRec.trim(), source: 'slugs.value.rest' };
-    if (typeof slugRec === 'object' && (slugRec.tenantId || slugRec.id))
+    }
+    if (typeof slugRec === 'object' && (slugRec.tenantId || slugRec.id)) {
       return { tenantId: String(slugRec.tenantId || slugRec.id), source: 'slugs.obj.rest' };
+    }
   }
 
   const metaRec = await getJson(`/tenants/${encodeURIComponent(c)}/meta.json`);
-  if (metaRec) return { tenantId: c, source: 'tenants.meta.rest' };
+  if (metaRec) {
+    return { tenantId: c, source: 'tenants.meta.rest' };
+  }
 
   return null;
 }
 
-/* -------- token payload builders -------- */
-
-function buildTokenRecord({ tenantId, queueKey, queueId, queueNumber, token, createdAt, expiresAt, counterId, counterName, slug, meta, userAgent, ip }) {
+function buildTokenRecord({
+  token,
+  tenantId,
+  slug,
+  queueKey,
+  queueId,
+  queueNumber,
+  counterId,
+  counterName,
+  createdAt,
+  expiresAt,
+  meta,
+  userAgent,
+  ip,
+}) {
   return {
     token,
     tenantId,
     slug: slug || '',
     queueKey: queueKey || '',
-    queueId: queueId || '',
-    queueNumber: queueNumber || queueId || '',
+    queueId: queueId || queueKey || '',
+    queueNumber: queueNumber || queueId || queueKey || '',
     counterId: counterId || '',
     counterName: counterName || '',
     createdAt,
     expiresAt,
     used: false,
-    usedAt: null,
-    chatId: null,
     meta: meta || '',
     userAgent: userAgent || null,
     ip: ip || null,
   };
 }
 
-/* -------- main handler -------- */
+function normalizeBotUsername(raw) {
+  return String(raw || 'QueueJoyBot').replace(/^@/, '').trim() || 'QueueJoyBot';
+}
 
 exports.handler = async function (event) {
   const origin = event?.headers?.origin || event?.headers?.Origin || '*';
@@ -205,8 +243,9 @@ exports.handler = async function (event) {
     return { statusCode: 204, headers: makeHeaders(origin), body: '' };
   }
 
-  if (!event || event.httpMethod !== 'POST')
+  if (!event || event.httpMethod !== 'POST') {
     return json(405, { ok: false, error: 'Only POST allowed' }, origin);
+  }
 
   const body = parseBody(event);
 
@@ -224,7 +263,7 @@ exports.handler = async function (event) {
     sanitize(body.slug) ||
     sanitize(pickTenantCandidate(event, body));
 
-  const token = nanoid(12);
+  const token = safeToken();
   const createdAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
 
@@ -235,37 +274,20 @@ exports.handler = async function (event) {
     event?.headers?.['x-nf-client-connection-ip'] ||
     null;
 
-  const botEnv = process.env.BOT_USERNAME || process.env.BOT_USER || 'QueueJoyBot';
-  const botUsername = String(botEnv).replace(/^@/, '').trim() || 'QueueJoyBot';
+  const botUsername = normalizeBotUsername(BOT_USERNAME_ENV);
   const telegramLink = `https://t.me/${botUsername}?start=${encodeURIComponent(token)}`;
-
-  // Build the single consistent token payload used for ALL paths
-  const tokenPayload = buildTokenRecord({
-    tenantId: '', // will be set after resolution
-    queueKey,
-    queueId,
-    queueNumber,
-    token,
-    createdAt,
-    expiresAt,
-    counterId,
-    counterName,
-    slug,
-    meta,
-    userAgent,
-    ip,
-  });
 
   const init = tryInitAdmin();
 
-  /* ---------- Resolve tenant ---------- */
   let resolved = null;
-
   if (init.ok && init.admin) {
     if (tenantCandidate) resolved = await resolveTenantIdWithAdmin(init.admin, tenantCandidate);
-    if (!resolved && body.tenantId && isLikelyTenantId(body.tenantId))
+    if (!resolved && body.tenantId && isLikelyTenantId(body.tenantId)) {
       resolved = { tenantId: sanitize(body.tenantId), source: 'body.tenantId' };
-    if (!resolved && body.slug) resolved = await resolveTenantIdWithAdmin(init.admin, sanitize(body.slug));
+    }
+    if (!resolved && body.slug) {
+      resolved = await resolveTenantIdWithAdmin(init.admin, sanitize(body.slug));
+    }
   } else {
     const FIREBASE_DB_URL =
       process.env.FIREBASE_DATABASE_URL ||
@@ -274,13 +296,16 @@ exports.handler = async function (event) {
       '';
     if (FIREBASE_DB_URL) {
       if (tenantCandidate) resolved = await resolveTenantIdWithRest(FIREBASE_DB_URL, tenantCandidate);
-      if (!resolved && body.tenantId && isLikelyTenantId(body.tenantId))
+      if (!resolved && body.tenantId && isLikelyTenantId(body.tenantId)) {
         resolved = { tenantId: sanitize(body.tenantId), source: 'body.tenantId.rest' };
-      if (!resolved && body.slug) resolved = await resolveTenantIdWithRest(FIREBASE_DB_URL, body.slug);
+      }
+      if (!resolved && body.slug) {
+        resolved = await resolveTenantIdWithRest(FIREBASE_DB_URL, body.slug);
+      }
     }
   }
 
-  if (!resolved) {
+  if (!resolved?.tenantId) {
     return json(400, {
       ok: false,
       error: 'tenant_not_resolved',
@@ -289,22 +314,34 @@ exports.handler = async function (event) {
   }
 
   const tenantId = resolved.tenantId;
-  tokenPayload.tenantId = tenantId;
 
-  const TOKEN_PATHS = [
+  const tokenPayload = buildTokenRecord({
+    token,
+    tenantId,
+    slug,
+    queueKey,
+    queueId,
+    queueNumber,
+    counterId,
+    counterName,
+    createdAt,
+    expiresAt,
+    meta,
+    userAgent,
+    ip,
+  });
+
+  const tokenPaths = [
     `telegramTokens/${token}`,
     `tenants/${tenantId}/integrations/telegram/tokens/${token}`,
     `tenants/${tenantId}/telegramTokens/${token}`,
   ];
 
-  /* ---------- Admin write (atomic) ---------- */
   if (init.ok && init.admin) {
     try {
       const db = init.admin.database();
       const updates = {};
-      for (const p of TOKEN_PATHS) {
-        updates[p] = tokenPayload;
-      }
+      for (const p of tokenPaths) updates[p] = tokenPayload;
       await db.ref().update(updates);
 
       return json(200, {
@@ -314,16 +351,19 @@ exports.handler = async function (event) {
         createdAt,
         expiresAt,
         tenant: tenantId,
+        tenantId,
+        queueKey,
+        queueId,
+        queueNumber,
         persisted: true,
         source: resolved.source,
-        paths: TOKEN_PATHS,
+        paths: tokenPaths,
       }, origin);
     } catch (err) {
-      console.error('createTelegramLink: admin write failed, falling through to REST', err?.stack || err);
+      console.error('[createTelegramLink] admin write failed, falling back to REST', err?.stack || err);
     }
   }
 
-  /* ---------- REST fallback ---------- */
   const FIREBASE_DB_URL = String(
     process.env.FIREBASE_DATABASE_URL ||
     process.env.FIREBASE_DB_URL ||
@@ -355,7 +395,7 @@ exports.handler = async function (event) {
   }
 
   const restResults = await Promise.allSettled(
-    TOKEN_PATHS.map((p) => restPut(`/${p}.json`, tokenPayload))
+    tokenPaths.map((p) => restPut(`/${p}.json`, tokenPayload))
   );
 
   const persisted = restResults.some((r) => r.status === 'fulfilled' && r.value?.ok);
@@ -367,9 +407,13 @@ exports.handler = async function (event) {
     createdAt,
     expiresAt,
     tenant: tenantId,
+    tenantId,
+    queueKey,
+    queueId,
+    queueNumber,
     persisted,
     source: resolved.source,
-    paths: TOKEN_PATHS,
+    paths: tokenPaths,
     note: persisted ? 'Written via REST fallback to all paths' : 'REST writes may have failed',
   }, origin);
 };
