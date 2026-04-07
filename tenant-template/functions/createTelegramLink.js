@@ -18,7 +18,7 @@ const crypto = require('crypto');
 const fetch = globalThis.fetch || require('node-fetch');
 
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 24 * 60 * 60 * 1000);
-const BOT_USERNAME_ENV = process.env.BOT_USERNAME || process.env.BOT_USER || 'QueueJoyBot';
+const BOT_USERNAME_ENV = process.env.BOT_USERNAME || process.env.BOT_USER || 'queuejoy_notify_bot';
 
 function makeHeaders(origin) {
   const cors = process.env.ALLOWED_ORIGIN || origin || '*';
@@ -233,7 +233,7 @@ function buildTokenRecord({
 }
 
 function normalizeBotUsername(raw) {
-  return String(raw || 'QueueJoyBot').replace(/^@/, '').trim() || 'QueueJoyBot';
+  return String(raw || 'queuejoy_notify_bot').replace(/^@/, '').trim() || 'queuejoy_notify_bot';
 }
 
 exports.handler = async function (event) {
