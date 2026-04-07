@@ -4,21 +4,20 @@
   createTelegramLink.js — QueueJoy Telegram link generator
   Netlify Serverless Function
 
-  Goals:
-  - Resolve tenant safely from tenantId or slug
-  - Generate a reliable Telegram deep link
-  - Write the same complete token payload to:
-      1) telegramTokens/{token}
-      2) tenants/{tenantId}/integrations/telegram/tokens/{token}
-      3) tenants/{tenantId}/telegramTokens/{token}
-  - Keep compatibility with status.html and telegramWebhook.js
+  What this fixes:
+  - Resolves tenant from tenantId / slug safely
+  - Generates a Telegram deep link for the current bot
+  - Writes the same complete token payload to ALL 3 paths
+  - Keeps queueKey separate from queueId / queueNumber
+  - Supports firebase-admin first, REST fallback second
+  - Stays compatible with status.html + telegramWebhook.js
 */
 
 const crypto = require('crypto');
 const fetch = globalThis.fetch || require('node-fetch');
 
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 24 * 60 * 60 * 1000);
-const BOT_USERNAME_ENV = process.env.BOT_USERNAME || process.env.BOT_USER || 'queuejoy_notify_bot';
+const DEFAULT_BOT_USERNAME = 'queuejoy_notify_bot';
 
 function makeHeaders(origin) {
   const cors = process.env.ALLOWED_ORIGIN || origin || '*';
@@ -84,6 +83,10 @@ function pickTenantCandidate(event, body) {
     if (low['x-tenant']) return sanitize(low['x-tenant']);
   }
   return '';
+}
+
+function normalizeBotUsername(raw) {
+  return String(raw || DEFAULT_BOT_USERNAME).replace(/^@/, '').trim() || DEFAULT_BOT_USERNAME;
 }
 
 function tryInitAdmin() {
@@ -232,10 +235,6 @@ function buildTokenRecord({
   };
 }
 
-function normalizeBotUsername(raw) {
-  return String(raw || 'queuejoy_notify_bot').replace(/^@/, '').trim() || 'queuejoy_notify_bot';
-}
-
 exports.handler = async function (event) {
   const origin = event?.headers?.origin || event?.headers?.Origin || '*';
 
@@ -274,7 +273,9 @@ exports.handler = async function (event) {
     event?.headers?.['x-nf-client-connection-ip'] ||
     null;
 
-  const botUsername = normalizeBotUsername(BOT_USERNAME_ENV);
+  const botUsername = normalizeBotUsername(
+    process.env.BOT_USERNAME || process.env.BOT_USER || DEFAULT_BOT_USERNAME
+  );
   const telegramLink = `https://t.me/${botUsername}?start=${encodeURIComponent(token)}`;
 
   const init = tryInitAdmin();
@@ -337,6 +338,7 @@ exports.handler = async function (event) {
     `tenants/${tenantId}/telegramTokens/${token}`,
   ];
 
+  // firebase-admin write first
   if (init.ok && init.admin) {
     try {
       const db = init.admin.database();
@@ -364,6 +366,7 @@ exports.handler = async function (event) {
     }
   }
 
+  // REST fallback
   const FIREBASE_DB_URL = String(
     process.env.FIREBASE_DATABASE_URL ||
     process.env.FIREBASE_DB_URL ||
