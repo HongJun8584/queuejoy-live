@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -300,9 +301,9 @@
     <div class="view" id="view-analytics">
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">Total Served</div><div class="stat-value" id="aTotalServed" style="color:var(--green)">0</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Service Time</div><div class="stat-value" style="color:var(--primary)"><span id="aAvgMs">0</span> min</div></div>
-        <div class="stat-card"><div class="stat-label">Median</div><div class="stat-value" style="color:var(--violet)"><span id="aMedian">0</span> min</div></div>
-        <div class="stat-card"><div class="stat-label">P90</div><div class="stat-value" style="color:var(--pink)"><span id="aP90">0</span> min</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Service Time</div><div class="stat-value" style="color:var(--primary)"><span id="aAvgMs">—</span> min</div></div>
+        <div class="stat-card"><div class="stat-label">Median</div><div class="stat-value" style="color:var(--violet)"><span id="aMedian">—</span> min</div></div>
+        <div class="stat-card"><div class="stat-label">P90</div><div class="stat-value" style="color:var(--pink)"><span id="aP90">—</span> min</div></div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -359,14 +360,12 @@
   </div>
 </div>
 
+<!-- announce.js module loaded BEFORE the main script -->
+<script src="announce.js"></script>
+
 <script type="module">
 // ============================================================
 // QueueJoy Admin — Single File, Tenant-Aware, Production-Ready
-// ============================================================
-// Required env: Firebase config (hardcoded below for this project)
-// Access: admin.html?slug=your-tenant-slug
-// Canonical settings path: tenants/{tenantId}/public/config
-// Analytics path: tenants/{tenantId}/analytics/serviceEvents
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
@@ -425,11 +424,9 @@ function createMediaPreview(src, container, mediaType) {
     container.appendChild(img);
   }
 }
-// Compress image before storing (max 800px wide, JPEG quality 0.7)
 function compressImage(file, maxW=800, quality=0.7) {
   return new Promise(resolve => {
     if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-      // Don't compress GIFs or non-images
       fileToDataUrl(file).then(resolve);
       return;
     }
@@ -455,9 +452,7 @@ function getSlug() {
   const p = new URLSearchParams(window.location.search);
   const s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
   if (s && s.trim()) return s.trim();
-  // Check path segments (handle /admin.html/some-slug → redirect)
   const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
-  // If path is like admin.html/some-slug, extract slug and redirect
   if (path.length >= 2 && path[0].includes('admin')) {
     const slug = path[1];
     if (slug && !slug.includes('.')) {
@@ -476,7 +471,6 @@ async function boot() {
     return;
   }
 
-  // Resolve tenant
   let tenantId = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
   try {
     const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
@@ -489,19 +483,16 @@ async function boot() {
   window.__TENANT_SLUG = slug;
   window.__TENANT_ID = tenantId;
 
-  // Init Firebase
   const app = initializeApp(FIREBASE_CONFIG);
   const db = getDatabase(app);
   const auth = getAuth(app);
 
-  // Tenant ref helper
   function tRef(path = '') {
     path = String(path || '').replace(/^\/+/, '');
     const base = `tenants/${tenantId}`;
     return path ? ref(db, `${base}/${path}`) : ref(db, base);
   }
 
-  // Write audit log
   async function writeAudit(action, details = {}) {
     try {
       const auditRef = push(tRef('audit'));
@@ -509,7 +500,6 @@ async function boot() {
     } catch {}
   }
 
-  // ===== Auto-bootstrap missing tenant paths =====
   async function bootstrapTenant() {
     const paths = {
       'public/config': { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, theme: { color: '#8b5cf6' }, timezone: 'Asia/Kuala_Lumpur', buttonText: 'Get your queue number', description: 'Real-time queueing system' },
@@ -618,33 +608,61 @@ async function boot() {
       currentConfig = snap.val() || {};
       populateSettingsForm(currentConfig);
       updatePhonePreview();
-      // Update sidebar title
       if (currentConfig.displayName) {
         $('sidebarTitle').textContent = currentConfig.displayName;
         document.title = currentConfig.displayName + ' — Admin';
       }
     });
 
-    // Queue listener
+    // Queue listener — FIXED: use createdAt/joinedAt, not timestamp
     onValue(tRef('queue'), snap => {
       queueData = [];
       if (snap.exists()) {
         const obj = snap.val() || {};
-        queueData = Object.values(obj).map(q => {
-          const ts = q.timestamp ? (typeof q.timestamp === 'number' ? q.timestamp : Date.parse(q.timestamp)) : null;
-          return { ...q, timestamp: ts, status: String(q.status || 'waiting').toLowerCase() };
-        }).filter(q => q.timestamp && !isNaN(q.timestamp));
+        queueData = Object.entries(obj).map(([key, q]) => {
+          if (!q || typeof q !== 'object') return null;
+          // Resolve timestamp: prefer createdAt (numeric epoch), fallback joinedAt, then updatedAt
+          let ts = null;
+          if (typeof q.createdAt === 'number') ts = q.createdAt;
+          else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
+          if (!ts || isNaN(ts)) {
+            if (typeof q.joinedAt === 'number') ts = q.joinedAt;
+            else if (typeof q.joinedAt === 'string') ts = Date.parse(q.joinedAt);
+          }
+          if (!ts || isNaN(ts)) {
+            if (typeof q.updatedAt === 'number') ts = q.updatedAt;
+            else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
+          }
+          // Classify status robustly
+          const rawStatus = String(q.status || '').trim().toLowerCase();
+          let classifiedStatus = 'waiting'; // default
+          if (['completed', 'served', 'done'].includes(rawStatus)) {
+            classifiedStatus = 'completed';
+          } else if (['serving', 'called'].includes(rawStatus)) {
+            classifiedStatus = 'serving';
+          } else if (['cancelled', 'canceled'].includes(rawStatus)) {
+            classifiedStatus = 'cancelled';
+          } else if (q.canceledAt || q.canceledBy) {
+            classifiedStatus = 'cancelled';
+          } else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) {
+            classifiedStatus = 'cancelled';
+          } else if (rawStatus === 'waiting' || rawStatus === '') {
+            classifiedStatus = 'waiting';
+          }
+          return { ...q, _key: key, _ts: ts, _status: classifiedStatus };
+        }).filter(q => q !== null);
       }
       updateDashboardCounts();
       updateAnalyticsCounts();
+      updateAnalyticsCharts();
     });
 
-    // Service events listener (THE source of truth for analytics)
+    // Service events listener
     onValue(tRef('analytics/serviceEvents'), snap => {
       serviceEventsData = [];
       if (snap.exists()) {
         const obj = snap.val() || {};
-        serviceEventsData = Object.values(obj).filter(e => e && typeof e.serviceMs === 'number');
+        serviceEventsData = Object.values(obj).filter(e => e && typeof e === 'object' && typeof e.serviceMs === 'number');
       }
       updateDashboardCounts();
       updateAnalyticsCounts();
@@ -661,67 +679,63 @@ async function boot() {
     });
   }
 
-  // ===== Dashboard counts =====
-  function normalizeStatus(s) { return String(s || 'waiting').toLowerCase(); }
-  function isCompleted(s) { return ['served', 'done', 'completed'].includes(normalizeStatus(s)); }
-
+  // ===== Dashboard counts — FIXED =====
   function updateDashboardCounts() {
-    const waiting = queueData.filter(q => normalizeStatus(q.status) === 'waiting').length;
-    const serving = queueData.filter(q => normalizeStatus(q.status) === 'serving').length;
-    const cancelled = queueData.filter(q => normalizeStatus(q.status) === 'cancelled').length;
-    const completedQ = queueData.filter(q => isCompleted(q.status)).length;
-    // Total served = serviceEvents count (completed service records)
-    const totalServed = serviceEventsData.length || completedQ;
+    const waiting = queueData.filter(q => q._status === 'waiting').length;
+    const serving = queueData.filter(q => q._status === 'serving').length;
+    const cancelled = queueData.filter(q => q._status === 'cancelled').length;
+    const completedQ = queueData.filter(q => q._status === 'completed').length;
+    // Use queue-derived completed count; serviceEvents as supporting info
+    const totalCompleted = Math.max(completedQ, serviceEventsData.length);
 
     $('dTotalQ').textContent = queueData.length;
     $('dWaiting').textContent = waiting;
     $('dServing').textContent = serving;
-    $('dCompleted').textContent = totalServed;
+    $('dCompleted').textContent = totalCompleted;
     $('dCancelled').textContent = cancelled;
 
-    // Avg service time from serviceEvents only
-    if (serviceEventsData.length > 0) {
-      const avgMs = serviceEventsData.reduce((s, e) => s + e.serviceMs, 0) / serviceEventsData.length;
+    // Avg service time from serviceEvents — filter out zero/invalid
+    const validEvents = serviceEventsData.filter(e => e.serviceMs > 0);
+    if (validEvents.length > 0) {
+      const avgMs = validEvents.reduce((s, e) => s + e.serviceMs, 0) / validEvents.length;
       $('dAvgService').textContent = (avgMs / 60000).toFixed(1) + ' min';
       $('dEventCount').textContent = serviceEventsData.length;
     } else {
       $('dAvgService').textContent = '— min';
-      $('dEventCount').textContent = '0';
+      $('dEventCount').textContent = serviceEventsData.length || '0';
     }
   }
 
-  // ===== Analytics =====
+  // ===== Analytics — FIXED =====
   function computeStats(arr) {
-    if (!arr.length) return { avg: 0, median: 0, p90: 0, longest: 0 };
+    if (!arr.length) return { avg: null, median: null, p90: null };
     const xs = arr.slice().sort((a, b) => a - b);
     const sum = xs.reduce((a, b) => a + b, 0);
-    return {
-      avg: Math.round(sum / xs.length),
-      median: xs.length % 2 ? xs[Math.floor(xs.length / 2)] : Math.round((xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2),
-      p90: xs[Math.floor(xs.length * 0.9)] || xs[xs.length - 1],
-      longest: xs[xs.length - 1]
-    };
+    const avg = sum / xs.length;
+    const median = xs.length % 2 ? xs[Math.floor(xs.length / 2)] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
+    const p90 = xs[Math.floor(xs.length * 0.9)] || xs[xs.length - 1];
+    return { avg, median, p90 };
   }
 
   function updateAnalyticsCounts() {
-    const waiting = queueData.filter(q => normalizeStatus(q.status) === 'waiting').length;
-    const serving = queueData.filter(q => normalizeStatus(q.status) === 'serving').length;
-    const cancelled = queueData.filter(q => normalizeStatus(q.status) === 'cancelled').length;
-    const completedQ = queueData.filter(q => isCompleted(q.status)).length;
-    const totalServed = serviceEventsData.length || completedQ;
+    const waiting = queueData.filter(q => q._status === 'waiting').length;
+    const serving = queueData.filter(q => q._status === 'serving').length;
+    const cancelled = queueData.filter(q => q._status === 'cancelled').length;
+    const completedQ = queueData.filter(q => q._status === 'completed').length;
+    const totalCompleted = Math.max(completedQ, serviceEventsData.length);
 
-    $('aTotalServed').textContent = totalServed;
-    $('aCompleted').textContent = totalServed;
+    $('aTotalServed').textContent = totalCompleted;
+    $('aCompleted').textContent = totalCompleted;
     $('aWaiting').textContent = waiting;
     $('aServing').textContent = serving;
     $('aCancelled').textContent = cancelled;
 
-    // Wait stats from serviceEvents.serviceMs ONLY
-    const serviceMins = serviceEventsData.map(e => e.serviceMs / 60000);
-    const stats = computeStats(serviceMins);
-    $('aAvgMs').textContent = stats.avg.toFixed(1);
-    $('aMedian').textContent = stats.median.toFixed(1);
-    $('aP90').textContent = stats.p90.toFixed(1);
+    // Stats from serviceEvents.serviceMs — exclude zero/invalid
+    const validMs = serviceEventsData.filter(e => e.serviceMs > 0).map(e => e.serviceMs / 60000);
+    const stats = computeStats(validMs);
+    $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '—';
+    $('aMedian').textContent = stats.median !== null ? stats.median.toFixed(1) : '—';
+    $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '—';
   }
 
   function initCharts() {
@@ -743,14 +757,14 @@ async function boot() {
 
   function updateAnalyticsCharts() {
     if (!queueTrendChart) return;
-    // Queue trend: 7 days from queue data
+    // Queue trend: 7 days from queue data — FIXED: use _ts instead of timestamp
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const labels = [], counts = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(today); d.setDate(d.getDate() - i);
       const start = d.getTime(), end = start + 86400000;
       labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
-      counts.push(queueData.filter(q => q.timestamp >= start && q.timestamp < end).length);
+      counts.push(queueData.filter(q => q._ts && q._ts >= start && q._ts < end).length);
     }
     queueTrendChart.data.labels = labels;
     queueTrendChart.data.datasets[0].data = counts;
@@ -760,12 +774,13 @@ async function boot() {
     const counterStats = {};
     if (serviceEventsData.length > 0) {
       serviceEventsData.forEach(e => {
-        const key = e.counter || e.counterId || 'unknown';
+        const key = e.counter || e.counterName || e.counterId || 'unknown';
         counterStats[key] = (counterStats[key] || 0) + 1;
       });
     } else {
       queueData.forEach(q => {
-        if (q.counterId) counterStats[q.counterId] = (counterStats[q.counterId] || 0) + 1;
+        const key = q.counterName || q.counter || q.counterId;
+        if (key) counterStats[key] = (counterStats[key] || 0) + 1;
       });
     }
     if (!counterPerfChart) return;
@@ -780,15 +795,16 @@ async function boot() {
       container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events yet.</div>';
       return;
     }
-    const rows = serviceEventsData.slice(-50).reverse();
-    container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${e.counter || e.counterId || '—'}</td><td style="padding:8px">${e.serviceMs}</td><td style="padding:8px">${(e.serviceMs / 60000).toFixed(1)}</td></tr>`).join('')}</tbody></table>`;
+    // Sort by timestamp descending (newest first)
+    const rows = serviceEventsData.slice().sort((a, b) => (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0)).slice(0, 50);
+    container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${esc(e.counter || e.counterName || e.counterId || '—')}</td><td style="padding:8px">${esc(e.queueNumber || '—')}</td><td style="padding:8px">${e.serviceMs != null ? e.serviceMs : '—'}</td><td style="padding:8px">${e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—'}</td><td style="padding:8px">${formatDate(e.completedAt || e.timestamp)}</td></tr>`).join('')}</tbody></table>`;
   }
 
   // CSV export
   $('exportCsvBtn').onclick = () => {
     if (!serviceEventsData.length) { showToast('No events to export', 'error'); return; }
-    const header = 'counter,serviceMs,serviceMin\n';
-    const body = serviceEventsData.map(e => `${e.counter || e.counterId || ''},${e.serviceMs},${(e.serviceMs / 60000).toFixed(2)}`).join('\n');
+    const header = 'counter,queueNumber,serviceMs,serviceMin,completedAt\n';
+    const body = serviceEventsData.map(e => `${e.counter || e.counterId || ''},${e.queueNumber || ''},${e.serviceMs},${(e.serviceMs / 60000).toFixed(2)},${e.completedAt || ''}`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -798,7 +814,6 @@ async function boot() {
 
   // ===== Settings UI =====
   function populateSettingsForm(cfg) {
-    // Map canonical fields, with migration fallback reads
     $('cfgDisplayName').value = cfg.displayName || cfg.name || '';
     $('cfgSmallTextOnTop').value = cfg.smallTextOnTop || cfg.smallTopText || '';
     $('cfgMainHeading').value = cfg.mainHeading || cfg.mainTitle || cfg.titleinmiddle || '';
@@ -812,7 +827,6 @@ async function boot() {
     $('cfgColor').value = color;
     $('cfgColorHex').textContent = color;
 
-    // Show existing media previews if no pending upload
     const logoSrc = cfg.logoUrl || (cfg.theme && cfg.theme.logo) || cfg.logo || null;
     if (logoSrc && !pendingUploads.logoUrl) createMediaPreview(logoSrc, $('cfgLogoPreview'));
 
@@ -830,12 +844,10 @@ async function boot() {
   function setupSettingsUI() {
     $('cfgColor').oninput = (e) => { $('cfgColorHex').textContent = e.target.value; updatePhonePreview(); };
 
-    // Text field changes update phone preview live
     ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(id => {
       $(id).addEventListener('input', updatePhonePreview);
     });
 
-    // Logo upload
     $('cfgLogoFile').onchange = async (e) => {
       const f = e.target.files?.[0]; if (!f) return;
       if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
@@ -847,7 +859,6 @@ async function boot() {
       showToast('Logo ready (save to publish)', 'success', 1500);
     };
 
-    // Center logo upload
     $('cfgCenterLogoFile').onchange = async (e) => {
       const f = e.target.files?.[0]; if (!f) return;
       if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
@@ -859,7 +870,6 @@ async function boot() {
       showToast('Center logo ready', 'success', 1500);
     };
 
-    // Ad media upload
     $('cfgAdMediaFile').onchange = async (e) => {
       const f = e.target.files?.[0]; if (!f) return;
       if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
@@ -880,7 +890,6 @@ async function boot() {
       showToast('Ad media ready', 'success', 1500);
     };
 
-    // Save
     $('settingsSaveBtn').onclick = saveSettings;
     $('savePublishBtn').onclick = saveSettings;
   }
@@ -890,7 +899,6 @@ async function boot() {
     btn.disabled = true;
     btn.textContent = '⏳ Saving...';
     try {
-      // Build canonical config — STRICT schema only
       const newConfig = {
         createdAt: currentConfig.createdAt || Date.now(),
         updatedAt: Date.now(),
@@ -911,7 +919,6 @@ async function boot() {
         timezone: $('cfgTimezone').value || 'Asia/Kuala_Lumpur'
       };
 
-      // Write ONLY to canonical path
       await set(tRef('public/config'), newConfig);
       pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
       showToast('Settings published!');
@@ -1001,7 +1008,6 @@ async function boot() {
         <button class="btn btn-secondary btn-sm" data-toggle-counter="${id}">${c.active ? 'Deactivate' : 'Activate'}</button>
       </div>
     `).join('');
-    // Toggle handlers
     list.querySelectorAll('[data-toggle-counter]').forEach(btn => {
       btn.onclick = async () => {
         const cid = btn.dataset.toggleCounter;
@@ -1016,216 +1022,31 @@ async function boot() {
     });
   }
 
-  // ===== Announcements (embedded — full composer) =====
-  const ANN_TEMPLATES = [
-    { name: '🎉 Promotion', text: '🎉 *Special Promotion!*\n\nWe have an exciting deal for you today! Don\'t miss out on our limited-time offer.\n\nVisit us now!' },
-    { name: '🆕 New Product', text: '🆕 *New Product Alert!*\n\nWe\'re thrilled to introduce our latest addition. Come check it out!\n\nAvailable now.' },
-    { name: '📋 Notice', text: '📋 *Important Notice*\n\nPlease be informed of the following update regarding our services.\n\nThank you for your understanding.' },
-    { name: '🚨 Urgent', text: '🚨 *Urgent Update*\n\nThis is an important message that requires your immediate attention.\n\nPlease read carefully.' },
-    { name: '👋 Reminder', text: '👋 *Friendly Reminder*\n\nJust a quick reminder about our services. We look forward to seeing you!\n\nHave a great day!' },
-    { name: '🎄 Holiday', text: '🎄 *Holiday Update*\n\nWishing you a wonderful holiday season! Please note our updated hours.\n\nHappy holidays!' },
-    { name: '⏰ Delay', text: '⏰ *Service Delay Notice*\n\nWe apologize for any inconvenience. There is currently a slight delay.\n\nThank you for your patience.' },
-    { name: '💰 Offer', text: '💰 *Special Offer!*\n\nFor a limited time only — enjoy exclusive savings.\n\nHurry, offer ends soon!' }
-  ];
-  const ANN_FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
-
-  let annMediaFile = null;
-  let annMediaDataUrl = null;
-  let annTarget = { type: 'all' };
-  let subscriberCount = 0;
-
+  // ===== Announcements — delegate to announce.js module =====
   function setupAnnouncementsUI() {
-    const c = $('announceContainer');
-    c.innerHTML = `
-      <div class="card fade-in" style="margin-bottom:16px">
-        <div class="card-header">📢 Compose Announcement</div>
-        <label class="field-label" style="margin-top:0">Quick Templates</label>
-        <div id="annTemplates" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-          ${ANN_TEMPLATES.map((t, i) => `<button class="btn btn-secondary btn-sm" data-tpl="${i}">${t.name}</button>`).join('')}
-        </div>
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-          <div>
-            <label class="field-label" style="margin-top:0">Font</label>
-            <select id="annFont" class="input" style="width:150px;padding:8px">${ANN_FONTS.map(f => `<option value="${f}">${f}</option>`).join('')}</select>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="annBoldBtn" style="margin-top:18px;font-weight:900;font-size:14px" title="Bold selected text">B</button>
-        </div>
-        <label class="field-label">Message</label>
-        <textarea id="annComposer" class="input" rows="5" placeholder="Type your announcement here... Use *bold* for emphasis." style="line-height:1.6"></textarea>
-        <label class="field-label">Preview</label>
-        <div id="annPreview" style="padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border);font-size:14px;line-height:1.6;min-height:50px;white-space:pre-wrap;word-break:break-word;color:var(--text)"></div>
-        <label class="field-label">Attach Media</label>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label class="file-btn">📎 Choose File<input type="file" id="annMediaInput" accept="image/*,video/*,audio/*"/></label>
-          <span id="annMediaName" style="font-size:11px;color:var(--text-light)"></span>
-          <button class="btn btn-secondary btn-sm" id="annMediaClear" style="display:none">✕</button>
-        </div>
-        <p style="margin-top:4px;font-size:11px;color:var(--text-light)">Images, GIFs, videos, audio. Max 10MB.</p>
-        <div id="annMediaPreview" style="margin-top:8px"></div>
-        <label class="field-label">Target Audience</label>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <div class="target-opt selected" data-target="all">🌍 All Subscribers</div>
-          <div class="target-opt" data-target="list">📋 Specific Chat IDs</div>
-        </div>
-        <div id="annTargetList" style="display:none;margin-bottom:12px">
-          <textarea id="annChatIds" class="input" rows="2" placeholder="Comma-separated chat IDs..."></textarea>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:10px">
-          <span class="badge badge-blue" id="annRecipients">Estimated: 0 recipients</span>
-          <button class="btn btn-primary" id="annSendBtn">📱 Send Now</button>
-        </div>
-        <div id="annResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-weight:600;font-size:13px"></div>
-      </div>
-      <div class="card fade-in">
-        <div class="card-header">📋 Send Log</div>
-        <div id="annSendLog" style="font-size:13px;color:var(--text-muted)">No announcements sent yet.</div>
-      </div>
-    `;
-    bindAnnounceEvents();
-    loadSubscriberCount();
-    loadSendLog();
-  }
-
-  function bindAnnounceEvents() {
-    // Templates
-    $('annTemplates').addEventListener('click', e => {
-      const btn = e.target.closest('[data-tpl]');
-      if (!btn) return;
-      $('annComposer').value = ANN_TEMPLATES[parseInt(btn.dataset.tpl)].text;
-      updateAnnPreview();
-    });
-    // Bold
-    $('annBoldBtn').onclick = () => {
-      const ta = $('annComposer');
-      const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
-      if (s !== e) { ta.value = v.slice(0, s) + '*' + v.slice(s, e) + '*' + v.slice(e); }
-      else { ta.value = v.slice(0, s) + '**' + v.slice(s); ta.selectionStart = ta.selectionEnd = s + 1; }
-      ta.focus(); updateAnnPreview();
+    // Build context for the announce.js module
+    const annCtx = {
+      tRef,
+      get: (r) => get(r),
+      onValue: (r, cb) => onValue(r, cb),
+      set: (r, v) => set(r, v),
+      update: (r, v) => update(r, v),
+      genId,
+      showToast,
+      writeAudit,
+      fileToBase64: fileToDataUrl,
+      formatDate,
+      slug,
+      tenantId
     };
-    // Live preview
-    $('annComposer').addEventListener('input', updateAnnPreview);
-    $('annFont').addEventListener('change', updateAnnPreview);
-    // Media
-    $('annMediaInput').onchange = (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
-      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      annMediaFile = f;
-      $('annMediaName').textContent = f.name + ' (' + (f.size / 1024).toFixed(0) + 'KB)';
-      $('annMediaClear').style.display = 'inline';
-      const prev = $('annMediaPreview'); prev.innerHTML = '';
-      const url = URL.createObjectURL(f);
-      if (f.type.startsWith('video/')) {
-        const v = document.createElement('video'); v.src = url; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true;
-        v.style.cssText = 'width:100%;max-width:280px;border-radius:10px'; prev.appendChild(v);
-      } else if (f.type.startsWith('audio/')) {
-        const a = document.createElement('audio'); a.src = url; a.controls = true; a.style.cssText = 'width:100%;max-width:280px'; prev.appendChild(a);
-      } else {
-        const img = document.createElement('img'); img.src = url; img.style.cssText = 'max-width:280px;width:100%;border-radius:10px'; prev.appendChild(img);
-      }
-      // Read as base64 for payload
-      const reader = new FileReader();
-      reader.onload = () => { annMediaDataUrl = reader.result; };
-      reader.readAsDataURL(f);
-    };
-    $('annMediaClear').onclick = () => {
-      annMediaFile = null; annMediaDataUrl = null;
-      $('annMediaInput').value = ''; $('annMediaName').textContent = '';
-      $('annMediaClear').style.display = 'none'; $('annMediaPreview').innerHTML = '';
-    };
-    // Targets
-    $$('.target-opt').forEach(opt => {
-      opt.addEventListener('click', () => {
-        $$('.target-opt').forEach(x => x.classList.remove('selected'));
-        opt.classList.add('selected');
-        annTarget.type = opt.dataset.target;
-        $('annTargetList').style.display = annTarget.type === 'list' ? 'block' : 'none';
-        updateRecipientCount();
-      });
-    });
-    // Send
-    $('annSendBtn').onclick = doAnnSend;
-  }
 
-  function updateAnnPreview() {
-    const raw = $('annComposer').value || '';
-    const font = $('annFont').value;
-    let html = esc(raw).replace(/\*([^*]+)\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-    const prev = $('annPreview');
-    prev.innerHTML = html || '<span style="color:var(--text-light)">Preview will appear here...</span>';
-    prev.style.fontFamily = font + ', sans-serif';
-  }
-
-  function loadSubscriberCount() {
-    onValue(tRef('integrations/telegram/connected'), snap => {
-      subscriberCount = snap.exists() ? Object.keys(snap.val() || {}).length : 0;
-      updateRecipientCount();
-    });
-    onValue(tRef('announcement/chatIds'), snap => {
-      if (subscriberCount === 0 && snap.exists()) {
-        subscriberCount = Object.keys(snap.val() || {}).length;
-        updateRecipientCount();
-      }
-    });
-  }
-  function updateRecipientCount() {
-    $('annRecipients').textContent = annTarget.type === 'list' ? 'Custom list' : `Estimated: ${subscriberCount} recipients`;
-  }
-
-  async function doAnnSend() {
-    const message = $('annComposer').value.trim();
-    if (!message) { showToast('Enter a message', 'error'); return; }
-    const font = $('annFont').value;
-    const payload = { slug, tenantId, message, font, level: 'info', target: { ...annTarget } };
-    if (annTarget.type === 'list') {
-      const ids = ($('annChatIds')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (!ids.length) { showToast('Enter chat IDs', 'error'); return; }
-      payload.target = { type: 'list', chatIds: ids };
+    // Let announce.js own the UI
+    if (window.__announceModule && typeof window.__announceModule.init === 'function') {
+      window.__announceModule.init(annCtx);
+    } else {
+      console.error('announce.js module not loaded — announcements will not work');
+      $('announceContainer').innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load. Ensure announce.js is present.</div>';
     }
-    // CRITICAL: Include media in payload
-    if (annMediaFile && annMediaDataUrl) {
-      payload.media = annMediaDataUrl;
-      payload.mediaType = annMediaFile.type;
-      payload.mediaName = annMediaFile.name;
-    }
-    const btn = $('annSendBtn');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Sending...';
-    const resultDiv = $('annResult');
-    try {
-      const res = await fetch('/.netlify/functions/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const r = await res.json();
-      resultDiv.style.display = 'block';
-      if (r && r.success > 0) {
-        resultDiv.style.background = 'rgba(16,185,129,0.1)'; resultDiv.style.color = 'var(--green)';
-        resultDiv.innerHTML = `✅ Sent to ${r.success} recipient(s)` + (r.failed ? ` · ⚠️ ${r.failed} failed` : '');
-        $('annComposer').value = ''; $('annMediaClear')?.click(); updateAnnPreview();
-        writeAudit('announcement_sent', { success: r.success, failed: r.failed });
-        loadSendLog();
-      } else {
-        resultDiv.style.background = 'rgba(239,68,68,0.1)'; resultDiv.style.color = 'var(--red)';
-        resultDiv.textContent = '⚠️ ' + (r?.error || 'Failed to send');
-      }
-      setTimeout(() => resultDiv.style.display = 'none', 6000);
-    } catch (e) {
-      showToast(e.message || 'Error', 'error');
-    } finally {
-      btn.disabled = false; btn.innerHTML = '📱 Send Now';
-    }
-  }
-
-  function loadSendLog() {
-    get(tRef('integrations/telegram/sentAnnouncements')).then(snap => {
-      const logDiv = $('annSendLog');
-      if (!snap.exists()) { logDiv.innerHTML = '<div style="color:var(--text-muted)">No send logs yet.</div>'; return; }
-      const data = snap.val();
-      const announcements = Object.entries(data).slice(-10).reverse();
-      logDiv.innerHTML = announcements.map(([annId, chats]) => {
-        const chatEntries = Object.entries(chats || {});
-        const ok = chatEntries.filter(([, v]) => v.status === 'ok').length;
-        const fail = chatEntries.length - ok;
-        const ts = chatEntries[0]?.[1]?.ts;
-        return `<div class="audit-entry"><div class="audit-time">${formatDate(ts)} — ${annId}</div><div style="margin-top:4px"><span class="badge badge-green">${ok} sent</span> ${fail ? `<span class="badge badge-red">${fail} failed</span>` : ''}</div></div>`;
-      }).join('');
-    }).catch(() => {});
   }
 
   // ===== Audit =====
@@ -1234,7 +1055,7 @@ async function boot() {
       const list = $('auditList');
       if (!snap.exists()) { $('auditEmpty').style.display = 'block'; list.innerHTML = ''; return; }
       $('auditEmpty').style.display = 'none';
-      const entries = Object.values(snap.val() || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 50);
+      const entries = Object.values(snap.val() || {}).filter(e => e && typeof e === 'object' && e.ts).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 50);
       list.innerHTML = entries.map(e => `<div class="audit-entry"><div class="audit-time">${formatDate(e.ts)}</div><div>${esc(e.action)} <span style="color:var(--text-light);font-size:11px">by ${esc(e.by || '—')}</span></div></div>`).join('');
     });
   }

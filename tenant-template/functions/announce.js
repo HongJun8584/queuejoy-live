@@ -1,7 +1,9 @@
 /**
  * announce.js — QueueJoy Announcement Module
  * Handles: composer UI, templates, media attachments, send logic, send logs
- * Loaded by admin.html. Expects window.__ANN_CTX to be set before init.
+ * Loaded by admin.html. Initialized via window.__announceModule.init(ctx).
+ *
+ * ctx must provide: { tRef, get, onValue, set, update, genId, showToast, writeAudit, fileToBase64, formatDate, slug, tenantId }
  */
 (function () {
   'use strict';
@@ -19,52 +21,57 @@
 
   const FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
 
-  let ctx = null; // { tRef, get, onValue, set, update, genId, showToast, writeAudit, fileToBase64, formatDate, slug, tenantId }
+  let ctx = null;
   let annTarget = { type: 'all' };
   let annMediaFile = null;
   let annMediaDataUrl = null;
   let subscriberCount = 0;
+  let container = null; // scoped root
+  let initialized = false;
 
-  function el(id) { return document.getElementById(id); }
+  // Scoped element query — always queries within the module container
+  function qel(id) {
+    return container ? container.querySelector('#' + id) : document.getElementById(id);
+  }
 
-  function renderUI(container) {
+  function renderUI() {
     container.innerHTML = `
-      <div class="glass-card" style="padding:22px;margin-bottom:16px">
-        <h3 style="font-weight:800;margin-bottom:14px">📢 Compose Announcement</h3>
+      <div class="card fade-in" style="padding:22px;margin-bottom:16px">
+        <div class="card-header">📢 Compose Announcement</div>
 
         <!-- Templates -->
         <label class="field-label" style="margin-top:0">Quick Templates</label>
         <div id="annTemplates" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-          ${TEMPLATES.map((t, i) => `<button class="btn-secondary" data-tpl="${i}" style="font-size:12px;padding:6px 12px">${t.name}</button>`).join('')}
+          ${TEMPLATES.map((t, i) => `<button class="btn btn-secondary btn-sm" data-ann-tpl="${i}">${t.name}</button>`).join('')}
         </div>
 
         <!-- Font selector -->
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
           <div>
             <label class="field-label" style="margin-top:0">Font</label>
-            <select id="annFont" class="input-field" style="width:160px;padding:8px 12px;font-size:13px">
+            <select id="annFont" class="input" style="width:160px;padding:8px 12px;font-size:13px">
               ${FONTS.map(f => `<option value="${f}">${f}</option>`).join('')}
             </select>
           </div>
           <div style="display:flex;gap:4px;margin-top:18px">
-            <button class="btn-secondary" id="annBoldBtn" style="padding:6px 10px;font-weight:900;font-size:14px" title="Bold">B</button>
+            <button class="btn btn-secondary btn-sm" id="annBoldBtn" style="font-weight:900;font-size:14px" title="Bold">B</button>
           </div>
         </div>
 
         <!-- Single composer -->
         <label class="field-label">Message</label>
-        <textarea id="annComposer" class="input-field" rows="6" placeholder="Type your announcement here... Use *bold* for emphasis." style="font-size:14px;line-height:1.6"></textarea>
+        <textarea id="annComposer" class="input" rows="6" placeholder="Type your announcement here... Use *bold* for emphasis." style="font-size:14px;line-height:1.6"></textarea>
 
         <!-- Live preview -->
         <label class="field-label">Preview</label>
-        <div id="annPreview" style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;font-size:14px;line-height:1.6;min-height:60px;white-space:pre-wrap;word-break:break-word"></div>
+        <div id="annPreview" style="padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border);font-size:14px;line-height:1.6;min-height:60px;white-space:pre-wrap;word-break:break-word;color:var(--text)"></div>
 
         <!-- Media attachment -->
         <label class="field-label">Attach Media</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label class="file-upload-btn">📎 Choose File<input type="file" id="annMediaInput" accept="image/*,video/*,audio/*" style="position:absolute;left:-9999px"/></label>
+          <label class="file-btn">📎 Choose File<input type="file" id="annMediaInput" accept="image/*,video/*,audio/*" style="position:absolute;left:-9999px"/></label>
           <span id="annMediaName" style="font-size:12px;color:var(--text-muted)"></span>
-          <button id="annMediaClear" class="btn-secondary" style="display:none;padding:4px 10px;font-size:11px">✕ Remove</button>
+          <button id="annMediaClear" class="btn btn-secondary btn-sm" style="display:none">✕ Remove</button>
         </div>
         <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB.</p>
         <div id="annMediaPreview" style="margin-top:8px"></div>
@@ -72,17 +79,17 @@
         <!-- Target -->
         <label class="field-label">Target Audience</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-          <div class="target-option selected" data-target="all">🌍 All Subscribers</div>
-          <div class="target-option" data-target="list">📋 Specific Chat IDs</div>
+          <div class="target-opt selected" data-ann-target="all">🌍 All Subscribers</div>
+          <div class="target-opt" data-ann-target="list">📋 Specific Chat IDs</div>
         </div>
         <div id="annTargetListWrap" style="display:none;margin-bottom:12px">
-          <textarea id="annChatIds" class="input-field" rows="2" placeholder="Comma-separated chat IDs..."></textarea>
+          <textarea id="annChatIds" class="input" rows="2" placeholder="Comma-separated chat IDs..."></textarea>
         </div>
 
         <!-- Send -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:10px">
           <span class="badge badge-blue" id="annRecipientCount">Estimated: 0 recipients</span>
-          <button class="btn-primary" id="annSendBtn">
+          <button class="btn btn-primary" id="annSendBtn">
             <span id="annSendText">📱 Send Now</span>
             <span id="annSendSpinner" style="display:none"><span class="spinner"></span>Sending...</span>
           </button>
@@ -91,8 +98,8 @@
       </div>
 
       <!-- Send Log -->
-      <div class="glass-card" style="padding:22px">
-        <h3 style="font-weight:800;margin-bottom:14px">📋 Send Log</h3>
+      <div class="card fade-in" style="padding:22px">
+        <div class="card-header">📋 Send Log</div>
         <div id="annSendLog" style="font-size:13px;color:var(--text-muted)">No announcements sent yet.</div>
       </div>
     `;
@@ -100,17 +107,20 @@
   }
 
   function bindEvents() {
-    // Templates
-    el('annTemplates').addEventListener('click', e => {
-      const btn = e.target.closest('[data-tpl]');
-      if (!btn) return;
-      const tpl = TEMPLATES[parseInt(btn.dataset.tpl)];
-      if (tpl) { el('annComposer').value = tpl.text; updatePreview(); }
-    });
+    // Templates — use scoped data attribute
+    const tplContainer = qel('annTemplates');
+    if (tplContainer) {
+      tplContainer.addEventListener('click', e => {
+        const btn = e.target.closest('[data-ann-tpl]');
+        if (!btn) return;
+        const tpl = TEMPLATES[parseInt(btn.dataset.annTpl)];
+        if (tpl) { qel('annComposer').value = tpl.text; updatePreview(); }
+      });
+    }
 
     // Bold
-    el('annBoldBtn').addEventListener('click', () => {
-      const ta = el('annComposer');
+    qel('annBoldBtn').addEventListener('click', () => {
+      const ta = qel('annComposer');
       const start = ta.selectionStart, end = ta.selectionEnd;
       const val = ta.value;
       if (start !== end) {
@@ -124,35 +134,34 @@
     });
 
     // Live preview
-    el('annComposer').addEventListener('input', updatePreview);
-    el('annFont').addEventListener('change', updatePreview);
+    qel('annComposer').addEventListener('input', updatePreview);
+    qel('annFont').addEventListener('change', updatePreview);
 
     // Media
-    el('annMediaInput').addEventListener('change', handleMedia);
-    el('annMediaClear').addEventListener('click', clearMedia);
+    qel('annMediaInput').addEventListener('change', handleMedia);
+    qel('annMediaClear').addEventListener('click', clearMedia);
 
-    // Target
-    document.querySelectorAll('#view-announcements .target-option, [data-target]').forEach(opt => {
+    // Target — SCOPED to container only
+    container.querySelectorAll('[data-ann-target]').forEach(opt => {
       opt.addEventListener('click', () => {
-        document.querySelectorAll('.target-option').forEach(x => x.classList.remove('selected'));
+        container.querySelectorAll('[data-ann-target]').forEach(x => x.classList.remove('selected'));
         opt.classList.add('selected');
-        annTarget.type = opt.dataset.target;
-        el('annTargetListWrap').style.display = annTarget.type === 'list' ? 'block' : 'none';
+        annTarget.type = opt.dataset.annTarget;
+        qel('annTargetListWrap').style.display = annTarget.type === 'list' ? 'block' : 'none';
         updateRecipientCount();
       });
     });
 
     // Send
-    el('annSendBtn').addEventListener('click', doSend);
+    qel('annSendBtn').addEventListener('click', doSend);
   }
 
   function updatePreview() {
-    const raw = el('annComposer').value || '';
-    const font = el('annFont').value;
-    // Convert *bold* to <strong>
+    const raw = qel('annComposer').value || '';
+    const font = qel('annFont').value;
     let html = escapeHtml(raw).replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
     html = html.replace(/\n/g, '<br>');
-    const prev = el('annPreview');
+    const prev = qel('annPreview');
     prev.innerHTML = html || '<span style="color:var(--text-light)">Preview will appear here...</span>';
     prev.style.fontFamily = font + ', sans-serif';
   }
@@ -166,10 +175,10 @@
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) { ctx.showToast('Max 10MB', 'error'); return; }
     annMediaFile = f;
-    el('annMediaName').textContent = f.name + ' (' + (f.size / 1024).toFixed(0) + 'KB)';
-    el('annMediaClear').style.display = 'inline';
+    qel('annMediaName').textContent = f.name + ' (' + (f.size / 1024).toFixed(0) + 'KB)';
+    qel('annMediaClear').style.display = 'inline';
 
-    const prev = el('annMediaPreview');
+    const prev = qel('annMediaPreview');
     prev.innerHTML = '';
     const url = URL.createObjectURL(f);
 
@@ -199,53 +208,70 @@
   function clearMedia() {
     annMediaFile = null;
     annMediaDataUrl = null;
-    el('annMediaInput').value = '';
-    el('annMediaName').textContent = '';
-    el('annMediaClear').style.display = 'none';
-    el('annMediaPreview').innerHTML = '';
+    const input = qel('annMediaInput');
+    if (input) input.value = '';
+    const name = qel('annMediaName');
+    if (name) name.textContent = '';
+    const clearBtn = qel('annMediaClear');
+    if (clearBtn) clearBtn.style.display = 'none';
+    const prev = qel('annMediaPreview');
+    if (prev) prev.innerHTML = '';
   }
 
   function updateRecipientCount() {
+    const el = qel('annRecipientCount');
+    if (!el) return;
     if (annTarget.type === 'list') {
-      el('annRecipientCount').textContent = 'Custom list';
+      el.textContent = 'Custom list';
     } else {
-      el('annRecipientCount').textContent = 'Estimated: ' + subscriberCount + ' recipients';
+      el.textContent = 'Estimated: ' + subscriberCount + ' recipients';
     }
   }
 
   async function doSend() {
-    const message = el('annComposer').value.trim();
+    const composerEl = qel('annComposer');
+    const message = (composerEl ? composerEl.value : '').trim();
     if (!message) { ctx.showToast('Enter a message', 'error'); return; }
 
-    const font = el('annFont').value;
+    const font = qel('annFont').value;
+
+    // Build strict payload
     const payload = {
       slug: ctx.slug,
       tenantId: ctx.tenantId,
-      message,
-      font,
-      level: 'info',
-      target: { ...annTarget }
+      message: message,
+      font: font,
+      level: 'info'
     };
 
+    // Build explicit target
     if (annTarget.type === 'list') {
-      const ids = (el('annChatIds')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (!ids.length) { ctx.showToast('Enter chat IDs', 'error'); return; }
+      const raw = (qel('annChatIds')?.value || '');
+      // Split by comma, newline, or space — trim and deduplicate
+      const ids = [...new Set(
+        raw.split(/[,\n\s]+/).map(s => s.trim()).filter(Boolean)
+      )];
+      if (!ids.length) { ctx.showToast('Enter at least one chat ID', 'error'); return; }
       payload.target = { type: 'list', chatIds: ids };
+    } else {
+      payload.target = { type: 'all' };
     }
 
-    // CRITICAL: Include media in payload
+    // Include media if attached
     if (annMediaFile && annMediaDataUrl) {
       payload.media = annMediaDataUrl;
       payload.mediaType = annMediaFile.type;
       payload.mediaName = annMediaFile.name;
     }
 
-    const btn = el('annSendBtn');
-    const text = el('annSendText');
-    const spin = el('annSendSpinner');
-    const resultDiv = el('annResult');
+    const btn = qel('annSendBtn');
+    const text = qel('annSendText');
+    const spin = qel('annSendSpinner');
+    const resultDiv = qel('annResult');
 
-    btn.disabled = true; text.style.display = 'none'; spin.style.display = 'inline';
+    btn.disabled = true;
+    text.style.display = 'none';
+    spin.style.display = 'inline';
 
     try {
       const res = await fetch('/.netlify/functions/announce', {
@@ -253,55 +279,119 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const r = await res.json();
+
+      let r;
+      try {
+        r = await res.json();
+      } catch {
+        r = null;
+      }
 
       resultDiv.style.display = 'block';
-      if (r && r.success > 0) {
-        resultDiv.style.background = '#dcfce7'; resultDiv.style.color = '#065f46';
-        resultDiv.innerHTML = `✅ Sent to ${r.success} recipient(s)` + (r.failed ? `<br>⚠️ ${r.failed} failed` : '');
-        el('annComposer').value = '';
+
+      if (!res.ok) {
+        // HTTP error — show it clearly
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.color = 'var(--red)';
+        resultDiv.textContent = '⚠️ Server error (' + res.status + '): ' + (r?.error || r?.message || 'Unknown error');
+        // Do NOT clear composer on failure
+        // Do NOT write audit on failure
+      } else if (r && r.success > 0) {
+        resultDiv.style.background = 'rgba(16,185,129,0.1)';
+        resultDiv.style.color = 'var(--green)';
+        resultDiv.innerHTML = `✅ Sent to ${r.success} recipient(s)` + (r.failed ? ` · ⚠️ ${r.failed} failed` : '');
+        // Clear composer only on success
+        composerEl.value = '';
         clearMedia();
         updatePreview();
-        ctx.writeAudit('announcement_sent', { success: r.success, failed: r.failed });
+        ctx.writeAudit('announcement_sent', { success: r.success, failed: r.failed || 0, mode: annTarget.type });
         loadSendLog();
+      } else if (r && r.success === 0 && r.failed > 0) {
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.color = 'var(--red)';
+        resultDiv.textContent = '⚠️ All ' + r.failed + ' delivery attempts failed';
       } else {
-        resultDiv.style.background = '#fee2e2'; resultDiv.style.color = '#991b1b';
-        resultDiv.textContent = '⚠️ ' + (r?.error || 'Failed to send');
+        resultDiv.style.background = 'rgba(239,68,68,0.1)';
+        resultDiv.style.color = 'var(--red)';
+        resultDiv.textContent = '⚠️ ' + (r?.error || r?.message || 'No recipients or unknown response');
       }
-      setTimeout(() => resultDiv.style.display = 'none', 6000);
+      setTimeout(() => { if (resultDiv) resultDiv.style.display = 'none'; }, 8000);
     } catch (e) {
-      ctx.showToast(e.message || 'Error', 'error');
+      ctx.showToast('Network error: ' + (e.message || 'Failed to connect'), 'error');
     } finally {
-      btn.disabled = false; text.style.display = 'inline'; spin.style.display = 'none';
+      btn.disabled = false;
+      text.style.display = 'inline';
+      spin.style.display = 'none';
     }
   }
 
   function loadSendLog() {
     ctx.get(ctx.tRef('integrations/telegram/sentAnnouncements')).then(snap => {
-      const logDiv = el('annSendLog');
+      const logDiv = qel('annSendLog');
+      if (!logDiv) return;
       if (!snap.exists()) { logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>'; return; }
       const data = snap.val();
+      if (!data || typeof data !== 'object') { logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>'; return; }
       const announcements = Object.entries(data).slice(-10).reverse();
+      if (!announcements.length) { logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>'; return; }
       logDiv.innerHTML = announcements.map(([annId, chats]) => {
-        const chatEntries = Object.entries(chats || {});
-        const ok = chatEntries.filter(([, v]) => v.status === 'ok').length;
+        const chatEntries = (chats && typeof chats === 'object') ? Object.entries(chats) : [];
+        const ok = chatEntries.filter(([, v]) => v && v.status === 'ok').length;
         const fail = chatEntries.length - ok;
         const ts = chatEntries[0]?.[1]?.ts;
         return `<div class="audit-entry"><div class="audit-time">${ctx.formatDate(ts)} — ${annId}</div><div style="margin-top:4px"><span class="badge badge-green">${ok} sent</span> ${fail ? `<span class="badge badge-red">${fail} failed</span>` : ''}</div></div>`;
       }).join('');
-    }).catch(() => { });
+    }).catch(() => {
+      const logDiv = qel('annSendLog');
+      if (logDiv) logDiv.innerHTML = '<p style="color:var(--text-muted)">Could not load send logs.</p>';
+    });
   }
 
   function initSubscribers() {
-    ctx.onValue(ctx.tRef('integrations/telegram/connected'), snap => {
-      const obj = snap.exists() ? snap.val() : {};
-      subscriberCount = Object.keys(obj || {}).length;
+    // Primary source: announcement/chatIds (explicit subscriber list)
+    ctx.onValue(ctx.tRef('announcement/chatIds'), snap => {
+      if (snap.exists()) {
+        const obj = snap.val();
+        if (obj && typeof obj === 'object') {
+          subscriberCount = Object.keys(obj).length;
+          updateRecipientCount();
+          return;
+        }
+      }
+      subscriberCount = 0;
       updateRecipientCount();
     });
-    ctx.onValue(ctx.tRef('announcement/chatIds'), snap => {
-      if (subscriberCount === 0 && snap.exists()) {
-        subscriberCount = Object.keys(snap.val() || {}).length;
-        updateRecipientCount();
+
+    // Fallback source: integrations/telegram/connected
+    ctx.onValue(ctx.tRef('integrations/telegram/connected'), snap => {
+      if (subscriberCount > 0) return; // primary already populated
+      if (snap.exists()) {
+        const obj = snap.val();
+        if (obj && typeof obj === 'object') {
+          subscriberCount = Object.keys(obj).length;
+          updateRecipientCount();
+          return;
+        }
+      }
+    });
+
+    // Secondary fallback: count unique chatIds from telegram tokens
+    ctx.onValue(ctx.tRef('integrations/telegram/tokens'), snap => {
+      if (subscriberCount > 0) return; // already populated from above
+      if (snap.exists()) {
+        const obj = snap.val();
+        if (obj && typeof obj === 'object') {
+          const uniqueChatIds = new Set();
+          Object.values(obj).forEach(tok => {
+            if (tok && tok.chatId && tok.used) {
+              uniqueChatIds.add(String(tok.chatId));
+            }
+          });
+          if (uniqueChatIds.size > 0) {
+            subscriberCount = uniqueChatIds.size;
+            updateRecipientCount();
+          }
+        }
       }
     });
   }
@@ -309,15 +399,19 @@
   // Public API
   window.__announceModule = {
     init(context) {
+      if (initialized) return; // prevent double init
+      initialized = true;
       ctx = context;
-      const container = document.getElementById('announceContainer');
-      if (!container) return;
-      renderUI(container);
+      container = document.getElementById('announceContainer');
+      if (!container) {
+        console.error('announce.js: #announceContainer not found');
+        return;
+      }
+      renderUI();
       updatePreview();
       initSubscribers();
       loadSendLog();
     },
-    getSubscriberCount() { return subscriberCount; },
-    sendQuick(message) { return doSend.call(null, message); }
+    getSubscriberCount() { return subscriberCount; }
   };
 })();
