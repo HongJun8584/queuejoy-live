@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,102 +11,148 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    :root{--primary:#667eea;--primary2:#764ba2;--bg:#0f172a;--card:rgba(255,255,255,0.06);--card-solid:#1e293b;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;--radius:14px}
+    :root{--primary:#667eea;--primary2:#764ba2;--bg:#0f172a;--card:rgba(255,255,255,0.06);--card-solid:#1e293b;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;--radius:14px;--transition-base:.2s cubic-bezier(.4,0,.2,1);--shadow-card:0 4px 24px rgba(0,0,0,0.2);--shadow-hover:0 8px 32px rgba(0,0,0,0.35)}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+
     /* Sidebar */
-    .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .25s ease}
+    .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1)}
     .sidebar-brand{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
-    .sidebar-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
+    .sidebar-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.3);transition:transform var(--transition-base)}
+    .sidebar-brand-icon:hover{transform:scale(1.08)}
     .sidebar-brand h1{font-size:18px;font-weight:800;color:#fff}
     .sidebar-brand small{font-size:11px;color:var(--text-muted)}
     .sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
-    .nav-item{display:flex;gap:10px;align-items:center;padding:11px 20px;margin:2px 10px;border-radius:10px;color:var(--text-muted);font-weight:600;font-size:13px;cursor:pointer;transition:all .15s}
-    .nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04)}
-    .nav-item.active{color:#fff;background:linear-gradient(135deg,rgba(102,126,234,0.2),rgba(118,75,162,0.15));border:1px solid rgba(102,126,234,0.2)}
-    .nav-item .icon{width:18px;text-align:center}
+    .nav-item{display:flex;gap:10px;align-items:center;padding:11px 20px;margin:2px 10px;border-radius:10px;color:var(--text-muted);font-weight:600;font-size:13px;cursor:pointer;transition:all .2s cubic-bezier(.4,0,.2,1);border:1px solid transparent;position:relative;overflow:hidden}
+    .nav-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(135deg,var(--primary),var(--primary2));border-radius:0 4px 4px 0;transform:scaleY(0);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+    .nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04);transform:translateX(2px)}
+    .nav-item.active{color:#fff;background:linear-gradient(135deg,rgba(102,126,234,0.15),rgba(118,75,162,0.1));border:1px solid rgba(102,126,234,0.2);box-shadow:0 2px 12px rgba(102,126,234,0.1)}
+    .nav-item.active::before{transform:scaleY(1)}
+    .nav-item .icon{width:18px;text-align:center;transition:transform var(--transition-base)}
+    .nav-item:hover .icon{transform:scale(1.15)}
     .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--text-light)}
+
     /* Main */
-    .main{margin-left:260px;min-height:100vh;transition:margin-left .25s}
-    .topbar{position:sticky;top:0;z-index:50;background:rgba(15,23,42,0.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center}
-    .topbar h2{font-size:18px;font-weight:700}
+    .main{margin-left:260px;min-height:100vh;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
+    .topbar{position:sticky;top:0;z-index:50;background:rgba(15,23,42,0.82);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 8px rgba(0,0,0,0.15)}
+    .topbar h2{font-size:18px;font-weight:700;transition:opacity .2s}
     .topbar-actions{display:flex;gap:8px;align-items:center}
     .content{padding:24px 28px}
+
     /* Cards */
-    .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-card);transition:box-shadow var(--transition-base),transform var(--transition-base),border-color var(--transition-base)}
+    .card:hover{box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
     .card-header{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+
     /* Buttons */
-    .btn{padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+    .btn{padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--transition-base);position:relative;overflow:hidden}
+    .btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0.1);opacity:0;transition:opacity .15s}
+    .btn:active::after{opacity:1}
     .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.25)}
-    .btn-primary:hover{opacity:.9;transform:translateY(-1px)}
-    .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
-    .btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border)}
-    .btn-secondary:hover{background:rgba(255,255,255,0.1);color:#fff}
+    .btn-primary:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,126,234,0.35)}
+    .btn-primary:active{transform:translateY(0);box-shadow:0 2px 8px rgba(102,126,234,0.2)}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+    .btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border);backdrop-filter:blur(4px)}
+    .btn-secondary:hover{background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.15)}
     .btn-secondary.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
     .btn-danger{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+    .btn-danger:hover{background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.35)}
     .btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
+
     /* Inputs */
-    .input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;font-family:inherit;transition:border-color .15s}
-    .input:focus{outline:none;border-color:var(--primary)}
+    .input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;font-family:inherit;transition:border-color .2s,box-shadow .2s,background .2s}
+    .input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(102,126,234,0.15);background:rgba(255,255,255,0.06)}
     textarea.input{resize:vertical;min-height:60px}
     select.input{appearance:auto}
-    .field-label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.5px}
+    .field-label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.5px;transition:color var(--transition-base)}
     .field-label:first-child{margin-top:0}
+
     /* Stats grid */
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
-    .stat-card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden}
+    .stat-card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card);transition:all var(--transition-base)}
+    .stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
     .stat-card .stat-label{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px}
-    .stat-card .stat-value{font-size:26px;font-weight:800}
-    .stat-card .stat-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .stat-card .stat-value{font-size:26px;font-weight:800;transition:color var(--transition-base)}
+    .stat-card .stat-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:transform var(--transition-base)}
+    .stat-card:hover .stat-icon{transform:translateY(-50%) scale(1.1)}
+
     /* Badge */
-    .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
+    .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;transition:all var(--transition-base)}
     .badge-green{background:rgba(16,185,129,0.15);color:var(--green)}
     .badge-red{background:rgba(239,68,68,0.15);color:var(--red)}
     .badge-blue{background:rgba(59,130,246,0.15);color:var(--blue)}
     .badge-violet{background:rgba(139,92,246,0.15);color:var(--violet)}
     .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber)}
+
     /* Toast */
-    .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .3s ease}
-    .toast-success{background:var(--green);color:#fff}
-    .toast-error{background:var(--red);color:#fff}
-    @keyframes toastIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+    .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(8px)}
+    .toast-success{background:rgba(16,185,129,0.95);color:#fff}
+    .toast-error{background:rgba(239,68,68,0.95);color:#fff}
+    @keyframes toastIn{from{transform:translateX(100px) scale(0.95);opacity:0}to{transform:translateX(0) scale(1);opacity:1}}
+
     /* Spinner */
     .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
     @keyframes spin{to{transform:rotate(360deg)}}
+
     /* Tab views */
-    .view{display:none}.view.active{display:block}
+    .view{display:none;animation:viewEnter .35s cubic-bezier(.4,0,.2,1)}
+    .view.active{display:block}
+    @keyframes viewEnter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
     /* Grid */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
     /* Auth overlay */
     .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
-    .auth-card{background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:36px;width:100%;max-width:400px;text-align:center}
+    .auth-card{background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:36px;width:100%;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:authCardIn .4s cubic-bezier(.4,0,.2,1)}
+    @keyframes authCardIn{from{opacity:0;transform:translateY(20px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
     .auth-card h2{font-size:22px;font-weight:800;margin-bottom:6px}
     .auth-card p{color:var(--text-muted);font-size:13px;margin-bottom:20px}
+
     /* Phone preview */
-    .phone-frame{width:280px;height:560px;border-radius:36px;border:3px solid #334155;background:#fff;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+    .phone-frame{width:280px;height:560px;border-radius:36px;border:3px solid #334155;background:#fff;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.05);transition:box-shadow var(--transition-base)}
+    .phone-frame:hover{box-shadow:0 24px 72px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.08)}
     .phone-notch{width:120px;height:24px;background:#334155;border-radius:0 0 14px 14px;margin:0 auto}
     .phone-screen{height:100%;overflow-y:auto;font-family:'Inter',sans-serif;color:#111}
     .phone-screen *{font-family:inherit}
+
     /* Target option */
-    .target-opt{padding:8px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:all .15s}
-    .target-opt:hover{border-color:var(--primary)}
-    .target-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
+    .target-opt{padding:8px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:all .2s cubic-bezier(.4,0,.2,1)}
+    .target-opt:hover{border-color:var(--primary);transform:translateY(-1px)}
+    .target-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3);box-shadow:0 2px 8px rgba(102,126,234,0.15)}
+
     /* File upload btn */
-    .file-btn{padding:8px 14px;background:rgba(102,126,234,0.1);color:var(--primary);border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;display:inline-block;border:1px solid rgba(102,126,234,0.2)}
-    .file-btn:hover{background:rgba(102,126,234,0.2)}
+    .file-btn{padding:8px 14px;background:rgba(102,126,234,0.1);color:var(--primary);border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;display:inline-block;border:1px solid rgba(102,126,234,0.2);transition:all var(--transition-base)}
+    .file-btn:hover{background:rgba(102,126,234,0.2);transform:translateY(-1px)}
     .file-btn input[type=file]{position:absolute;left:-9999px}
+
     /* Audit entry */
-    .audit-entry{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+    .audit-entry{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;transition:background var(--transition-base)}
+    .audit-entry:hover{background:rgba(255,255,255,0.02)}
     .audit-entry:last-child{border-bottom:none}
     .audit-time{font-size:11px;color:var(--text-light)}
+
     /* Counter row */
-    .counter-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02)}
+    .counter-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02);transition:all var(--transition-base)}
+    .counter-row:hover{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.12);transform:translateX(2px)}
     .counter-row .counter-name{font-weight:700;font-size:14px}
     .counter-row .counter-meta{font-size:12px;color:var(--text-muted)}
+
     /* Preview media */
-    .preview-media{max-width:140px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-top:6px}
+    .preview-media{max-width:140px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-top:6px;transition:transform var(--transition-base)}
+    .preview-media:hover{transform:scale(1.05)}
+
     /* Chart container */
     .chart-wrap{position:relative;height:280px}
+
+    /* Table rows */
+    table tr{transition:background var(--transition-base)}
+    table tbody tr:hover{background:rgba(255,255,255,0.03)}
+
+    /* Save success flash */
+    .save-success{animation:saveFlash .6s ease}
+    @keyframes saveFlash{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)}50%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:none}}
+
     /* Responsive */
     @media(max-width:1024px){
       .sidebar{transform:translateX(-100%)}
@@ -115,9 +162,18 @@
       .mobile-menu{display:flex!important}
     }
     @media(min-width:1025px){.mobile-menu{display:none!important}}
+
     /* Fade in */
-    .fade-in{animation:fadeIn .35s ease}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .fade-in{animation:fadeIn .4s cubic-bezier(.4,0,.2,1)}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    /* Staggered fade */
+    .fade-in-delay-1{animation-delay:.05s;animation-fill-mode:backwards}
+    .fade-in-delay-2{animation-delay:.1s;animation-fill-mode:backwards}
+    .fade-in-delay-3{animation-delay:.15s;animation-fill-mode:backwards}
+    .fade-in-delay-4{animation-delay:.2s;animation-fill-mode:backwards}
+    .fade-in-delay-5{animation-delay:.25s;animation-fill-mode:backwards}
+    /* announce.js animation */
+    .ann-fade-in{animation:fadeIn .35s cubic-bezier(.4,0,.2,1);animation-fill-mode:backwards}
   </style>
 </head>
 <body>
@@ -166,7 +222,7 @@
 </aside>
 
 <!-- Mobile menu -->
-<button class="mobile-menu" id="mobileMenuBtn" style="position:fixed;top:14px;left:14px;z-index:200;padding:10px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:none;cursor:pointer">
+<button class="mobile-menu" id="mobileMenuBtn" style="position:fixed;top:14px;left:14px;z-index:200;padding:10px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(102,126,234,0.3)">
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </button>
 
@@ -185,14 +241,14 @@
     <!-- ===== DASHBOARD ===== -->
     <div class="view active" id="view-dashboard">
       <div class="stats-grid" id="dashStats">
-        <div class="stat-card"><div class="stat-label">Total Queues</div><div class="stat-value" id="dTotalQ" style="color:var(--primary)">0</div><div class="stat-icon" style="background:rgba(102,126,234,0.1)">📊</div></div>
-        <div class="stat-card"><div class="stat-label">Waiting</div><div class="stat-value" id="dWaiting" style="color:var(--blue)">0</div><div class="stat-icon" style="background:rgba(59,130,246,0.1)">⏳</div></div>
-        <div class="stat-card"><div class="stat-label">Serving</div><div class="stat-value" id="dServing" style="color:var(--violet)">0</div><div class="stat-icon" style="background:rgba(139,92,246,0.1)">🎫</div></div>
-        <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value" id="dCompleted" style="color:var(--green)">0</div><div class="stat-icon" style="background:rgba(16,185,129,0.1)">✅</div></div>
-        <div class="stat-card"><div class="stat-label">Cancelled</div><div class="stat-value" id="dCancelled" style="color:var(--text-light)">0</div><div class="stat-icon" style="background:rgba(100,116,139,0.1)">❌</div></div>
-        <div class="stat-card"><div class="stat-label">Active Counters</div><div class="stat-value" id="dCounters" style="color:var(--amber)">0</div><div class="stat-icon" style="background:rgba(245,158,11,0.1)">🏪</div></div>
+        <div class="stat-card fade-in"><div class="stat-label">Total Queues</div><div class="stat-value" id="dTotalQ" style="color:var(--primary)">0</div><div class="stat-icon" style="background:rgba(102,126,234,0.1)">📊</div></div>
+        <div class="stat-card fade-in fade-in-delay-1"><div class="stat-label">Waiting</div><div class="stat-value" id="dWaiting" style="color:var(--blue)">0</div><div class="stat-icon" style="background:rgba(59,130,246,0.1)">⏳</div></div>
+        <div class="stat-card fade-in fade-in-delay-2"><div class="stat-label">Serving</div><div class="stat-value" id="dServing" style="color:var(--violet)">0</div><div class="stat-icon" style="background:rgba(139,92,246,0.1)">🎫</div></div>
+        <div class="stat-card fade-in fade-in-delay-3"><div class="stat-label">Completed</div><div class="stat-value" id="dCompleted" style="color:var(--green)">0</div><div class="stat-icon" style="background:rgba(16,185,129,0.1)">✅</div></div>
+        <div class="stat-card fade-in fade-in-delay-4"><div class="stat-label">Cancelled</div><div class="stat-value" id="dCancelled" style="color:var(--text-light)">0</div><div class="stat-icon" style="background:rgba(100,116,139,0.1)">❌</div></div>
+        <div class="stat-card fade-in fade-in-delay-5"><div class="stat-label">Active Counters</div><div class="stat-value" id="dCounters" style="color:var(--amber)">0</div><div class="stat-icon" style="background:rgba(245,158,11,0.1)">🏪</div></div>
       </div>
-      <div class="card">
+      <div class="card fade-in" style="animation-delay:.3s;animation-fill-mode:backwards">
         <div class="card-header">Avg Service Time (from serviceEvents)</div>
         <div style="font-size:28px;font-weight:800;color:var(--primary)" id="dAvgService">— min</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Based on <span id="dEventCount">0</span> service events</div>
@@ -365,7 +421,7 @@
 
 <script type="module">
 // ============================================================
-// QueueJoy Admin — Single File, Tenant-Aware, Production-Ready
+// QueueJoy Admin — Optimized Config Writer + Polished UI
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
@@ -391,7 +447,7 @@ function showToast(msg, type='success', ms=3000) {
   t.className = `toast toast-${type}`;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), ms);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; t.style.transition = 'all .25s'; setTimeout(() => t.remove(), 300); }, ms);
 }
 function formatDate(ts) {
   if (!ts) return '—';
@@ -438,13 +494,90 @@ function compressImage(file, maxW=800, quality=0.7) {
       if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
+      const cx = canvas.getContext('2d');
+      cx.drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL('image/jpeg', quality));
     };
     img.onerror = () => { URL.revokeObjectURL(url); fileToDataUrl(file).then(resolve); };
     img.src = url;
   });
+}
+
+// ========================================
+// CONFIG OPTIMIZATION HELPERS
+// ========================================
+
+/**
+ * Deep sanitization: recursively removes null, undefined, empty strings,
+ * whitespace-only strings, empty objects, and empty arrays.
+ * Safe for any nested structure. Never throws.
+ */
+function deepCleanConfig(obj) {
+  if (obj === null || obj === undefined) return undefined;
+  if (typeof obj === 'string') {
+    const trimmed = obj.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (Array.isArray(obj)) {
+    const cleaned = obj.map(deepCleanConfig).filter(v => v !== undefined);
+    return cleaned.length > 0 ? cleaned : undefined;
+  }
+  if (typeof obj === 'object') {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleaned = deepCleanConfig(value);
+      if (cleaned !== undefined) result[key] = cleaned;
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+  // numbers, booleans — keep as-is
+  return obj;
+}
+
+/**
+ * Build canonical config from UI state. Only includes fields that
+ * consumer pages actually need. No legacy duplicates.
+ */
+function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
+  const raw = {};
+
+  // Timestamps
+  raw.createdAt = currentConfig.createdAt || Date.now();
+  raw.updatedAt = Date.now();
+
+  // Business identity
+  raw.displayName = $('cfgDisplayName')?.value;
+  raw.smallTextOnTop = $('cfgSmallTextOnTop')?.value;
+  raw.mainHeading = $('cfgMainHeading')?.value;
+  raw.description = $('cfgDescription')?.value;
+  raw.buttonText = $('cfgButtonText')?.value;
+  raw.adText = $('cfgAdText')?.value;
+  raw.timezone = $('cfgTimezone')?.value;
+
+  // Theme — only color
+  const color = $('cfgColor')?.value;
+  if (color) raw.theme = { color };
+
+  // Logos — resolve from pending upload or existing, never store empty
+  const logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
+  if (logoUrl) raw.logoUrl = logoUrl;
+
+  const centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
+  if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
+
+  // Ad — nested object, only include if something exists
+  const adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
+  const adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
+  const adLink = $('cfgAdLink')?.value;
+
+  const ad = {};
+  if (adVideo) ad.video = adVideo;
+  if (adImage && !adVideo) ad.image = adImage; // don't store image if video is set
+  if (adLink && adLink.trim()) ad.link = adLink.trim();
+  if (Object.keys(ad).length > 0) raw.ad = ad;
+
+  // Deep clean to strip all nulls, empty strings, empty objects
+  return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
 }
 
 // ===== Slug resolution =====
@@ -500,21 +633,19 @@ async function boot() {
     } catch {}
   }
 
+  // ===== Minimal Bootstrap =====
   async function bootstrapTenant() {
-    const paths = {
-      'public/config': { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, theme: { color: '#8b5cf6' }, timezone: 'Asia/Kuala_Lumpur', buttonText: 'Get your queue number', description: 'Real-time queueing system' },
-      'queue': {},
-      'counters': {},
-      'analytics/serviceEvents': {},
-      'audit': {},
-      'announcement/chatIds': {},
-      'integrations/telegram/connected': {},
-      'integrations/telegram/sentAnnouncements': {}
-    };
-    for (const [path, defaultVal] of Object.entries(paths)) {
+    // Only seed paths that don't exist yet — minimal defaults
+    const seeds = [
+      ['public/config', { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, timezone: 'Asia/Kuala_Lumpur' }],
+      ['queue', null],
+      ['counters', null],
+      ['analytics/serviceEvents', null]
+    ];
+    for (const [path, defaultVal] of seeds) {
       try {
         const snap = await get(tRef(path));
-        if (!snap.exists()) await set(tRef(path), defaultVal);
+        if (!snap.exists() && defaultVal !== null) await set(tRef(path), defaultVal);
       } catch {}
     }
   }
@@ -527,6 +658,7 @@ async function boot() {
   let pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
   let queueTrendChart = null;
   let counterPerfChart = null;
+  let saving = false; // prevent double save
 
   // ===== Auth =====
   $('authSignInBtn').onclick = async () => {
@@ -579,7 +711,14 @@ async function boot() {
       item.classList.add('active');
       const v = item.dataset.view;
       $$('.view').forEach(el => el.classList.remove('active'));
-      $('view-' + v)?.classList.add('active');
+      const viewEl = $('view-' + v);
+      if (viewEl) {
+        viewEl.classList.add('active');
+        // Re-trigger animation
+        viewEl.style.animation = 'none';
+        viewEl.offsetHeight; // force reflow
+        viewEl.style.animation = '';
+      }
       $('topbarTitle').textContent = item.textContent.trim();
       if (v === 'analytics') initCharts();
       if (window.innerWidth <= 1024) $('sidebar').classList.remove('open');
@@ -614,14 +753,13 @@ async function boot() {
       }
     });
 
-    // Queue listener — FIXED: use createdAt/joinedAt, not timestamp
+    // Queue listener
     onValue(tRef('queue'), snap => {
       queueData = [];
       if (snap.exists()) {
         const obj = snap.val() || {};
         queueData = Object.entries(obj).map(([key, q]) => {
           if (!q || typeof q !== 'object') return null;
-          // Resolve timestamp: prefer createdAt (numeric epoch), fallback joinedAt, then updatedAt
           let ts = null;
           if (typeof q.createdAt === 'number') ts = q.createdAt;
           else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
@@ -633,9 +771,8 @@ async function boot() {
             if (typeof q.updatedAt === 'number') ts = q.updatedAt;
             else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
           }
-          // Classify status robustly
           const rawStatus = String(q.status || '').trim().toLowerCase();
-          let classifiedStatus = 'waiting'; // default
+          let classifiedStatus = 'waiting';
           if (['completed', 'served', 'done'].includes(rawStatus)) {
             classifiedStatus = 'completed';
           } else if (['serving', 'called'].includes(rawStatus)) {
@@ -679,13 +816,12 @@ async function boot() {
     });
   }
 
-  // ===== Dashboard counts — FIXED =====
+  // ===== Dashboard counts =====
   function updateDashboardCounts() {
     const waiting = queueData.filter(q => q._status === 'waiting').length;
     const serving = queueData.filter(q => q._status === 'serving').length;
     const cancelled = queueData.filter(q => q._status === 'cancelled').length;
     const completedQ = queueData.filter(q => q._status === 'completed').length;
-    // Use queue-derived completed count; serviceEvents as supporting info
     const totalCompleted = Math.max(completedQ, serviceEventsData.length);
 
     $('dTotalQ').textContent = queueData.length;
@@ -694,7 +830,6 @@ async function boot() {
     $('dCompleted').textContent = totalCompleted;
     $('dCancelled').textContent = cancelled;
 
-    // Avg service time from serviceEvents — filter out zero/invalid
     const validEvents = serviceEventsData.filter(e => e.serviceMs > 0);
     if (validEvents.length > 0) {
       const avgMs = validEvents.reduce((s, e) => s + e.serviceMs, 0) / validEvents.length;
@@ -706,7 +841,7 @@ async function boot() {
     }
   }
 
-  // ===== Analytics — FIXED =====
+  // ===== Analytics =====
   function computeStats(arr) {
     if (!arr.length) return { avg: null, median: null, p90: null };
     const xs = arr.slice().sort((a, b) => a - b);
@@ -730,7 +865,6 @@ async function boot() {
     $('aServing').textContent = serving;
     $('aCancelled').textContent = cancelled;
 
-    // Stats from serviceEvents.serviceMs — exclude zero/invalid
     const validMs = serviceEventsData.filter(e => e.serviceMs > 0).map(e => e.serviceMs / 60000);
     const stats = computeStats(validMs);
     $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '—';
@@ -742,13 +876,13 @@ async function boot() {
     if (!$('queueTrendChart')) return;
     if (!queueTrendChart) {
       queueTrendChart = new Chart($('queueTrendChart').getContext('2d'), {
-        type: 'line', data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2 }] },
+        type: 'line', data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2, pointBackgroundColor: '#667eea', pointRadius: 3, pointHoverRadius: 5 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
       });
     }
     if (!counterPerfChart) {
       counterPerfChart = new Chart($('counterPerfChart').getContext('2d'), {
-        type: 'bar', data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'] }] },
+        type: 'bar', data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'], borderRadius: 6 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
       });
     }
@@ -757,7 +891,6 @@ async function boot() {
 
   function updateAnalyticsCharts() {
     if (!queueTrendChart) return;
-    // Queue trend: 7 days from queue data — FIXED: use _ts instead of timestamp
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const labels = [], counts = [];
     for (let i = 6; i >= 0; i--) {
@@ -770,7 +903,6 @@ async function boot() {
     queueTrendChart.data.datasets[0].data = counts;
     queueTrendChart.update();
 
-    // Counter performance from serviceEvents
     const counterStats = {};
     if (serviceEventsData.length > 0) {
       serviceEventsData.forEach(e => {
@@ -795,7 +927,6 @@ async function boot() {
       container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events yet.</div>';
       return;
     }
-    // Sort by timestamp descending (newest first)
     const rows = serviceEventsData.slice().sort((a, b) => (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0)).slice(0, 50);
     container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${esc(e.counter || e.counterName || e.counterId || '—')}</td><td style="padding:8px">${esc(e.queueNumber || '—')}</td><td style="padding:8px">${e.serviceMs != null ? e.serviceMs : '—'}</td><td style="padding:8px">${e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—'}</td><td style="padding:8px">${formatDate(e.completedAt || e.timestamp)}</td></tr>`).join('')}</tbody></table>`;
   }
@@ -894,41 +1025,39 @@ async function boot() {
     $('savePublishBtn').onclick = saveSettings;
   }
 
+  // ===== OPTIMIZED SAVE — canonical config + deep clean =====
   async function saveSettings() {
-    const btn = $('settingsSaveBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Saving...';
-    try {
-      const newConfig = {
-        createdAt: currentConfig.createdAt || Date.now(),
-        updatedAt: Date.now(),
-        displayName: $('cfgDisplayName').value || '',
-        smallTextOnTop: $('cfgSmallTextOnTop').value || '',
-        logoUrl: pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '',
-        centerLogoUrl: pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '',
-        theme: { color: $('cfgColor').value || '#8b5cf6' },
-        mainHeading: $('cfgMainHeading').value || '',
-        description: $('cfgDescription').value || '',
-        buttonText: $('cfgButtonText').value || '',
-        ad: {
-          video: pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl || '',
-          image: pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl || '',
-          link: $('cfgAdLink').value || ''
-        },
-        adText: $('cfgAdText').value || '',
-        timezone: $('cfgTimezone').value || 'Asia/Kuala_Lumpur'
-      };
+    if (saving) return; // prevent double-click
+    saving = true;
 
-      await set(tRef('public/config'), newConfig);
+    const btn = $('settingsSaveBtn');
+    const topBtn = $('savePublishBtn');
+    btn.disabled = true;
+    topBtn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+    try {
+      const slimConfig = buildCanonicalConfigFromUI(currentConfig, pendingUploads);
+      await set(tRef('public/config'), slimConfig);
       pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+
+      // Visual success feedback
+      btn.classList.add('save-success');
+      btn.textContent = '✅ Published!';
       showToast('Settings published!');
       writeAudit('settings_saved');
+      setTimeout(() => {
+        btn.textContent = '💾 Save & Publish';
+        btn.classList.remove('save-success');
+      }, 2000);
     } catch (e) {
       console.error('Save failed', e);
       showToast('Save failed: ' + (e.message || e), 'error');
-    } finally {
-      btn.disabled = false;
       btn.textContent = '💾 Save & Publish';
+    } finally {
+      saving = false;
+      btn.disabled = false;
+      topBtn.disabled = false;
     }
   }
 
@@ -975,7 +1104,8 @@ async function boot() {
   // ===== Counters =====
   function setupCountersUI() {
     $('addCounterBtn').onclick = () => {
-      $('addCounterForm').style.display = $('addCounterForm').style.display === 'none' ? 'block' : 'none';
+      const form = $('addCounterForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
     };
     $('createCounterBtn').onclick = async () => {
       const name = $('newCounterName').value.trim();
@@ -1024,7 +1154,6 @@ async function boot() {
 
   // ===== Announcements — delegate to announce.js module =====
   function setupAnnouncementsUI() {
-    // Build context for the announce.js module
     const annCtx = {
       tRef,
       get: (r) => get(r),
@@ -1040,7 +1169,6 @@ async function boot() {
       tenantId
     };
 
-    // Let announce.js own the UI
     if (window.__announceModule && typeof window.__announceModule.init === 'function') {
       window.__announceModule.init(annCtx);
     } else {
