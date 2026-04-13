@@ -1,7 +1,15 @@
 /**
- * announce.js — QueueJoy Announcement Module (Optimized)
+ * announce.js — QueueJoy Announcement Module (Optimized v2)
  * Handles: composer UI, templates, media attachments, send logic, send logs
  * Loaded by admin.html. Initialized via window.__announceModule.init(ctx).
+ *
+ * v2 changes:
+ * - Lazy video preview (placeholder + load button)
+ * - Payload validation & trimming before send
+ * - Single retry on transient failures (502, 503, network)
+ * - Parse server error body for real message
+ * - Media payload size guard (skip if >5MB base64)
+ * - Debounced preview
  *
  * ctx must provide: { tRef, get, onValue, set, update, genId, showToast, writeAudit, fileToBase64, formatDate, slug, tenantId }
  */
@@ -20,6 +28,7 @@
   ];
 
   const FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
+  const MAX_MEDIA_PAYLOAD_BYTES = 5 * 1024 * 1024; // 5MB base64 limit for send payload
 
   let ctx = null;
   let annTarget = { type: 'all' };
@@ -28,9 +37,9 @@
   let subscriberCount = 0;
   let container = null;
   let initialized = false;
-  let sending = false; // prevent double-send
+  let sending = false;
+  let _previewTimer = null;
 
-  // Scoped element query
   function qel(id) {
     return container ? container.querySelector('#' + id) : document.getElementById(id);
   }
@@ -74,7 +83,7 @@
           <span id="annMediaName" style="font-size:12px;color:var(--text-muted);transition:opacity .2s"></span>
           <button id="annMediaClear" class="btn btn-secondary btn-sm" style="display:none">✕ Remove</button>
         </div>
-        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB.</p>
+        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB. Media over 5MB will be sent as link only.</p>
         <div id="annMediaPreview" style="margin-top:8px"></div>
 
         <!-- Target -->
@@ -108,7 +117,6 @@
   }
 
   function bindEvents() {
-    // Templates — scoped via container
     const tplContainer = qel('annTemplates');
     if (tplContainer) {
       tplContainer.addEventListener('click', e => {
@@ -119,7 +127,6 @@
       });
     }
 
-    // Bold
     const boldBtn = qel('annBoldBtn');
     if (boldBtn) {
       boldBtn.addEventListener('click', () => {
@@ -138,29 +145,24 @@
       });
     }
 
-    // Live preview
+    // Debounced preview for typing
     const composer = qel('annComposer');
-    if (composer) composer.addEventListener('input', updatePreview);
+    if (composer) composer.addEventListener('input', schedulePreview);
     const fontSel = qel('annFont');
     if (fontSel) fontSel.addEventListener('change', updatePreview);
 
-    // Media
     const mediaInput = qel('annMediaInput');
     if (mediaInput) mediaInput.addEventListener('change', handleMedia);
     const mediaClear = qel('annMediaClear');
     if (mediaClear) mediaClear.addEventListener('click', clearMedia);
 
-    // Target — SCOPED to container only via #annTargetGroup
     const targetGroup = qel('annTargetGroup');
     if (targetGroup) {
       targetGroup.querySelectorAll('[data-ann-target]').forEach(opt => {
         opt.addEventListener('click', () => {
-          // Update visual state
           targetGroup.querySelectorAll('[data-ann-target]').forEach(x => x.classList.remove('selected'));
           opt.classList.add('selected');
-          // Update JS state
           annTarget.type = opt.dataset.annTarget;
-          // Show/hide custom textarea
           const listWrap = qel('annTargetListWrap');
           if (listWrap) listWrap.style.display = annTarget.type === 'list' ? 'block' : 'none';
           updateRecipientCount();
@@ -168,9 +170,13 @@
       });
     }
 
-    // Send — with double-click guard
     const sendBtn = qel('annSendBtn');
     if (sendBtn) sendBtn.addEventListener('click', doSend);
+  }
+
+  function schedulePreview() {
+    clearTimeout(_previewTimer);
+    _previewTimer = setTimeout(updatePreview, 150);
   }
 
   function updatePreview() {
@@ -193,6 +199,10 @@
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) { ctx.showToast('Max 10MB', 'error'); return; }
+
+    // Check if same file is re-selected
+    if (annMediaFile && annMediaFile.name === f.name && annMediaFile.size === f.size) return;
+
     annMediaFile = f;
     const nameEl = qel('annMediaName');
     if (nameEl) nameEl.textContent = f.name + ' (' + (f.size / 1024).toFixed(0) + 'KB)';
@@ -201,27 +211,56 @@
 
     const prev = qel('annMediaPreview');
     if (prev) {
+      // Clean up old media
+      const oldVid = prev.querySelector('video');
+      if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); oldVid.load(); }
+      const oldAudio = prev.querySelector('audio');
+      if (oldAudio) { oldAudio.pause(); oldAudio.removeAttribute('src'); }
       prev.innerHTML = '';
-      const url = URL.createObjectURL(f);
+
       if (f.type.startsWith('video/')) {
-        const v = document.createElement('video');
-        v.src = url; v.controls = true; v.autoplay = true; v.muted = true; v.loop = true;
-        v.style.cssText = 'width:100%;max-width:300px;border-radius:10px';
-        prev.appendChild(v);
+        // Lazy video preview — placeholder with load button
+        const url = URL.createObjectURL(f);
+        const placeholder = document.createElement('div');
+        placeholder.className = 'media-placeholder';
+        placeholder.innerHTML = `
+          <div class="mp-meta"><span class="mp-icon">🎬</span><div><div style="font-weight:600;font-size:12px;color:var(--text)">${escapeHtml(f.name)}</div><div style="font-size:10px;color:var(--text-light)">${(f.size / 1024).toFixed(0)} KB</div></div></div>
+          <button class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>
+        `;
+        const loadBtn = placeholder.querySelector('.mp-load-btn');
+        loadBtn.addEventListener('click', () => {
+          loadBtn.innerHTML = '<span class="spinner"></span> Loading...';
+          loadBtn.disabled = true;
+          const v = document.createElement('video');
+          v.preload = 'none';
+          v.controls = true;
+          v.muted = true;
+          v.playsInline = true;
+          v.style.cssText = 'width:100%;max-width:300px;border-radius:10px';
+          v.onloadeddata = () => { placeholder.replaceWith(v); };
+          v.onerror = () => { loadBtn.textContent = '⚠️ Failed'; loadBtn.disabled = false; };
+          v.src = url;
+          v.load();
+        });
+        prev.appendChild(placeholder);
       } else if (f.type.startsWith('audio/')) {
+        const url = URL.createObjectURL(f);
         const a = document.createElement('audio');
         a.src = url; a.controls = true;
         a.style.cssText = 'width:100%;max-width:300px';
         prev.appendChild(a);
       } else {
+        const url = URL.createObjectURL(f);
         const img = document.createElement('img');
         img.src = url;
+        img.loading = 'lazy';
         img.style.cssText = 'max-width:300px;width:100%;border-radius:10px';
         prev.appendChild(img);
       }
     }
 
     // Pre-read as base64 for payload
+    annMediaDataUrl = null;
     const reader = new FileReader();
     reader.onload = () => { annMediaDataUrl = reader.result; };
     reader.readAsDataURL(f);
@@ -237,14 +276,17 @@
     const clearBtn = qel('annMediaClear');
     if (clearBtn) clearBtn.style.display = 'none';
     const prev = qel('annMediaPreview');
-    if (prev) prev.innerHTML = '';
+    if (prev) {
+      const oldVid = prev.querySelector('video');
+      if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); }
+      prev.innerHTML = '';
+    }
   }
 
   function updateRecipientCount() {
     const el = qel('annRecipientCount');
     if (!el) return;
     if (annTarget.type === 'list') {
-      // Count entered IDs
       const raw = (qel('annChatIds') || {}).value || '';
       const ids = parseChatIds(raw);
       el.textContent = ids.length > 0 ? 'Custom list: ' + ids.length + ' ID(s)' : 'Custom list';
@@ -255,7 +297,6 @@
     }
   }
 
-  /** Parse, trim, deduplicate chat IDs from raw input */
   function parseChatIds(raw) {
     if (!raw || typeof raw !== 'string') return [];
     return [...new Set(
@@ -263,17 +304,18 @@
     )];
   }
 
+  // ===== SEND with retry and better error handling =====
   async function doSend() {
-    // Prevent double send
     if (sending) return;
 
     const composerEl = qel('annComposer');
     const message = (composerEl ? composerEl.value : '').trim();
     if (!message) { ctx.showToast('Enter a message', 'error'); return; }
+    if (message.length > 4000) { ctx.showToast('Message too long (max 4000 chars)', 'error'); return; }
 
     const font = (qel('annFont') || {}).value || 'Inter';
 
-    // Build strict payload
+    // Build minimal payload
     const payload = {
       slug: ctx.slug,
       tenantId: ctx.tenantId,
@@ -282,26 +324,29 @@
       level: 'info'
     };
 
-    // Build explicit target
+    // Target
     if (annTarget.type === 'list') {
       const raw = (qel('annChatIds') || {}).value || '';
       const ids = parseChatIds(raw);
       if (!ids.length) { ctx.showToast('Enter at least one chat ID', 'error'); return; }
       payload.target = { type: 'list', chatIds: ids };
     } else {
-      // Explicit all-subscriber target
       payload.target = { type: 'all' };
       if (subscriberCount === 0) {
         ctx.showToast('No subscribers found — message may not reach anyone', 'error');
-        // Allow send anyway — backend may resolve subscribers
       }
     }
 
-    // Include media if attached (only if base64 is ready)
+    // Include media only if under payload size limit
     if (annMediaFile && annMediaDataUrl) {
-      payload.media = annMediaDataUrl;
-      payload.mediaType = annMediaFile.type;
-      payload.mediaName = annMediaFile.name;
+      if (annMediaDataUrl.length > MAX_MEDIA_PAYLOAD_BYTES) {
+        ctx.showToast('Media too large for inline send (' + (annMediaDataUrl.length / 1048576).toFixed(1) + 'MB). Sending text only.', 'error');
+        // Send without media rather than failing
+      } else {
+        payload.media = annMediaDataUrl;
+        payload.mediaType = annMediaFile.type;
+        payload.mediaName = annMediaFile.name;
+      }
     }
 
     const btn = qel('annSendBtn');
@@ -315,36 +360,36 @@
     if (spin) spin.style.display = 'inline';
 
     try {
-      const res = await fetch('/.netlify/functions/announce', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
+      let res = await sendWithRetry(payload);
       let r;
       try { r = await res.json(); } catch { r = null; }
 
       if (resultDiv) resultDiv.style.display = 'block';
 
       if (!res.ok) {
-        // HTTP error — show clearly, do NOT clear composer
+        // Parse real error
+        let errorMsg = 'Unknown error';
+        if (r) {
+          errorMsg = r.error || r.message || r.details || JSON.stringify(r).slice(0, 200);
+        }
+        // Check if it's a payload size issue
+        if (res.status === 413 || (errorMsg && /too large|payload|size/i.test(errorMsg))) {
+          errorMsg = 'Payload too large. Try removing media or shortening the message.';
+        }
         if (resultDiv) {
           resultDiv.style.background = 'rgba(239,68,68,0.1)';
           resultDiv.style.color = 'var(--red)';
-          resultDiv.textContent = '⚠️ Server error (' + res.status + '): ' + (r?.error || r?.message || 'Unknown error');
+          resultDiv.textContent = '⚠️ Server error (' + res.status + '): ' + errorMsg;
         }
-        // Do NOT write audit on failure
       } else if (r && r.success > 0) {
         if (resultDiv) {
           resultDiv.style.background = 'rgba(16,185,129,0.1)';
           resultDiv.style.color = 'var(--green)';
           resultDiv.innerHTML = '✅ Sent to ' + r.success + ' recipient(s)' + (r.failed ? ' · ⚠️ ' + r.failed + ' failed' : '');
         }
-        // Clear composer only on confirmed success
         if (composerEl) composerEl.value = '';
         clearMedia();
         updatePreview();
-        // Log only: message summary, success count, timestamp
         ctx.writeAudit('announcement_sent', { success: r.success, failed: r.failed || 0, mode: annTarget.type });
         loadSendLog();
       } else if (r && r.success === 0 && r.failed > 0) {
@@ -371,6 +416,32 @@
     }
   }
 
+  // Single retry for transient failures
+  async function sendWithRetry(payload) {
+    const doFetch = () => fetch('/.netlify/functions/announce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    let res;
+    try {
+      res = await doFetch();
+    } catch (e) {
+      // Network error — retry once
+      await new Promise(r => setTimeout(r, 1000));
+      res = await doFetch();
+      return res;
+    }
+
+    // Retry on 502/503 (transient)
+    if (res.status === 502 || res.status === 503) {
+      await new Promise(r => setTimeout(r, 1500));
+      res = await doFetch();
+    }
+    return res;
+  }
+
   function loadSendLog() {
     ctx.get(ctx.tRef('integrations/telegram/sentAnnouncements')).then(snap => {
       const logDiv = qel('annSendLog');
@@ -379,7 +450,6 @@
       const data = snap.val();
       if (!data || typeof data !== 'object') { logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>'; return; }
       const announcements = Object.entries(data).sort((a, b) => {
-        // Sort by newest first using timestamp from first chat entry
         const tsA = getFirstTs(a[1]);
         const tsB = getFirstTs(b[1]);
         return tsB - tsA;
@@ -406,7 +476,6 @@
   }
 
   function initSubscribers() {
-    // Primary source: announcement/chatIds
     ctx.onValue(ctx.tRef('announcement/chatIds'), snap => {
       if (snap.exists()) {
         const obj = snap.val();
@@ -420,7 +489,6 @@
       updateRecipientCount();
     });
 
-    // Fallback: integrations/telegram/connected
     ctx.onValue(ctx.tRef('integrations/telegram/connected'), snap => {
       if (subscriberCount > 0) return;
       if (snap.exists()) {
@@ -433,7 +501,6 @@
       }
     });
 
-    // Secondary fallback: unique chatIds from telegram tokens
     ctx.onValue(ctx.tRef('integrations/telegram/tokens'), snap => {
       if (subscriberCount > 0) return;
       if (snap.exists()) {
@@ -452,7 +519,6 @@
     });
   }
 
-  // Also update count when user types chat IDs
   function bindChatIdCounter() {
     const chatInput = qel('annChatIds');
     if (chatInput) chatInput.addEventListener('input', updateRecipientCount);

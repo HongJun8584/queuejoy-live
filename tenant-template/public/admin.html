@@ -1,5 +1,6 @@
 
 
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -48,15 +49,15 @@
     .btn{padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--transition-base);position:relative;overflow:hidden}
     .btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0.1);opacity:0;transition:opacity .15s}
     .btn:active::after{opacity:1}
+    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important;box-shadow:none!important;pointer-events:none}
     .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.25)}
-    .btn-primary:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,126,234,0.35)}
-    .btn-primary:active{transform:translateY(0);box-shadow:0 2px 8px rgba(102,126,234,0.2)}
-    .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+    .btn-primary:hover:not(:disabled){opacity:.92;transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,126,234,0.35)}
+    .btn-primary:active:not(:disabled){transform:translateY(0);box-shadow:0 2px 8px rgba(102,126,234,0.2)}
     .btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border);backdrop-filter:blur(4px)}
-    .btn-secondary:hover{background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.15)}
+    .btn-secondary:hover:not(:disabled){background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.15)}
     .btn-secondary.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
     .btn-danger{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
-    .btn-danger:hover{background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.35)}
+    .btn-danger:hover:not(:disabled){background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.35)}
     .btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
 
     /* Inputs */
@@ -85,7 +86,7 @@
     .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber)}
 
     /* Toast */
-    .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(8px)}
+    .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(8px);transition:opacity .25s,transform .25s}
     .toast-success{background:rgba(16,185,129,0.95);color:#fff}
     .toast-error{background:rgba(239,68,68,0.95);color:#fff}
     @keyframes toastIn{from{transform:translateX(100px) scale(0.95);opacity:0}to{transform:translateX(0) scale(1);opacity:1}}
@@ -95,9 +96,9 @@
     @keyframes spin{to{transform:rotate(360deg)}}
 
     /* Tab views */
-    .view{display:none;animation:viewEnter .35s cubic-bezier(.4,0,.2,1)}
+    .view{display:none;animation:viewEnter .3s cubic-bezier(.4,0,.2,1)}
     .view.active{display:block}
-    @keyframes viewEnter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes viewEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
     /* Grid */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -142,6 +143,13 @@
     .preview-media{max-width:140px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-top:6px;transition:transform var(--transition-base)}
     .preview-media:hover{transform:scale(1.05)}
 
+    /* Lazy media placeholder */
+    .media-placeholder{border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:6px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;gap:8px;max-width:240px;transition:border-color var(--transition-base)}
+    .media-placeholder:hover{border-color:rgba(255,255,255,0.15)}
+    .media-placeholder .mp-meta{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px}
+    .media-placeholder .mp-icon{font-size:24px}
+    .media-placeholder .btn{font-size:11px;padding:5px 10px}
+
     /* Chart container */
     .chart-wrap{position:relative;height:280px}
 
@@ -152,6 +160,19 @@
     /* Save success flash */
     .save-success{animation:saveFlash .6s ease}
     @keyframes saveFlash{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)}50%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:none}}
+
+    /* Analytics time filter */
+    .time-filter{display:flex;gap:6px;flex-wrap:wrap}
+    .time-filter .tf-btn{padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--text-muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);cursor:pointer;transition:all .2s}
+    .time-filter .tf-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.15)}
+    .time-filter .tf-btn.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
+
+    /* Skeleton pulse */
+    .skeleton{background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+    /* Stat value transition */
+    .stat-value{transition:all .3s ease}
 
     /* Responsive */
     @media(max-width:1024px){
@@ -166,13 +187,11 @@
     /* Fade in */
     .fade-in{animation:fadeIn .4s cubic-bezier(.4,0,.2,1)}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    /* Staggered fade */
     .fade-in-delay-1{animation-delay:.05s;animation-fill-mode:backwards}
     .fade-in-delay-2{animation-delay:.1s;animation-fill-mode:backwards}
     .fade-in-delay-3{animation-delay:.15s;animation-fill-mode:backwards}
     .fade-in-delay-4{animation-delay:.2s;animation-fill-mode:backwards}
     .fade-in-delay-5{animation-delay:.25s;animation-fill-mode:backwards}
-    /* announce.js animation */
     .ann-fade-in{animation:fadeIn .35s cubic-bezier(.4,0,.2,1);animation-fill-mode:backwards}
   </style>
 </head>
@@ -327,9 +346,7 @@
           <div style="text-align:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Live Preview</div>
           <div class="phone-frame" id="phoneFrame">
             <div class="phone-notch"></div>
-            <div class="phone-screen" id="phoneScreen">
-              <!-- Rendered dynamically -->
-            </div>
+            <div class="phone-screen" id="phoneScreen"></div>
           </div>
         </div>
       </div>
@@ -342,7 +359,6 @@
         <div id="countersList"></div>
         <div id="countersEmpty" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No counters configured.</div>
       </div>
-      <!-- Add counter form -->
       <div class="card fade-in" style="margin-top:16px;display:none" id="addCounterForm">
         <div class="card-header">New Counter</div>
         <label class="field-label" style="margin-top:0">Name</label>
@@ -355,6 +371,17 @@
 
     <!-- ===== ANALYTICS ===== -->
     <div class="view" id="view-analytics">
+      <!-- Time filter -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div style="font-size:15px;font-weight:700">Analytics Overview</div>
+        <div class="time-filter" id="analyticsTimeFilter">
+          <button class="tf-btn active" data-range="7">Last 7 days</button>
+          <button class="tf-btn" data-range="30">Last 30 days</button>
+          <button class="tf-btn" data-range="180">Last 6 months</button>
+          <button class="tf-btn" data-range="0">All time</button>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">Total Served</div><div class="stat-value" id="aTotalServed" style="color:var(--green)">0</div></div>
         <div class="stat-card"><div class="stat-label">Avg Service Time</div><div class="stat-value" style="color:var(--primary)"><span id="aAvgMs">—</span> min</div></div>
@@ -374,7 +401,7 @@
 
       <div class="grid-2" style="margin-bottom:16px">
         <div class="card">
-          <div class="card-header">Queue Trend (7 Days)</div>
+          <div class="card-header" id="queueTrendTitle">Queue Trend (7 Days)</div>
           <div class="chart-wrap"><canvas id="queueTrendChart"></canvas></div>
         </div>
         <div class="card">
@@ -420,23 +447,19 @@
 <script>
   (function loadAnnounceModule() {
     if (window.__announceModule && typeof window.__announceModule.init === 'function') return;
-
     const s = document.createElement('script');
     s.src = '/announce.js';
     s.defer = true;
-    s.onload = () => {
-      console.log('announce.js loaded');
-    };
-    s.onerror = () => {
-      console.error('Failed to load /announce.js');
-    };
+    s.onload = () => { console.log('announce.js loaded'); };
+    s.onerror = () => { console.error('Failed to load /announce.js'); };
     document.head.appendChild(s);
   })();
 </script>
 
 <script type="module">
 // ============================================================
-// QueueJoy Admin — Optimized Config Writer + Polished UI
+// QueueJoy Admin — Optimized: lazy media, debounced preview,
+// slim config, analytics filters, announcement retry
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
@@ -457,12 +480,13 @@ const FIREBASE_CONFIG = {
 // ===== Helpers =====
 const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
+
 function showToast(msg, type='success', ms=3000) {
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; t.style.transition = 'all .25s'; setTimeout(() => t.remove(), 300); }, ms);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; setTimeout(() => t.remove(), 300); }, ms);
 }
 function formatDate(ts) {
   if (!ts) return '—';
@@ -480,21 +504,65 @@ function detectMediaType(file) {
   if (file.type.startsWith('audio/')) return 'audio';
   return 'unknown';
 }
-function createMediaPreview(src, container, mediaType) {
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
+}
+
+// ===== LAZY MEDIA PREVIEW =====
+// Track active object URLs for cleanup
+let _activeObjectUrls = [];
+function revokeOldUrls() {
+  _activeObjectUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+  _activeObjectUrls = [];
+}
+
+function createMediaPreview(src, container, mediaType, fileName, fileSize) {
+  if (!container) return;
+  // Clean up old video elements
+  const oldVid = container.querySelector('video');
+  if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); oldVid.load(); }
   container.innerHTML = '';
   if (!src) return;
-  const isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || src.match(/\.(mp4|webm|mov)/i)));
+
+  const isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || /\.(mp4|webm|mov)/i.test(src)));
+
   if (isVideo) {
-    const v = document.createElement('video');
-    v.src = src; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
-    v.className = 'preview-media'; v.style.maxWidth = '200px';
-    container.appendChild(v);
+    // Lazy placeholder — no autoplay, no preload
+    const placeholder = document.createElement('div');
+    placeholder.className = 'media-placeholder';
+    placeholder.innerHTML = `
+      <div class="mp-meta"><span class="mp-icon">🎬</span><div><div style="font-weight:600;font-size:12px;color:var(--text)">${esc(fileName || 'Video')}</div>${fileSize ? `<div style="font-size:10px;color:var(--text-light)">${formatBytes(fileSize)}</div>` : ''}</div></div>
+      <button class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>
+    `;
+    const loadBtn = placeholder.querySelector('.mp-load-btn');
+    loadBtn.addEventListener('click', () => {
+      loadBtn.innerHTML = '<span class="spinner"></span> Loading...';
+      loadBtn.disabled = true;
+      const v = document.createElement('video');
+      v.preload = 'none';
+      v.controls = true;
+      v.muted = true;
+      v.playsInline = true;
+      v.className = 'preview-media';
+      v.style.maxWidth = '240px';
+      v.style.maxHeight = '160px';
+      v.onloadeddata = () => { placeholder.replaceWith(v); };
+      v.onerror = () => { loadBtn.textContent = '⚠️ Failed to load'; loadBtn.disabled = false; };
+      v.src = src;
+      v.load();
+    });
+    container.appendChild(placeholder);
   } else {
     const img = document.createElement('img');
-    img.src = src; img.className = 'preview-media';
+    img.src = src;
+    img.className = 'preview-media';
+    img.loading = 'lazy';
     container.appendChild(img);
   }
 }
+
 function compressImage(file, maxW=800, quality=0.7) {
   return new Promise(resolve => {
     if (!file.type.startsWith('image/') || file.type === 'image/gif') {
@@ -518,15 +586,18 @@ function compressImage(file, maxW=800, quality=0.7) {
   });
 }
 
+// ===== DEBOUNCE UTILITY =====
+function debounce(fn, ms) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
 // ========================================
 // CONFIG OPTIMIZATION HELPERS
 // ========================================
-
-/**
- * Deep sanitization: recursively removes null, undefined, empty strings,
- * whitespace-only strings, empty objects, and empty arrays.
- * Safe for any nested structure. Never throws.
- */
 function deepCleanConfig(obj) {
   if (obj === null || obj === undefined) return undefined;
   if (typeof obj === 'string') {
@@ -545,22 +616,15 @@ function deepCleanConfig(obj) {
     }
     return Object.keys(result).length > 0 ? result : undefined;
   }
-  // numbers, booleans — keep as-is
   return obj;
 }
 
-/**
- * Build canonical config from UI state. Only includes fields that
- * consumer pages actually need. No legacy duplicates.
- */
 function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   const raw = {};
-
-  // Timestamps
   raw.createdAt = currentConfig.createdAt || Date.now();
   raw.updatedAt = Date.now();
 
-  // Business identity
+  // Business identity — only include non-empty
   raw.displayName = $('cfgDisplayName')?.value;
   raw.smallTextOnTop = $('cfgSmallTextOnTop')?.value;
   raw.mainHeading = $('cfgMainHeading')?.value;
@@ -573,25 +637,27 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   const color = $('cfgColor')?.value;
   if (color) raw.theme = { color };
 
-  // Logos — resolve from pending upload or existing, never store empty
+  // Logos — resolve from pending upload or existing
   const logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
   if (logoUrl) raw.logoUrl = logoUrl;
 
   const centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
-  // Ad — nested object, only include if something exists
+  // Ad — nested object
   const adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
   const adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
   const adLink = $('cfgAdLink')?.value;
 
   const ad = {};
   if (adVideo) ad.video = adVideo;
-  if (adImage && !adVideo) ad.image = adImage; // don't store image if video is set
+  if (adImage && !adVideo) ad.image = adImage;
   if (adLink && adLink.trim()) ad.link = adLink.trim();
   if (Object.keys(ad).length > 0) raw.ad = ad;
 
-  // Deep clean to strip all nulls, empty strings, empty objects
+  // Do NOT include slug, tenantId — those are in /meta, not config
+  // Do NOT include preview-only state
+
   return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
 }
 
@@ -648,9 +714,7 @@ async function boot() {
     } catch {}
   }
 
-  // ===== Minimal Bootstrap =====
   async function bootstrapTenant() {
-    // Only seed paths that don't exist yet — minimal defaults
     const seeds = [
       ['public/config', { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, timezone: 'Asia/Kuala_Lumpur' }],
       ['queue', null],
@@ -673,7 +737,9 @@ async function boot() {
   let pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
   let queueTrendChart = null;
   let counterPerfChart = null;
-  let saving = false; // prevent double save
+  let saving = false;
+  let analyticsRange = 7; // default: 7 days
+  let _lastMediaHash = ''; // track media changes for phone preview
 
   // ===== Auth =====
   $('authSignInBtn').onclick = async () => {
@@ -729,9 +795,8 @@ async function boot() {
       const viewEl = $('view-' + v);
       if (viewEl) {
         viewEl.classList.add('active');
-        // Re-trigger animation
         viewEl.style.animation = 'none';
-        viewEl.offsetHeight; // force reflow
+        viewEl.offsetHeight;
         viewEl.style.animation = '';
       }
       $('topbarTitle').textContent = item.textContent.trim();
@@ -752,23 +817,22 @@ async function boot() {
     setupCountersUI();
     setupAnnouncementsUI();
     setupAuditUI();
+    setupAnalyticsFilter();
   }
 
   // ===== Firebase listeners =====
   function setupListeners() {
-    // Config listener
     onValue(tRef('public/config'), snap => {
       if (!snap.exists()) return;
       currentConfig = snap.val() || {};
       populateSettingsForm(currentConfig);
-      updatePhonePreview();
+      schedulePhonePreview();
       if (currentConfig.displayName) {
         $('sidebarTitle').textContent = currentConfig.displayName;
         document.title = currentConfig.displayName + ' — Admin';
       }
     });
 
-    // Queue listener
     onValue(tRef('queue'), snap => {
       queueData = [];
       if (snap.exists()) {
@@ -787,7 +851,7 @@ async function boot() {
             else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
           }
           const rawStatus = String(q.status || '').trim().toLowerCase();
-          let classifiedStatus = 'waiting';
+          let classifiedStatus = 'unknown';
           if (['completed', 'served', 'done'].includes(rawStatus)) {
             classifiedStatus = 'completed';
           } else if (['serving', 'called'].includes(rawStatus)) {
@@ -798,9 +862,10 @@ async function boot() {
             classifiedStatus = 'cancelled';
           } else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) {
             classifiedStatus = 'cancelled';
-          } else if (rawStatus === 'waiting' || rawStatus === '') {
+          } else if (rawStatus === 'waiting') {
             classifiedStatus = 'waiting';
           }
+          // Empty status with no explicit "waiting" = unknown (stale entry)
           return { ...q, _key: key, _ts: ts, _status: classifiedStatus };
         }).filter(q => q !== null);
       }
@@ -809,7 +874,6 @@ async function boot() {
       updateAnalyticsCharts();
     });
 
-    // Service events listener
     onValue(tRef('analytics/serviceEvents'), snap => {
       serviceEventsData = [];
       if (snap.exists()) {
@@ -822,7 +886,6 @@ async function boot() {
       updateRawEventsTable();
     });
 
-    // Counters listener
     onValue(tRef('counters'), snap => {
       countersData = snap.exists() ? (snap.val() || {}) : {};
       renderCounters();
@@ -831,7 +894,38 @@ async function boot() {
     });
   }
 
-  // ===== Dashboard counts =====
+  // ===== Analytics time filter =====
+  function setupAnalyticsFilter() {
+    const filterContainer = $('analyticsTimeFilter');
+    if (!filterContainer) return;
+    filterContainer.addEventListener('click', e => {
+      const btn = e.target.closest('[data-range]');
+      if (!btn) return;
+      filterContainer.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      analyticsRange = parseInt(btn.dataset.range) || 0;
+      updateAnalyticsCounts();
+      updateAnalyticsCharts();
+      updateRawEventsTable();
+    });
+  }
+
+  function getFilterCutoff() {
+    if (analyticsRange <= 0) return 0; // all time
+    const now = Date.now();
+    return now - (analyticsRange * 86400000);
+  }
+
+  function filterByTime(items, tsField) {
+    const cutoff = getFilterCutoff();
+    if (cutoff <= 0) return items;
+    return items.filter(item => {
+      const t = item[tsField] || item._ts || item.timestamp || item.completedAt || item.createdAt || 0;
+      return typeof t === 'number' && t >= cutoff;
+    });
+  }
+
+  // ===== Dashboard counts (always show ALL current state) =====
   function updateDashboardCounts() {
     const waiting = queueData.filter(q => q._status === 'waiting').length;
     const serving = queueData.filter(q => q._status === 'serving').length;
@@ -856,7 +950,7 @@ async function boot() {
     }
   }
 
-  // ===== Analytics =====
+  // ===== Analytics (filtered by time range) =====
   function computeStats(arr) {
     if (!arr.length) return { avg: null, median: null, p90: null };
     const xs = arr.slice().sort((a, b) => a - b);
@@ -868,11 +962,14 @@ async function boot() {
   }
 
   function updateAnalyticsCounts() {
-    const waiting = queueData.filter(q => q._status === 'waiting').length;
-    const serving = queueData.filter(q => q._status === 'serving').length;
-    const cancelled = queueData.filter(q => q._status === 'cancelled').length;
-    const completedQ = queueData.filter(q => q._status === 'completed').length;
-    const totalCompleted = Math.max(completedQ, serviceEventsData.length);
+    const filteredQueue = filterByTime(queueData, '_ts');
+    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+
+    const waiting = filteredQueue.filter(q => q._status === 'waiting').length;
+    const serving = filteredQueue.filter(q => q._status === 'serving').length;
+    const cancelled = filteredQueue.filter(q => q._status === 'cancelled').length;
+    const completedQ = filteredQueue.filter(q => q._status === 'completed').length;
+    const totalCompleted = Math.max(completedQ, filteredEvents.length);
 
     $('aTotalServed').textContent = totalCompleted;
     $('aCompleted').textContent = totalCompleted;
@@ -880,7 +977,7 @@ async function boot() {
     $('aServing').textContent = serving;
     $('aCancelled').textContent = cancelled;
 
-    const validMs = serviceEventsData.filter(e => e.serviceMs > 0).map(e => e.serviceMs / 60000);
+    const validMs = filteredEvents.filter(e => e.serviceMs > 0).map(e => e.serviceMs / 60000);
     const stats = computeStats(validMs);
     $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '—';
     $('aMedian').textContent = stats.median !== null ? stats.median.toFixed(1) : '—';
@@ -892,13 +989,13 @@ async function boot() {
     if (!queueTrendChart) {
       queueTrendChart = new Chart($('queueTrendChart').getContext('2d'), {
         type: 'line', data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2, pointBackgroundColor: '#667eea', pointRadius: 3, pointHoverRadius: 5 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
       });
     }
     if (!counterPerfChart) {
       counterPerfChart = new Chart($('counterPerfChart').getContext('2d'), {
         type: 'bar', data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'], borderRadius: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
       });
     }
     updateAnalyticsCharts();
@@ -906,26 +1003,38 @@ async function boot() {
 
   function updateAnalyticsCharts() {
     if (!queueTrendChart) return;
+    const days = analyticsRange > 0 ? Math.min(analyticsRange, 30) : 7;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const labels = [], counts = [];
-    for (let i = 6; i >= 0; i--) {
+    const filteredQueue = filterByTime(queueData, '_ts');
+
+    // Update chart title
+    const titleEl = $('queueTrendTitle');
+    if (titleEl) {
+      const rangeText = analyticsRange <= 0 ? 'All Time' : `Last ${analyticsRange} Days`;
+      titleEl.textContent = `Queue Trend (${rangeText})`;
+    }
+
+    for (let i = days - 1; i >= 0; i--) {
       const d = new Date(today); d.setDate(d.getDate() - i);
       const start = d.getTime(), end = start + 86400000;
-      labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
-      counts.push(queueData.filter(q => q._ts && q._ts >= start && q._ts < end).length);
+      labels.push(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+      counts.push(filteredQueue.filter(q => q._ts && q._ts >= start && q._ts < end).length);
     }
     queueTrendChart.data.labels = labels;
     queueTrendChart.data.datasets[0].data = counts;
-    queueTrendChart.update();
+    queueTrendChart.update('none'); // skip animation for perf
 
+    // Counter performance
+    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
     const counterStats = {};
-    if (serviceEventsData.length > 0) {
-      serviceEventsData.forEach(e => {
+    if (filteredEvents.length > 0) {
+      filteredEvents.forEach(e => {
         const key = e.counter || e.counterName || e.counterId || 'unknown';
         counterStats[key] = (counterStats[key] || 0) + 1;
       });
     } else {
-      queueData.forEach(q => {
+      filteredQueue.forEach(q => {
         const key = q.counterName || q.counter || q.counterId;
         if (key) counterStats[key] = (counterStats[key] || 0) + 1;
       });
@@ -933,24 +1042,26 @@ async function boot() {
     if (!counterPerfChart) return;
     counterPerfChart.data.labels = Object.keys(counterStats);
     counterPerfChart.data.datasets[0].data = Object.values(counterStats);
-    counterPerfChart.update();
+    counterPerfChart.update('none');
   }
 
   function updateRawEventsTable() {
     const container = $('rawEventsTable');
-    if (!serviceEventsData.length) {
-      container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events yet.</div>';
+    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+    if (!filteredEvents.length) {
+      container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events in this time range.</div>';
       return;
     }
-    const rows = serviceEventsData.slice().sort((a, b) => (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0)).slice(0, 50);
+    const rows = filteredEvents.slice().sort((a, b) => (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0)).slice(0, 50);
     container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${esc(e.counter || e.counterName || e.counterId || '—')}</td><td style="padding:8px">${esc(e.queueNumber || '—')}</td><td style="padding:8px">${e.serviceMs != null ? e.serviceMs : '—'}</td><td style="padding:8px">${e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—'}</td><td style="padding:8px">${formatDate(e.completedAt || e.timestamp)}</td></tr>`).join('')}</tbody></table>`;
   }
 
   // CSV export
   $('exportCsvBtn').onclick = () => {
-    if (!serviceEventsData.length) { showToast('No events to export', 'error'); return; }
+    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+    if (!filteredEvents.length) { showToast('No events to export', 'error'); return; }
     const header = 'counter,queueNumber,serviceMs,serviceMin,completedAt\n';
-    const body = serviceEventsData.map(e => `${e.counter || e.counterId || ''},${e.queueNumber || ''},${e.serviceMs},${(e.serviceMs / 60000).toFixed(2)},${e.completedAt || ''}`).join('\n');
+    const body = filteredEvents.map(e => `${e.counter || e.counterId || ''},${e.queueNumber || ''},${e.serviceMs},${(e.serviceMs / 60000).toFixed(2)},${e.completedAt || ''}`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -982,16 +1093,20 @@ async function boot() {
     const adImg = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || null;
     const adVid = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || null;
     if (!pendingUploads.adImage && !pendingUploads.adVideo) {
-      if (adVid) createMediaPreview(adVid, $('cfgAdMediaPreview'), 'video');
+      if (adVid) createMediaPreview(adVid, $('cfgAdMediaPreview'), 'video', 'Ad Video');
       else if (adImg) createMediaPreview(adImg, $('cfgAdMediaPreview'));
     }
   }
 
+  // ===== DEBOUNCED PHONE PREVIEW =====
+  const schedulePhonePreview = debounce(() => updatePhonePreviewText(), 250);
+  const scheduleMediaPreview = debounce(() => updatePhonePreviewMedia(), 300);
+
   function setupSettingsUI() {
-    $('cfgColor').oninput = (e) => { $('cfgColorHex').textContent = e.target.value; updatePhonePreview(); };
+    $('cfgColor').oninput = (e) => { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
 
     ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(id => {
-      $(id).addEventListener('input', updatePhonePreview);
+      $(id).addEventListener('input', schedulePhonePreview);
     });
 
     $('cfgLogoFile').onchange = async (e) => {
@@ -1001,7 +1116,7 @@ async function boot() {
       pendingUploads.logoUrl = data;
       createMediaPreview(data, $('cfgLogoPreview'), detectMediaType(f));
       $('cfgLogoName').textContent = f.name;
-      updatePhonePreview();
+      scheduleMediaPreview();
       showToast('Logo ready (save to publish)', 'success', 1500);
     };
 
@@ -1012,7 +1127,7 @@ async function boot() {
       pendingUploads.centerLogoUrl = data;
       createMediaPreview(data, $('cfgCenterLogoPreview'), detectMediaType(f));
       $('cfgCenterLogoName').textContent = f.name;
-      updatePhonePreview();
+      scheduleMediaPreview();
       showToast('Center logo ready', 'success', 1500);
     };
 
@@ -1024,15 +1139,15 @@ async function boot() {
         const data = await fileToDataUrl(f);
         pendingUploads.adVideo = data;
         pendingUploads.adImage = null;
-        createMediaPreview(data, $('cfgAdMediaPreview'), 'video');
+        createMediaPreview(data, $('cfgAdMediaPreview'), 'video', f.name, f.size);
       } else {
         const data = await compressImage(f);
         pendingUploads.adImage = data;
         pendingUploads.adVideo = null;
-        createMediaPreview(data, $('cfgAdMediaPreview'), mtype);
+        createMediaPreview(data, $('cfgAdMediaPreview'), mtype, f.name, f.size);
       }
       $('cfgAdMediaName').textContent = f.name;
-      updatePhonePreview();
+      scheduleMediaPreview();
       showToast('Ad media ready', 'success', 1500);
     };
 
@@ -1040,9 +1155,9 @@ async function boot() {
     $('savePublishBtn').onclick = saveSettings;
   }
 
-  // ===== OPTIMIZED SAVE — canonical config + deep clean =====
+  // ===== OPTIMIZED SAVE =====
   async function saveSettings() {
-    if (saving) return; // prevent double-click
+    if (saving) return;
     saving = true;
 
     const btn = $('settingsSaveBtn');
@@ -1056,7 +1171,6 @@ async function boot() {
       await set(tRef('public/config'), slimConfig);
       pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
 
-      // Visual success feedback
       btn.classList.add('save-success');
       btn.textContent = '✅ Published!';
       showToast('Settings published!');
@@ -1076,44 +1190,106 @@ async function boot() {
     }
   }
 
-  // ===== Phone Preview =====
-  function updatePhonePreview() {
-    const color = $('cfgColor')?.value || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6';
-    const displayName = $('cfgDisplayName')?.value || currentConfig.displayName || '';
-    const smallText = $('cfgSmallTextOnTop')?.value || currentConfig.smallTextOnTop || '';
-    const heading = $('cfgMainHeading')?.value || currentConfig.mainHeading || '';
-    const desc = $('cfgDescription')?.value || currentConfig.description || '';
-    const btnText = $('cfgButtonText')?.value || currentConfig.buttonText || 'Get your queue number';
-    const adText = $('cfgAdText')?.value || currentConfig.adText || '';
+  // ===== Phone Preview — SPLIT: text vs media =====
+  function getPhoneTextState() {
+    return {
+      color: $('cfgColor')?.value || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6',
+      displayName: $('cfgDisplayName')?.value || currentConfig.displayName || '',
+      smallText: $('cfgSmallTextOnTop')?.value || currentConfig.smallTextOnTop || '',
+      heading: $('cfgMainHeading')?.value || currentConfig.mainHeading || '',
+      desc: $('cfgDescription')?.value || currentConfig.description || '',
+      btnText: $('cfgButtonText')?.value || currentConfig.buttonText || 'Get your queue number',
+      adText: $('cfgAdText')?.value || currentConfig.adText || ''
+    };
+  }
 
-    const logoSrc = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '';
-    const centerLogoSrc = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '';
-    const adImgSrc = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || '';
-    const adVidSrc = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || '';
+  function getPhoneMediaState() {
+    return {
+      logoSrc: pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '',
+      centerLogoSrc: pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '',
+      adImgSrc: pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || '',
+      adVidSrc: pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || ''
+    };
+  }
 
+  function computeMediaHash(media) {
+    // Simple hash to detect media changes without deep compare
+    return (media.logoSrc ? '1' : '0') + (media.centerLogoSrc ? '1' : '0') + (media.adImgSrc ? 'i' : '') + (media.adVidSrc ? 'v' : '') +
+      (media.logoSrc ? media.logoSrc.length : 0) + (media.centerLogoSrc ? media.centerLogoSrc.length : 0);
+  }
+
+  // Update only text portions of the phone preview
+  function updatePhonePreviewText() {
+    const t = getPhoneTextState();
+    const media = getPhoneMediaState();
+    const mediaHash = computeMediaHash(media);
+    const mediaChanged = mediaHash !== _lastMediaHash;
+    _lastMediaHash = mediaHash;
+
+    // If media changed, do a full rebuild
+    if (mediaChanged || !$('phoneScreen').hasChildNodes()) {
+      renderFullPhonePreview(t, media);
+      return;
+    }
+
+    // Incremental text update — find and update specific elements
     const screen = $('phoneScreen');
+    const headerName = screen.querySelector('[data-pp="name"]');
+    const headerSmall = screen.querySelector('[data-pp="small"]');
+    const headingEl = screen.querySelector('[data-pp="heading"]');
+    const descEl = screen.querySelector('[data-pp="desc"]');
+    const btnEl = screen.querySelector('[data-pp="btn"]');
+    const adTextEl = screen.querySelector('[data-pp="adtext"]');
+    const headerBg = screen.querySelector('[data-pp="header"]');
+
+    if (headerName) headerName.textContent = t.displayName || 'Queue Joy';
+    if (headerSmall) headerSmall.textContent = t.smallText;
+    if (headingEl) headingEl.textContent = t.heading;
+    if (descEl) descEl.textContent = t.desc || 'Real-time queueing system.';
+    if (btnEl) { btnEl.textContent = '🎫 ' + (t.btnText || 'Get your queue number'); btnEl.style.background = t.color; }
+    if (adTextEl) adTextEl.textContent = t.adText || 'Advertisement';
+    if (headerBg) headerBg.style.background = `linear-gradient(135deg,${t.color},${t.color}dd)`;
+  }
+
+  function updatePhonePreviewMedia() {
+    const t = getPhoneTextState();
+    const media = getPhoneMediaState();
+    _lastMediaHash = computeMediaHash(media);
+    renderFullPhonePreview(t, media);
+  }
+
+  function renderFullPhonePreview(t, media) {
+    const screen = $('phoneScreen');
+    // Build ad media section — NO autoplay video in preview
+    let adHtml = '';
+    if (media.adImgSrc || media.adVidSrc) {
+      adHtml = `<div style="padding:0 16px 12px">
+        <div data-pp="adtext" style="font-size:9px;color:#9ca3af;margin-bottom:4px">${esc(t.adText) || 'Advertisement'}</div>
+        ${media.adVidSrc
+          ? `<div style="background:#f3f4f6;border-radius:8px;padding:10px;text-align:center;font-size:10px;color:#6b7280">🎬 Video Ad</div>`
+          : `<img src="${media.adImgSrc}" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display='none'"/>`
+        }
+      </div>`;
+    }
+
     screen.innerHTML = `
-      <div style="background:linear-gradient(135deg,${color},${color}dd);padding:16px;text-align:center">
-        ${smallText ? `<div style="font-size:9px;color:rgba(255,255,255,0.8);margin-bottom:4px">${esc(smallText)}</div>` : ''}
-        ${logoSrc ? `<img src="${logoSrc}" style="max-height:36px;max-width:120px;margin:0 auto 6px;display:block;border-radius:6px" onerror="this.style.display='none'"/>` : ''}
-        <div style="font-size:14px;font-weight:800;color:#fff">${esc(displayName) || 'Queue Joy'}</div>
+      <div data-pp="header" style="background:linear-gradient(135deg,${t.color},${t.color}dd);padding:16px;text-align:center">
+        ${t.smallText ? `<div data-pp="small" style="font-size:9px;color:rgba(255,255,255,0.8);margin-bottom:4px">${esc(t.smallText)}</div>` : '<div data-pp="small" style="display:none"></div>'}
+        ${media.logoSrc ? `<img src="${media.logoSrc}" style="max-height:36px;max-width:120px;margin:0 auto 6px;display:block;border-radius:6px" onerror="this.style.display='none'"/>` : ''}
+        <div data-pp="name" style="font-size:14px;font-weight:800;color:#fff">${esc(t.displayName) || 'Queue Joy'}</div>
         <div style="font-size:9px;color:rgba(255,255,255,0.7);margin-top:2px">Digital Queue System</div>
       </div>
-      ${centerLogoSrc ? `<div style="text-align:center;padding:12px"><img src="${centerLogoSrc}" style="max-height:80px;max-width:160px;border-radius:10px" onerror="this.style.display='none'"/></div>` : ''}
+      ${media.centerLogoSrc ? `<div style="text-align:center;padding:12px"><img src="${media.centerLogoSrc}" style="max-height:80px;max-width:160px;border-radius:10px" onerror="this.style.display='none'"/></div>` : ''}
       <div style="padding:16px;text-align:center">
-        ${heading ? `<div style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">${esc(heading)}</div>` : ''}
-        <div style="font-size:11px;color:#6b7280;margin-bottom:12px">${esc(desc) || 'Real-time queueing system.'}</div>
-        <button style="background:${color};color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;width:100%;cursor:default">🎫 ${esc(btnText)}</button>
+        ${t.heading ? `<div data-pp="heading" style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">${esc(t.heading)}</div>` : '<div data-pp="heading" style="display:none"></div>'}
+        <div data-pp="desc" style="font-size:11px;color:#6b7280;margin-bottom:12px">${esc(t.desc) || 'Real-time queueing system.'}</div>
+        <button data-pp="btn" style="background:${t.color};color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;width:100%;cursor:default">🎫 ${esc(t.btnText)}</button>
       </div>
-      ${(adImgSrc || adVidSrc) ? `
-        <div style="padding:0 16px 12px">
-          <div style="font-size:9px;color:#9ca3af;margin-bottom:4px">${esc(adText) || 'Advertisement'}</div>
-          ${adVidSrc ? `<video src="${adVidSrc}" autoplay muted loop playsinline style="width:100%;border-radius:8px;max-height:100px;object-fit:cover"></video>` : `<img src="${adImgSrc}" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display='none'"/>`}
-        </div>
-      ` : ''}
+      ${adHtml}
       <div style="text-align:center;padding:8px;font-size:8px;color:#d1d5db">Powered by Queue Joy</div>
     `;
   }
+
   function esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   // ===== Counters =====
@@ -1168,47 +1344,47 @@ async function boot() {
   }
 
   // ===== Announcements — delegate to announce.js module =====
-function setupAnnouncementsUI() {
-  const annCtx = {
-    tRef,
-    get: (r) => get(r),
-    onValue: (r, cb) => onValue(r, cb),
-    set: (r, v) => set(r, v),
-    update: (r, v) => update(r, v),
-    genId,
-    showToast,
-    writeAudit,
-    fileToBase64: fileToDataUrl,
-    formatDate,
-    slug,
-    tenantId
-  };
+  function setupAnnouncementsUI() {
+    const annCtx = {
+      tRef,
+      get: (r) => get(r),
+      onValue: (r, cb) => onValue(r, cb),
+      set: (r, v) => set(r, v),
+      update: (r, v) => update(r, v),
+      genId,
+      showToast,
+      writeAudit,
+      fileToBase64: fileToDataUrl,
+      formatDate,
+      slug,
+      tenantId
+    };
 
-  const initAnnounce = () => {
-    if (window.__announceModule && typeof window.__announceModule.init === 'function') {
-      window.__announceModule.init(annCtx);
-      return true;
-    }
-    return false;
-  };
+    const initAnnounce = () => {
+      if (window.__announceModule && typeof window.__announceModule.init === 'function') {
+        window.__announceModule.init(annCtx);
+        return true;
+      }
+      return false;
+    };
 
-  if (initAnnounce()) return;
+    if (initAnnounce()) return;
 
-  let tries = 0;
-  const timer = setInterval(() => {
-    tries++;
-    if (initAnnounce() || tries >= 20) {
-      clearInterval(timer);
-      if (!(window.__announceModule && typeof window.__announceModule.init === 'function')) {
-        console.error('announce.js module not loaded — announcements will not work');
-        const box = $('announceContainer');
-        if (box) {
-          box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries++;
+      if (initAnnounce() || tries >= 20) {
+        clearInterval(timer);
+        if (!(window.__announceModule && typeof window.__announceModule.init === 'function')) {
+          console.error('announce.js module not loaded — announcements will not work');
+          const box = $('announceContainer');
+          if (box) {
+            box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
+          }
         }
       }
-    }
-  }, 100);
-}
+    }, 100);
+  }
 
   // ===== Audit =====
   function setupAuditUI() {
@@ -1222,7 +1398,7 @@ function setupAnnouncementsUI() {
   }
 
   // Initial phone preview
-  updatePhonePreview();
+  updatePhonePreviewText();
 }
 
 boot().catch(e => {
