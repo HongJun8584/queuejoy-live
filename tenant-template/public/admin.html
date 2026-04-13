@@ -417,7 +417,22 @@
 </div>
 
 <!-- announce.js module loaded BEFORE the main script -->
-<script src="announce.js"></script>
+<script>
+  (function loadAnnounceModule() {
+    if (window.__announceModule && typeof window.__announceModule.init === 'function') return;
+
+    const s = document.createElement('script');
+    s.src = '/announce.js';
+    s.defer = true;
+    s.onload = () => {
+      console.log('announce.js loaded');
+    };
+    s.onerror = () => {
+      console.error('Failed to load /announce.js');
+    };
+    document.head.appendChild(s);
+  })();
+</script>
 
 <script type="module">
 // ============================================================
@@ -1153,29 +1168,47 @@ async function boot() {
   }
 
   // ===== Announcements — delegate to announce.js module =====
-  function setupAnnouncementsUI() {
-    const annCtx = {
-      tRef,
-      get: (r) => get(r),
-      onValue: (r, cb) => onValue(r, cb),
-      set: (r, v) => set(r, v),
-      update: (r, v) => update(r, v),
-      genId,
-      showToast,
-      writeAudit,
-      fileToBase64: fileToDataUrl,
-      formatDate,
-      slug,
-      tenantId
-    };
+function setupAnnouncementsUI() {
+  const annCtx = {
+    tRef,
+    get: (r) => get(r),
+    onValue: (r, cb) => onValue(r, cb),
+    set: (r, v) => set(r, v),
+    update: (r, v) => update(r, v),
+    genId,
+    showToast,
+    writeAudit,
+    fileToBase64: fileToDataUrl,
+    formatDate,
+    slug,
+    tenantId
+  };
 
+  const initAnnounce = () => {
     if (window.__announceModule && typeof window.__announceModule.init === 'function') {
       window.__announceModule.init(annCtx);
-    } else {
-      console.error('announce.js module not loaded — announcements will not work');
-      $('announceContainer').innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load. Ensure announce.js is present.</div>';
+      return true;
     }
-  }
+    return false;
+  };
+
+  if (initAnnounce()) return;
+
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries++;
+    if (initAnnounce() || tries >= 20) {
+      clearInterval(timer);
+      if (!(window.__announceModule && typeof window.__announceModule.init === 'function')) {
+        console.error('announce.js module not loaded — announcements will not work');
+        const box = $('announceContainer');
+        if (box) {
+          box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
+        }
+      }
+    }
+  }, 100);
+}
 
   // ===== Audit =====
   function setupAuditUI() {
