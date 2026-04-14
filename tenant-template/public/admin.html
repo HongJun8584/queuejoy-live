@@ -1,6 +1,3 @@
-
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -16,7 +13,6 @@
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
 
-    /* Sidebar */
     .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1)}
     .sidebar-brand{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
     .sidebar-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.3);transition:transform var(--transition-base)}
@@ -33,19 +29,16 @@
     .nav-item:hover .icon{transform:scale(1.15)}
     .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--text-light)}
 
-    /* Main */
     .main{margin-left:260px;min-height:100vh;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
     .topbar{position:sticky;top:0;z-index:50;background:rgba(15,23,42,0.82);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 8px rgba(0,0,0,0.15)}
     .topbar h2{font-size:18px;font-weight:700;transition:opacity .2s}
     .topbar-actions{display:flex;gap:8px;align-items:center}
     .content{padding:24px 28px}
 
-    /* Cards */
     .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-card);transition:box-shadow var(--transition-base),transform var(--transition-base),border-color var(--transition-base)}
     .card:hover{box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
     .card-header{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
 
-    /* Buttons */
     .btn{padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--transition-base);position:relative;overflow:hidden}
     .btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0.1);opacity:0;transition:opacity .15s}
     .btn:active::after{opacity:1}
@@ -60,7 +53,6 @@
     .btn-danger:hover:not(:disabled){background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.35)}
     .btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
 
-    /* Inputs */
     .input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;font-family:inherit;transition:border-color .2s,box-shadow .2s,background .2s}
     .input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(102,126,234,0.15);background:rgba(255,255,255,0.06)}
     textarea.input{resize:vertical;min-height:60px}
@@ -68,7 +60,6 @@
     .field-label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.5px;transition:color var(--transition-base)}
     .field-label:first-child{margin-top:0}
 
-    /* Stats grid */
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
     .stat-card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card);transition:all var(--transition-base)}
     .stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
@@ -77,7 +68,6 @@
     .stat-card .stat-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:transform var(--transition-base)}
     .stat-card:hover .stat-icon{transform:translateY(-50%) scale(1.1)}
 
-    /* Badge */
     .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;transition:all var(--transition-base)}
     .badge-green{background:rgba(16,185,129,0.15);color:var(--green)}
     .badge-red{background:rgba(239,68,68,0.15);color:var(--red)}
@@ -85,96 +75,74 @@
     .badge-violet{background:rgba(139,92,246,0.15);color:var(--violet)}
     .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber)}
 
-    /* Toast */
     .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(8px);transition:opacity .25s,transform .25s}
     .toast-success{background:rgba(16,185,129,0.95);color:#fff}
     .toast-error{background:rgba(239,68,68,0.95);color:#fff}
     @keyframes toastIn{from{transform:translateX(100px) scale(0.95);opacity:0}to{transform:translateX(0) scale(1);opacity:1}}
 
-    /* Spinner */
     .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
     @keyframes spin{to{transform:rotate(360deg)}}
 
-    /* Tab views */
     .view{display:none;animation:viewEnter .3s cubic-bezier(.4,0,.2,1)}
     .view.active{display:block}
     @keyframes viewEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-    /* Grid */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
-    /* Auth overlay */
     .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
     .auth-card{background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:36px;width:100%;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:authCardIn .4s cubic-bezier(.4,0,.2,1)}
     @keyframes authCardIn{from{opacity:0;transform:translateY(20px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
     .auth-card h2{font-size:22px;font-weight:800;margin-bottom:6px}
     .auth-card p{color:var(--text-muted);font-size:13px;margin-bottom:20px}
 
-    /* Phone preview */
     .phone-frame{width:280px;height:560px;border-radius:36px;border:3px solid #334155;background:#fff;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.05);transition:box-shadow var(--transition-base)}
     .phone-frame:hover{box-shadow:0 24px 72px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.08)}
     .phone-notch{width:120px;height:24px;background:#334155;border-radius:0 0 14px 14px;margin:0 auto}
     .phone-screen{height:100%;overflow-y:auto;font-family:'Inter',sans-serif;color:#111}
     .phone-screen *{font-family:inherit}
 
-    /* Target option */
     .target-opt{padding:8px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:all .2s cubic-bezier(.4,0,.2,1)}
     .target-opt:hover{border-color:var(--primary);transform:translateY(-1px)}
     .target-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3);box-shadow:0 2px 8px rgba(102,126,234,0.15)}
 
-    /* File upload btn */
     .file-btn{padding:8px 14px;background:rgba(102,126,234,0.1);color:var(--primary);border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;display:inline-block;border:1px solid rgba(102,126,234,0.2);transition:all var(--transition-base)}
     .file-btn:hover{background:rgba(102,126,234,0.2);transform:translateY(-1px)}
     .file-btn input[type=file]{position:absolute;left:-9999px}
 
-    /* Audit entry */
     .audit-entry{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;transition:background var(--transition-base)}
     .audit-entry:hover{background:rgba(255,255,255,0.02)}
     .audit-entry:last-child{border-bottom:none}
     .audit-time{font-size:11px;color:var(--text-light)}
 
-    /* Counter row */
     .counter-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02);transition:all var(--transition-base)}
     .counter-row:hover{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.12);transform:translateX(2px)}
     .counter-row .counter-name{font-weight:700;font-size:14px}
     .counter-row .counter-meta{font-size:12px;color:var(--text-muted)}
 
-    /* Preview media */
     .preview-media{max-width:140px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-top:6px;transition:transform var(--transition-base)}
     .preview-media:hover{transform:scale(1.05)}
 
-    /* Lazy media placeholder */
     .media-placeholder{border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:6px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;gap:8px;max-width:240px;transition:border-color var(--transition-base)}
     .media-placeholder:hover{border-color:rgba(255,255,255,0.15)}
     .media-placeholder .mp-meta{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px}
     .media-placeholder .mp-icon{font-size:24px}
     .media-placeholder .btn{font-size:11px;padding:5px 10px}
 
-    /* Chart container */
     .chart-wrap{position:relative;height:280px}
-
-    /* Table rows */
     table tr{transition:background var(--transition-base)}
     table tbody tr:hover{background:rgba(255,255,255,0.03)}
 
-    /* Save success flash */
     .save-success{animation:saveFlash .6s ease}
     @keyframes saveFlash{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)}50%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:none}}
 
-    /* Analytics time filter */
     .time-filter{display:flex;gap:6px;flex-wrap:wrap}
     .time-filter .tf-btn{padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--text-muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);cursor:pointer;transition:all .2s}
     .time-filter .tf-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.15)}
     .time-filter .tf-btn.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
 
-    /* Skeleton pulse */
     .skeleton{background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px}
     @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-
-    /* Stat value transition */
     .stat-value{transition:all .3s ease}
 
-    /* Responsive */
     @media(max-width:1024px){
       .sidebar{transform:translateX(-100%)}
       .sidebar.open{transform:translateX(0)}
@@ -183,8 +151,6 @@
       .mobile-menu{display:flex!important}
     }
     @media(min-width:1025px){.mobile-menu{display:none!important}}
-
-    /* Fade in */
     .fade-in{animation:fadeIn .4s cubic-bezier(.4,0,.2,1)}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     .fade-in-delay-1{animation-delay:.05s;animation-fill-mode:backwards}
@@ -197,7 +163,6 @@
 </head>
 <body>
 
-<!-- Auth Overlay -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-card">
     <div style="font-size:48px;margin-bottom:12px">🎫</div>
@@ -220,7 +185,6 @@
   </div>
 </div>
 
-<!-- Sidebar -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     <div class="sidebar-brand-icon">🎫</div>
@@ -232,6 +196,7 @@
     <div class="nav-item" data-view="counters"><span class="icon">🏪</span>Counters</div>
     <div class="nav-item" data-view="analytics"><span class="icon">📊</span>Analytics</div>
     <div class="nav-item" data-view="announcements"><span class="icon">📢</span>Announcements</div>
+    <div class="nav-item" data-view="maintenance"><span class="icon">🧹</span>Data Cleanup</div>
     <div class="nav-item" data-view="audit"><span class="icon">📋</span>Audit Logs</div>
     <div class="nav-item" data-view="account"><span class="icon">👤</span>Account</div>
   </nav>
@@ -240,14 +205,11 @@
   </div>
 </aside>
 
-<!-- Mobile menu -->
 <button class="mobile-menu" id="mobileMenuBtn" style="position:fixed;top:14px;left:14px;z-index:200;padding:10px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(102,126,234,0.3)">
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </button>
 
-<!-- Main -->
 <div class="main" id="mainArea" style="display:none">
-  <!-- Topbar -->
   <div class="topbar">
     <h2 id="topbarTitle">Dashboard</h2>
     <div class="topbar-actions">
@@ -257,7 +219,6 @@
   </div>
 
   <div class="content">
-    <!-- ===== DASHBOARD ===== -->
     <div class="view active" id="view-dashboard">
       <div class="stats-grid" id="dashStats">
         <div class="stat-card fade-in"><div class="stat-label">Total Queues</div><div class="stat-value" id="dTotalQ" style="color:var(--primary)">0</div><div class="stat-icon" style="background:rgba(102,126,234,0.1)">📊</div></div>
@@ -274,10 +235,8 @@
       </div>
     </div>
 
-    <!-- ===== SETTINGS ===== -->
     <div class="view" id="view-settings">
       <div style="display:flex;gap:24px;flex-wrap:wrap">
-        <!-- Settings form -->
         <div style="flex:1;min-width:320px">
           <div class="card fade-in">
             <div class="card-header">Business Identity</div>
@@ -341,7 +300,6 @@
           </div>
         </div>
 
-        <!-- Phone Preview -->
         <div style="flex-shrink:0">
           <div style="text-align:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Live Preview</div>
           <div class="phone-frame" id="phoneFrame">
@@ -352,7 +310,6 @@
       </div>
     </div>
 
-    <!-- ===== COUNTERS ===== -->
     <div class="view" id="view-counters">
       <div class="card fade-in">
         <div class="card-header">Counters <button class="btn btn-primary btn-sm" id="addCounterBtn">+ Add Counter</button></div>
@@ -369,9 +326,7 @@
       </div>
     </div>
 
-    <!-- ===== ANALYTICS ===== -->
     <div class="view" id="view-analytics">
-      <!-- Time filter -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <div style="font-size:15px;font-weight:700">Analytics Overview</div>
         <div class="time-filter" id="analyticsTimeFilter">
@@ -416,12 +371,36 @@
       </div>
     </div>
 
-    <!-- ===== ANNOUNCEMENTS ===== -->
     <div class="view" id="view-announcements">
       <div id="announceContainer"></div>
     </div>
 
-    <!-- ===== AUDIT ===== -->
+    <div class="view" id="view-maintenance">
+      <div class="card fade-in" style="max-width:760px">
+        <div class="card-header">Data Cleanup</div>
+
+        <label class="field-label" style="margin-top:0">Auto cleanup retention</label>
+        <select class="input" id="cfgQueueRetentionDays" style="max-width:240px">
+          <option value="0">Never</option>
+          <option value="1">1 Day</option>
+          <option value="7" selected>1 Week</option>
+          <option value="30">1 Month</option>
+        </select>
+
+        <p style="margin-top:10px;font-size:12px;color:var(--text-muted);line-height:1.6">
+          “Clean Old Data” removes queue items and service events older than the selected retention period.
+          “Hard Reset Dashboard” clears the live queue and service analytics so the dashboard returns to zero.
+        </p>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+          <button class="btn btn-primary" id="cleanupOldBtn">🧹 Clean Old Data</button>
+          <button class="btn btn-danger" id="hardResetBtn">⚠️ Hard Reset Dashboard</button>
+        </div>
+
+        <div id="cleanupResult" style="display:none;margin-top:14px;padding:12px;border-radius:8px;font-weight:600;font-size:13px"></div>
+      </div>
+    </div>
+
     <div class="view" id="view-audit">
       <div class="card fade-in">
         <div class="card-header">Audit Logs</div>
@@ -430,7 +409,6 @@
       </div>
     </div>
 
-    <!-- ===== ACCOUNT ===== -->
     <div class="view" id="view-account">
       <div class="card fade-in" style="max-width:480px">
         <div class="card-header">Account</div>
@@ -443,7 +421,6 @@
   </div>
 </div>
 
-<!-- announce.js module loaded BEFORE the main script -->
 <script>
   (function loadAnnounceModule() {
     if (window.__announceModule && typeof window.__announceModule.init === 'function') return;
@@ -457,11 +434,6 @@
 </script>
 
 <script type="module">
-// ============================================================
-// QueueJoy Admin — Optimized: lazy media, debounced preview,
-// slim config, analytics filters, announcement retry
-// ============================================================
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 import { getDatabase, ref, onValue, get, set, update, push, child } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
@@ -477,7 +449,6 @@ const FIREBASE_CONFIG = {
   measurementId: "G-KWBELWRC5M"
 };
 
-// ===== Helpers =====
 const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
@@ -488,39 +459,17 @@ function showToast(msg, type='success', ms=3000) {
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; setTimeout(() => t.remove(), 300); }, ms);
 }
-function formatDate(ts) {
-  if (!ts) return '—';
-  try { return new Date(ts).toLocaleString(); } catch { return '—'; }
-}
+function formatDate(ts) { if (!ts) return '—'; try { return new Date(ts).toLocaleString(); } catch { return '—'; } }
 function genId(prefix='') { return prefix + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
-function fileToDataUrl(file) {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
-}
-function detectMediaType(file) {
-  if (!file) return 'unknown';
-  if (file.type === 'image/gif') return 'gif';
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('audio/')) return 'audio';
-  return 'unknown';
-}
-function formatBytes(b) {
-  if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-  return (b / 1048576).toFixed(1) + ' MB';
-}
+function fileToDataUrl(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+function detectMediaType(file) { if (!file) return 'unknown'; if (file.type === 'image/gif') return 'gif'; if (file.type.startsWith('video/')) return 'video'; if (file.type.startsWith('image/')) return 'image'; if (file.type.startsWith('audio/')) return 'audio'; return 'unknown'; }
+function formatBytes(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; return (b / 1048576).toFixed(1) + ' MB'; }
 
-// ===== LAZY MEDIA PREVIEW =====
-// Track active object URLs for cleanup
 let _activeObjectUrls = [];
-function revokeOldUrls() {
-  _activeObjectUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
-  _activeObjectUrls = [];
-}
+function revokeOldUrls() { _activeObjectUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); _activeObjectUrls = []; }
 
 function createMediaPreview(src, container, mediaType, fileName, fileSize) {
   if (!container) return;
-  // Clean up old video elements
   const oldVid = container.querySelector('video');
   if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); oldVid.load(); }
   container.innerHTML = '';
@@ -529,7 +478,6 @@ function createMediaPreview(src, container, mediaType, fileName, fileSize) {
   const isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || /\.(mp4|webm|mov)/i.test(src)));
 
   if (isVideo) {
-    // Lazy placeholder — no autoplay, no preload
     const placeholder = document.createElement('div');
     placeholder.className = 'media-placeholder';
     placeholder.innerHTML = `
@@ -586,7 +534,6 @@ function compressImage(file, maxW=800, quality=0.7) {
   });
 }
 
-// ===== DEBOUNCE UTILITY =====
 function debounce(fn, ms) {
   let timer;
   return function(...args) {
@@ -595,9 +542,6 @@ function debounce(fn, ms) {
   };
 }
 
-// ========================================
-// CONFIG OPTIMIZATION HELPERS
-// ========================================
 function deepCleanConfig(obj) {
   if (obj === null || obj === undefined) return undefined;
   if (typeof obj === 'string') {
@@ -623,8 +567,6 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   const raw = {};
   raw.createdAt = currentConfig.createdAt || Date.now();
   raw.updatedAt = Date.now();
-
-  // Business identity — only include non-empty
   raw.displayName = $('cfgDisplayName')?.value;
   raw.smallTextOnTop = $('cfgSmallTextOnTop')?.value;
   raw.mainHeading = $('cfgMainHeading')?.value;
@@ -633,18 +575,15 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   raw.adText = $('cfgAdText')?.value;
   raw.timezone = $('cfgTimezone')?.value;
 
-  // Theme — only color
   const color = $('cfgColor')?.value;
   if (color) raw.theme = { color };
 
-  // Logos — resolve from pending upload or existing
   const logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
   if (logoUrl) raw.logoUrl = logoUrl;
 
   const centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
-  // Ad — nested object
   const adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
   const adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
   const adLink = $('cfgAdLink')?.value;
@@ -655,13 +594,12 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   if (adLink && adLink.trim()) ad.link = adLink.trim();
   if (Object.keys(ad).length > 0) raw.ad = ad;
 
-  // Do NOT include slug, tenantId — those are in /meta, not config
-  // Do NOT include preview-only state
+  const retentionDays = parseInt($('cfgQueueRetentionDays')?.value || '7', 10);
+  raw.maintenance = { queueRetentionDays: retentionDays };
 
   return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
 }
 
-// ===== Slug resolution =====
 function getSlug() {
   const p = new URLSearchParams(window.location.search);
   const s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
@@ -677,7 +615,6 @@ function getSlug() {
   return null;
 }
 
-// ===== Boot =====
 async function boot() {
   const slug = getSlug();
   if (!slug) {
@@ -729,7 +666,6 @@ async function boot() {
     }
   }
 
-  // ===== State =====
   let currentConfig = {};
   let queueData = [];
   let serviceEventsData = [];
@@ -738,10 +674,10 @@ async function boot() {
   let queueTrendChart = null;
   let counterPerfChart = null;
   let saving = false;
-  let analyticsRange = 7; // default: 7 days
-  let _lastMediaHash = ''; // track media changes for phone preview
+  let analyticsRange = 7;
+  let _lastMediaHash = '';
+  let appInitialized = false;
 
-  // ===== Auth =====
   $('authSignInBtn').onclick = async () => {
     const email = $('authEmail').value.trim();
     const pw = $('authPassword').value;
@@ -785,7 +721,6 @@ async function boot() {
     }
   });
 
-  // ===== Navigation =====
   $$('.nav-item[data-view]').forEach(item => {
     item.addEventListener('click', () => {
       $$('.nav-item').forEach(i => i.classList.remove('active'));
@@ -806,8 +741,6 @@ async function boot() {
   });
   $('mobileMenuBtn').onclick = () => $('sidebar').classList.toggle('open');
 
-  // ===== Init app after auth =====
-  let appInitialized = false;
   async function initApp() {
     if (appInitialized) return;
     appInitialized = true;
@@ -818,9 +751,9 @@ async function boot() {
     setupAnnouncementsUI();
     setupAuditUI();
     setupAnalyticsFilter();
+    setupMaintenanceUI();
   }
 
-  // ===== Firebase listeners =====
   function setupListeners() {
     onValue(tRef('public/config'), snap => {
       if (!snap.exists()) return;
@@ -852,20 +785,12 @@ async function boot() {
           }
           const rawStatus = String(q.status || '').trim().toLowerCase();
           let classifiedStatus = 'unknown';
-          if (['completed', 'served', 'done'].includes(rawStatus)) {
-            classifiedStatus = 'completed';
-          } else if (['serving', 'called'].includes(rawStatus)) {
-            classifiedStatus = 'serving';
-          } else if (['cancelled', 'canceled'].includes(rawStatus)) {
-            classifiedStatus = 'cancelled';
-          } else if (q.canceledAt || q.canceledBy) {
-            classifiedStatus = 'cancelled';
-          } else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) {
-            classifiedStatus = 'cancelled';
-          } else if (rawStatus === 'waiting') {
-            classifiedStatus = 'waiting';
-          }
-          // Empty status with no explicit "waiting" = unknown (stale entry)
+          if (['completed', 'served', 'done'].includes(rawStatus)) classifiedStatus = 'completed';
+          else if (['serving', 'called'].includes(rawStatus)) classifiedStatus = 'serving';
+          else if (['cancelled', 'canceled'].includes(rawStatus)) classifiedStatus = 'cancelled';
+          else if (q.canceledAt || q.canceledBy) classifiedStatus = 'cancelled';
+          else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) classifiedStatus = 'cancelled';
+          else if (rawStatus === 'waiting') classifiedStatus = 'waiting';
           return { ...q, _key: key, _ts: ts, _status: classifiedStatus };
         }).filter(q => q !== null);
       }
@@ -894,7 +819,6 @@ async function boot() {
     });
   }
 
-  // ===== Analytics time filter =====
   function setupAnalyticsFilter() {
     const filterContainer = $('analyticsTimeFilter');
     if (!filterContainer) return;
@@ -910,12 +834,7 @@ async function boot() {
     });
   }
 
-  function getFilterCutoff() {
-    if (analyticsRange <= 0) return 0; // all time
-    const now = Date.now();
-    return now - (analyticsRange * 86400000);
-  }
-
+  function getFilterCutoff() { if (analyticsRange <= 0) return 0; const now = Date.now(); return now - (analyticsRange * 86400000); }
   function filterByTime(items, tsField) {
     const cutoff = getFilterCutoff();
     if (cutoff <= 0) return items;
@@ -925,7 +844,6 @@ async function boot() {
     });
   }
 
-  // ===== Dashboard counts (always show ALL current state) =====
   function updateDashboardCounts() {
     const waiting = queueData.filter(q => q._status === 'waiting').length;
     const serving = queueData.filter(q => q._status === 'serving').length;
@@ -950,7 +868,6 @@ async function boot() {
     }
   }
 
-  // ===== Analytics (filtered by time range) =====
   function computeStats(arr) {
     if (!arr.length) return { avg: null, median: null, p90: null };
     const xs = arr.slice().sort((a, b) => a - b);
@@ -1008,7 +925,6 @@ async function boot() {
     const labels = [], counts = [];
     const filteredQueue = filterByTime(queueData, '_ts');
 
-    // Update chart title
     const titleEl = $('queueTrendTitle');
     if (titleEl) {
       const rangeText = analyticsRange <= 0 ? 'All Time' : `Last ${analyticsRange} Days`;
@@ -1023,9 +939,8 @@ async function boot() {
     }
     queueTrendChart.data.labels = labels;
     queueTrendChart.data.datasets[0].data = counts;
-    queueTrendChart.update('none'); // skip animation for perf
+    queueTrendChart.update('none');
 
-    // Counter performance
     const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
     const counterStats = {};
     if (filteredEvents.length > 0) {
@@ -1056,7 +971,6 @@ async function boot() {
     container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${esc(e.counter || e.counterName || e.counterId || '—')}</td><td style="padding:8px">${esc(e.queueNumber || '—')}</td><td style="padding:8px">${e.serviceMs != null ? e.serviceMs : '—'}</td><td style="padding:8px">${e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—'}</td><td style="padding:8px">${formatDate(e.completedAt || e.timestamp)}</td></tr>`).join('')}</tbody></table>`;
   }
 
-  // CSV export
   $('exportCsvBtn').onclick = () => {
     const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
     if (!filteredEvents.length) { showToast('No events to export', 'error'); return; }
@@ -1069,7 +983,6 @@ async function boot() {
     a.click();
   };
 
-  // ===== Settings UI =====
   function populateSettingsForm(cfg) {
     $('cfgDisplayName').value = cfg.displayName || cfg.name || '';
     $('cfgSmallTextOnTop').value = cfg.smallTextOnTop || cfg.smallTopText || '';
@@ -1079,6 +992,7 @@ async function boot() {
     $('cfgAdText').value = cfg.adText || '';
     $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
     $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
+    $('cfgQueueRetentionDays').value = String(cfg?.maintenance?.queueRetentionDays ?? 7);
 
     const color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
     $('cfgColor').value = color;
@@ -1098,16 +1012,12 @@ async function boot() {
     }
   }
 
-  // ===== DEBOUNCED PHONE PREVIEW =====
   const schedulePhonePreview = debounce(() => updatePhonePreviewText(), 250);
   const scheduleMediaPreview = debounce(() => updatePhonePreviewMedia(), 300);
 
   function setupSettingsUI() {
     $('cfgColor').oninput = (e) => { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
-
-    ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(id => {
-      $(id).addEventListener('input', schedulePhonePreview);
-    });
+    ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(id => { $(id).addEventListener('input', schedulePhonePreview); });
 
     $('cfgLogoFile').onchange = async (e) => {
       const f = e.target.files?.[0]; if (!f) return;
@@ -1155,7 +1065,6 @@ async function boot() {
     $('savePublishBtn').onclick = saveSettings;
   }
 
-  // ===== OPTIMIZED SAVE =====
   async function saveSettings() {
     if (saving) return;
     saving = true;
@@ -1190,7 +1099,6 @@ async function boot() {
     }
   }
 
-  // ===== Phone Preview — SPLIT: text vs media =====
   function getPhoneTextState() {
     return {
       color: $('cfgColor')?.value || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6',
@@ -1213,26 +1121,20 @@ async function boot() {
   }
 
   function computeMediaHash(media) {
-    // Simple hash to detect media changes without deep compare
-    return (media.logoSrc ? '1' : '0') + (media.centerLogoSrc ? '1' : '0') + (media.adImgSrc ? 'i' : '') + (media.adVidSrc ? 'v' : '') +
-      (media.logoSrc ? media.logoSrc.length : 0) + (media.centerLogoSrc ? media.centerLogoSrc.length : 0);
+    return (media.logoSrc ? '1' : '0') + (media.centerLogoSrc ? '1' : '0') + (media.adImgSrc ? 'i' : '') + (media.adVidSrc ? 'v' : '') + (media.logoSrc ? media.logoSrc.length : 0) + (media.centerLogoSrc ? media.centerLogoSrc.length : 0);
   }
 
-  // Update only text portions of the phone preview
   function updatePhonePreviewText() {
     const t = getPhoneTextState();
     const media = getPhoneMediaState();
     const mediaHash = computeMediaHash(media);
     const mediaChanged = mediaHash !== _lastMediaHash;
     _lastMediaHash = mediaHash;
-
-    // If media changed, do a full rebuild
     if (mediaChanged || !$('phoneScreen').hasChildNodes()) {
       renderFullPhonePreview(t, media);
       return;
     }
 
-    // Incremental text update — find and update specific elements
     const screen = $('phoneScreen');
     const headerName = screen.querySelector('[data-pp="name"]');
     const headerSmall = screen.querySelector('[data-pp="small"]');
@@ -1251,24 +1153,15 @@ async function boot() {
     if (headerBg) headerBg.style.background = `linear-gradient(135deg,${t.color},${t.color}dd)`;
   }
 
-  function updatePhonePreviewMedia() {
-    const t = getPhoneTextState();
-    const media = getPhoneMediaState();
-    _lastMediaHash = computeMediaHash(media);
-    renderFullPhonePreview(t, media);
-  }
+  function updatePhonePreviewMedia() { const t = getPhoneTextState(); const media = getPhoneMediaState(); _lastMediaHash = computeMediaHash(media); renderFullPhonePreview(t, media); }
 
   function renderFullPhonePreview(t, media) {
     const screen = $('phoneScreen');
-    // Build ad media section — NO autoplay video in preview
     let adHtml = '';
     if (media.adImgSrc || media.adVidSrc) {
       adHtml = `<div style="padding:0 16px 12px">
         <div data-pp="adtext" style="font-size:9px;color:#9ca3af;margin-bottom:4px">${esc(t.adText) || 'Advertisement'}</div>
-        ${media.adVidSrc
-          ? `<div style="background:#f3f4f6;border-radius:8px;padding:10px;text-align:center;font-size:10px;color:#6b7280">🎬 Video Ad</div>`
-          : `<img src="${media.adImgSrc}" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display='none'"/>`
-        }
+        ${media.adVidSrc ? `<div style="background:#f3f4f6;border-radius:8px;padding:10px;text-align:center;font-size:10px;color:#6b7280">🎬 Video Ad</div>` : `<img src="${media.adImgSrc}" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display='none'"/>`}
       </div>`;
     }
 
@@ -1290,14 +1183,10 @@ async function boot() {
     `;
   }
 
-  function esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-  // ===== Counters =====
   function setupCountersUI() {
-    $('addCounterBtn').onclick = () => {
-      const form = $('addCounterForm');
-      form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    };
+    $('addCounterBtn').onclick = () => { const form = $('addCounterForm'); form.style.display = form.style.display === 'none' ? 'block' : 'none'; };
     $('createCounterBtn').onclick = async () => {
       const name = $('newCounterName').value.trim();
       const prefix = $('newCounterPrefix').value.trim().toUpperCase();
@@ -1310,9 +1199,7 @@ async function boot() {
         $('newCounterName').value = '';
         $('newCounterPrefix').value = '';
         $('addCounterForm').style.display = 'none';
-      } catch (e) {
-        showToast('Failed: ' + e.message, 'error');
-      }
+      } catch (e) { showToast('Failed: ' + e.message, 'error'); }
     };
   }
 
@@ -1343,7 +1230,6 @@ async function boot() {
     });
   }
 
-  // ===== Announcements — delegate to announce.js module =====
   function setupAnnouncementsUI() {
     const annCtx = {
       tRef,
@@ -1386,7 +1272,6 @@ async function boot() {
     }, 100);
   }
 
-  // ===== Audit =====
   function setupAuditUI() {
     onValue(tRef('audit'), snap => {
       const list = $('auditList');
@@ -1397,7 +1282,100 @@ async function boot() {
     });
   }
 
-  // Initial phone preview
+  function getRowTs(row) {
+    if (!row || typeof row !== 'object') return 0;
+    const candidates = [row.createdAt, row.joinedAt, row.updatedAt, row.completedAt, row.timestamp];
+    for (const v of candidates) {
+      if (typeof v === 'number' && isFinite(v)) return v;
+      if (typeof v === 'string') {
+        const t = Date.parse(v);
+        if (!isNaN(t)) return t;
+      }
+    }
+    return 0;
+  }
+
+  function getEventTs(e) {
+    if (!e || typeof e !== 'object') return 0;
+    const candidates = [e.completedAt, e.timestamp, e.createdAt];
+    for (const v of candidates) {
+      if (typeof v === 'number' && isFinite(v)) return v;
+      if (typeof v === 'string') {
+        const t = Date.parse(v);
+        if (!isNaN(t)) return t;
+      }
+    }
+    return 0;
+  }
+
+  function setupMaintenanceUI() {
+    const result = $('cleanupResult');
+    const paint = (msg, ok) => {
+      if (!result) return;
+      result.style.display = 'block';
+      result.style.background = ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
+      result.style.color = ok ? 'var(--green)' : 'var(--red)';
+      result.textContent = msg;
+    };
+
+    $('cleanupOldBtn').onclick = async () => {
+      const days = parseInt($('cfgQueueRetentionDays')?.value || '7', 10);
+      try {
+        const out = await runDataCleanup({ mode: 'retention', retentionDays: days });
+        paint(`Cleaned ${out.deletedQueue} queue item(s) and ${out.deletedEvents} service event(s).`, true);
+        writeAudit('data_cleanup_retention', { retentionDays: days, ...out });
+      } catch (e) { paint(`Cleanup failed: ${e.message || e}`, false); }
+    };
+
+    $('hardResetBtn').onclick = async () => {
+      const ok = confirm('This will clear the live queue and analytics for this tenant. Continue?');
+      if (!ok) return;
+      try {
+        const out = await runDataCleanup({ mode: 'hard-reset' });
+        paint(`Reset done. Deleted ${out.deletedQueue} queue item(s) and ${out.deletedEvents} service event(s).`, true);
+        writeAudit('data_cleanup_hard_reset', out);
+      } catch (e) { paint(`Reset failed: ${e.message || e}`, false); }
+    };
+  }
+
+  async function runDataCleanup({ mode = 'retention', retentionDays = 7 } = {}) {
+    const updates = {};
+    let deletedQueue = 0;
+    let deletedEvents = 0;
+    const cutoff = mode === 'retention' && retentionDays > 0 ? Date.now() - retentionDays * 86400000 : null;
+
+    const [queueSnap, eventsSnap] = await Promise.all([get(tRef('queue')), get(tRef('analytics/serviceEvents'))]);
+
+    if (queueSnap.exists()) {
+      const queue = queueSnap.val() || {};
+      for (const [id, row] of Object.entries(queue)) {
+        const ts = getRowTs(row);
+        const shouldDelete = mode === 'hard-reset' || (cutoff && ts && ts < cutoff);
+        if (shouldDelete) { updates[`queue/${id}`] = null; deletedQueue++; }
+      }
+    }
+
+    if (eventsSnap.exists()) {
+      const events = eventsSnap.val() || {};
+      for (const [id, row] of Object.entries(events)) {
+        const ts = getEventTs(row);
+        const shouldDelete = mode === 'hard-reset' || (cutoff && ts && ts < cutoff);
+        if (shouldDelete) { updates[`analytics/serviceEvents/${id}`] = null; deletedEvents++; }
+      }
+    }
+
+    if (Object.keys(updates).length) await update(tRef(), updates);
+
+    queueData = [];
+    serviceEventsData = [];
+    updateDashboardCounts();
+    updateAnalyticsCounts();
+    updateAnalyticsCharts();
+    updateRawEventsTable();
+
+    return { deletedQueue, deletedEvents };
+  }
+
   updatePhonePreviewText();
 }
 
