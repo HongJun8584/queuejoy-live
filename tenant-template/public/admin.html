@@ -1,6 +1,3 @@
-
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,12 +9,35 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    :root{--primary:#667eea;--primary2:#764ba2;--bg:#0f172a;--card:rgba(255,255,255,0.06);--card-solid:#1e293b;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;--radius:14px;--transition-base:.2s cubic-bezier(.4,0,.2,1);--shadow-card:0 4px 24px rgba(0,0,0,0.2);--shadow-hover:0 8px 32px rgba(0,0,0,0.35)}
+    /* ====== THEME VARIABLES ====== */
+    :root{--primary:#667eea;--primary2:#764ba2;--bg:#0f172a;--card:rgba(255,255,255,0.06);--card-solid:#1e293b;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;--radius:14px;--transition-base:.2s cubic-bezier(.4,0,.2,1);--shadow-card:0 4px 24px rgba(0,0,0,0.2);--shadow-hover:0 8px 32px rgba(0,0,0,0.35);--topbar-bg:rgba(15,23,42,0.82);--sidebar-bg:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);--sidebar-border:#1e293b}
+
+    /* Light theme */
+    html.light{--bg:#f8fafc;--card:rgba(0,0,0,0.02);--card-solid:#ffffff;--border:rgba(0,0,0,0.08);--text:#1e293b;--text-muted:#64748b;--text-light:#94a3b8;--shadow-card:0 4px 24px rgba(0,0,0,0.06);--shadow-hover:0 8px 32px rgba(0,0,0,0.1);--topbar-bg:rgba(248,250,252,0.85);--sidebar-bg:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);--sidebar-border:#e2e8f0}
+    html.light .sidebar{border-right-color:var(--border)}
+    html.light .sidebar-brand h1{color:#1e293b}
+    html.light .sidebar-brand small{color:var(--text-muted)}
+    html.light .nav-item.active{color:var(--primary);background:rgba(102,126,234,0.08);border-color:rgba(102,126,234,0.15)}
+    html.light .topbar{border-bottom-color:var(--border)}
+    html.light .topbar h2{color:var(--text)}
+    html.light .input{background:rgba(0,0,0,0.02);border-color:var(--border);color:var(--text)}
+    html.light .input:focus{background:rgba(0,0,0,0.01)}
+    html.light .btn-secondary{background:rgba(0,0,0,0.04);color:var(--text-muted);border-color:var(--border)}
+    html.light .btn-secondary:hover:not(:disabled){background:rgba(0,0,0,0.08);color:var(--text)}
+    html.light .counter-row{background:rgba(0,0,0,0.01)}
+    html.light .counter-row:hover{background:rgba(0,0,0,0.03)}
+    html.light .stat-card{background:var(--card-solid);border-color:var(--border)}
+    html.light .auth-overlay{background:var(--bg)}
+    html.light .auth-card{background:var(--card-solid);border-color:var(--border)}
+    html.light .auth-card h2{color:var(--text)}
+    html.light .toast-success{background:rgba(16,185,129,0.95)}
+    html.light .toast-error{background:rgba(239,68,68,0.95)}
+
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
 
     /* Sidebar */
-    .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1)}
+    .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:var(--sidebar-bg);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1),background .3s}
     .sidebar-brand{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
     .sidebar-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.3);transition:transform var(--transition-base)}
     .sidebar-brand-icon:hover{transform:scale(1.08)}
@@ -35,13 +55,13 @@
 
     /* Main */
     .main{margin-left:260px;min-height:100vh;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
-    .topbar{position:sticky;top:0;z-index:50;background:rgba(15,23,42,0.82);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 8px rgba(0,0,0,0.15)}
+    .topbar{position:sticky;top:0;z-index:50;background:var(--topbar-bg);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 8px rgba(0,0,0,0.15);transition:background .3s}
     .topbar h2{font-size:18px;font-weight:700;transition:opacity .2s}
     .topbar-actions{display:flex;gap:8px;align-items:center}
     .content{padding:24px 28px}
 
     /* Cards */
-    .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-card);transition:box-shadow var(--transition-base),transform var(--transition-base),border-color var(--transition-base)}
+    .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-card);transition:box-shadow var(--transition-base),transform var(--transition-base),border-color var(--transition-base),background .3s}
     .card:hover{box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
     .card-header{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
 
@@ -58,6 +78,8 @@
     .btn-secondary.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
     .btn-danger{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
     .btn-danger:hover:not(:disabled){background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.35)}
+    .btn-warning{background:rgba(245,158,11,0.1);color:var(--amber);border:1px solid rgba(245,158,11,0.2)}
+    .btn-warning:hover:not(:disabled){background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.35)}
     .btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
 
     /* Inputs */
@@ -104,7 +126,7 @@
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
     /* Auth overlay */
-    .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+    .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;transition:background .3s}
     .auth-card{background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:36px;width:100%;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:authCardIn .4s cubic-bezier(.4,0,.2,1)}
     @keyframes authCardIn{from{opacity:0;transform:translateY(20px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
     .auth-card h2{font-size:22px;font-weight:800;margin-bottom:6px}
@@ -174,6 +196,19 @@
     /* Stat value transition */
     .stat-value{transition:all .3s ease}
 
+    /* Theme toggle */
+    .theme-toggle{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all var(--transition-base)}
+    .theme-toggle:hover{background:rgba(255,255,255,0.1);transform:scale(1.05)}
+
+    /* Reset page styles */
+    .reset-warning{padding:16px;border-radius:12px;border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.06);margin-bottom:16px;font-size:13px;color:var(--amber)}
+    .reset-danger{padding:16px;border-radius:12px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);margin-bottom:16px;font-size:13px;color:var(--red)}
+    .reset-result{padding:14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.02);font-size:13px;min-height:40px;margin-top:12px;white-space:pre-wrap;transition:all .3s}
+    .retention-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .retention-opt{padding:8px 16px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-muted);transition:all .2s}
+    .retention-opt:hover{border-color:var(--primary);transform:translateY(-1px)}
+    .retention-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
+
     /* Responsive */
     @media(max-width:1024px){
       .sidebar{transform:translateX(-100%)}
@@ -233,6 +268,7 @@
     <div class="nav-item" data-view="analytics"><span class="icon">📊</span>Analytics</div>
     <div class="nav-item" data-view="announcements"><span class="icon">📢</span>Announcements</div>
     <div class="nav-item" data-view="audit"><span class="icon">📋</span>Audit Logs</div>
+    <div class="nav-item" data-view="reset"><span class="icon">🧹</span>Data Cleanup</div>
     <div class="nav-item" data-view="account"><span class="icon">👤</span>Account</div>
   </nav>
   <div class="sidebar-footer">
@@ -251,6 +287,7 @@
   <div class="topbar">
     <h2 id="topbarTitle">Dashboard</h2>
     <div class="topbar-actions">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
       <button class="btn btn-primary btn-sm" id="savePublishBtn">💾 Save &amp; Publish</button>
       <button class="btn btn-secondary btn-sm" id="signOutBtn">Sign Out</button>
     </div>
@@ -410,6 +447,12 @@
         </div>
       </div>
 
+      <!-- Pie Chart -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">Status Distribution (Pie)</div>
+        <div class="chart-wrap" style="height:300px;max-width:400px;margin:0 auto"><canvas id="statusPieChart"></canvas></div>
+      </div>
+
       <div class="card">
         <div class="card-header">Service Events (Raw) <button class="btn btn-secondary btn-sm" id="exportCsvBtn">📥 Export CSV</button></div>
         <div id="rawEventsTable" style="overflow-x:auto;font-size:13px"></div>
@@ -430,6 +473,46 @@
       </div>
     </div>
 
+    <!-- ===== DATA CLEANUP / RESET ===== -->
+    <div class="view" id="view-reset">
+      <div class="card fade-in" style="margin-bottom:16px">
+        <div class="card-header">🧹 Data Cleanup</div>
+        <div class="reset-warning">
+          ⚠️ <strong>Clean Old Data</strong> removes queue records and analytics events older than the selected retention period. Settings, counters, Telegram connections, and audit logs are <strong>NOT</strong> deleted.
+        </div>
+        <label class="field-label" style="margin-top:0">Retention Period</label>
+        <div class="retention-selector" id="retentionSelector">
+          <div class="retention-opt" data-retention="0">Never</div>
+          <div class="retention-opt selected" data-retention="1">1 Day</div>
+          <div class="retention-opt" data-retention="7">1 Week</div>
+          <div class="retention-opt" data-retention="30">1 Month</div>
+        </div>
+        <button class="btn btn-warning" id="cleanOldDataBtn">🧹 Clean Old Data</button>
+        <div class="reset-result" id="cleanResult" style="display:none"></div>
+      </div>
+
+      <div class="card fade-in" style="animation-delay:.1s">
+        <div class="card-header">🔴 Hard Reset</div>
+        <div class="reset-danger">
+          🚨 <strong>Hard Reset</strong> will:<br>
+          • Delete ALL queue items<br>
+          • Reset queue numbering (nextTicket, nowServing, etc.) to zero<br>
+          • Delete ALL analytics service events<br>
+          • Dashboard will show all zeros immediately<br><br>
+          This does <strong>NOT</strong> delete: business settings, counters, Telegram connections, audit logs.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-danger" id="hardResetBtn">🔴 Hard Reset</button>
+          <span id="hardResetConfirmWrap" style="display:none">
+            <span style="font-size:12px;color:var(--red);font-weight:700;margin-right:8px">Are you sure?</span>
+            <button class="btn btn-danger btn-sm" id="hardResetConfirmBtn">Yes, Reset Now</button>
+            <button class="btn btn-secondary btn-sm" id="hardResetCancelBtn">Cancel</button>
+          </span>
+        </div>
+        <div class="reset-result" id="resetResult" style="display:none"></div>
+      </div>
+    </div>
+
     <!-- ===== ACCOUNT ===== -->
     <div class="view" id="view-account">
       <div class="card fade-in" style="max-width:480px">
@@ -447,23 +530,23 @@
 <script>
   (function loadAnnounceModule() {
     if (window.__announceModule && typeof window.__announceModule.init === 'function') return;
-    const s = document.createElement('script');
+    var s = document.createElement('script');
     s.src = '/announce.js';
     s.defer = true;
-    s.onload = () => { console.log('announce.js loaded'); };
-    s.onerror = () => { console.error('Failed to load /announce.js'); };
+    s.onload = function() { console.log('announce.js loaded'); };
+    s.onerror = function() { console.error('Failed to load /announce.js'); };
     document.head.appendChild(s);
   })();
 </script>
 
 <script type="module">
 // ============================================================
-// QueueJoy Admin — Optimized: lazy media, debounced preview,
-// slim config, analytics filters, announcement retry
+// QueueJoy Admin — Full: esc fix, theme, reset page, pie chart,
+// performance optimizations, announcement integration
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-import { getDatabase, ref, onValue, get, set, update, push, child } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import { getDatabase, ref, onValue, get, set, update, push, child, remove } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 const FIREBASE_CONFIG = {
@@ -477,24 +560,37 @@ const FIREBASE_CONFIG = {
   measurementId: "G-KWBELWRC5M"
 };
 
+// ===== GLOBAL esc() function — CRITICAL FIX =====
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ===== Helpers =====
 const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
-function showToast(msg, type='success', ms=3000) {
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
+function showToast(msg, type, ms) {
+  type = type || 'success';
+  ms = ms || 3000;
+  var t = document.createElement('div');
+  t.className = 'toast toast-' + type;
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; setTimeout(() => t.remove(), 300); }, ms);
+  setTimeout(function() { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; setTimeout(function() { t.remove(); }, 300); }, ms);
 }
 function formatDate(ts) {
   if (!ts) return '—';
-  try { return new Date(ts).toLocaleString(); } catch { return '—'; }
+  try { return new Date(ts).toLocaleString(); } catch(e) { return '—'; }
 }
-function genId(prefix='') { return prefix + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
+function genId(prefix) { prefix = prefix || ''; return prefix + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
 function fileToDataUrl(file) {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+  return new Promise(function(res, rej) { var r = new FileReader(); r.onload = function() { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); });
 }
 function detectMediaType(file) {
   if (!file) return 'unknown';
@@ -510,88 +606,117 @@ function formatBytes(b) {
   return (b / 1048576).toFixed(1) + ' MB';
 }
 
+// ===== THEME =====
+function initTheme() {
+  var saved = localStorage.getItem('qj-theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    $('themeToggle').textContent = '☀️';
+  }
+}
+initTheme();
+
+$('themeToggle').addEventListener('click', function() {
+  var isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
+  $('themeToggle').textContent = isLight ? '☀️' : '🌙';
+  // Update chart colors if charts exist
+  updateChartTheme();
+});
+
+function getChartTextColor() {
+  return document.documentElement.classList.contains('light') ? '#64748b' : '#94a3b8';
+}
+function getChartGridColor() {
+  return document.documentElement.classList.contains('light') ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
+}
+
 // ===== LAZY MEDIA PREVIEW =====
-// Track active object URLs for cleanup
-let _activeObjectUrls = [];
+var _activeObjectUrls = [];
 function revokeOldUrls() {
-  _activeObjectUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+  _activeObjectUrls.forEach(function(u) { try { URL.revokeObjectURL(u); } catch(e) {} });
   _activeObjectUrls = [];
 }
 
 function createMediaPreview(src, container, mediaType, fileName, fileSize) {
   if (!container) return;
-  // Clean up old video elements
-  const oldVid = container.querySelector('video');
-  if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); oldVid.load(); }
-  container.innerHTML = '';
-  if (!src) return;
+  try {
+    var oldVid = container.querySelector('video');
+    if (oldVid) { oldVid.pause(); try { oldVid.removeAttribute('src'); oldVid.load(); } catch(e){} }
+    container.innerHTML = '';
+    if (!src) return;
 
-  const isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || /\.(mp4|webm|mov)/i.test(src)));
+    var isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || /\.(mp4|webm|mov)/i.test(src)));
 
-  if (isVideo) {
-    // Lazy placeholder — no autoplay, no preload
-    const placeholder = document.createElement('div');
-    placeholder.className = 'media-placeholder';
-    placeholder.innerHTML = `
-      <div class="mp-meta"><span class="mp-icon">🎬</span><div><div style="font-weight:600;font-size:12px;color:var(--text)">${esc(fileName || 'Video')}</div>${fileSize ? `<div style="font-size:10px;color:var(--text-light)">${formatBytes(fileSize)}</div>` : ''}</div></div>
-      <button class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>
-    `;
-    const loadBtn = placeholder.querySelector('.mp-load-btn');
-    loadBtn.addEventListener('click', () => {
-      loadBtn.innerHTML = '<span class="spinner"></span> Loading...';
-      loadBtn.disabled = true;
-      const v = document.createElement('video');
-      v.preload = 'none';
-      v.controls = true;
-      v.muted = true;
-      v.playsInline = true;
-      v.className = 'preview-media';
-      v.style.maxWidth = '240px';
-      v.style.maxHeight = '160px';
-      v.onloadeddata = () => { placeholder.replaceWith(v); };
-      v.onerror = () => { loadBtn.textContent = '⚠️ Failed to load'; loadBtn.disabled = false; };
-      v.src = src;
-      v.load();
-    });
-    container.appendChild(placeholder);
-  } else {
-    const img = document.createElement('img');
-    img.src = src;
-    img.className = 'preview-media';
-    img.loading = 'lazy';
-    container.appendChild(img);
+    if (isVideo) {
+      var placeholder = document.createElement('div');
+      placeholder.className = 'media-placeholder';
+      placeholder.innerHTML =
+        '<div class="mp-meta"><span class="mp-icon">🎬</span><div><div style="font-weight:600;font-size:12px;color:var(--text)">' + esc(fileName || 'Video') + '</div>' + (fileSize ? '<div style="font-size:10px;color:var(--text-light)">' + formatBytes(fileSize) + '</div>' : '') + '</div></div>' +
+        '<button class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>';
+      var loadBtn = placeholder.querySelector('.mp-load-btn');
+      loadBtn.addEventListener('click', function() {
+        loadBtn.innerHTML = '<span class="spinner"></span> Loading...';
+        loadBtn.disabled = true;
+        var v = document.createElement('video');
+        v.preload = 'none';
+        v.controls = true;
+        v.muted = true;
+        v.playsInline = true;
+        v.className = 'preview-media';
+        v.style.maxWidth = '240px';
+        v.style.maxHeight = '160px';
+        v.onloadeddata = function() { placeholder.replaceWith(v); };
+        v.onerror = function() { loadBtn.textContent = '⚠️ Failed to load'; loadBtn.disabled = false; };
+        v.src = src;
+        v.load();
+      });
+      container.appendChild(placeholder);
+    } else {
+      var img = document.createElement('img');
+      img.src = src;
+      img.className = 'preview-media';
+      img.loading = 'lazy';
+      container.appendChild(img);
+    }
+  } catch (err) {
+    console.error('Safe render error (createMediaPreview):', err);
   }
 }
 
-function compressImage(file, maxW=800, quality=0.7) {
-  return new Promise(resolve => {
+function compressImage(file, maxW, quality) {
+  maxW = maxW || 800;
+  quality = quality || 0.7;
+  return new Promise(function(resolve) {
     if (!file.type.startsWith('image/') || file.type === 'image/gif') {
       fileToDataUrl(file).then(resolve);
       return;
     }
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function() {
       URL.revokeObjectURL(url);
-      let w = img.width, h = img.height;
+      var w = img.width, h = img.height;
       if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
-      const canvas = document.createElement('canvas');
+      var canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      const cx = canvas.getContext('2d');
+      var cx = canvas.getContext('2d');
       cx.drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL('image/jpeg', quality));
     };
-    img.onerror = () => { URL.revokeObjectURL(url); fileToDataUrl(file).then(resolve); };
+    img.onerror = function() { URL.revokeObjectURL(url); fileToDataUrl(file).then(resolve); };
     img.src = url;
   });
 }
 
 // ===== DEBOUNCE UTILITY =====
 function debounce(fn, ms) {
-  let timer;
-  return function(...args) {
+  var timer;
+  return function() {
+    var args = arguments;
+    var self = this;
     clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), ms);
+    timer = setTimeout(function() { fn.apply(self, args); }, ms);
   };
 }
 
@@ -601,18 +726,19 @@ function debounce(fn, ms) {
 function deepCleanConfig(obj) {
   if (obj === null || obj === undefined) return undefined;
   if (typeof obj === 'string') {
-    const trimmed = obj.trim();
+    var trimmed = obj.trim();
     return trimmed.length > 0 ? trimmed : undefined;
   }
   if (Array.isArray(obj)) {
-    const cleaned = obj.map(deepCleanConfig).filter(v => v !== undefined);
+    var cleaned = obj.map(deepCleanConfig).filter(function(v) { return v !== undefined; });
     return cleaned.length > 0 ? cleaned : undefined;
   }
   if (typeof obj === 'object') {
-    const result = {};
-    for (const [key, value] of Object.entries(obj)) {
-      const cleaned = deepCleanConfig(value);
-      if (cleaned !== undefined) result[key] = cleaned;
+    var result = {};
+    for (var key in obj) {
+      if (!obj.hasOwnProperty(key)) continue;
+      var cv = deepCleanConfig(obj[key]);
+      if (cv !== undefined) result[key] = cv;
     }
     return Object.keys(result).length > 0 ? result : undefined;
   }
@@ -620,55 +746,47 @@ function deepCleanConfig(obj) {
 }
 
 function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
-  const raw = {};
+  var raw = {};
   raw.createdAt = currentConfig.createdAt || Date.now();
   raw.updatedAt = Date.now();
+  raw.displayName = $('cfgDisplayName') ? $('cfgDisplayName').value : '';
+  raw.smallTextOnTop = $('cfgSmallTextOnTop') ? $('cfgSmallTextOnTop').value : '';
+  raw.mainHeading = $('cfgMainHeading') ? $('cfgMainHeading').value : '';
+  raw.description = $('cfgDescription') ? $('cfgDescription').value : '';
+  raw.buttonText = $('cfgButtonText') ? $('cfgButtonText').value : '';
+  raw.adText = $('cfgAdText') ? $('cfgAdText').value : '';
+  raw.timezone = $('cfgTimezone') ? $('cfgTimezone').value : 'Asia/Kuala_Lumpur';
 
-  // Business identity — only include non-empty
-  raw.displayName = $('cfgDisplayName')?.value;
-  raw.smallTextOnTop = $('cfgSmallTextOnTop')?.value;
-  raw.mainHeading = $('cfgMainHeading')?.value;
-  raw.description = $('cfgDescription')?.value;
-  raw.buttonText = $('cfgButtonText')?.value;
-  raw.adText = $('cfgAdText')?.value;
-  raw.timezone = $('cfgTimezone')?.value;
+  var color = $('cfgColor') ? $('cfgColor').value : '#8b5cf6';
+  if (color) raw.theme = { color: color };
 
-  // Theme — only color
-  const color = $('cfgColor')?.value;
-  if (color) raw.theme = { color };
-
-  // Logos — resolve from pending upload or existing
-  const logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
+  var logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
   if (logoUrl) raw.logoUrl = logoUrl;
 
-  const centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
+  var centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
-  // Ad — nested object
-  const adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
-  const adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
-  const adLink = $('cfgAdLink')?.value;
+  var adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
+  var adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
+  var adLink = $('cfgAdLink') ? $('cfgAdLink').value : '';
 
-  const ad = {};
+  var ad = {};
   if (adVideo) ad.video = adVideo;
   if (adImage && !adVideo) ad.image = adImage;
   if (adLink && adLink.trim()) ad.link = adLink.trim();
   if (Object.keys(ad).length > 0) raw.ad = ad;
-
-  // Do NOT include slug, tenantId — those are in /meta, not config
-  // Do NOT include preview-only state
 
   return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
 }
 
 // ===== Slug resolution =====
 function getSlug() {
-  const p = new URLSearchParams(window.location.search);
-  const s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
+  var p = new URLSearchParams(window.location.search);
+  var s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
   if (s && s.trim()) return s.trim();
-  const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  var path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
   if (path.length >= 2 && path[0].includes('admin')) {
-    const slug = path[1];
+    var slug = path[1];
     if (slug && !slug.includes('.')) {
       window.location.href = window.location.origin + '/admin.html?slug=' + encodeURIComponent(slug);
       return null;
@@ -679,79 +797,84 @@ function getSlug() {
 
 // ===== Boot =====
 async function boot() {
-  const slug = getSlug();
+  var slug = getSlug();
   if (!slug) {
-    $('authOverlay').innerHTML = `<div class="auth-card"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h2>Missing Tenant Slug</h2><p style="margin-bottom:12px">Access the admin with a valid slug:</p><code style="display:block;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;word-break:break-all;margin-bottom:12px">${window.location.origin}/admin.html?slug=your-slug</code><p style="font-size:11px;color:var(--text-light)">If you used <code>/admin.html/your-slug</code>, use <code>?slug=your-slug</code> instead.</p></div>`;
+    $('authOverlay').innerHTML = '<div class="auth-card"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h2>Missing Tenant Slug</h2><p style="margin-bottom:12px">Access the admin with a valid slug:</p><code style="display:block;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;word-break:break-all;margin-bottom:12px">' + window.location.origin + '/admin.html?slug=your-slug</code><p style="font-size:11px;color:var(--text-light)">If you used <code>/admin.html/your-slug</code>, use <code>?slug=your-slug</code> instead.</p></div>';
     return;
   }
 
-  let tenantId = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
+  var tenantId = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
   try {
-    const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+    var res = await fetch('/.netlify/functions/get-tenant?slug=' + encodeURIComponent(slug), { cache: 'no-store' });
     if (res.ok) {
-      const j = await res.json();
+      var j = await res.json();
       tenantId = j.tenantId || j.tenant || tenantId;
     }
-  } catch {}
+  } catch(e) {}
 
   window.__TENANT_SLUG = slug;
   window.__TENANT_ID = tenantId;
 
-  const app = initializeApp(FIREBASE_CONFIG);
-  const db = getDatabase(app);
-  const auth = getAuth(app);
+  var app = initializeApp(FIREBASE_CONFIG);
+  var db = getDatabase(app);
+  var auth = getAuth(app);
 
-  function tRef(path = '') {
+  function tRef(path) {
     path = String(path || '').replace(/^\/+/, '');
-    const base = `tenants/${tenantId}`;
-    return path ? ref(db, `${base}/${path}`) : ref(db, base);
+    var base = 'tenants/' + tenantId;
+    return path ? ref(db, base + '/' + path) : ref(db, base);
   }
 
-  async function writeAudit(action, details = {}) {
+  async function writeAudit(action, details) {
+    details = details || {};
     try {
-      const auditRef = push(tRef('audit'));
-      await set(auditRef, { action, details, by: auth.currentUser?.email || 'unknown', ts: Date.now() });
-    } catch {}
+      var auditRef = push(tRef('audit'));
+      await set(auditRef, { action: action, details: details, by: auth.currentUser ? auth.currentUser.email : 'unknown', ts: Date.now() });
+    } catch(e) {}
   }
 
   async function bootstrapTenant() {
-    const seeds = [
+    var seeds = [
       ['public/config', { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, timezone: 'Asia/Kuala_Lumpur' }],
       ['queue', null],
       ['counters', null],
       ['analytics/serviceEvents', null]
     ];
-    for (const [path, defaultVal] of seeds) {
+    for (var i = 0; i < seeds.length; i++) {
+      var path = seeds[i][0];
+      var defaultVal = seeds[i][1];
       try {
-        const snap = await get(tRef(path));
+        var snap = await get(tRef(path));
         if (!snap.exists() && defaultVal !== null) await set(tRef(path), defaultVal);
-      } catch {}
+      } catch(e) {}
     }
   }
 
   // ===== State =====
-  let currentConfig = {};
-  let queueData = [];
-  let serviceEventsData = [];
-  let countersData = {};
-  let pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
-  let queueTrendChart = null;
-  let counterPerfChart = null;
-  let saving = false;
-  let analyticsRange = 7; // default: 7 days
-  let _lastMediaHash = ''; // track media changes for phone preview
+  var currentConfig = {};
+  var queueData = [];
+  var serviceEventsData = [];
+  var countersData = {};
+  var pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+  var queueTrendChart = null;
+  var counterPerfChart = null;
+  var statusPieChart = null;
+  var saving = false;
+  var analyticsRange = 7;
+  var _lastMediaHash = '';
+  var selectedRetention = 1; // days
 
   // ===== Auth =====
-  $('authSignInBtn').onclick = async () => {
-    const email = $('authEmail').value.trim();
-    const pw = $('authPassword').value;
+  $('authSignInBtn').onclick = async function() {
+    var email = $('authEmail').value.trim();
+    var pw = $('authPassword').value;
     if (!email || !pw) { $('authError').style.display = 'block'; $('authError').textContent = 'Enter email and password'; return; }
     $('authSignInBtn').disabled = true;
     $('authBtnText').style.display = 'none';
     $('authBtnSpinner').style.display = 'inline';
     $('authError').style.display = 'none';
     try {
-      const remember = $('authRemember').checked;
+      var remember = $('authRemember').checked;
       await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email, pw);
     } catch (e) {
@@ -763,20 +886,20 @@ async function boot() {
       $('authBtnSpinner').style.display = 'none';
     }
   };
-  $('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') $('authSignInBtn').click(); });
+  $('authPassword').addEventListener('keydown', function(e) { if (e.key === 'Enter') $('authSignInBtn').click(); });
 
   function doSignOut() { signOut(auth); }
   $('signOutBtn').onclick = doSignOut;
   $('accountSignOut').onclick = doSignOut;
 
-  onAuthStateChanged(auth, user => {
+  onAuthStateChanged(auth, function(user) {
     if (user) {
       $('authOverlay').style.display = 'none';
       $('mainArea').style.display = 'block';
       $('accountEmail').textContent = user.email;
       $('accountTenantId').textContent = tenantId;
       $('accountSlug').textContent = slug;
-      $('sidebarSlug').innerHTML = `<small style="opacity:.7">slug:</small> <strong>${slug}</strong>`;
+      $('sidebarSlug').innerHTML = '<small style="opacity:.7">slug:</small> <strong>' + esc(slug) + '</strong>';
       initApp();
       writeAudit('login');
     } else {
@@ -786,13 +909,13 @@ async function boot() {
   });
 
   // ===== Navigation =====
-  $$('.nav-item[data-view]').forEach(item => {
-    item.addEventListener('click', () => {
-      $$('.nav-item').forEach(i => i.classList.remove('active'));
+  $$('.nav-item[data-view]').forEach(function(item) {
+    item.addEventListener('click', function() {
+      $$('.nav-item').forEach(function(i) { i.classList.remove('active'); });
       item.classList.add('active');
-      const v = item.dataset.view;
-      $$('.view').forEach(el => el.classList.remove('active'));
-      const viewEl = $('view-' + v);
+      var v = item.dataset.view;
+      $$('.view').forEach(function(el) { el.classList.remove('active'); });
+      var viewEl = $('view-' + v);
       if (viewEl) {
         viewEl.classList.add('active');
         viewEl.style.animation = 'none';
@@ -804,10 +927,10 @@ async function boot() {
       if (window.innerWidth <= 1024) $('sidebar').classList.remove('open');
     });
   });
-  $('mobileMenuBtn').onclick = () => $('sidebar').classList.toggle('open');
+  $('mobileMenuBtn').onclick = function() { $('sidebar').classList.toggle('open'); };
 
   // ===== Init app after auth =====
-  let appInitialized = false;
+  var appInitialized = false;
   async function initApp() {
     if (appInitialized) return;
     appInitialized = true;
@@ -818,90 +941,107 @@ async function boot() {
     setupAnnouncementsUI();
     setupAuditUI();
     setupAnalyticsFilter();
+    setupResetUI();
   }
 
   // ===== Firebase listeners =====
   function setupListeners() {
-    onValue(tRef('public/config'), snap => {
-      if (!snap.exists()) return;
-      currentConfig = snap.val() || {};
-      populateSettingsForm(currentConfig);
-      schedulePhonePreview();
-      if (currentConfig.displayName) {
-        $('sidebarTitle').textContent = currentConfig.displayName;
-        document.title = currentConfig.displayName + ' — Admin';
+    onValue(tRef('public/config'), function(snap) {
+      try {
+        if (!snap.exists()) return;
+        currentConfig = snap.val() || {};
+        populateSettingsForm(currentConfig);
+        schedulePhonePreview();
+        if (currentConfig.displayName) {
+          $('sidebarTitle').textContent = currentConfig.displayName;
+          document.title = currentConfig.displayName + ' — Admin';
+        }
+      } catch (err) {
+        console.error('Safe render error (config listener):', err);
       }
     });
 
-    onValue(tRef('queue'), snap => {
-      queueData = [];
-      if (snap.exists()) {
-        const obj = snap.val() || {};
-        queueData = Object.entries(obj).map(([key, q]) => {
-          if (!q || typeof q !== 'object') return null;
-          let ts = null;
-          if (typeof q.createdAt === 'number') ts = q.createdAt;
-          else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
-          if (!ts || isNaN(ts)) {
-            if (typeof q.joinedAt === 'number') ts = q.joinedAt;
-            else if (typeof q.joinedAt === 'string') ts = Date.parse(q.joinedAt);
+    onValue(tRef('queue'), function(snap) {
+      try {
+        queueData = [];
+        if (snap.exists()) {
+          var obj = snap.val() || {};
+          var entries = Object.entries(obj);
+          for (var i = 0; i < entries.length; i++) {
+            var key = entries[i][0];
+            var q = entries[i][1];
+            if (!q || typeof q !== 'object') continue;
+            var ts = null;
+            if (typeof q.createdAt === 'number') ts = q.createdAt;
+            else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
+            if (!ts || isNaN(ts)) {
+              if (typeof q.joinedAt === 'number') ts = q.joinedAt;
+              else if (typeof q.joinedAt === 'string') ts = Date.parse(q.joinedAt);
+            }
+            if (!ts || isNaN(ts)) {
+              if (typeof q.updatedAt === 'number') ts = q.updatedAt;
+              else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
+            }
+            var rawStatus = String(q.status || '').trim().toLowerCase();
+            var classifiedStatus = 'unknown';
+            if (['completed', 'served', 'done'].includes(rawStatus)) classifiedStatus = 'completed';
+            else if (['serving', 'called'].includes(rawStatus)) classifiedStatus = 'serving';
+            else if (['cancelled', 'canceled'].includes(rawStatus)) classifiedStatus = 'cancelled';
+            else if (q.canceledAt || q.canceledBy) classifiedStatus = 'cancelled';
+            else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) classifiedStatus = 'cancelled';
+            else if (rawStatus === 'waiting') classifiedStatus = 'waiting';
+
+            queueData.push(Object.assign({}, q, { _key: key, _ts: ts, _status: classifiedStatus }));
           }
-          if (!ts || isNaN(ts)) {
-            if (typeof q.updatedAt === 'number') ts = q.updatedAt;
-            else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
-          }
-          const rawStatus = String(q.status || '').trim().toLowerCase();
-          let classifiedStatus = 'unknown';
-          if (['completed', 'served', 'done'].includes(rawStatus)) {
-            classifiedStatus = 'completed';
-          } else if (['serving', 'called'].includes(rawStatus)) {
-            classifiedStatus = 'serving';
-          } else if (['cancelled', 'canceled'].includes(rawStatus)) {
-            classifiedStatus = 'cancelled';
-          } else if (q.canceledAt || q.canceledBy) {
-            classifiedStatus = 'cancelled';
-          } else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) {
-            classifiedStatus = 'cancelled';
-          } else if (rawStatus === 'waiting') {
-            classifiedStatus = 'waiting';
-          }
-          // Empty status with no explicit "waiting" = unknown (stale entry)
-          return { ...q, _key: key, _ts: ts, _status: classifiedStatus };
-        }).filter(q => q !== null);
+        }
+        updateDashboardCounts();
+        updateAnalyticsCounts();
+        updateAnalyticsCharts();
+      } catch (err) {
+        console.error('Safe render error (queue listener):', err);
       }
-      updateDashboardCounts();
-      updateAnalyticsCounts();
-      updateAnalyticsCharts();
     });
 
-    onValue(tRef('analytics/serviceEvents'), snap => {
-      serviceEventsData = [];
-      if (snap.exists()) {
-        const obj = snap.val() || {};
-        serviceEventsData = Object.values(obj).filter(e => e && typeof e === 'object' && typeof e.serviceMs === 'number');
+    onValue(tRef('analytics/serviceEvents'), function(snap) {
+      try {
+        serviceEventsData = [];
+        if (snap.exists()) {
+          var obj = snap.val() || {};
+          var vals = Object.values(obj);
+          for (var i = 0; i < vals.length; i++) {
+            var e = vals[i];
+            if (e && typeof e === 'object' && typeof e.serviceMs === 'number') serviceEventsData.push(e);
+          }
+        }
+        updateDashboardCounts();
+        updateAnalyticsCounts();
+        updateAnalyticsCharts();
+        updateRawEventsTable();
+      } catch (err) {
+        console.error('Safe render error (events listener):', err);
       }
-      updateDashboardCounts();
-      updateAnalyticsCounts();
-      updateAnalyticsCharts();
-      updateRawEventsTable();
     });
 
-    onValue(tRef('counters'), snap => {
-      countersData = snap.exists() ? (snap.val() || {}) : {};
-      renderCounters();
-      const activeCount = Object.values(countersData).filter(c => c && c.active).length;
-      $('dCounters').textContent = activeCount;
+    onValue(tRef('counters'), function(snap) {
+      try {
+        countersData = snap.exists() ? (snap.val() || {}) : {};
+        renderCounters();
+        var activeCount = Object.values(countersData).filter(function(c) { return c && c.active; }).length;
+        $('dCounters').textContent = activeCount;
+      } catch (err) {
+        console.error('Safe render error (counters listener):', err);
+      }
     });
   }
 
   // ===== Analytics time filter =====
   function setupAnalyticsFilter() {
-    const filterContainer = $('analyticsTimeFilter');
+    var filterContainer = $('analyticsTimeFilter');
     if (!filterContainer) return;
-    filterContainer.addEventListener('click', e => {
-      const btn = e.target.closest('[data-range]');
+    filterContainer.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-range]');
       if (!btn) return;
-      filterContainer.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+      filterContainer.querySelectorAll('.tf-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       analyticsRange = parseInt(btn.dataset.range) || 0;
       updateAnalyticsCounts();
@@ -911,27 +1051,26 @@ async function boot() {
   }
 
   function getFilterCutoff() {
-    if (analyticsRange <= 0) return 0; // all time
-    const now = Date.now();
-    return now - (analyticsRange * 86400000);
+    if (analyticsRange <= 0) return 0;
+    return Date.now() - (analyticsRange * 86400000);
   }
 
   function filterByTime(items, tsField) {
-    const cutoff = getFilterCutoff();
+    var cutoff = getFilterCutoff();
     if (cutoff <= 0) return items;
-    return items.filter(item => {
-      const t = item[tsField] || item._ts || item.timestamp || item.completedAt || item.createdAt || 0;
+    return items.filter(function(item) {
+      var t = item[tsField] || item._ts || item.timestamp || item.completedAt || item.createdAt || 0;
       return typeof t === 'number' && t >= cutoff;
     });
   }
 
-  // ===== Dashboard counts (always show ALL current state) =====
+  // ===== Dashboard counts =====
   function updateDashboardCounts() {
-    const waiting = queueData.filter(q => q._status === 'waiting').length;
-    const serving = queueData.filter(q => q._status === 'serving').length;
-    const cancelled = queueData.filter(q => q._status === 'cancelled').length;
-    const completedQ = queueData.filter(q => q._status === 'completed').length;
-    const totalCompleted = Math.max(completedQ, serviceEventsData.length);
+    var waiting = queueData.filter(function(q) { return q._status === 'waiting'; }).length;
+    var serving = queueData.filter(function(q) { return q._status === 'serving'; }).length;
+    var cancelled = queueData.filter(function(q) { return q._status === 'cancelled'; }).length;
+    var completedQ = queueData.filter(function(q) { return q._status === 'completed'; }).length;
+    var totalCompleted = Math.max(completedQ, serviceEventsData.length);
 
     $('dTotalQ').textContent = queueData.length;
     $('dWaiting').textContent = waiting;
@@ -939,9 +1078,9 @@ async function boot() {
     $('dCompleted').textContent = totalCompleted;
     $('dCancelled').textContent = cancelled;
 
-    const validEvents = serviceEventsData.filter(e => e.serviceMs > 0);
+    var validEvents = serviceEventsData.filter(function(e) { return e.serviceMs > 0; });
     if (validEvents.length > 0) {
-      const avgMs = validEvents.reduce((s, e) => s + e.serviceMs, 0) / validEvents.length;
+      var avgMs = validEvents.reduce(function(s, e) { return s + e.serviceMs; }, 0) / validEvents.length;
       $('dAvgService').textContent = (avgMs / 60000).toFixed(1) + ' min';
       $('dEventCount').textContent = serviceEventsData.length;
     } else {
@@ -950,26 +1089,26 @@ async function boot() {
     }
   }
 
-  // ===== Analytics (filtered by time range) =====
+  // ===== Analytics =====
   function computeStats(arr) {
     if (!arr.length) return { avg: null, median: null, p90: null };
-    const xs = arr.slice().sort((a, b) => a - b);
-    const sum = xs.reduce((a, b) => a + b, 0);
-    const avg = sum / xs.length;
-    const median = xs.length % 2 ? xs[Math.floor(xs.length / 2)] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
-    const p90 = xs[Math.floor(xs.length * 0.9)] || xs[xs.length - 1];
-    return { avg, median, p90 };
+    var xs = arr.slice().sort(function(a, b) { return a - b; });
+    var sum = xs.reduce(function(a, b) { return a + b; }, 0);
+    var avg = sum / xs.length;
+    var median = xs.length % 2 ? xs[Math.floor(xs.length / 2)] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
+    var p90 = xs[Math.floor(xs.length * 0.9)] || xs[xs.length - 1];
+    return { avg: avg, median: median, p90: p90 };
   }
 
   function updateAnalyticsCounts() {
-    const filteredQueue = filterByTime(queueData, '_ts');
-    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+    var filteredQueue = filterByTime(queueData, '_ts');
+    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
 
-    const waiting = filteredQueue.filter(q => q._status === 'waiting').length;
-    const serving = filteredQueue.filter(q => q._status === 'serving').length;
-    const cancelled = filteredQueue.filter(q => q._status === 'cancelled').length;
-    const completedQ = filteredQueue.filter(q => q._status === 'completed').length;
-    const totalCompleted = Math.max(completedQ, filteredEvents.length);
+    var waiting = filteredQueue.filter(function(q) { return q._status === 'waiting'; }).length;
+    var serving = filteredQueue.filter(function(q) { return q._status === 'serving'; }).length;
+    var cancelled = filteredQueue.filter(function(q) { return q._status === 'cancelled'; }).length;
+    var completedQ = filteredQueue.filter(function(q) { return q._status === 'completed'; }).length;
+    var totalCompleted = Math.max(completedQ, filteredEvents.length);
 
     $('aTotalServed').textContent = totalCompleted;
     $('aCompleted').textContent = totalCompleted;
@@ -977,25 +1116,75 @@ async function boot() {
     $('aServing').textContent = serving;
     $('aCancelled').textContent = cancelled;
 
-    const validMs = filteredEvents.filter(e => e.serviceMs > 0).map(e => e.serviceMs / 60000);
-    const stats = computeStats(validMs);
+    var validMs = filteredEvents.filter(function(e) { return e.serviceMs > 0; }).map(function(e) { return e.serviceMs / 60000; });
+    var stats = computeStats(validMs);
     $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '—';
     $('aMedian').textContent = stats.median !== null ? stats.median.toFixed(1) : '—';
     $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '—';
   }
 
+  function updateChartTheme() {
+    var tc = getChartTextColor();
+    var gc = getChartGridColor();
+    [queueTrendChart, counterPerfChart].forEach(function(chart) {
+      if (!chart) return;
+      if (chart.options.scales && chart.options.scales.x) {
+        chart.options.scales.x.ticks.color = tc;
+        chart.options.scales.x.grid.color = gc;
+      }
+      if (chart.options.scales && chart.options.scales.y) {
+        chart.options.scales.y.ticks.color = tc;
+        chart.options.scales.y.grid.color = gc;
+      }
+      chart.update('none');
+    });
+    if (statusPieChart) {
+      statusPieChart.options.plugins.legend.labels.color = tc;
+      statusPieChart.update('none');
+    }
+  }
+
   function initCharts() {
+    var tc = getChartTextColor();
+    var gc = getChartGridColor();
     if (!$('queueTrendChart')) return;
     if (!queueTrendChart) {
       queueTrendChart = new Chart($('queueTrendChart').getContext('2d'), {
-        type: 'line', data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2, pointBackgroundColor: '#667eea', pointRadius: 3, pointHoverRadius: 5 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2, pointBackgroundColor: '#667eea', pointRadius: 3, pointHoverRadius: 5 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: tc }, grid: { color: gc } }, x: { ticks: { color: tc }, grid: { color: gc } } } }
       });
     }
     if (!counterPerfChart) {
       counterPerfChart = new Chart($('counterPerfChart').getContext('2d'), {
-        type: 'bar', data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'], borderRadius: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.04)' } } } }
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'], borderRadius: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: tc }, grid: { color: gc } }, x: { ticks: { color: tc }, grid: { color: gc } } } }
+      });
+    }
+    if (!statusPieChart && $('statusPieChart')) {
+      statusPieChart = new Chart($('statusPieChart').getContext('2d'), {
+        type: 'pie',
+        data: {
+          labels: ['Completed', 'Waiting', 'Serving', 'Cancelled'],
+          datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#64748b'],
+            borderWidth: 2,
+            borderColor: 'transparent'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 400 },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: tc, font: { size: 12, weight: '600' }, padding: 16 }
+            }
+          }
+        }
       });
     }
     updateAnalyticsCharts();
@@ -1003,116 +1192,135 @@ async function boot() {
 
   function updateAnalyticsCharts() {
     if (!queueTrendChart) return;
-    const days = analyticsRange > 0 ? Math.min(analyticsRange, 30) : 7;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const labels = [], counts = [];
-    const filteredQueue = filterByTime(queueData, '_ts');
+    var days = analyticsRange > 0 ? Math.min(analyticsRange, 30) : 7;
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var labels = [], counts = [];
+    var filteredQueue = filterByTime(queueData, '_ts');
 
-    // Update chart title
-    const titleEl = $('queueTrendTitle');
+    var titleEl = $('queueTrendTitle');
     if (titleEl) {
-      const rangeText = analyticsRange <= 0 ? 'All Time' : `Last ${analyticsRange} Days`;
-      titleEl.textContent = `Queue Trend (${rangeText})`;
+      var rangeText = analyticsRange <= 0 ? 'All Time' : 'Last ' + analyticsRange + ' Days';
+      titleEl.textContent = 'Queue Trend (' + rangeText + ')';
     }
 
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today); d.setDate(d.getDate() - i);
-      const start = d.getTime(), end = start + 86400000;
+    for (var i = days - 1; i >= 0; i--) {
+      var d = new Date(today); d.setDate(d.getDate() - i);
+      var start = d.getTime(), end = start + 86400000;
       labels.push(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
-      counts.push(filteredQueue.filter(q => q._ts && q._ts >= start && q._ts < end).length);
+      counts.push(filteredQueue.filter(function(q) { return q._ts && q._ts >= start && q._ts < end; }).length);
     }
     queueTrendChart.data.labels = labels;
     queueTrendChart.data.datasets[0].data = counts;
-    queueTrendChart.update('none'); // skip animation for perf
+    queueTrendChart.update('none');
 
     // Counter performance
-    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
-    const counterStats = {};
+    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+    var counterStats = {};
     if (filteredEvents.length > 0) {
-      filteredEvents.forEach(e => {
-        const key = e.counter || e.counterName || e.counterId || 'unknown';
+      filteredEvents.forEach(function(e) {
+        var key = e.counter || e.counterName || e.counterId || 'unknown';
         counterStats[key] = (counterStats[key] || 0) + 1;
       });
     } else {
-      filteredQueue.forEach(q => {
-        const key = q.counterName || q.counter || q.counterId;
+      filteredQueue.forEach(function(q) {
+        var key = q.counterName || q.counter || q.counterId;
         if (key) counterStats[key] = (counterStats[key] || 0) + 1;
       });
     }
-    if (!counterPerfChart) return;
-    counterPerfChart.data.labels = Object.keys(counterStats);
-    counterPerfChart.data.datasets[0].data = Object.values(counterStats);
-    counterPerfChart.update('none');
+    if (counterPerfChart) {
+      counterPerfChart.data.labels = Object.keys(counterStats);
+      counterPerfChart.data.datasets[0].data = Object.values(counterStats);
+      counterPerfChart.update('none');
+    }
+
+    // Pie chart
+    if (statusPieChart) {
+      var waiting = filteredQueue.filter(function(q) { return q._status === 'waiting'; }).length;
+      var serving = filteredQueue.filter(function(q) { return q._status === 'serving'; }).length;
+      var cancelled = filteredQueue.filter(function(q) { return q._status === 'cancelled'; }).length;
+      var completedQ = filteredQueue.filter(function(q) { return q._status === 'completed'; }).length;
+      var totalCompleted = Math.max(completedQ, filteredEvents.length);
+      statusPieChart.data.datasets[0].data = [totalCompleted, waiting, serving, cancelled];
+      statusPieChart.update('none');
+    }
   }
 
   function updateRawEventsTable() {
-    const container = $('rawEventsTable');
-    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+    var container = $('rawEventsTable');
+    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
     if (!filteredEvents.length) {
       container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events in this time range.</div>';
       return;
     }
-    const rows = filteredEvents.slice().sort((a, b) => (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0)).slice(0, 50);
-    container.innerHTML = `<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>${rows.map(e => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">${esc(e.counter || e.counterName || e.counterId || '—')}</td><td style="padding:8px">${esc(e.queueNumber || '—')}</td><td style="padding:8px">${e.serviceMs != null ? e.serviceMs : '—'}</td><td style="padding:8px">${e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—'}</td><td style="padding:8px">${formatDate(e.completedAt || e.timestamp)}</td></tr>`).join('')}</tbody></table>`;
+    var rows = filteredEvents.slice().sort(function(a, b) { return (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0); }).slice(0, 50);
+    container.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>' +
+      rows.map(function(e) {
+        return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">' + esc(e.counter || e.counterName || e.counterId || '—') + '</td><td style="padding:8px">' + esc(e.queueNumber || '—') + '</td><td style="padding:8px">' + (e.serviceMs != null ? e.serviceMs : '—') + '</td><td style="padding:8px">' + (e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—') + '</td><td style="padding:8px">' + formatDate(e.completedAt || e.timestamp) + '</td></tr>';
+      }).join('') +
+      '</tbody></table>';
   }
 
   // CSV export
-  $('exportCsvBtn').onclick = () => {
-    const filteredEvents = filterByTime(serviceEventsData, 'completedAt');
+  $('exportCsvBtn').onclick = function() {
+    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
     if (!filteredEvents.length) { showToast('No events to export', 'error'); return; }
-    const header = 'counter,queueNumber,serviceMs,serviceMin,completedAt\n';
-    const body = filteredEvents.map(e => `${e.counter || e.counterId || ''},${e.queueNumber || ''},${e.serviceMs},${(e.serviceMs / 60000).toFixed(2)},${e.completedAt || ''}`).join('\n');
-    const blob = new Blob([header + body], { type: 'text/csv' });
-    const a = document.createElement('a');
+    var header = 'counter,queueNumber,serviceMs,serviceMin,completedAt\n';
+    var body = filteredEvents.map(function(e) { return (e.counter || e.counterId || '') + ',' + (e.queueNumber || '') + ',' + e.serviceMs + ',' + (e.serviceMs / 60000).toFixed(2) + ',' + (e.completedAt || ''); }).join('\n');
+    var blob = new Blob([header + body], { type: 'text/csv' });
+    var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `queuejoy-events-${slug}.csv`;
+    a.download = 'queuejoy-events-' + slug + '.csv';
     a.click();
   };
 
   // ===== Settings UI =====
   function populateSettingsForm(cfg) {
-    $('cfgDisplayName').value = cfg.displayName || cfg.name || '';
-    $('cfgSmallTextOnTop').value = cfg.smallTextOnTop || cfg.smallTopText || '';
-    $('cfgMainHeading').value = cfg.mainHeading || cfg.mainTitle || cfg.titleinmiddle || '';
-    $('cfgDescription').value = cfg.description || cfg.introText || '';
-    $('cfgButtonText').value = cfg.buttonText || cfg.ctaText || cfg.ctaTitle || '';
-    $('cfgAdText').value = cfg.adText || '';
-    $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
-    $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
+    try {
+      $('cfgDisplayName').value = cfg.displayName || cfg.name || '';
+      $('cfgSmallTextOnTop').value = cfg.smallTextOnTop || cfg.smallTopText || '';
+      $('cfgMainHeading').value = cfg.mainHeading || cfg.mainTitle || cfg.titleinmiddle || '';
+      $('cfgDescription').value = cfg.description || cfg.introText || '';
+      $('cfgButtonText').value = cfg.buttonText || cfg.ctaText || cfg.ctaTitle || '';
+      $('cfgAdText').value = cfg.adText || '';
+      $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
+      $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
 
-    const color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
-    $('cfgColor').value = color;
-    $('cfgColorHex').textContent = color;
+      var color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
+      $('cfgColor').value = color;
+      $('cfgColorHex').textContent = color;
 
-    const logoSrc = cfg.logoUrl || (cfg.theme && cfg.theme.logo) || cfg.logo || null;
-    if (logoSrc && !pendingUploads.logoUrl) createMediaPreview(logoSrc, $('cfgLogoPreview'));
+      var logoSrc = cfg.logoUrl || (cfg.theme && cfg.theme.logo) || cfg.logo || null;
+      if (logoSrc && !pendingUploads.logoUrl) createMediaPreview(logoSrc, $('cfgLogoPreview'));
 
-    const centerLogoSrc = cfg.centerLogoUrl || null;
-    if (centerLogoSrc && !pendingUploads.centerLogoUrl) createMediaPreview(centerLogoSrc, $('cfgCenterLogoPreview'));
+      var centerLogoSrc = cfg.centerLogoUrl || null;
+      if (centerLogoSrc && !pendingUploads.centerLogoUrl) createMediaPreview(centerLogoSrc, $('cfgCenterLogoPreview'));
 
-    const adImg = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || null;
-    const adVid = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || null;
-    if (!pendingUploads.adImage && !pendingUploads.adVideo) {
-      if (adVid) createMediaPreview(adVid, $('cfgAdMediaPreview'), 'video', 'Ad Video');
-      else if (adImg) createMediaPreview(adImg, $('cfgAdMediaPreview'));
+      var adImg = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || null;
+      var adVid = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || null;
+      if (!pendingUploads.adImage && !pendingUploads.adVideo) {
+        if (adVid) createMediaPreview(adVid, $('cfgAdMediaPreview'), 'video', 'Ad Video');
+        else if (adImg) createMediaPreview(adImg, $('cfgAdMediaPreview'));
+      }
+    } catch (err) {
+      console.error('Safe render error (populateSettingsForm):', err);
     }
   }
 
   // ===== DEBOUNCED PHONE PREVIEW =====
-  const schedulePhonePreview = debounce(() => updatePhonePreviewText(), 250);
-  const scheduleMediaPreview = debounce(() => updatePhonePreviewMedia(), 300);
+  var schedulePhonePreview = debounce(function() { updatePhonePreviewText(); }, 250);
+  var scheduleMediaPreview = debounce(function() { updatePhonePreviewMedia(); }, 300);
 
   function setupSettingsUI() {
-    $('cfgColor').oninput = (e) => { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
+    $('cfgColor').oninput = function(e) { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
 
-    ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(id => {
+    ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(function(id) {
       $(id).addEventListener('input', schedulePhonePreview);
     });
 
-    $('cfgLogoFile').onchange = async (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
+    $('cfgLogoFile').onchange = async function(e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
       if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      const data = await compressImage(f);
+      var data = await compressImage(f);
       pendingUploads.logoUrl = data;
       createMediaPreview(data, $('cfgLogoPreview'), detectMediaType(f));
       $('cfgLogoName').textContent = f.name;
@@ -1120,10 +1328,10 @@ async function boot() {
       showToast('Logo ready (save to publish)', 'success', 1500);
     };
 
-    $('cfgCenterLogoFile').onchange = async (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
+    $('cfgCenterLogoFile').onchange = async function(e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
       if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      const data = await compressImage(f);
+      var data = await compressImage(f);
       pendingUploads.centerLogoUrl = data;
       createMediaPreview(data, $('cfgCenterLogoPreview'), detectMediaType(f));
       $('cfgCenterLogoName').textContent = f.name;
@@ -1131,20 +1339,20 @@ async function boot() {
       showToast('Center logo ready', 'success', 1500);
     };
 
-    $('cfgAdMediaFile').onchange = async (e) => {
-      const f = e.target.files?.[0]; if (!f) return;
+    $('cfgAdMediaFile').onchange = async function(e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
       if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      const mtype = detectMediaType(f);
+      var mtype = detectMediaType(f);
       if (mtype === 'video') {
-        const data = await fileToDataUrl(f);
+        var data = await fileToDataUrl(f);
         pendingUploads.adVideo = data;
         pendingUploads.adImage = null;
         createMediaPreview(data, $('cfgAdMediaPreview'), 'video', f.name, f.size);
       } else {
-        const data = await compressImage(f);
-        pendingUploads.adImage = data;
+        var data2 = await compressImage(f);
+        pendingUploads.adImage = data2;
         pendingUploads.adVideo = null;
-        createMediaPreview(data, $('cfgAdMediaPreview'), mtype, f.name, f.size);
+        createMediaPreview(data2, $('cfgAdMediaPreview'), mtype, f.name, f.size);
       }
       $('cfgAdMediaName').textContent = f.name;
       scheduleMediaPreview();
@@ -1160,14 +1368,14 @@ async function boot() {
     if (saving) return;
     saving = true;
 
-    const btn = $('settingsSaveBtn');
-    const topBtn = $('savePublishBtn');
+    var btn = $('settingsSaveBtn');
+    var topBtn = $('savePublishBtn');
     btn.disabled = true;
     topBtn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Saving...';
 
     try {
-      const slimConfig = buildCanonicalConfigFromUI(currentConfig, pendingUploads);
+      var slimConfig = buildCanonicalConfigFromUI(currentConfig, pendingUploads);
       await set(tRef('public/config'), slimConfig);
       pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
 
@@ -1175,7 +1383,7 @@ async function boot() {
       btn.textContent = '✅ Published!';
       showToast('Settings published!');
       writeAudit('settings_saved');
-      setTimeout(() => {
+      setTimeout(function() {
         btn.textContent = '💾 Save & Publish';
         btn.classList.remove('save-success');
       }, 2000);
@@ -1193,13 +1401,13 @@ async function boot() {
   // ===== Phone Preview — SPLIT: text vs media =====
   function getPhoneTextState() {
     return {
-      color: $('cfgColor')?.value || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6',
-      displayName: $('cfgDisplayName')?.value || currentConfig.displayName || '',
-      smallText: $('cfgSmallTextOnTop')?.value || currentConfig.smallTextOnTop || '',
-      heading: $('cfgMainHeading')?.value || currentConfig.mainHeading || '',
-      desc: $('cfgDescription')?.value || currentConfig.description || '',
-      btnText: $('cfgButtonText')?.value || currentConfig.buttonText || 'Get your queue number',
-      adText: $('cfgAdText')?.value || currentConfig.adText || ''
+      color: ($('cfgColor') ? $('cfgColor').value : '') || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6',
+      displayName: ($('cfgDisplayName') ? $('cfgDisplayName').value : '') || currentConfig.displayName || '',
+      smallText: ($('cfgSmallTextOnTop') ? $('cfgSmallTextOnTop').value : '') || currentConfig.smallTextOnTop || '',
+      heading: ($('cfgMainHeading') ? $('cfgMainHeading').value : '') || currentConfig.mainHeading || '',
+      desc: ($('cfgDescription') ? $('cfgDescription').value : '') || currentConfig.description || '',
+      btnText: ($('cfgButtonText') ? $('cfgButtonText').value : '') || currentConfig.buttonText || 'Get your queue number',
+      adText: ($('cfgAdText') ? $('cfgAdText').value : '') || currentConfig.adText || ''
     };
   }
 
@@ -1213,100 +1421,99 @@ async function boot() {
   }
 
   function computeMediaHash(media) {
-    // Simple hash to detect media changes without deep compare
     return (media.logoSrc ? '1' : '0') + (media.centerLogoSrc ? '1' : '0') + (media.adImgSrc ? 'i' : '') + (media.adVidSrc ? 'v' : '') +
       (media.logoSrc ? media.logoSrc.length : 0) + (media.centerLogoSrc ? media.centerLogoSrc.length : 0);
   }
 
-  // Update only text portions of the phone preview
   function updatePhonePreviewText() {
-    const t = getPhoneTextState();
-    const media = getPhoneMediaState();
-    const mediaHash = computeMediaHash(media);
-    const mediaChanged = mediaHash !== _lastMediaHash;
-    _lastMediaHash = mediaHash;
+    try {
+      var t = getPhoneTextState();
+      var media = getPhoneMediaState();
+      var mediaHash = computeMediaHash(media);
+      var mediaChanged = mediaHash !== _lastMediaHash;
+      _lastMediaHash = mediaHash;
 
-    // If media changed, do a full rebuild
-    if (mediaChanged || !$('phoneScreen').hasChildNodes()) {
-      renderFullPhonePreview(t, media);
-      return;
+      if (mediaChanged || !$('phoneScreen').hasChildNodes()) {
+        renderFullPhonePreview(t, media);
+        return;
+      }
+
+      var screen = $('phoneScreen');
+      var headerName = screen.querySelector('[data-pp="name"]');
+      var headerSmall = screen.querySelector('[data-pp="small"]');
+      var headingEl = screen.querySelector('[data-pp="heading"]');
+      var descEl = screen.querySelector('[data-pp="desc"]');
+      var btnEl = screen.querySelector('[data-pp="btn"]');
+      var adTextEl = screen.querySelector('[data-pp="adtext"]');
+      var headerBg = screen.querySelector('[data-pp="header"]');
+
+      if (headerName) headerName.textContent = t.displayName || 'Queue Joy';
+      if (headerSmall) headerSmall.textContent = t.smallText;
+      if (headingEl) headingEl.textContent = t.heading;
+      if (descEl) descEl.textContent = t.desc || 'Real-time queueing system.';
+      if (btnEl) { btnEl.textContent = '🎫 ' + (t.btnText || 'Get your queue number'); btnEl.style.background = t.color; }
+      if (adTextEl) adTextEl.textContent = t.adText || 'Advertisement';
+      if (headerBg) headerBg.style.background = 'linear-gradient(135deg,' + t.color + ',' + t.color + 'dd)';
+    } catch (err) {
+      console.error('Safe render error (updatePhonePreviewText):', err);
     }
-
-    // Incremental text update — find and update specific elements
-    const screen = $('phoneScreen');
-    const headerName = screen.querySelector('[data-pp="name"]');
-    const headerSmall = screen.querySelector('[data-pp="small"]');
-    const headingEl = screen.querySelector('[data-pp="heading"]');
-    const descEl = screen.querySelector('[data-pp="desc"]');
-    const btnEl = screen.querySelector('[data-pp="btn"]');
-    const adTextEl = screen.querySelector('[data-pp="adtext"]');
-    const headerBg = screen.querySelector('[data-pp="header"]');
-
-    if (headerName) headerName.textContent = t.displayName || 'Queue Joy';
-    if (headerSmall) headerSmall.textContent = t.smallText;
-    if (headingEl) headingEl.textContent = t.heading;
-    if (descEl) descEl.textContent = t.desc || 'Real-time queueing system.';
-    if (btnEl) { btnEl.textContent = '🎫 ' + (t.btnText || 'Get your queue number'); btnEl.style.background = t.color; }
-    if (adTextEl) adTextEl.textContent = t.adText || 'Advertisement';
-    if (headerBg) headerBg.style.background = `linear-gradient(135deg,${t.color},${t.color}dd)`;
   }
 
   function updatePhonePreviewMedia() {
-    const t = getPhoneTextState();
-    const media = getPhoneMediaState();
+    var t = getPhoneTextState();
+    var media = getPhoneMediaState();
     _lastMediaHash = computeMediaHash(media);
     renderFullPhonePreview(t, media);
   }
 
   function renderFullPhonePreview(t, media) {
-    const screen = $('phoneScreen');
-    // Build ad media section — NO autoplay video in preview
-    let adHtml = '';
-    if (media.adImgSrc || media.adVidSrc) {
-      adHtml = `<div style="padding:0 16px 12px">
-        <div data-pp="adtext" style="font-size:9px;color:#9ca3af;margin-bottom:4px">${esc(t.adText) || 'Advertisement'}</div>
-        ${media.adVidSrc
-          ? `<div style="background:#f3f4f6;border-radius:8px;padding:10px;text-align:center;font-size:10px;color:#6b7280">🎬 Video Ad</div>`
-          : `<img src="${media.adImgSrc}" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display='none'"/>`
-        }
-      </div>`;
+    try {
+      var screen = $('phoneScreen');
+      var adHtml = '';
+      if (media.adImgSrc || media.adVidSrc) {
+        adHtml = '<div style="padding:0 16px 12px">' +
+          '<div data-pp="adtext" style="font-size:9px;color:#9ca3af;margin-bottom:4px">' + esc(t.adText || 'Advertisement') + '</div>' +
+          (media.adVidSrc
+            ? '<div style="background:#f3f4f6;border-radius:8px;padding:10px;text-align:center;font-size:10px;color:#6b7280">🎬 Video Ad</div>'
+            : '<img src="' + media.adImgSrc + '" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display=\'none\'"/>') +
+          '</div>';
+      }
+
+      screen.innerHTML =
+        '<div data-pp="header" style="background:linear-gradient(135deg,' + t.color + ',' + t.color + 'dd);padding:16px;text-align:center">' +
+          (t.smallText ? '<div data-pp="small" style="font-size:9px;color:rgba(255,255,255,0.8);margin-bottom:4px">' + esc(t.smallText) + '</div>' : '<div data-pp="small" style="display:none"></div>') +
+          (media.logoSrc ? '<img src="' + media.logoSrc + '" style="max-height:36px;max-width:120px;margin:0 auto 6px;display:block;border-radius:6px" onerror="this.style.display=\'none\'"/>' : '') +
+          '<div data-pp="name" style="font-size:14px;font-weight:800;color:#fff">' + esc(t.displayName || 'Queue Joy') + '</div>' +
+          '<div style="font-size:9px;color:rgba(255,255,255,0.7);margin-top:2px">Digital Queue System</div>' +
+        '</div>' +
+        (media.centerLogoSrc ? '<div style="text-align:center;padding:12px"><img src="' + media.centerLogoSrc + '" style="max-height:80px;max-width:160px;border-radius:10px" onerror="this.style.display=\'none\'"/></div>' : '') +
+        '<div style="padding:16px;text-align:center">' +
+          (t.heading ? '<div data-pp="heading" style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">' + esc(t.heading) + '</div>' : '<div data-pp="heading" style="display:none"></div>') +
+          '<div data-pp="desc" style="font-size:11px;color:#6b7280;margin-bottom:12px">' + esc(t.desc || 'Real-time queueing system.') + '</div>' +
+          '<button data-pp="btn" style="background:' + t.color + ';color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;width:100%;cursor:default">🎫 ' + esc(t.btnText) + '</button>' +
+        '</div>' +
+        adHtml +
+        '<div style="text-align:center;padding:8px;font-size:8px;color:#d1d5db">Powered by Queue Joy</div>';
+    } catch (err) {
+      console.error('Safe render error (renderFullPhonePreview):', err);
     }
-
-    screen.innerHTML = `
-      <div data-pp="header" style="background:linear-gradient(135deg,${t.color},${t.color}dd);padding:16px;text-align:center">
-        ${t.smallText ? `<div data-pp="small" style="font-size:9px;color:rgba(255,255,255,0.8);margin-bottom:4px">${esc(t.smallText)}</div>` : '<div data-pp="small" style="display:none"></div>'}
-        ${media.logoSrc ? `<img src="${media.logoSrc}" style="max-height:36px;max-width:120px;margin:0 auto 6px;display:block;border-radius:6px" onerror="this.style.display='none'"/>` : ''}
-        <div data-pp="name" style="font-size:14px;font-weight:800;color:#fff">${esc(t.displayName) || 'Queue Joy'}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,0.7);margin-top:2px">Digital Queue System</div>
-      </div>
-      ${media.centerLogoSrc ? `<div style="text-align:center;padding:12px"><img src="${media.centerLogoSrc}" style="max-height:80px;max-width:160px;border-radius:10px" onerror="this.style.display='none'"/></div>` : ''}
-      <div style="padding:16px;text-align:center">
-        ${t.heading ? `<div data-pp="heading" style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">${esc(t.heading)}</div>` : '<div data-pp="heading" style="display:none"></div>'}
-        <div data-pp="desc" style="font-size:11px;color:#6b7280;margin-bottom:12px">${esc(t.desc) || 'Real-time queueing system.'}</div>
-        <button data-pp="btn" style="background:${t.color};color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;width:100%;cursor:default">🎫 ${esc(t.btnText)}</button>
-      </div>
-      ${adHtml}
-      <div style="text-align:center;padding:8px;font-size:8px;color:#d1d5db">Powered by Queue Joy</div>
-    `;
   }
-
-  function esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   // ===== Counters =====
   function setupCountersUI() {
-    $('addCounterBtn').onclick = () => {
-      const form = $('addCounterForm');
+    $('addCounterBtn').onclick = function() {
+      var form = $('addCounterForm');
       form.style.display = form.style.display === 'none' ? 'block' : 'none';
     };
-    $('createCounterBtn').onclick = async () => {
-      const name = $('newCounterName').value.trim();
-      const prefix = $('newCounterPrefix').value.trim().toUpperCase();
+    $('createCounterBtn').onclick = async function() {
+      var name = $('newCounterName').value.trim();
+      var prefix = $('newCounterPrefix').value.trim().toUpperCase();
       if (!name || !prefix) { showToast('Name and prefix required', 'error'); return; }
-      const id = 'counter-' + prefix.toLowerCase();
+      var id = 'counter-' + prefix.toLowerCase();
       try {
-        await set(tRef(`counters/${id}`), { name, prefix, active: true, lastIssued: 0, nowServing: 0, order: Object.keys(countersData).length + 1 });
+        await set(tRef('counters/' + id), { name: name, prefix: prefix, active: true, lastIssued: 0, nowServing: 0, order: Object.keys(countersData).length + 1 });
         showToast('Counter created!');
-        writeAudit('counter_created', { name, prefix });
+        writeAudit('counter_created', { name: name, prefix: prefix });
         $('newCounterName').value = '';
         $('newCounterPrefix').value = '';
         $('addCounterForm').style.display = 'none';
@@ -1317,70 +1524,74 @@ async function boot() {
   }
 
   function renderCounters() {
-    const list = $('countersList');
-    const entries = Object.entries(countersData);
-    $('countersEmpty').style.display = entries.length ? 'none' : 'block';
-    list.innerHTML = entries.map(([id, c]) => `
-      <div class="counter-row">
-        <div>
-          <div class="counter-name">${esc(c.name)} <span class="badge ${c.active ? 'badge-green' : 'badge-red'}">${c.active ? 'Active' : 'Inactive'}</span></div>
-          <div class="counter-meta">Prefix: ${esc(c.prefix)} · Now Serving: ${c.nowServing || 0} · Last Issued: ${c.lastIssued || 0}</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" data-toggle-counter="${id}">${c.active ? 'Deactivate' : 'Activate'}</button>
-      </div>
-    `).join('');
-    list.querySelectorAll('[data-toggle-counter]').forEach(btn => {
-      btn.onclick = async () => {
-        const cid = btn.dataset.toggleCounter;
-        const current = countersData[cid];
-        if (!current) return;
-        try {
-          await update(tRef(`counters/${cid}`), { active: !current.active });
-          showToast(`Counter ${current.active ? 'deactivated' : 'activated'}`);
-          writeAudit('counter_toggled', { counter: cid, active: !current.active });
-        } catch (e) { showToast('Failed', 'error'); }
-      };
-    });
+    try {
+      var list = $('countersList');
+      var entries = Object.entries(countersData);
+      $('countersEmpty').style.display = entries.length ? 'none' : 'block';
+      list.innerHTML = entries.map(function(entry) {
+        var id = entry[0];
+        var c = entry[1];
+        return '<div class="counter-row">' +
+          '<div>' +
+            '<div class="counter-name">' + esc(c.name) + ' <span class="badge ' + (c.active ? 'badge-green' : 'badge-red') + '">' + (c.active ? 'Active' : 'Inactive') + '</span></div>' +
+            '<div class="counter-meta">Prefix: ' + esc(c.prefix) + ' · Now Serving: ' + (c.nowServing || 0) + ' · Last Issued: ' + (c.lastIssued || 0) + '</div>' +
+          '</div>' +
+          '<button class="btn btn-secondary btn-sm" data-toggle-counter="' + esc(id) + '">' + (c.active ? 'Deactivate' : 'Activate') + '</button>' +
+        '</div>';
+      }).join('');
+      list.querySelectorAll('[data-toggle-counter]').forEach(function(btn) {
+        btn.onclick = async function() {
+          var cid = btn.dataset.toggleCounter;
+          var current = countersData[cid];
+          if (!current) return;
+          try {
+            await update(tRef('counters/' + cid), { active: !current.active });
+            showToast('Counter ' + (current.active ? 'deactivated' : 'activated'));
+            writeAudit('counter_toggled', { counter: cid, active: !current.active });
+          } catch (e) { showToast('Failed', 'error'); }
+        };
+      });
+    } catch (err) {
+      console.error('Safe render error (renderCounters):', err);
+    }
   }
 
-  // ===== Announcements — delegate to announce.js module =====
+  // ===== Announcements =====
   function setupAnnouncementsUI() {
-    const annCtx = {
-      tRef,
-      get: (r) => get(r),
-      onValue: (r, cb) => onValue(r, cb),
-      set: (r, v) => set(r, v),
-      update: (r, v) => update(r, v),
-      genId,
-      showToast,
-      writeAudit,
+    var annCtx = {
+      tRef: tRef,
+      get: function(r) { return get(r); },
+      onValue: function(r, cb) { return onValue(r, cb); },
+      set: function(r, v) { return set(r, v); },
+      update: function(r, v) { return update(r, v); },
+      genId: genId,
+      showToast: showToast,
+      writeAudit: writeAudit,
       fileToBase64: fileToDataUrl,
-      formatDate,
-      slug,
-      tenantId
+      formatDate: formatDate,
+      slug: slug,
+      tenantId: tenantId
     };
 
-    const initAnnounce = () => {
+    function initAnnounce() {
       if (window.__announceModule && typeof window.__announceModule.init === 'function') {
         window.__announceModule.init(annCtx);
         return true;
       }
       return false;
-    };
+    }
 
     if (initAnnounce()) return;
 
-    let tries = 0;
-    const timer = setInterval(() => {
+    var tries = 0;
+    var timer = setInterval(function() {
       tries++;
       if (initAnnounce() || tries >= 20) {
         clearInterval(timer);
         if (!(window.__announceModule && typeof window.__announceModule.init === 'function')) {
-          console.error('announce.js module not loaded — announcements will not work');
-          const box = $('announceContainer');
-          if (box) {
-            box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
-          }
+          console.error('announce.js module not loaded');
+          var box = $('announceContainer');
+          if (box) box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
         }
       }
     }, 100);
@@ -1388,22 +1599,215 @@ async function boot() {
 
   // ===== Audit =====
   function setupAuditUI() {
-    onValue(tRef('audit'), snap => {
-      const list = $('auditList');
-      if (!snap.exists()) { $('auditEmpty').style.display = 'block'; list.innerHTML = ''; return; }
-      $('auditEmpty').style.display = 'none';
-      const entries = Object.values(snap.val() || {}).filter(e => e && typeof e === 'object' && e.ts).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 50);
-      list.innerHTML = entries.map(e => `<div class="audit-entry"><div class="audit-time">${formatDate(e.ts)}</div><div>${esc(e.action)} <span style="color:var(--text-light);font-size:11px">by ${esc(e.by || '—')}</span></div></div>`).join('');
+    onValue(tRef('audit'), function(snap) {
+      try {
+        var list = $('auditList');
+        if (!snap.exists()) { $('auditEmpty').style.display = 'block'; list.innerHTML = ''; return; }
+        $('auditEmpty').style.display = 'none';
+        var entries = Object.values(snap.val() || {}).filter(function(e) { return e && typeof e === 'object' && e.ts; }).sort(function(a, b) { return (b.ts || 0) - (a.ts || 0); }).slice(0, 50);
+        list.innerHTML = entries.map(function(e) { return '<div class="audit-entry"><div class="audit-time">' + formatDate(e.ts) + '</div><div>' + esc(e.action) + ' <span style="color:var(--text-light);font-size:11px">by ' + esc(e.by || '—') + '</span></div></div>'; }).join('');
+      } catch (err) {
+        console.error('Safe render error (audit):', err);
+      }
     });
+  }
+
+  // ===== DATA CLEANUP / RESET =====
+  function setupResetUI() {
+    // Retention selector
+    var retSelector = $('retentionSelector');
+    retSelector.querySelectorAll('.retention-opt').forEach(function(opt) {
+      opt.addEventListener('click', function() {
+        retSelector.querySelectorAll('.retention-opt').forEach(function(o) { o.classList.remove('selected'); });
+        opt.classList.add('selected');
+        selectedRetention = parseInt(opt.dataset.retention) || 0;
+      });
+    });
+
+    // Clean Old Data
+    $('cleanOldDataBtn').onclick = async function() {
+      if (selectedRetention <= 0) {
+        showToast('Select a retention period (not "Never")', 'error');
+        return;
+      }
+      var btn = $('cleanOldDataBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Cleaning...';
+      var resultEl = $('cleanResult');
+      resultEl.style.display = 'block';
+      resultEl.textContent = 'Working...';
+
+      try {
+        var cutoff = Date.now() - (selectedRetention * 86400000);
+        var removedQueue = 0;
+        var removedEvents = 0;
+
+        // Clean old queue items
+        var qSnap = await get(tRef('queue'));
+        if (qSnap.exists()) {
+          var qObj = qSnap.val() || {};
+          var updates = {};
+          for (var key in qObj) {
+            if (!qObj.hasOwnProperty(key)) continue;
+            var q = qObj[key];
+            if (!q || typeof q !== 'object') continue;
+            var ts = null;
+            if (typeof q.createdAt === 'number') ts = q.createdAt;
+            else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
+            if (!ts || isNaN(ts)) {
+              if (typeof q.joinedAt === 'number') ts = q.joinedAt;
+              else if (typeof q.joinedAt === 'string') ts = Date.parse(q.joinedAt);
+            }
+            if (!ts || isNaN(ts)) {
+              if (typeof q.updatedAt === 'number') ts = q.updatedAt;
+              else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
+            }
+            if (!ts || isNaN(ts)) continue; // skip if no timestamp
+            if (ts < cutoff) {
+              updates['queue/' + key] = null;
+              removedQueue++;
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            await update(tRef(), updates);
+          }
+        }
+
+        // Clean old service events
+        var eSnap = await get(tRef('analytics/serviceEvents'));
+        if (eSnap.exists()) {
+          var eObj = eSnap.val() || {};
+          var eUpdates = {};
+          for (var eKey in eObj) {
+            if (!eObj.hasOwnProperty(eKey)) continue;
+            var ev = eObj[eKey];
+            if (!ev || typeof ev !== 'object') continue;
+            var ets = ev.completedAt || ev.timestamp || ev.createdAt || null;
+            if (typeof ets === 'string') ets = Date.parse(ets);
+            if (!ets || isNaN(ets)) continue;
+            if (ets < cutoff) {
+              eUpdates['analytics/serviceEvents/' + eKey] = null;
+              removedEvents++;
+            }
+          }
+          if (Object.keys(eUpdates).length > 0) {
+            await update(tRef(), eUpdates);
+          }
+        }
+
+        resultEl.style.color = 'var(--green)';
+        resultEl.textContent = '✅ Cleanup complete!\n\n• Queue records removed: ' + removedQueue + '\n• Service events removed: ' + removedEvents + '\n• Retention: ' + selectedRetention + ' day(s)';
+        showToast('Cleaned ' + (removedQueue + removedEvents) + ' old records');
+        writeAudit('data_cleanup', { removedQueue: removedQueue, removedEvents: removedEvents, retentionDays: selectedRetention });
+      } catch (e) {
+        resultEl.style.color = 'var(--red)';
+        resultEl.textContent = '⚠️ Cleanup failed: ' + (e.message || e);
+        showToast('Cleanup failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🧹 Clean Old Data';
+      }
+    };
+
+    // Hard Reset
+    $('hardResetBtn').onclick = function() {
+      $('hardResetBtn').style.display = 'none';
+      $('hardResetConfirmWrap').style.display = 'inline';
+    };
+    $('hardResetCancelBtn').onclick = function() {
+      $('hardResetBtn').style.display = 'inline-flex';
+      $('hardResetConfirmWrap').style.display = 'none';
+    };
+    $('hardResetConfirmBtn').onclick = async function() {
+      var btn = $('hardResetConfirmBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Resetting...';
+      var resultEl = $('resetResult');
+      resultEl.style.display = 'block';
+      resultEl.textContent = 'Working...';
+
+      try {
+        // Delete all queue items
+        await set(tRef('queue'), null);
+
+        // Delete all service events
+        await set(tRef('analytics/serviceEvents'), null);
+
+        // Reset queueMeta — clear numbering for all counters
+        var qmSnap = await get(tRef('queueMeta'));
+        if (qmSnap.exists()) {
+          var qm = qmSnap.val() || {};
+          var qmUpdates = {};
+          for (var cid in qm) {
+            if (!qm.hasOwnProperty(cid)) continue;
+            qmUpdates['queueMeta/' + cid + '/nextNumber'] = 1;
+            qmUpdates['queueMeta/' + cid + '/nextTicket'] = 1;
+            qmUpdates['queueMeta/' + cid + '/nextIssuedNumber'] = 1;
+            qmUpdates['queueMeta/' + cid + '/baselineNumber'] = 0;
+            qmUpdates['queueMeta/' + cid + '/totalWaiting'] = 0;
+            qmUpdates['queueMeta/' + cid + '/nowServing'] = 0;
+            qmUpdates['queueMeta/' + cid + '/lastIssued'] = 0;
+            qmUpdates['queueMeta/' + cid + '/lastCounterIndex'] = 0;
+            qmUpdates['queueMeta/' + cid + '/updatedAt'] = Date.now();
+          }
+          if (Object.keys(qmUpdates).length > 0) await update(tRef(), qmUpdates);
+        }
+
+        // Reset queueState
+        var qsSnap = await get(tRef('queueState'));
+        if (qsSnap.exists()) {
+          var qs = qsSnap.val() || {};
+          var qsUpdates = {};
+          for (var sid in qs) {
+            if (!qs.hasOwnProperty(sid)) continue;
+            qsUpdates['queueState/' + sid + '/nextTicketNumber'] = 1;
+            qsUpdates['queueState/' + sid + '/nextNumber'] = 1;
+            qsUpdates['queueState/' + sid + '/nowServing'] = 0;
+            qsUpdates['queueState/' + sid + '/lastIssued'] = 0;
+            qsUpdates['queueState/' + sid + '/totalWaiting'] = 0;
+            qsUpdates['queueState/' + sid + '/updatedAt'] = Date.now();
+          }
+          if (Object.keys(qsUpdates).length > 0) await update(tRef(), qsUpdates);
+        }
+
+        // Reset counter nowServing/lastIssued
+        var cSnap = await get(tRef('counters'));
+        if (cSnap.exists()) {
+          var cs = cSnap.val() || {};
+          var cUpdates = {};
+          for (var cKey in cs) {
+            if (!cs.hasOwnProperty(cKey)) continue;
+            cUpdates['counters/' + cKey + '/nowServing'] = 0;
+            cUpdates['counters/' + cKey + '/lastIssued'] = 0;
+            cUpdates['counters/' + cKey + '/updatedAt'] = Date.now();
+          }
+          if (Object.keys(cUpdates).length > 0) await update(tRef(), cUpdates);
+        }
+
+        resultEl.style.color = 'var(--green)';
+        resultEl.textContent = '✅ Hard reset complete!\n\n• All queue items deleted\n• All service events deleted\n• Queue numbering reset to zero\n• Counter serving numbers reset\n• Dashboard should now show zeros';
+        showToast('Hard reset complete!');
+        writeAudit('hard_reset');
+      } catch (e) {
+        resultEl.style.color = 'var(--red)';
+        resultEl.textContent = '⚠️ Reset failed: ' + (e.message || e);
+        showToast('Reset failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Yes, Reset Now';
+        $('hardResetBtn').style.display = 'inline-flex';
+        $('hardResetConfirmWrap').style.display = 'none';
+      }
+    };
   }
 
   // Initial phone preview
   updatePhonePreviewText();
 }
 
-boot().catch(e => {
+boot().catch(function(e) {
   console.error('Boot failed', e);
-  document.body.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444"><h2>Failed to start admin</h2><p>${e.message || e}</p></div>`;
+  document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444"><h2>Failed to start admin</h2><p>' + (e.message || e) + '</p></div>';
 });
 </script>
 </body>
