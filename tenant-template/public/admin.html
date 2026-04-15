@@ -1,552 +1,476 @@
+
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>QueueJoy Admin</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    /* ====== THEME VARIABLES ====== */
-    :root{--primary:#667eea;--primary2:#764ba2;--bg:#0f172a;--card:rgba(255,255,255,0.06);--card-solid:#1e293b;--border:rgba(255,255,255,0.08);--text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--pink:#ec4899;--radius:14px;--transition-base:.2s cubic-bezier(.4,0,.2,1);--shadow-card:0 4px 24px rgba(0,0,0,0.2);--shadow-hover:0 8px 32px rgba(0,0,0,0.35);--topbar-bg:rgba(15,23,42,0.82);--sidebar-bg:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);--sidebar-border:#1e293b}
-
-    /* Light theme */
-    html.light{--bg:#f8fafc;--card:rgba(0,0,0,0.02);--card-solid:#ffffff;--border:rgba(0,0,0,0.08);--text:#1e293b;--text-muted:#64748b;--text-light:#94a3b8;--shadow-card:0 4px 24px rgba(0,0,0,0.06);--shadow-hover:0 8px 32px rgba(0,0,0,0.1);--topbar-bg:rgba(248,250,252,0.85);--sidebar-bg:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);--sidebar-border:#e2e8f0}
-    html.light .sidebar{border-right-color:var(--border)}
-    html.light .sidebar-brand h1{color:#1e293b}
-    html.light .sidebar-brand small{color:var(--text-muted)}
-    html.light .nav-item.active{color:var(--primary);background:rgba(102,126,234,0.08);border-color:rgba(102,126,234,0.15)}
-    html.light .topbar{border-bottom-color:var(--border)}
-    html.light .topbar h2{color:var(--text)}
-    html.light .input{background:rgba(0,0,0,0.02);border-color:var(--border);color:var(--text)}
-    html.light .input:focus{background:rgba(0,0,0,0.01)}
-    html.light .btn-secondary{background:rgba(0,0,0,0.04);color:var(--text-muted);border-color:var(--border)}
-    html.light .btn-secondary:hover:not(:disabled){background:rgba(0,0,0,0.08);color:var(--text)}
-    html.light .counter-row{background:rgba(0,0,0,0.01)}
-    html.light .counter-row:hover{background:rgba(0,0,0,0.03)}
-    html.light .stat-card{background:var(--card-solid);border-color:var(--border)}
-    html.light .auth-overlay{background:var(--bg)}
-    html.light .auth-card{background:var(--card-solid);border-color:var(--border)}
-    html.light .auth-card h2{color:var(--text)}
-    html.light .toast-success{background:rgba(16,185,129,0.95)}
-    html.light .toast-error{background:rgba(239,68,68,0.95)}
-
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
-
-    /* Sidebar */
-    .sidebar{position:fixed;left:0;top:0;height:100vh;width:260px;background:var(--sidebar-bg);border-right:1px solid var(--border);z-index:100;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.4,0,.2,1),background .3s}
-    .sidebar-brand{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
-    .sidebar-brand-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.3);transition:transform var(--transition-base)}
-    .sidebar-brand-icon:hover{transform:scale(1.08)}
-    .sidebar-brand h1{font-size:18px;font-weight:800;color:#fff}
-    .sidebar-brand small{font-size:11px;color:var(--text-muted)}
-    .sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
-    .nav-item{display:flex;gap:10px;align-items:center;padding:11px 20px;margin:2px 10px;border-radius:10px;color:var(--text-muted);font-weight:600;font-size:13px;cursor:pointer;transition:all .2s cubic-bezier(.4,0,.2,1);border:1px solid transparent;position:relative;overflow:hidden}
-    .nav-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(135deg,var(--primary),var(--primary2));border-radius:0 4px 4px 0;transform:scaleY(0);transition:transform .25s cubic-bezier(.4,0,.2,1)}
-    .nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04);transform:translateX(2px)}
-    .nav-item.active{color:#fff;background:linear-gradient(135deg,rgba(102,126,234,0.15),rgba(118,75,162,0.1));border:1px solid rgba(102,126,234,0.2);box-shadow:0 2px 12px rgba(102,126,234,0.1)}
-    .nav-item.active::before{transform:scaleY(1)}
-    .nav-item .icon{width:18px;text-align:center;transition:transform var(--transition-base)}
-    .nav-item:hover .icon{transform:scale(1.15)}
-    .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--text-light)}
-
-    /* Main */
-    .main{margin-left:260px;min-height:100vh;transition:margin-left .3s cubic-bezier(.4,0,.2,1)}
-    .topbar{position:sticky;top:0;z-index:50;background:var(--topbar-bg);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 8px rgba(0,0,0,0.15);transition:background .3s}
-    .topbar h2{font-size:18px;font-weight:700;transition:opacity .2s}
-    .topbar-actions{display:flex;gap:8px;align-items:center}
-    .content{padding:24px 28px}
-
-    /* Cards */
-    .card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-card);transition:box-shadow var(--transition-base),transform var(--transition-base),border-color var(--transition-base),background .3s}
-    .card:hover{box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
-    .card-header{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
-
-    /* Buttons */
-    .btn{padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all var(--transition-base);position:relative;overflow:hidden}
-    .btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0.1);opacity:0;transition:opacity .15s}
-    .btn:active::after{opacity:1}
-    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important;box-shadow:none!important;pointer-events:none}
-    .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;box-shadow:0 4px 16px rgba(102,126,234,0.25)}
-    .btn-primary:hover:not(:disabled){opacity:.92;transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,126,234,0.35)}
-    .btn-primary:active:not(:disabled){transform:translateY(0);box-shadow:0 2px 8px rgba(102,126,234,0.2)}
-    .btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border);backdrop-filter:blur(4px)}
-    .btn-secondary:hover:not(:disabled){background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.15)}
-    .btn-secondary.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
-    .btn-danger{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
-    .btn-danger:hover:not(:disabled){background:rgba(239,68,68,0.18);border-color:rgba(239,68,68,0.35)}
-    .btn-warning{background:rgba(245,158,11,0.1);color:var(--amber);border:1px solid rgba(245,158,11,0.2)}
-    .btn-warning:hover:not(:disabled){background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.35)}
-    .btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
-
-    /* Inputs */
-    .input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text);font-size:14px;font-family:inherit;transition:border-color .2s,box-shadow .2s,background .2s}
-    .input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(102,126,234,0.15);background:rgba(255,255,255,0.06)}
-    textarea.input{resize:vertical;min-height:60px}
-    select.input{appearance:auto}
-    .field-label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;margin-top:14px;text-transform:uppercase;letter-spacing:.5px;transition:color var(--transition-base)}
-    .field-label:first-child{margin-top:0}
-
-    /* Stats grid */
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
-    .stat-card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card);transition:all var(--transition-base)}
-    .stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:rgba(255,255,255,0.12)}
-    .stat-card .stat-label{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px}
-    .stat-card .stat-value{font-size:26px;font-weight:800;transition:color var(--transition-base)}
-    .stat-card .stat-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:transform var(--transition-base)}
-    .stat-card:hover .stat-icon{transform:translateY(-50%) scale(1.1)}
-
-    /* Badge */
-    .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;transition:all var(--transition-base)}
-    .badge-green{background:rgba(16,185,129,0.15);color:var(--green)}
-    .badge-red{background:rgba(239,68,68,0.15);color:var(--red)}
-    .badge-blue{background:rgba(59,130,246,0.15);color:var(--blue)}
-    .badge-violet{background:rgba(139,92,246,0.15);color:var(--violet)}
-    .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber)}
-
-    /* Toast */
-    .toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px;z-index:99999;box-shadow:0 14px 40px rgba(0,0,0,0.3);animation:toastIn .35s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(8px);transition:opacity .25s,transform .25s}
-    .toast-success{background:rgba(16,185,129,0.95);color:#fff}
-    .toast-error{background:rgba(239,68,68,0.95);color:#fff}
-    @keyframes toastIn{from{transform:translateX(100px) scale(0.95);opacity:0}to{transform:translateX(0) scale(1);opacity:1}}
-
-    /* Spinner */
-    .spinner{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-
-    /* Tab views */
-    .view{display:none;animation:viewEnter .3s cubic-bezier(.4,0,.2,1)}
-    .view.active{display:block}
-    @keyframes viewEnter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-    /* Grid */
+    :root{
+      --bg:#0f172a; --card:#111827; --card2:#0b1220; --border:rgba(255,255,255,.08);
+      --text:#f8fafc; --muted:#94a3b8; --soft:#64748b; --primary:#8b5cf6; --primary2:#6366f1;
+      --green:#10b981; --red:#ef4444; --amber:#f59e0b; --blue:#3b82f6; --violet:#8b5cf6; --pink:#ec4899;
+      --radius:18px; --shadow:0 18px 55px rgba(0,0,0,.18);
+    }
+    html.light{
+      --bg:#f8fafc; --card:#ffffff; --card2:#f8fafc; --border:rgba(15,23,42,.1);
+      --text:#0f172a; --muted:#64748b; --soft:#94a3b8; --shadow:0 16px 40px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%}
+    body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+    a{color:inherit}
+    .hidden{display:none !important}
+    .shell{min-height:100vh}
+    .sidebar{
+      position:fixed; inset:0 auto 0 0; width:270px; background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
+      border-right:1px solid var(--border); display:flex; flex-direction:column; z-index:20
+    }
+    .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center}
+    .brand-badge{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;font-size:20px}
+    .brand h1{margin:0;font-size:18px}
+    .brand small{color:var(--muted)}
+    .nav{padding:12px 0;overflow:auto;flex:1}
+    .nav-item{
+      margin:4px 12px;padding:11px 14px;border-radius:14px;display:flex;gap:10px;align-items:center;cursor:pointer;
+      color:var(--muted);font-weight:700;font-size:13px;border:1px solid transparent;transition:.18s ease
+    }
+    .nav-item:hover{background:rgba(255,255,255,.03);transform:translateX(2px);color:var(--text)}
+    .nav-item.active{background:rgba(139,92,246,.12);border-color:rgba(139,92,246,.22);color:var(--text)}
+    .nav-icon{width:18px;text-align:center}
+    .sidebar-foot{padding:14px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);word-break:break-all}
+    .main{margin-left:270px;min-height:100vh}
+    .topbar{
+      position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:12px;
+      padding:14px 22px;background:rgba(15,23,42,.78);backdrop-filter:blur(18px);border-bottom:1px solid var(--border)
+    }
+    html.light .topbar{background:rgba(248,250,252,.82)}
+    .topbar h2{margin:0;font-size:18px}
+    .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .content{padding:22px}
+    .btn{
+      border:1px solid transparent;border-radius:12px;padding:10px 14px;font-weight:800;font-size:13px;cursor:pointer;
+      transition:.18s ease; display:inline-flex; align-items:center; gap:8px; background:transparent; color:var(--text)
+    }
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+    .btn-secondary{background:rgba(255,255,255,.05);border-color:var(--border)}
+    .btn-danger{background:rgba(239,68,68,.09);border-color:rgba(239,68,68,.22);color:#fca5a5}
+    .btn-warning{background:rgba(245,158,11,.09);border-color:rgba(245,158,11,.22);color:#fdba74}
+    .btn:hover:not(:disabled){transform:translateY(-1px)}
+    .btn-sm{padding:7px 11px;font-size:12px;border-radius:10px}
+    .card{
+      background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px
+    }
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-
-    /* Auth overlay */
-    .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;transition:background .3s}
-    .auth-card{background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:36px;width:100%;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:authCardIn .4s cubic-bezier(.4,0,.2,1)}
-    @keyframes authCardIn{from{opacity:0;transform:translateY(20px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-    .auth-card h2{font-size:22px;font-weight:800;margin-bottom:6px}
-    .auth-card p{color:var(--text-muted);font-size:13px;margin-bottom:20px}
-
-    /* Phone preview */
-    .phone-frame{width:280px;height:560px;border-radius:36px;border:3px solid #334155;background:#fff;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.05);transition:box-shadow var(--transition-base)}
-    .phone-frame:hover{box-shadow:0 24px 72px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.08)}
-    .phone-notch{width:120px;height:24px;background:#334155;border-radius:0 0 14px 14px;margin:0 auto}
-    .phone-screen{height:100%;overflow-y:auto;font-family:'Inter',sans-serif;color:#111}
-    .phone-screen *{font-family:inherit}
-
-    /* Target option */
-    .target-opt{padding:8px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);transition:all .2s cubic-bezier(.4,0,.2,1)}
-    .target-opt:hover{border-color:var(--primary);transform:translateY(-1px)}
-    .target-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3);box-shadow:0 2px 8px rgba(102,126,234,0.15)}
-
-    /* File upload btn */
-    .file-btn{padding:8px 14px;background:rgba(102,126,234,0.1);color:var(--primary);border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;display:inline-block;border:1px solid rgba(102,126,234,0.2);transition:all var(--transition-base)}
-    .file-btn:hover{background:rgba(102,126,234,0.2);transform:translateY(-1px)}
-    .file-btn input[type=file]{position:absolute;left:-9999px}
-
-    /* Audit entry */
-    .audit-entry{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;transition:background var(--transition-base)}
-    .audit-entry:hover{background:rgba(255,255,255,0.02)}
-    .audit-entry:last-child{border-bottom:none}
-    .audit-time{font-size:11px;color:var(--text-light)}
-
-    /* Counter row */
-    .counter-row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02);transition:all var(--transition-base)}
-    .counter-row:hover{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.12);transform:translateX(2px)}
-    .counter-row .counter-name{font-weight:700;font-size:14px}
-    .counter-row .counter-meta{font-size:12px;color:var(--text-muted)}
-
-    /* Preview media */
-    .preview-media{max-width:140px;max-height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-top:6px;transition:transform var(--transition-base)}
-    .preview-media:hover{transform:scale(1.05)}
-
-    /* Lazy media placeholder */
-    .media-placeholder{border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:6px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;gap:8px;max-width:240px;transition:border-color var(--transition-base)}
-    .media-placeholder:hover{border-color:rgba(255,255,255,0.15)}
-    .media-placeholder .mp-meta{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px}
-    .media-placeholder .mp-icon{font-size:24px}
-    .media-placeholder .btn{font-size:11px;padding:5px 10px}
-
-    /* Chart container */
-    .chart-wrap{position:relative;height:280px}
-
-    /* Table rows */
-    table tr{transition:background var(--transition-base)}
-    table tbody tr:hover{background:rgba(255,255,255,0.03)}
-
-    /* Save success flash */
-    .save-success{animation:saveFlash .6s ease}
-    @keyframes saveFlash{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)}50%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:none}}
-
-    /* Analytics time filter */
-    .time-filter{display:flex;gap:6px;flex-wrap:wrap}
-    .time-filter .tf-btn{padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--text-muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);cursor:pointer;transition:all .2s}
-    .time-filter .tf-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.15)}
-    .time-filter .tf-btn.active{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
-
-    /* Skeleton pulse */
-    .skeleton{background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px}
-    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-
-    /* Stat value transition */
-    .stat-value{transition:all .3s ease}
-
-    /* Theme toggle */
-    .theme-toggle{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.04);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all var(--transition-base)}
-    .theme-toggle:hover{background:rgba(255,255,255,0.1);transform:scale(1.05)}
-
-    /* Reset page styles */
-    .reset-warning{padding:16px;border-radius:12px;border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.06);margin-bottom:16px;font-size:13px;color:var(--amber)}
-    .reset-danger{padding:16px;border-radius:12px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);margin-bottom:16px;font-size:13px;color:var(--red)}
-    .reset-result{padding:14px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.02);font-size:13px;min-height:40px;margin-top:12px;white-space:pre-wrap;transition:all .3s}
-    .retention-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-    .retention-opt{padding:8px 16px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:13px;font-weight:600;color:var(--text-muted);transition:all .2s}
-    .retention-opt:hover{border-color:var(--primary);transform:translateY(-1px)}
-    .retention-opt.selected{background:rgba(102,126,234,0.15);color:var(--primary);border-color:rgba(102,126,234,0.3)}
-
-    /* Responsive */
-    @media(max-width:1024px){
-      .sidebar{transform:translateX(-100%)}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
+    .stat{
+      background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)
+    }
+    .stat .label{font-size:12px;color:var(--muted);font-weight:700}
+    .stat .value{font-size:28px;font-weight:900;margin-top:8px}
+    .view{display:none;animation:fade .18s ease}
+    .view.active{display:block}
+    @keyframes fade{from{opacity:.25;transform:translateY(6px)}to{opacity:1;transform:none}}
+    .field-label{display:block;margin:14px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}
+    .input{
+      width:100%;padding:11px 13px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--text);
+      font:inherit;outline:none;transition:.15s ease
+    }
+    html.light .input{background:#fff}
+    .input:focus{border-color:rgba(139,92,246,.45);box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+    textarea.input{min-height:84px;resize:vertical}
+    .muted{color:var(--muted)}
+    .warning{
+      padding:12px 14px;border-radius:14px;border:1px solid rgba(245,158,11,.25);background:rgba(245,158,11,.07);color:#f59e0b;font-size:13px
+    }
+    .dangerbox{
+      padding:12px 14px;border-radius:14px;border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.07);color:#fca5a5;font-size:13px
+    }
+    .preview-wrap{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
+    .phone{
+      width:300px;height:610px;border-radius:34px;border:3px solid #334155;background:#fff;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.28);
+      position:sticky;top:88px
+    }
+    .phone-screen{height:100%;overflow:auto;color:#111;font-family:Inter,system-ui,sans-serif}
+    .phone-notch{width:120px;height:22px;margin:0 auto;background:#334155;border-radius:0 0 14px 14px}
+    .phone-body{padding:14px}
+    .phone-header{border-radius:18px;padding:16px;text-align:center;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+    .phone-title{font-size:15px;font-weight:900;margin-top:6px}
+    .phone-small{font-size:10px;opacity:.82}
+    .phone-headline{font-size:18px;font-weight:900;margin:10px 0 6px;color:#0f172a}
+    .phone-desc{font-size:12px;color:#64748b;line-height:1.45}
+    .phone-btn{margin-top:12px;background:#111827;color:#fff;padding:10px 14px;border-radius:12px;font-size:12px;font-weight:800}
+    .logo-slot{display:flex;justify-content:center;align-items:center;min-height:52px;margin-top:10px}
+    .logo-slot img{max-height:42px;max-width:150px;border-radius:8px}
+    .center-slot{display:flex;justify-content:center;padding:12px 0}
+    .center-slot img{max-height:88px;max-width:180px;border-radius:12px}
+    .ad-card{margin-top:12px;border:1px solid #e5e7eb;border-radius:16px;padding:12px;background:#fff}
+    .ad-label{font-size:10px;color:#6b7280;font-weight:800;margin-bottom:6px}
+    .media-shell{border:1px solid var(--border);border-radius:16px;padding:12px;background:rgba(255,255,255,.02)}
+    .media-shell + .media-shell{margin-top:12px}
+    .media-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .file-btn{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--text);font-weight:800;font-size:12px;cursor:pointer}
+    .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+    .tiny{font-size:11px;color:var(--muted)}
+    .media-preview{
+      margin-top:10px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.02);overflow:hidden;min-height:48px
+    }
+    .media-preview img{display:block;max-width:100%;height:auto}
+    .media-preview video{display:block;max-width:100%;height:auto;background:#000}
+    .placeholder{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;font-size:12px;color:var(--muted)
+    }
+    .placeholder strong{color:var(--text)}
+    .video-placeholder{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;background:linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.04))
+    }
+    .video-pill{font-size:11px;padding:5px 8px;border-radius:999px;background:rgba(17,24,39,.08);color:#334155;font-weight:800}
+    .table{width:100%;border-collapse:collapse}
+    .table td,.table th{padding:10px 8px;border-bottom:1px solid var(--border);text-align:left;font-size:13px;vertical-align:top}
+    .table th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800}
+    .badge.green{background:rgba(16,185,129,.12);color:#34d399}
+    .badge.red{background:rgba(239,68,68,.12);color:#fca5a5}
+    .badge.blue{background:rgba(59,130,246,.12);color:#93c5fd}
+    .badge.violet{background:rgba(139,92,246,.12);color:#c4b5fd}
+    .badge.amber{background:rgba(245,158,11,.12);color:#fcd34d}
+    .toast{
+      position:fixed;top:16px;right:16px;z-index:9999;padding:12px 14px;border-radius:12px;font-weight:800;font-size:13px;
+      box-shadow:0 18px 40px rgba(0,0,0,.28);animation:toast .24s ease
+    }
+    .toast.success{background:rgba(16,185,129,.96);color:#fff}
+    .toast.error{background:rgba(239,68,68,.96);color:#fff}
+    @keyframes toast{from{opacity:0;transform:translateX(8px) scale(.98)}to{opacity:1;transform:none}}
+    .auth{
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:50;padding:18px
+    }
+    .auth-card{max-width:420px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:28px;box-shadow:var(--shadow);text-align:center}
+    .auth-card h2{margin:0 0 8px;font-size:24px}
+    .spinner{width:14px;height:14px;border-radius:999px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;animation:spin .6s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .mobile-menu{display:none}
+    @media(max-width:1080px){
+      .sidebar{transform:translateX(-100%);transition:transform .22s ease}
       .sidebar.open{transform:translateX(0)}
       .main{margin-left:0}
-      .grid-2{grid-template-columns:1fr}
-      .mobile-menu{display:flex!important}
+      .preview-wrap{grid-template-columns:1fr}
+      .phone{position:relative;top:0;justify-self:center}
+      .mobile-menu{display:inline-flex}
     }
-    @media(min-width:1025px){.mobile-menu{display:none!important}}
-
-    /* Fade in */
-    .fade-in{animation:fadeIn .4s cubic-bezier(.4,0,.2,1)}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    .fade-in-delay-1{animation-delay:.05s;animation-fill-mode:backwards}
-    .fade-in-delay-2{animation-delay:.1s;animation-fill-mode:backwards}
-    .fade-in-delay-3{animation-delay:.15s;animation-fill-mode:backwards}
-    .fade-in-delay-4{animation-delay:.2s;animation-fill-mode:backwards}
-    .fade-in-delay-5{animation-delay:.25s;animation-fill-mode:backwards}
-    .ann-fade-in{animation:fadeIn .35s cubic-bezier(.4,0,.2,1);animation-fill-mode:backwards}
   </style>
 </head>
 <body>
-
-<!-- Auth Overlay -->
-<div class="auth-overlay" id="authOverlay">
-  <div class="auth-card">
-    <div style="font-size:48px;margin-bottom:12px">🎫</div>
-    <h2>QueueJoy Admin</h2>
-    <p>Sign in to manage your business</p>
-    <div style="text-align:left">
-      <label class="field-label" style="margin-top:0">Email</label>
-      <input class="input" id="authEmail" type="email" placeholder="admin@example.com"/>
-      <label class="field-label">Password</label>
-      <input class="input" id="authPassword" type="password" placeholder="••••••••"/>
-      <div style="margin-top:10px;display:flex;align-items:center;gap:6px">
-        <input type="checkbox" id="authRemember" checked/><label for="authRemember" style="font-size:12px;color:var(--text-muted)">Remember me</label>
+<div class="shell">
+  <div class="auth" id="authOverlay">
+    <div class="auth-card">
+      <div style="font-size:48px;margin-bottom:10px">🎫</div>
+      <h2>QueueJoy Admin</h2>
+      <p class="muted" style="margin:0 0 18px">Sign in to manage your business</p>
+      <div style="text-align:left">
+        <label class="field-label" style="margin-top:0">Email</label>
+        <input class="input" id="authEmail" type="email" placeholder="admin@example.com" />
+        <label class="field-label">Password</label>
+        <input class="input" id="authPassword" type="password" placeholder="••••••••" />
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:12px;color:var(--muted)">
+          <input type="checkbox" id="authRemember" checked /> Remember me
+        </label>
       </div>
-    </div>
-    <button class="btn btn-primary" id="authSignInBtn" style="width:100%;margin-top:16px;padding:12px">
-      <span id="authBtnText">Sign In</span>
-      <span id="authBtnSpinner" style="display:none"><span class="spinner"></span>Signing in...</span>
-    </button>
-    <div id="authError" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.1);color:var(--red);font-size:12px;font-weight:600"></div>
-  </div>
-</div>
-
-<!-- Sidebar -->
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-brand">
-    <div class="sidebar-brand-icon">🎫</div>
-    <div><h1 id="sidebarTitle">QueueJoy</h1><small id="sidebarSub">Admin Panel</small></div>
-  </div>
-  <nav class="sidebar-nav">
-    <div class="nav-item active" data-view="dashboard"><span class="icon">🏠</span>Dashboard</div>
-    <div class="nav-item" data-view="settings"><span class="icon">⚙️</span>Business Settings</div>
-    <div class="nav-item" data-view="counters"><span class="icon">🏪</span>Counters</div>
-    <div class="nav-item" data-view="analytics"><span class="icon">📊</span>Analytics</div>
-    <div class="nav-item" data-view="announcements"><span class="icon">📢</span>Announcements</div>
-    <div class="nav-item" data-view="audit"><span class="icon">📋</span>Audit Logs</div>
-    <div class="nav-item" data-view="reset"><span class="icon">🧹</span>Data Cleanup</div>
-    <div class="nav-item" data-view="account"><span class="icon">👤</span>Account</div>
-  </nav>
-  <div class="sidebar-footer">
-    <div id="sidebarSlug" style="word-break:break-all"></div>
-  </div>
-</aside>
-
-<!-- Mobile menu -->
-<button class="mobile-menu" id="mobileMenuBtn" style="position:fixed;top:14px;left:14px;z-index:200;padding:10px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(102,126,234,0.3)">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-</button>
-
-<!-- Main -->
-<div class="main" id="mainArea" style="display:none">
-  <!-- Topbar -->
-  <div class="topbar">
-    <h2 id="topbarTitle">Dashboard</h2>
-    <div class="topbar-actions">
-      <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
-      <button class="btn btn-primary btn-sm" id="savePublishBtn">💾 Save &amp; Publish</button>
-      <button class="btn btn-secondary btn-sm" id="signOutBtn">Sign Out</button>
+      <button class="btn btn-primary" id="authSignInBtn" style="width:100%;margin-top:16px;justify-content:center">
+        <span id="authBtnText">Sign In</span>
+        <span id="authBtnSpinner" class="hidden"><span class="spinner"></span> Signing in...</span>
+      </button>
+      <div id="authError" class="hidden" style="margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(239,68,68,.12);color:#fca5a5;font-size:12px;font-weight:700"></div>
     </div>
   </div>
 
-  <div class="content">
-    <!-- ===== DASHBOARD ===== -->
-    <div class="view active" id="view-dashboard">
-      <div class="stats-grid" id="dashStats">
-        <div class="stat-card fade-in"><div class="stat-label">Total Queues</div><div class="stat-value" id="dTotalQ" style="color:var(--primary)">0</div><div class="stat-icon" style="background:rgba(102,126,234,0.1)">📊</div></div>
-        <div class="stat-card fade-in fade-in-delay-1"><div class="stat-label">Waiting</div><div class="stat-value" id="dWaiting" style="color:var(--blue)">0</div><div class="stat-icon" style="background:rgba(59,130,246,0.1)">⏳</div></div>
-        <div class="stat-card fade-in fade-in-delay-2"><div class="stat-label">Serving</div><div class="stat-value" id="dServing" style="color:var(--violet)">0</div><div class="stat-icon" style="background:rgba(139,92,246,0.1)">🎫</div></div>
-        <div class="stat-card fade-in fade-in-delay-3"><div class="stat-label">Completed</div><div class="stat-value" id="dCompleted" style="color:var(--green)">0</div><div class="stat-icon" style="background:rgba(16,185,129,0.1)">✅</div></div>
-        <div class="stat-card fade-in fade-in-delay-4"><div class="stat-label">Cancelled</div><div class="stat-value" id="dCancelled" style="color:var(--text-light)">0</div><div class="stat-icon" style="background:rgba(100,116,139,0.1)">❌</div></div>
-        <div class="stat-card fade-in fade-in-delay-5"><div class="stat-label">Active Counters</div><div class="stat-value" id="dCounters" style="color:var(--amber)">0</div><div class="stat-icon" style="background:rgba(245,158,11,0.1)">🏪</div></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-badge">🎫</div>
+      <div>
+        <h1 id="sidebarTitle">QueueJoy</h1>
+        <small id="sidebarSub">Admin Panel</small>
       </div>
-      <div class="card fade-in" style="animation-delay:.3s;animation-fill-mode:backwards">
-        <div class="card-header">Avg Service Time (from serviceEvents)</div>
-        <div style="font-size:28px;font-weight:800;color:var(--primary)" id="dAvgService">— min</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Based on <span id="dEventCount">0</span> service events</div>
+    </div>
+    <div class="nav">
+      <div class="nav-item active" data-view="dashboard"><span class="nav-icon">🏠</span>Dashboard</div>
+      <div class="nav-item" data-view="settings"><span class="nav-icon">⚙️</span>Business Settings</div>
+      <div class="nav-item" data-view="counters"><span class="nav-icon">🏪</span>Counters</div>
+      <div class="nav-item" data-view="analytics"><span class="nav-icon">📊</span>Analytics</div>
+      <div class="nav-item" data-view="announcements"><span class="nav-icon">📢</span>Announcements</div>
+      <div class="nav-item" data-view="audit"><span class="nav-icon">📋</span>Audit Logs</div>
+      <div class="nav-item" data-view="reset"><span class="nav-icon">🧹</span>Data Cleanup</div>
+      <div class="nav-item" data-view="account"><span class="nav-icon">👤</span>Account</div>
+    </div>
+    <div class="sidebar-foot"><div id="sidebarSlug"></div></div>
+  </aside>
+
+  <button class="btn btn-primary mobile-menu" id="mobileMenuBtn" style="position:fixed;top:14px;left:14px;z-index:30;padding:10px 12px">
+    ☰
+  </button>
+
+  <main class="main" id="mainArea" style="display:none">
+    <div class="topbar">
+      <h2 id="topbarTitle">Dashboard</h2>
+      <div class="actions">
+        <button class="btn btn-secondary" id="themeToggle">🌙 Theme</button>
+        <button class="btn btn-primary" id="savePublishBtn">💾 Save & Publish</button>
+        <button class="btn btn-secondary" id="signOutBtn">Sign Out</button>
       </div>
     </div>
 
-    <!-- ===== SETTINGS ===== -->
-    <div class="view" id="view-settings">
-      <div style="display:flex;gap:24px;flex-wrap:wrap">
-        <!-- Settings form -->
-        <div style="flex:1;min-width:320px">
-          <div class="card fade-in">
-            <div class="card-header">Business Identity</div>
-            <label class="field-label" style="margin-top:0">Display Name</label>
-            <input class="input" id="cfgDisplayName" placeholder="e.g., My Café"/>
-            <label class="field-label">Small Text on Top</label>
-            <input class="input" id="cfgSmallTextOnTop" placeholder="e.g., Queue Joy"/>
-            <label class="field-label">Main Heading</label>
-            <input class="input" id="cfgMainHeading" placeholder="e.g., ICE CREAM"/>
-            <label class="field-label">Description</label>
-            <textarea class="input" id="cfgDescription" rows="2" placeholder="Real-time queueing system..."></textarea>
-            <label class="field-label">Button Text</label>
-            <input class="input" id="cfgButtonText" placeholder="e.g., Get your queue number"/>
-            <label class="field-label">Ad Text</label>
-            <input class="input" id="cfgAdText" placeholder="Advertisement text..."/>
-            <label class="field-label">Ad Link</label>
-            <input class="input" id="cfgAdLink" placeholder="https://..."/>
-            <label class="field-label">Timezone</label>
-            <select class="input" id="cfgTimezone">
-              <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (GMT+8)</option>
-              <option value="UTC">UTC</option>
-              <option value="America/New_York">America/New_York (EST)</option>
-              <option value="Europe/London">Europe/London (GMT)</option>
-              <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
-              <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
-            </select>
+    <div class="content">
+      <section class="view active" id="view-dashboard">
+        <div class="stats">
+          <div class="stat"><div class="label">Total Queues</div><div class="value" id="dTotalQ">0</div></div>
+          <div class="stat"><div class="label">Waiting</div><div class="value" id="dWaiting" style="color:var(--blue)">0</div></div>
+          <div class="stat"><div class="label">Serving</div><div class="value" id="dServing" style="color:var(--violet)">0</div></div>
+          <div class="stat"><div class="label">Completed</div><div class="value" id="dCompleted" style="color:var(--green)">0</div></div>
+          <div class="stat"><div class="label">Cancelled</div><div class="value" id="dCancelled" style="color:var(--soft)">0</div></div>
+          <div class="stat"><div class="label">Active Counters</div><div class="value" id="dCounters" style="color:var(--amber)">0</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div style="font-weight:900;margin-bottom:8px">Avg Service Time</div>
+            <div style="font-size:30px;font-weight:900;color:var(--primary)" id="dAvgService">— min</div>
+            <div class="tiny">Based on <span id="dEventCount">0</span> service events</div>
           </div>
-
-          <div class="card fade-in" style="margin-top:16px">
-            <div class="card-header">Theme &amp; Media</div>
-            <label class="field-label" style="margin-top:0">Primary Color</label>
-            <div style="display:flex;gap:10px;align-items:center">
-              <input type="color" id="cfgColor" value="#8b5cf6" style="width:48px;height:40px;border:none;border-radius:8px;cursor:pointer"/>
-              <span id="cfgColorHex" style="font-size:13px;color:var(--text-muted)">#8b5cf6</span>
-            </div>
-
-            <label class="field-label">Top Logo</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">🖼️ Upload<input type="file" id="cfgLogoFile" accept="image/*"/></label>
-              <span id="cfgLogoName" style="font-size:11px;color:var(--text-light)"></span>
-            </div>
-            <div id="cfgLogoPreview"></div>
-
-            <label class="field-label">Center Logo</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">🖼️ Upload<input type="file" id="cfgCenterLogoFile" accept="image/*"/></label>
-              <span id="cfgCenterLogoName" style="font-size:11px;color:var(--text-light)"></span>
-            </div>
-            <div id="cfgCenterLogoPreview"></div>
-
-            <label class="field-label">Ad Media (Image/GIF/Video)</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">📎 Upload<input type="file" id="cfgAdMediaFile" accept="image/*,video/*"/></label>
-              <span id="cfgAdMediaName" style="font-size:11px;color:var(--text-light)"></span>
-            </div>
-            <div id="cfgAdMediaPreview"></div>
-          </div>
-
-          <div style="margin-top:16px;display:flex;gap:10px">
-            <button class="btn btn-primary" id="settingsSaveBtn">💾 Save &amp; Publish</button>
+          <div class="card">
+            <div style="font-weight:900;margin-bottom:8px">Queue Health</div>
+            <div class="tiny" id="queueHealthText">Waiting for data...</div>
           </div>
         </div>
+      </section>
 
-        <!-- Phone Preview -->
-        <div style="flex-shrink:0">
-          <div style="text-align:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Live Preview</div>
-          <div class="phone-frame" id="phoneFrame">
-            <div class="phone-notch"></div>
-            <div class="phone-screen" id="phoneScreen"></div>
+      <section class="view" id="view-settings">
+        <div class="preview-wrap">
+          <div>
+            <div class="grid-2">
+              <div class="card">
+                <div style="font-weight:900;margin-bottom:8px">Business Identity</div>
+                <label class="field-label" style="margin-top:0">Display Name</label>
+                <input class="input" id="cfgDisplayName" placeholder="e.g., My Café" />
+                <label class="field-label">Small Text on Top</label>
+                <input class="input" id="cfgSmallTextOnTop" placeholder="e.g., Queue Joy" />
+                <label class="field-label">Main Heading</label>
+                <input class="input" id="cfgMainHeading" placeholder="e.g., ICE CREAM" />
+                <label class="field-label">Description</label>
+                <textarea class="input" id="cfgDescription" placeholder="Real-time queueing system..."></textarea>
+                <label class="field-label">Button Text</label>
+                <input class="input" id="cfgButtonText" placeholder="e.g., Get your queue number" />
+                <label class="field-label">Ad Text</label>
+                <input class="input" id="cfgAdText" placeholder="Advertisement text..." />
+                <label class="field-label">Ad Link</label>
+                <input class="input" id="cfgAdLink" placeholder="https://..." />
+                <label class="field-label">Timezone</label>
+                <select class="input" id="cfgTimezone">
+                  <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (GMT+8)</option>
+                  <option value="UTC">UTC</option>
+                  <option value="America/New_York">America/New_York (EST)</option>
+                  <option value="Europe/London">Europe/London (GMT)</option>
+                  <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
+                </select>
+              </div>
+
+              <div class="card">
+                <div style="font-weight:900;margin-bottom:8px">Theme</div>
+                <label class="field-label" style="margin-top:0">Primary Color</label>
+                <div class="media-row">
+                  <input type="color" id="cfgColor" value="#8b5cf6" style="width:52px;height:42px;border:none;background:transparent;padding:0" />
+                  <span id="cfgColorHex" class="tiny">#8b5cf6</span>
+                </div>
+                <label class="field-label">Hosted Logo URL</label>
+                <input class="input" id="cfgLogoUrl" placeholder="https://..." />
+                <label class="field-label">Top Logo Preview File</label>
+                <div class="media-shell">
+                  <div class="media-row">
+                    <label class="file-btn">Choose Image<input type="file" id="cfgLogoFile" accept="image/*" /></label>
+                    <span class="tiny" id="cfgLogoFileName">Preview only</span>
+                  </div>
+                  <div class="media-preview" id="cfgLogoPreview"><div class="placeholder"><span><strong>No preview</strong><br>Local file is preview-only.</span></div></div>
+                </div>
+
+                <label class="field-label">Hosted Center Logo URL</label>
+                <input class="input" id="cfgCenterLogoUrl" placeholder="https://..." />
+                <label class="field-label">Center Logo Preview File</label>
+                <div class="media-shell">
+                  <div class="media-row">
+                    <label class="file-btn">Choose Image<input type="file" id="cfgCenterLogoFile" accept="image/*" /></label>
+                    <span class="tiny" id="cfgCenterLogoFileName">Preview only</span>
+                  </div>
+                  <div class="media-preview" id="cfgCenterLogoPreview"><div class="placeholder"><span><strong>No preview</strong><br>Local file is preview-only.</span></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+              <div style="font-weight:900;margin-bottom:8px">Ad Media</div>
+              <div class="warning" id="mediaWarning" style="margin-bottom:14px">
+                Preview files stay local in this admin page. To publish an ad, paste a hosted <strong>https://</strong> media URL.
+              </div>
+
+              <label class="field-label" style="margin-top:0">Hosted Ad Image URL</label>
+              <input class="input" id="cfgAdImageUrl" placeholder="https://..." />
+              <label class="field-label">Hosted Ad Video URL</label>
+              <input class="input" id="cfgAdVideoUrl" placeholder="https://..." />
+
+              <label class="field-label">Preview File</label>
+              <div class="media-shell">
+                <div class="media-row">
+                  <label class="file-btn">Choose File<input type="file" id="cfgAdMediaFile" accept="image/*,video/*" /></label>
+                  <span class="tiny" id="cfgAdMediaFileName">Preview only</span>
+                </div>
+                <div class="media-preview" id="cfgAdMediaPreview">
+                  <div class="placeholder"><span><strong>No preview</strong><br>Select image or video for local preview.</span></div>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap">
+                <button class="btn btn-primary" id="settingsSaveBtn">💾 Save & Publish</button>
+                <span class="tiny">Only hosted HTTPS URLs are saved to Firebase.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="phone">
+            <div class="phone-screen" id="phoneScreen">
+              <div class="phone-notch"></div>
+              <div class="phone-body"></div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- ===== COUNTERS ===== -->
-    <div class="view" id="view-counters">
-      <div class="card fade-in">
-        <div class="card-header">Counters <button class="btn btn-primary btn-sm" id="addCounterBtn">+ Add Counter</button></div>
-        <div id="countersList"></div>
-        <div id="countersEmpty" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No counters configured.</div>
-      </div>
-      <div class="card fade-in" style="margin-top:16px;display:none" id="addCounterForm">
-        <div class="card-header">New Counter</div>
-        <label class="field-label" style="margin-top:0">Name</label>
-        <input class="input" id="newCounterName" placeholder="e.g., Counter A"/>
-        <label class="field-label">Prefix</label>
-        <input class="input" id="newCounterPrefix" placeholder="e.g., A" maxlength="5"/>
-        <button class="btn btn-primary" id="createCounterBtn" style="margin-top:12px">Create Counter</button>
-      </div>
-    </div>
-
-    <!-- ===== ANALYTICS ===== -->
-    <div class="view" id="view-analytics">
-      <!-- Time filter -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div style="font-size:15px;font-weight:700">Analytics Overview</div>
-        <div class="time-filter" id="analyticsTimeFilter">
-          <button class="tf-btn active" data-range="7">Last 7 days</button>
-          <button class="tf-btn" data-range="30">Last 30 days</button>
-          <button class="tf-btn" data-range="180">Last 6 months</button>
-          <button class="tf-btn" data-range="0">All time</button>
-        </div>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Served</div><div class="stat-value" id="aTotalServed" style="color:var(--green)">0</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Service Time</div><div class="stat-value" style="color:var(--primary)"><span id="aAvgMs">—</span> min</div></div>
-        <div class="stat-card"><div class="stat-label">Median</div><div class="stat-value" style="color:var(--violet)"><span id="aMedian">—</span> min</div></div>
-        <div class="stat-card"><div class="stat-label">P90</div><div class="stat-value" style="color:var(--pink)"><span id="aP90">—</span> min</div></div>
-      </div>
-
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-header">Queue Status Breakdown</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;text-align:center">
-          <div><div id="aCompleted" style="font-size:26px;font-weight:800;color:var(--green)">0</div><div style="font-size:12px;color:var(--text-muted)">Completed</div></div>
-          <div><div id="aWaiting" style="font-size:26px;font-weight:800;color:var(--blue)">0</div><div style="font-size:12px;color:var(--text-muted)">Waiting</div></div>
-          <div><div id="aServing" style="font-size:26px;font-weight:800;color:var(--violet)">0</div><div style="font-size:12px;color:var(--text-muted)">Serving</div></div>
-          <div><div id="aCancelled" style="font-size:26px;font-weight:800;color:var(--text-light)">0</div><div style="font-size:12px;color:var(--text-muted)">Cancelled</div></div>
-        </div>
-      </div>
-
-      <div class="grid-2" style="margin-bottom:16px">
+      <section class="view" id="view-counters">
         <div class="card">
-          <div class="card-header" id="queueTrendTitle">Queue Trend (7 Days)</div>
-          <div class="chart-wrap"><canvas id="queueTrendChart"></canvas></div>
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px">
+            <div style="font-weight:900">Counters</div>
+            <button class="btn btn-primary btn-sm" id="addCounterBtn">+ Add Counter</button>
+          </div>
+          <div id="countersList" class="tiny">Loading...</div>
+        </div>
+        <div class="card" style="margin-top:16px;display:none" id="addCounterForm">
+          <div style="font-weight:900;margin-bottom:8px">New Counter</div>
+          <label class="field-label" style="margin-top:0">Name</label>
+          <input class="input" id="newCounterName" placeholder="Counter A" />
+          <label class="field-label">Prefix</label>
+          <input class="input" id="newCounterPrefix" placeholder="A" maxlength="5" />
+          <button class="btn btn-primary" id="createCounterBtn" style="margin-top:12px">Create Counter</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-analytics">
+        <div class="stats" style="margin-bottom:16px">
+          <div class="stat"><div class="label">Total Served</div><div class="value" id="aTotalServed">0</div></div>
+          <div class="stat"><div class="label">Avg Service Time</div><div class="value" id="aAvg">—</div></div>
+          <div class="stat"><div class="label">Median</div><div class="value" id="aMedian">—</div></div>
+          <div class="stat"><div class="label">P90</div><div class="value" id="aP90">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:900;margin-bottom:10px">Queue Status Breakdown</div>
+          <div class="stats" style="margin:0">
+            <div class="stat"><div class="label">Completed</div><div class="value" id="aCompleted" style="color:var(--green)">0</div></div>
+            <div class="stat"><div class="label">Waiting</div><div class="value" id="aWaiting" style="color:var(--blue)">0</div></div>
+            <div class="stat"><div class="label">Serving</div><div class="value" id="aServing" style="color:var(--violet)">0</div></div>
+            <div class="stat"><div class="label">Cancelled</div><div class="value" id="aCancelled" style="color:var(--soft)">0</div></div>
+          </div>
         </div>
         <div class="card">
-          <div class="card-header">Counter Performance</div>
-          <div class="chart-wrap"><canvas id="counterPerfChart"></canvas></div>
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+            <div style="font-weight:900">Service Events</div>
+            <button class="btn btn-secondary btn-sm" id="exportCsvBtn">📥 Export CSV</button>
+          </div>
+          <div style="overflow:auto">
+            <table class="table">
+              <thead>
+                <tr><th>Time</th><th>Counter</th><th>Service ms</th><th>Status</th></tr>
+              </thead>
+              <tbody id="rawEventsTable"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Pie Chart -->
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-header">Status Distribution (Pie)</div>
-        <div class="chart-wrap" style="height:300px;max-width:400px;margin:0 auto"><canvas id="statusPieChart"></canvas></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">Service Events (Raw) <button class="btn btn-secondary btn-sm" id="exportCsvBtn">📥 Export CSV</button></div>
-        <div id="rawEventsTable" style="overflow-x:auto;font-size:13px"></div>
-      </div>
-    </div>
-
-    <!-- ===== ANNOUNCEMENTS ===== -->
-    <div class="view" id="view-announcements">
-      <div id="announceContainer"></div>
-    </div>
-
-    <!-- ===== AUDIT ===== -->
-    <div class="view" id="view-audit">
-      <div class="card fade-in">
-        <div class="card-header">Audit Logs</div>
-        <div id="auditList"></div>
-        <div id="auditEmpty" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">No audit logs yet.</div>
-      </div>
-    </div>
-
-    <!-- ===== DATA CLEANUP / RESET ===== -->
-    <div class="view" id="view-reset">
-      <div class="card fade-in" style="margin-bottom:16px">
-        <div class="card-header">🧹 Data Cleanup</div>
-        <div class="reset-warning">
-          ⚠️ <strong>Clean Old Data</strong> removes queue records and analytics events older than the selected retention period. Settings, counters, Telegram connections, and audit logs are <strong>NOT</strong> deleted.
+      <section class="view" id="view-announcements">
+        <div class="card">
+          <div style="font-weight:900;margin-bottom:8px">Send Announcement</div>
+          <div class="tiny" style="margin-bottom:12px">This sends directly to the Netlify function. No browser-side `require` path is used.</div>
+          <label class="field-label" style="margin-top:0">Message</label>
+          <textarea class="input" id="announceMessage" placeholder="Type your announcement..."></textarea>
+          <label class="field-label">Target</label>
+          <select class="input" id="announceTarget">
+            <option value="all">All connected Telegram users</option>
+            <option value="list">Custom chat IDs</option>
+          </select>
+          <label class="field-label">Chat IDs (comma-separated, only for custom target)</label>
+          <input class="input" id="announceChatIds" placeholder="6426424898, 123456789" />
+          <button class="btn btn-primary" id="announceSendBtn" style="margin-top:12px">Send Announcement</button>
+          <div id="announceResult" class="tiny" style="margin-top:10px"></div>
         </div>
-        <label class="field-label" style="margin-top:0">Retention Period</label>
-        <div class="retention-selector" id="retentionSelector">
-          <div class="retention-opt" data-retention="0">Never</div>
-          <div class="retention-opt selected" data-retention="1">1 Day</div>
-          <div class="retention-opt" data-retention="7">1 Week</div>
-          <div class="retention-opt" data-retention="30">1 Month</div>
-        </div>
-        <button class="btn btn-warning" id="cleanOldDataBtn">🧹 Clean Old Data</button>
-        <div class="reset-result" id="cleanResult" style="display:none"></div>
-      </div>
+      </section>
 
-      <div class="card fade-in" style="animation-delay:.1s">
-        <div class="card-header">🔴 Hard Reset</div>
-        <div class="reset-danger">
-          🚨 <strong>Hard Reset</strong> will:<br>
-          • Delete ALL queue items<br>
-          • Reset queue numbering (nextTicket, nowServing, etc.) to zero<br>
-          • Delete ALL analytics service events<br>
-          • Dashboard will show all zeros immediately<br><br>
-          This does <strong>NOT</strong> delete: business settings, counters, Telegram connections, audit logs.
+      <section class="view" id="view-audit">
+        <div class="card">
+          <div style="font-weight:900;margin-bottom:10px">Audit Logs</div>
+          <div id="auditList" class="tiny">Loading...</div>
         </div>
-        <div style="display:flex;gap:10px;align-items:center">
+      </section>
+
+      <section class="view" id="view-reset">
+        <div class="card" style="margin-bottom:16px">
+          <div style="font-weight:900;margin-bottom:10px">Data Cleanup</div>
+          <div class="warning" style="margin-bottom:12px">
+            Removes queue records and analytics events older than the selected retention period. Settings, counters, Telegram connections, and audit logs stay intact.
+          </div>
+          <div class="media-row" id="retentionSelector">
+            <button class="btn btn-secondary btn-sm active" data-retention="1">1 Day</button>
+            <button class="btn btn-secondary btn-sm" data-retention="7">1 Week</button>
+            <button class="btn btn-secondary btn-sm" data-retention="30">1 Month</button>
+            <button class="btn btn-secondary btn-sm" data-retention="0">Never</button>
+          </div>
+          <button class="btn btn-warning" id="cleanOldDataBtn" style="margin-top:12px">🧹 Clean Old Data</button>
+          <div id="cleanResult" class="tiny" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card">
+          <div style="font-weight:900;margin-bottom:10px">Hard Reset</div>
+          <div class="dangerbox" style="margin-bottom:12px">
+            Deletes ALL queue items and analytics service events, then resets queue state counters to zero. Business settings, counters, Telegram connections, and audit logs remain.
+          </div>
           <button class="btn btn-danger" id="hardResetBtn">🔴 Hard Reset</button>
-          <span id="hardResetConfirmWrap" style="display:none">
-            <span style="font-size:12px;color:var(--red);font-weight:700;margin-right:8px">Are you sure?</span>
+          <div id="hardResetConfirmWrap" class="hidden" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="tiny" style="color:#fca5a5;font-weight:800">Are you sure?</span>
             <button class="btn btn-danger btn-sm" id="hardResetConfirmBtn">Yes, Reset Now</button>
             <button class="btn btn-secondary btn-sm" id="hardResetCancelBtn">Cancel</button>
-          </span>
+          </div>
+          <div id="resetResult" class="tiny" style="margin-top:10px"></div>
         </div>
-        <div class="reset-result" id="resetResult" style="display:none"></div>
-      </div>
-    </div>
+      </section>
 
-    <!-- ===== ACCOUNT ===== -->
-    <div class="view" id="view-account">
-      <div class="card fade-in" style="max-width:480px">
-        <div class="card-header">Account</div>
-        <div style="margin-bottom:12px"><span class="field-label" style="margin:0">Email</span><div id="accountEmail" style="font-size:14px;margin-top:4px">—</div></div>
-        <div style="margin-bottom:12px"><span class="field-label" style="margin:0">Tenant ID</span><div id="accountTenantId" style="font-size:14px;margin-top:4px;word-break:break-all">—</div></div>
-        <div style="margin-bottom:12px"><span class="field-label" style="margin:0">Slug</span><div id="accountSlug" style="font-size:14px;margin-top:4px">—</div></div>
-        <button class="btn btn-danger" id="accountSignOut" style="margin-top:8px">Sign Out</button>
-      </div>
+      <section class="view" id="view-account">
+        <div class="card" style="max-width:520px">
+          <div style="font-weight:900;margin-bottom:10px">Account</div>
+          <div class="tiny" style="margin-bottom:10px">Email</div>
+          <div id="accountEmail" style="font-weight:800;margin-bottom:14px">—</div>
+          <div class="tiny" style="margin-bottom:10px">Tenant ID</div>
+          <div id="accountTenantId" style="font-weight:800;margin-bottom:14px;word-break:break-all">—</div>
+          <div class="tiny" style="margin-bottom:10px">Slug</div>
+          <div id="accountSlug" style="font-weight:800;margin-bottom:14px">—</div>
+          <button class="btn btn-danger" id="accountSignOut">Sign Out</button>
+        </div>
+      </section>
     </div>
-  </div>
+  </main>
 </div>
 
-<!-- announce.js module loaded BEFORE the main script -->
-<script>
-  (function loadAnnounceModule() {
-    if (window.__announceModule && typeof window.__announceModule.init === 'function') return;
-    var s = document.createElement('script');
-    s.src = '/announce.js';
-    s.defer = true;
-    s.onload = function() { console.log('announce.js loaded'); };
-    s.onerror = function() { console.error('Failed to load /announce.js'); };
-    document.head.appendChild(s);
-  })();
-</script>
-
 <script type="module">
-// ============================================================
-// QueueJoy Admin — Full: esc fix, theme, reset page, pie chart,
-// performance optimizations, announcement integration
-// ============================================================
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-import { getDatabase, ref, onValue, get, set, update, push, child, remove } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import { getDatabase, ref, onValue, get, set, update, push, remove, child } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 const FIREBASE_CONFIG = {
@@ -560,1254 +484,1132 @@ const FIREBASE_CONFIG = {
   measurementId: "G-KWBELWRC5M"
 };
 
-// ===== GLOBAL esc() function — CRITICAL FIX =====
-function esc(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+const $ = (id) => document.getElementById(id);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const NOW = () => Date.now();
+
+function esc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
-
-// ===== Helpers =====
-const $ = id => document.getElementById(id);
-const $$ = sel => document.querySelectorAll(sel);
-
-function showToast(msg, type, ms) {
-  type = type || 'success';
-  ms = ms || 3000;
-  var t = document.createElement('div');
-  t.className = 'toast toast-' + type;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(function() { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; setTimeout(function() { t.remove(); }, 300); }, ms);
+function toast(msg, kind = 'success', ms = 2600) {
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(10px)'; setTimeout(() => el.remove(), 220); }, ms);
+}
+function debounce(fn, ms) {
+  let t = 0;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+function isHttpsUrl(v) {
+  return /^https:\/\/[^\s]+$/i.test(String(v || '').trim());
+}
+function normalizeHttpsUrl(v) {
+  const s = String(v || '').trim();
+  return isHttpsUrl(s) ? s : '';
+}
+function humanBytes(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 function formatDate(ts) {
   if (!ts) return '—';
-  try { return new Date(ts).toLocaleString(); } catch(e) { return '—'; }
+  try { return new Date(ts).toLocaleString(); } catch { return '—'; }
 }
-function genId(prefix) { prefix = prefix || ''; return prefix + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
-function fileToDataUrl(file) {
-  return new Promise(function(res, rej) { var r = new FileReader(); r.onload = function() { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); });
+function safeText(el, value) {
+  if (!el) return;
+  el.textContent = value == null ? '' : String(value);
 }
-function detectMediaType(file) {
-  if (!file) return 'unknown';
-  if (file.type === 'image/gif') return 'gif';
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('audio/')) return 'audio';
-  return 'unknown';
+function clone(v) {
+  return v ? JSON.parse(JSON.stringify(v)) : v;
 }
-function formatBytes(b) {
-  if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
-  return (b / 1048576).toFixed(1) + ' MB';
-}
-
-// ===== THEME =====
-function initTheme() {
-  var saved = localStorage.getItem('qj-theme');
-  if (saved === 'light') {
-    document.documentElement.classList.add('light');
-    $('themeToggle').textContent = '☀️';
-  }
-}
-initTheme();
-
-$('themeToggle').addEventListener('click', function() {
-  var isLight = document.documentElement.classList.toggle('light');
-  localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
-  $('themeToggle').textContent = isLight ? '☀️' : '🌙';
-  // Update chart colors if charts exist
-  updateChartTheme();
-});
-
-function getChartTextColor() {
-  return document.documentElement.classList.contains('light') ? '#64748b' : '#94a3b8';
-}
-function getChartGridColor() {
-  return document.documentElement.classList.contains('light') ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
-}
-
-// ===== LAZY MEDIA PREVIEW =====
-var _activeObjectUrls = [];
-function revokeOldUrls() {
-  _activeObjectUrls.forEach(function(u) { try { URL.revokeObjectURL(u); } catch(e) {} });
-  _activeObjectUrls = [];
-}
-
-function createMediaPreview(src, container, mediaType, fileName, fileSize) {
-  if (!container) return;
-  try {
-    var oldVid = container.querySelector('video');
-    if (oldVid) { oldVid.pause(); try { oldVid.removeAttribute('src'); oldVid.load(); } catch(e){} }
-    container.innerHTML = '';
-    if (!src) return;
-
-    var isVideo = mediaType === 'video' || (typeof src === 'string' && (src.startsWith('data:video') || /\.(mp4|webm|mov)/i.test(src)));
-
-    if (isVideo) {
-      var placeholder = document.createElement('div');
-      placeholder.className = 'media-placeholder';
-      placeholder.innerHTML =
-        '<div class="mp-meta"><span class="mp-icon">🎬</span><div><div style="font-weight:600;font-size:12px;color:var(--text)">' + esc(fileName || 'Video') + '</div>' + (fileSize ? '<div style="font-size:10px;color:var(--text-light)">' + formatBytes(fileSize) + '</div>' : '') + '</div></div>' +
-        '<button class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>';
-      var loadBtn = placeholder.querySelector('.mp-load-btn');
-      loadBtn.addEventListener('click', function() {
-        loadBtn.innerHTML = '<span class="spinner"></span> Loading...';
-        loadBtn.disabled = true;
-        var v = document.createElement('video');
-        v.preload = 'none';
-        v.controls = true;
-        v.muted = true;
-        v.playsInline = true;
-        v.className = 'preview-media';
-        v.style.maxWidth = '240px';
-        v.style.maxHeight = '160px';
-        v.onloadeddata = function() { placeholder.replaceWith(v); };
-        v.onerror = function() { loadBtn.textContent = '⚠️ Failed to load'; loadBtn.disabled = false; };
-        v.src = src;
-        v.load();
-      });
-      container.appendChild(placeholder);
-    } else {
-      var img = document.createElement('img');
-      img.src = src;
-      img.className = 'preview-media';
-      img.loading = 'lazy';
-      container.appendChild(img);
-    }
-  } catch (err) {
-    console.error('Safe render error (createMediaPreview):', err);
-  }
-}
-
-function compressImage(file, maxW, quality) {
-  maxW = maxW || 800;
-  quality = quality || 0.7;
-  return new Promise(function(resolve) {
-    if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-      fileToDataUrl(file).then(resolve);
-      return;
-    }
-    var img = new Image();
-    var url = URL.createObjectURL(file);
-    img.onload = function() {
-      URL.revokeObjectURL(url);
-      var w = img.width, h = img.height;
-      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
-      var canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      var cx = canvas.getContext('2d');
-      cx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = function() { URL.revokeObjectURL(url); fileToDataUrl(file).then(resolve); };
-    img.src = url;
-  });
-}
-
-// ===== DEBOUNCE UTILITY =====
-function debounce(fn, ms) {
-  var timer;
-  return function() {
-    var args = arguments;
-    var self = this;
-    clearTimeout(timer);
-    timer = setTimeout(function() { fn.apply(self, args); }, ms);
-  };
-}
-
-// ========================================
-// CONFIG OPTIMIZATION HELPERS
-// ========================================
-function deepCleanConfig(obj) {
-  if (obj === null || obj === undefined) return undefined;
-  if (typeof obj === 'string') {
-    var trimmed = obj.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
+function cleanObj(obj) {
+  if (obj == null) return undefined;
   if (Array.isArray(obj)) {
-    var cleaned = obj.map(deepCleanConfig).filter(function(v) { return v !== undefined; });
-    return cleaned.length > 0 ? cleaned : undefined;
+    const arr = obj.map(cleanObj).filter(v => v !== undefined);
+    return arr.length ? arr : undefined;
   }
   if (typeof obj === 'object') {
-    var result = {};
-    for (var key in obj) {
-      if (!obj.hasOwnProperty(key)) continue;
-      var cv = deepCleanConfig(obj[key]);
-      if (cv !== undefined) result[key] = cv;
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const cv = cleanObj(v);
+      if (cv !== undefined) out[k] = cv;
     }
-    return Object.keys(result).length > 0 ? result : undefined;
+    return Object.keys(out).length ? out : undefined;
+  }
+  if (typeof obj === 'string') {
+    const s = obj.trim();
+    return s ? s : undefined;
   }
   return obj;
 }
+function uid(prefix = '') {
+  return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
 
-function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
-  var raw = {};
-  raw.createdAt = currentConfig.createdAt || Date.now();
-  raw.updatedAt = Date.now();
-  raw.displayName = $('cfgDisplayName') ? $('cfgDisplayName').value : '';
-  raw.smallTextOnTop = $('cfgSmallTextOnTop') ? $('cfgSmallTextOnTop').value : '';
-  raw.mainHeading = $('cfgMainHeading') ? $('cfgMainHeading').value : '';
-  raw.description = $('cfgDescription') ? $('cfgDescription').value : '';
-  raw.buttonText = $('cfgButtonText') ? $('cfgButtonText').value : '';
-  raw.adText = $('cfgAdText') ? $('cfgAdText').value : '';
-  raw.timezone = $('cfgTimezone') ? $('cfgTimezone').value : 'Asia/Kuala_Lumpur';
+const state = {
+  slug: '',
+  tenantId: '',
+  db: null,
+  auth: null,
+  user: null,
+  currentConfig: {},
+  currentNotifications: {},
+  counters: {},
+  queue: {},
+  queueMeta: {},
+  queueState: {},
+  audit: [],
+  serviceEvents: [],
+  telegramConnected: {},
+  telegramTokens: {},
+  saving: false,
+  retentionDays: 1,
+  charts: { queueTrend: null, counterPerf: null, statusPie: null },
+  preview: {
+    logo: null,
+    centerLogo: null,
+    ad: null,
+    adType: '',
+    logoName: '',
+    centerLogoName: '',
+    adName: ''
+  },
+  objectUrls: new Set(),
+  previewDirty: { text: true, media: true },
+  mediaLock: false
+};
 
-  var color = $('cfgColor') ? $('cfgColor').value : '#8b5cf6';
-  if (color) raw.theme = { color: color };
+function currentRoot() {
+  return state.tenantId;
+}
+function tRef(path = '') {
+  const base = currentRoot();
+  return ref(state.db, path ? `${base}/${String(path).replace(/^\/+/, '')}` : base);
+}
+function nowTs(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = Date.parse(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
 
-  var logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
+function setStatusText(elId, text, color = '') {
+  const el = $(elId);
+  if (!el) return;
+  el.textContent = text;
+  if (color) el.style.color = color;
+}
+
+function getSlug() {
+  const p = new URLSearchParams(location.search);
+  const s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
+  return s && s.trim() ? s.trim() : '';
+}
+
+function revokeObjectUrl(url) {
+  try { if (url) URL.revokeObjectURL(url); } catch {}
+}
+function clearPreviewUrls() {
+  for (const url of state.objectUrls) revokeObjectUrl(url);
+  state.objectUrls.clear();
+}
+
+function loadLocalPreview(file, mode) {
+  if (!file) return null;
+  const url = URL.createObjectURL(file);
+  state.objectUrls.add(url);
+  const obj = { url, name: file.name || 'preview', type: file.type || '', size: file.size || 0, file };
+  if (mode === 'logo') {
+    state.preview.logo = obj;
+    state.preview.logoName = file.name || 'preview';
+  } else if (mode === 'center') {
+    state.preview.centerLogo = obj;
+    state.preview.centerLogoName = file.name || 'preview';
+  } else if (mode === 'ad') {
+    state.preview.ad = obj;
+    state.preview.adType = file.type || '';
+    state.preview.adName = file.name || 'preview';
+  }
+  state.previewDirty.media = true;
+  scheduleMediaPreview();
+  return obj;
+}
+
+function pickExistingHttps(...values) {
+  for (const v of values) {
+    const s = normalizeHttpsUrl(v);
+    if (s) return s;
+  }
+  return '';
+}
+
+function buildSavedConfigFromUI() {
+  const current = state.currentConfig || {};
+  const themeColor = $('cfgColor')?.value || current?.theme?.color || '#8b5cf6';
+
+  const explicitLogoUrl = normalizeHttpsUrl($('cfgLogoUrl')?.value);
+  const explicitCenterLogoUrl = normalizeHttpsUrl($('cfgCenterLogoUrl')?.value);
+  const explicitAdImageUrl = normalizeHttpsUrl($('cfgAdImageUrl')?.value);
+  const explicitAdVideoUrl = normalizeHttpsUrl($('cfgAdVideoUrl')?.value);
+  const adLink = normalizeHttpsUrl($('cfgAdLink')?.value);
+
+  const raw = {
+    createdAt: current.createdAt || NOW(),
+    updatedAt: NOW(),
+    displayName: ($('cfgDisplayName')?.value || '').trim(),
+    smallTextOnTop: ($('cfgSmallTextOnTop')?.value || '').trim(),
+    mainHeading: ($('cfgMainHeading')?.value || '').trim(),
+    description: ($('cfgDescription')?.value || '').trim(),
+    buttonText: ($('cfgButtonText')?.value || '').trim(),
+    adText: ($('cfgAdText')?.value || '').trim(),
+    timezone: $('cfgTimezone')?.value || 'Asia/Kuala_Lumpur',
+    theme: { color: themeColor }
+  };
+
+  const logoUrl = explicitLogoUrl || pickExistingHttps(current.logoUrl, current.logo, current.theme && current.theme.logo);
   if (logoUrl) raw.logoUrl = logoUrl;
 
-  var centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
+  const centerLogoUrl = explicitCenterLogoUrl || pickExistingHttps(current.centerLogoUrl);
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
-  var adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
-  var adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
-  var adLink = $('cfgAdLink') ? $('cfgAdLink').value : '';
-
-  var ad = {};
-  if (adVideo) ad.video = adVideo;
-  if (adImage && !adVideo) ad.image = adImage;
-  if (adLink && adLink.trim()) ad.link = adLink.trim();
-  if (Object.keys(ad).length > 0) raw.ad = ad;
-
-  return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
-}
-
-// ===== Slug resolution =====
-function getSlug() {
-  var p = new URLSearchParams(window.location.search);
-  var s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
-  if (s && s.trim()) return s.trim();
-  var path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
-  if (path.length >= 2 && path[0].includes('admin')) {
-    var slug = path[1];
-    if (slug && !slug.includes('.')) {
-      window.location.href = window.location.origin + '/admin.html?slug=' + encodeURIComponent(slug);
-      return null;
-    }
+  const ad = {};
+  if (explicitAdVideoUrl) ad.video = explicitAdVideoUrl;
+  else if (explicitAdImageUrl) ad.image = explicitAdImageUrl;
+  else {
+    const savedVideo = pickExistingHttps(current.ad && current.ad.video, current.adVideo, current.adVideoUrl);
+    const savedImage = pickExistingHttps(current.ad && current.ad.image, current.adImage, current.adImageUrl);
+    if (savedVideo) ad.video = savedVideo;
+    else if (savedImage) ad.image = savedImage;
   }
-  return null;
+  if (adLink) ad.link = adLink;
+  if (Object.keys(ad).length) raw.ad = ad;
+
+  return cleanObj(raw) || { createdAt: NOW(), updatedAt: NOW() };
 }
 
-// ===== Boot =====
+function getCurrentTextState() {
+  return {
+    color: $('cfgColor')?.value || state.currentConfig?.theme?.color || '#8b5cf6',
+    displayName: $('cfgDisplayName')?.value || state.currentConfig?.displayName || '',
+    smallTextOnTop: $('cfgSmallTextOnTop')?.value || state.currentConfig?.smallTextOnTop || '',
+    mainHeading: $('cfgMainHeading')?.value || state.currentConfig?.mainHeading || '',
+    description: $('cfgDescription')?.value || state.currentConfig?.description || '',
+    buttonText: $('cfgButtonText')?.value || state.currentConfig?.buttonText || '',
+    adText: $('cfgAdText')?.value || state.currentConfig?.adText || ''
+  };
+}
+
+function getCurrentMediaState() {
+  const current = state.currentConfig || {};
+  return {
+    logoUrl: normalizeHttpsUrl($('cfgLogoUrl')?.value) || pickExistingHttps(current.logoUrl, current.logo, current.theme && current.theme.logo),
+    centerLogoUrl: normalizeHttpsUrl($('cfgCenterLogoUrl')?.value) || pickExistingHttps(current.centerLogoUrl),
+    adImageUrl: normalizeHttpsUrl($('cfgAdImageUrl')?.value) || pickExistingHttps(current.ad && current.ad.image, current.adImage, current.adImageUrl),
+    adVideoUrl: normalizeHttpsUrl($('cfgAdVideoUrl')?.value) || pickExistingHttps(current.ad && current.ad.video, current.adVideo, current.adVideoUrl),
+    localLogo: state.preview.logo?.url || '',
+    localCenterLogo: state.preview.centerLogo?.url || '',
+    localAd: state.preview.ad?.url || '',
+    localAdType: state.preview.adType || ''
+  };
+}
+
+let phoneShell = null;
+let phoneRefs = {};
+let lastTextSig = '';
+let lastMediaSig = '';
+
+function buildPhoneShell() {
+  const screen = $('phoneScreen');
+  if (!screen) return;
+  if (phoneShell) return;
+
+  screen.innerHTML = `
+    <div class="phone-notch"></div>
+    <div class="phone-body">
+      <div class="phone-header" data-pp="header">
+        <div class="phone-small" data-pp="small"></div>
+        <div class="logo-slot" data-pp="logo"></div>
+        <div class="phone-title" data-pp="name"></div>
+      </div>
+      <div class="center-slot" data-pp="center"></div>
+      <div class="phone-headline" data-pp="heading"></div>
+      <div class="phone-desc" data-pp="desc"></div>
+      <button class="phone-btn" data-pp="btn"></button>
+      <div class="ad-card" data-pp="adcard" style="display:none">
+        <div class="ad-label" data-pp="adtext"></div>
+        <div data-pp="admedia"></div>
+      </div>
+    </div>
+  `;
+  phoneShell = true;
+  phoneRefs = {
+    header: screen.querySelector('[data-pp="header"]'),
+    small: screen.querySelector('[data-pp="small"]'),
+    logo: screen.querySelector('[data-pp="logo"]'),
+    name: screen.querySelector('[data-pp="name"]'),
+    center: screen.querySelector('[data-pp="center"]'),
+    heading: screen.querySelector('[data-pp="heading"]'),
+    desc: screen.querySelector('[data-pp="desc"]'),
+    btn: screen.querySelector('[data-pp="btn"]'),
+    adcard: screen.querySelector('[data-pp="adcard"]'),
+    adtext: screen.querySelector('[data-pp="adtext"]'),
+    admedia: screen.querySelector('[data-pp="admedia"]')
+  };
+}
+
+function clearNode(node) {
+  if (!node) return;
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function setImagePreview(container, src, fallbackText) {
+  clearNode(container);
+  if (!src) {
+    const ph = document.createElement('div');
+    ph.className = 'placeholder';
+    ph.innerHTML = `<span><strong>No preview</strong><br>${esc(fallbackText || 'Nothing to show yet.')}</span>`;
+    container.appendChild(ph);
+    return;
+  }
+  const img = document.createElement('img');
+  img.loading = 'lazy';
+  img.alt = 'preview';
+  img.src = src;
+  img.onerror = () => {
+    clearNode(container);
+    const ph = document.createElement('div');
+    ph.className = 'placeholder';
+    ph.innerHTML = `<span><strong>Preview unavailable</strong><br>Check the URL or local file.</span>`;
+    container.appendChild(ph);
+  };
+  container.appendChild(img);
+}
+
+function setVideoPreview(container, src, label = 'Video preview') {
+  clearNode(container);
+  if (!src) {
+    const ph = document.createElement('div');
+    ph.className = 'placeholder';
+    ph.innerHTML = `<span><strong>No preview</strong><br>Choose a local video or add a hosted URL.</span>`;
+    container.appendChild(ph);
+    return;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'video-placeholder';
+  const left = document.createElement('div');
+  left.innerHTML = `<strong>${esc(label)}</strong><div class="tiny">Video loads only when opened.</div>`;
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-secondary btn-sm';
+  btn.textContent = 'Load video';
+  btn.onclick = () => {
+    clearNode(container);
+    const video = document.createElement('video');
+    video.controls = true;
+    video.preload = 'none';
+    video.playsInline = true;
+    video.style.width = '100%';
+    video.src = src;
+    container.appendChild(video);
+    video.load();
+  };
+  wrap.append(left, btn);
+  container.appendChild(wrap);
+}
+
+function renderPhoneText() {
+  buildPhoneShell();
+  const t = getCurrentTextState();
+  const media = getCurrentMediaState();
+  const sig = JSON.stringify({
+    color: t.color,
+    displayName: t.displayName,
+    smallTextOnTop: t.smallTextOnTop,
+    mainHeading: t.mainHeading,
+    description: t.description,
+    buttonText: t.buttonText,
+    adText: t.adText
+  });
+  if (sig === lastTextSig) return;
+  lastTextSig = sig;
+
+  phoneRefs.header.style.background = `linear-gradient(135deg, ${t.color}, ${t.color}dd)`;
+  safeText(phoneRefs.small, t.smallTextOnTop);
+  phoneRefs.small.style.display = t.smallTextOnTop ? '' : 'none';
+  safeText(phoneRefs.name, t.displayName || 'QueueJoy');
+  safeText(phoneRefs.heading, t.mainHeading || 'Welcome');
+  phoneRefs.heading.style.display = t.mainHeading ? '' : 'none';
+  safeText(phoneRefs.desc, t.description || 'Real-time queueing system.');
+  safeText(phoneRefs.btn, t.buttonText || 'Get your queue number');
+  safeText(phoneRefs.adtext, t.adText || 'Advertisement');
+
+  // Keep media layer in sync if needed, but do not reload it on text changes.
+  renderPhoneMedia();
+}
+
+function renderPhoneMedia() {
+  buildPhoneShell();
+  const media = getCurrentMediaState();
+  const sig = JSON.stringify({
+    logoUrl: media.logoUrl,
+    centerLogoUrl: media.centerLogoUrl,
+    adImageUrl: media.adImageUrl,
+    adVideoUrl: media.adVideoUrl,
+    localLogo: !!media.localLogo,
+    localCenterLogo: !!media.localCenterLogo,
+    localAd: !!media.localAd,
+    localAdType: media.localAdType
+  });
+  if (sig === lastMediaSig) return;
+  lastMediaSig = sig;
+
+  const logoSrc = media.localLogo || media.logoUrl;
+  const centerSrc = media.localCenterLogo || media.centerLogoUrl;
+  const adImageSrc = media.adImageUrl;
+  const adVideoSrc = media.localAd && /video\//.test(media.localAdType) ? media.localAd : media.adVideoUrl;
+  const localAdImageSrc = media.localAd && /image\//.test(media.localAdType) ? media.localAd : '';
+
+  clearNode(phoneRefs.logo);
+  clearNode(phoneRefs.center);
+  clearNode(phoneRefs.admedia);
+
+  if (logoSrc) {
+    const img = document.createElement('img');
+    img.src = logoSrc;
+    img.alt = 'logo';
+    img.loading = 'lazy';
+    phoneRefs.logo.appendChild(img);
+  } else {
+    phoneRefs.logo.innerHTML = '';
+  }
+
+  if (centerSrc) {
+    const img = document.createElement('img');
+    img.src = centerSrc;
+    img.alt = 'center logo';
+    img.loading = 'lazy';
+    phoneRefs.center.appendChild(img);
+  } else {
+    phoneRefs.center.innerHTML = '';
+  }
+
+  const adSrc = localAdImageSrc || adImageSrc || adVideoSrc;
+  if (adSrc) {
+    phoneRefs.adcard.style.display = '';
+    if (localAdImageSrc || adImageSrc) {
+      const img = document.createElement('img');
+      img.src = localAdImageSrc || adImageSrc;
+      img.alt = 'ad';
+      img.loading = 'lazy';
+      img.style.width = '100%';
+      img.style.borderRadius = '12px';
+      phoneRefs.admedia.appendChild(img);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'video-placeholder';
+      const left = document.createElement('div');
+      left.innerHTML = `<strong>Hosted video</strong><div class="tiny">Loaded only on demand.</div>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary btn-sm';
+      btn.textContent = 'Load video';
+      btn.onclick = () => {
+        clearNode(phoneRefs.admedia);
+        const video = document.createElement('video');
+        video.controls = true;
+        video.preload = 'none';
+        video.playsInline = true;
+        video.style.width = '100%';
+        video.src = adVideoSrc;
+        phoneRefs.admedia.appendChild(video);
+        video.load();
+      };
+      wrap.append(left, btn);
+      phoneRefs.admedia.appendChild(wrap);
+    }
+  } else {
+    phoneRefs.adcard.style.display = 'none';
+  }
+}
+
+const scheduleTextPreview = debounce(() => {
+  renderPhoneText();
+}, 120);
+
+const scheduleMediaPreview = debounce(() => {
+  renderPhoneMedia();
+  updateConfigPreviewWarnings();
+}, 80);
+
+function updateConfigPreviewWarnings() {
+  const hasPreviewOnly = !!(state.preview.logo || state.preview.centerLogo || state.preview.ad);
+  const warn = $('mediaWarning');
+  if (!warn) return;
+  if (hasPreviewOnly) {
+    warn.innerHTML = `Local preview is active. Nothing from the file chooser will be written to Firebase. To publish, paste a hosted <strong>https://</strong> URL.`;
+  } else {
+    warn.innerHTML = `Preview files stay local in this admin page. To publish an ad, paste a hosted <strong>https://</strong> media URL.`;
+  }
+}
+
+function setInputValue(id, value) {
+  const el = $(id);
+  if (el) el.value = value == null ? '' : value;
+}
+
+function populateSettingsForm(cfg) {
+  const c = cfg || {};
+  setInputValue('cfgDisplayName', c.displayName || c.name || '');
+  setInputValue('cfgSmallTextOnTop', c.smallTextOnTop || c.smallTopText || '');
+  setInputValue('cfgMainHeading', c.mainHeading || c.mainTitle || c.titleinmiddle || '');
+  setInputValue('cfgDescription', c.description || c.introText || '');
+  setInputValue('cfgButtonText', c.buttonText || c.ctaText || c.ctaTitle || '');
+  setInputValue('cfgAdText', c.adText || '');
+  setInputValue('cfgAdLink', (c.ad && c.ad.link) || c.adHref || '');
+  setInputValue('cfgTimezone', c.timezone || 'Asia/Kuala_Lumpur');
+  setInputValue('cfgColor', (c.theme && c.theme.color) || '#8b5cf6');
+  safeText($('cfgColorHex'), $('cfgColor').value);
+
+  if (!state.preview.logo) setInputValue('cfgLogoUrl', pickExistingHttps(c.logoUrl, c.logo, c.theme && c.theme.logo));
+  if (!state.preview.centerLogo) setInputValue('cfgCenterLogoUrl', pickExistingHttps(c.centerLogoUrl));
+  if (!state.preview.ad) {
+    setInputValue('cfgAdImageUrl', pickExistingHttps(c.ad && c.ad.image, c.adImage, c.adImageUrl));
+    setInputValue('cfgAdVideoUrl', pickExistingHttps(c.ad && c.ad.video, c.adVideo, c.adVideoUrl));
+  }
+
+  if (!state.preview.logo) {
+    renderSavedMedia('cfgLogoPreview', pickExistingHttps(c.logoUrl, c.logo, c.theme && c.theme.logo), 'logo');
+  }
+  if (!state.preview.centerLogo) {
+    renderSavedMedia('cfgCenterLogoPreview', pickExistingHttps(c.centerLogoUrl), 'image');
+  }
+  if (!state.preview.ad) {
+    const vid = pickExistingHttps(c.ad && c.ad.video, c.adVideo, c.adVideoUrl);
+    const img = pickExistingHttps(c.ad && c.ad.image, c.adImage, c.adImageUrl);
+    if (vid) renderSavedMedia('cfgAdMediaPreview', vid, 'video');
+    else if (img) renderSavedMedia('cfgAdMediaPreview', img, 'image');
+    else renderEmptyMedia('cfgAdMediaPreview', 'Select a local file for preview or paste a hosted URL.');
+  }
+
+  state.previewDirty.text = true;
+  state.previewDirty.media = true;
+  scheduleTextPreview();
+  scheduleMediaPreview();
+}
+
+function renderEmptyMedia(containerId, text) {
+  const c = $(containerId);
+  if (!c) return;
+  c.innerHTML = `<div class="placeholder"><span><strong>No preview</strong><br>${esc(text || '')}</span></div>`;
+}
+function renderSavedMedia(containerId, url, type) {
+  const c = $(containerId);
+  if (!c) return;
+  if (!url) {
+    renderEmptyMedia(containerId, 'No hosted URL saved yet.');
+    return;
+  }
+  if (type === 'video') {
+    setVideoPreview(c, url, 'Hosted video');
+  } else {
+    setImagePreview(c, url, 'Hosted media');
+  }
+}
+
+function updateCounts() {
+  const q = Object.values(state.queue || {});
+  const waiting = q.filter(x => normalizeStatus(x.status) === 'waiting').length;
+  const serving = q.filter(x => normalizeStatus(x.status) === 'serving').length;
+  const completed = q.filter(x => normalizeStatus(x.status) === 'completed').length;
+  const cancelled = q.filter(x => normalizeStatus(x.status) === 'cancelled').length;
+  const activeCounters = Object.values(state.counters || {}).filter(Boolean).length;
+  safeText($('dTotalQ'), q.length);
+  safeText($('dWaiting'), waiting);
+  safeText($('dServing'), serving);
+  safeText($('dCompleted'), completed);
+  safeText($('dCancelled'), cancelled);
+  safeText($('dCounters'), activeCounters);
+
+  const totalServed = completed;
+  safeText($('aTotalServed'), totalServed);
+  safeText($('aCompleted'), completed);
+  safeText($('aWaiting'), waiting);
+  safeText($('aServing'), serving);
+  safeText($('aCancelled'), cancelled);
+
+  const ev = state.serviceEvents || [];
+  const ms = ev.filter(e => typeof e.serviceMs === 'number');
+  const avg = ms.length ? Math.round(ms.reduce((a,b)=>a+b,0) / ms.length / 60000) : null;
+  safeText($('dAvgService'), avg == null ? '— min' : `${avg} min`);
+  safeText($('dEventCount'), ev.length);
+  safeText($('aAvg'), avg == null ? '—' : `${avg}`);
+  const sorted = ms.map(e => e.serviceMs).sort((a,b)=>a-b);
+  const median = sorted.length ? Math.round(sorted[Math.floor((sorted.length-1)/2)] / 60000) : null;
+  const p90 = sorted.length ? Math.round(sorted[Math.floor((sorted.length-1)*0.9)] / 60000) : null;
+  safeText($('aMedian'), median == null ? '—' : `${median}`);
+  safeText($('aP90'), p90 == null ? '—' : `${p90}`);
+  safeText($('queueHealthText'), `Queue items: ${q.length}. Waiting: ${waiting}. Serving: ${serving}.`);
+}
+
+function normalizeStatus(v) {
+  const s = String(v || '').trim().toLowerCase();
+  if (['completed','served','done'].includes(s)) return 'completed';
+  if (['serving','called'].includes(s)) return 'serving';
+  if (['cancelled','canceled'].includes(s)) return 'cancelled';
+  return 'waiting';
+}
+
+function renderCounters() {
+  const list = $('countersList');
+  if (!list) return;
+  const entries = Object.entries(state.counters || {});
+  if (!entries.length) {
+    list.innerHTML = `<div class="tiny muted">No counters configured.</div>`;
+    return;
+  }
+  list.innerHTML = entries.map(([id, c]) => {
+    const active = c && c.active ? '<span class="badge green">active</span>' : '<span class="badge red">inactive</span>';
+    return `<div class="card" style="padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <div><div style="font-weight:900">${esc(c?.name || c?.counterName || id)}</div><div class="tiny">${esc(c?.prefix || '')} ${esc(id)}</div></div>
+        <div style="display:flex;gap:8px;align-items:center">${active}
+          <button class="btn btn-secondary btn-sm" data-counter-edit="${esc(id)}">Edit</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAudit() {
+  const list = $('auditList');
+  if (!list) return;
+  const rows = state.audit || [];
+  if (!rows.length) {
+    list.innerHTML = `<div class="tiny muted">No audit logs yet.</div>`;
+    return;
+  }
+  list.innerHTML = rows.slice(0, 120).map(item => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="font-weight:800">${esc(item.action || 'event')}</div>
+        <div class="tiny">${formatDate(item.ts)}</div>
+      </div>
+      <div class="tiny" style="margin-top:4px">${esc(JSON.stringify(item.details || {}))}</div>
+    </div>
+  `).join('');
+}
+
+function renderRawEvents() {
+  const tbody = $('rawEventsTable');
+  if (!tbody) return;
+  const ev = (state.serviceEvents || []).slice().sort((a,b) => (b.ts || 0) - (a.ts || 0)).slice(0, 120);
+  if (!ev.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="muted">No service events found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = ev.map(e => `
+    <tr>
+      <td>${esc(formatDate(e.ts || e.createdAt || e.completedAt))}</td>
+      <td>${esc(e.counterName || e.counterId || e.counter || '—')}</td>
+      <td>${esc(typeof e.serviceMs === 'number' ? Math.round(e.serviceMs / 60000) + ' min' : '—')}</td>
+      <td>${esc(e.status || '—')}</td>
+    </tr>
+  `).join('');
+}
+
+function renderPhoneNow() {
+  renderPhoneText();
+  renderPhoneMedia();
+  updateConfigPreviewWarnings();
+}
+
+const schedulePhonePreview = debounce(() => {
+  state.previewDirty.text = false;
+  renderPhoneText();
+}, 90);
+
+const scheduleConfigHydrate = debounce(() => {
+  populateSettingsForm(state.currentConfig || {});
+}, 40);
+
+function setupSettingsListeners() {
+  const inputs = ['cfgDisplayName','cfgSmallTextOnTop','cfgMainHeading','cfgDescription','cfgButtonText','cfgAdText','cfgAdLink','cfgTimezone','cfgLogoUrl','cfgCenterLogoUrl','cfgAdImageUrl','cfgAdVideoUrl'];
+  inputs.forEach(id => $(id)?.addEventListener('input', () => {
+    if (id === 'cfgColor') return;
+    if (id === 'cfgLogoUrl' || id === 'cfgCenterLogoUrl' || id === 'cfgAdImageUrl' || id === 'cfgAdVideoUrl' || id === 'cfgAdLink' || id === 'cfgTimezone') {
+      state.previewDirty.media = true;
+      scheduleMediaPreview();
+    } else {
+      state.previewDirty.text = true;
+      schedulePhonePreview();
+    }
+  }));
+  $('cfgColor')?.addEventListener('input', e => {
+    safeText($('cfgColorHex'), e.target.value);
+    state.previewDirty.text = true;
+    schedulePhonePreview();
+  });
+
+  $('cfgLogoFile')?.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    state.preview.logo = loadLocalPreview(f, 'logo');
+    safeText($('cfgLogoFileName'), `${f.name} · ${humanBytes(f.size)} · preview only`);
+    renderSavedMedia('cfgLogoPreview', state.preview.logo.url, 'image');
+    updateConfigPreviewWarnings();
+    toast('Logo preview loaded locally', 'success');
+  });
+
+  $('cfgCenterLogoFile')?.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    state.preview.centerLogo = loadLocalPreview(f, 'center');
+    safeText($('cfgCenterLogoFileName'), `${f.name} · ${humanBytes(f.size)} · preview only`);
+    renderSavedMedia('cfgCenterLogoPreview', state.preview.centerLogo.url, 'image');
+    updateConfigPreviewWarnings();
+    toast('Center logo preview loaded locally', 'success');
+  });
+
+  $('cfgAdMediaFile')?.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    state.preview.ad = loadLocalPreview(f, 'ad');
+    state.preview.adType = f.type || '';
+    safeText($('cfgAdMediaFileName'), `${f.name} · ${humanBytes(f.size)} · preview only`);
+    if (/video\//.test(f.type)) setVideoPreview($('cfgAdMediaPreview'), state.preview.ad.url, 'Local video preview');
+    else setImagePreview($('cfgAdMediaPreview'), state.preview.ad.url, 'Local image preview');
+    updateConfigPreviewWarnings();
+    toast('Ad preview loaded locally', 'success');
+  });
+
+  $('settingsSaveBtn')?.addEventListener('click', saveSettings);
+  $('savePublishBtn')?.addEventListener('click', saveSettings);
+  $('themeToggle')?.addEventListener('click', () => {
+    const light = document.documentElement.classList.toggle('light');
+    localStorage.setItem('qj-theme', light ? 'light' : 'dark');
+    safeText($('themeToggle'), light ? '☀️ Theme' : '🌙 Theme');
+  });
+  $('signOutBtn')?.addEventListener('click', () => signOut(state.auth));
+  $('accountSignOut')?.addEventListener('click', () => signOut(state.auth));
+  $('mobileMenuBtn')?.addEventListener('click', () => $('sidebar')?.classList.toggle('open'));
+
+  $('addCounterBtn')?.addEventListener('click', () => {
+    const form = $('addCounterForm');
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  });
+
+  $('createCounterBtn')?.addEventListener('click', async () => {
+    const name = $('newCounterName')?.value.trim();
+    const prefix = $('newCounterPrefix')?.value.trim();
+    if (!name) return toast('Counter name is required', 'error');
+    try {
+      const id = uid('ctr-');
+      await set(child(tRef('counters'), id), { name, prefix, active: true, createdAt: NOW(), updatedAt: NOW() });
+      $('newCounterName').value = '';
+      $('newCounterPrefix').value = '';
+      toast('Counter created');
+      await writeAudit('counter_created', { id, name, prefix });
+    } catch (e) {
+      toast(e.message || 'Failed to create counter', 'error');
+    }
+  });
+
+  $('exportCsvBtn')?.addEventListener('click', exportCsv);
+
+  $('announceSendBtn')?.addEventListener('click', sendAnnouncement);
+
+  $('cleanOldDataBtn')?.addEventListener('click', cleanOldData);
+  $('hardResetBtn')?.addEventListener('click', () => {
+    $('hardResetConfirmWrap')?.classList.remove('hidden');
+  });
+  $('hardResetCancelBtn')?.addEventListener('click', () => {
+    $('hardResetConfirmWrap')?.classList.add('hidden');
+  });
+  $('hardResetConfirmBtn')?.addEventListener('click', hardReset);
+
+  $('retentionSelector')?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-retention]');
+    if (!btn) return;
+    state.retentionDays = parseInt(btn.dataset.retention, 10) || 0;
+    $$('#retentionSelector .btn').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+  });
+
+  $$('.nav-item[data-view]').forEach(item => item.addEventListener('click', () => {
+    $$('.nav-item').forEach(x => x.classList.remove('active'));
+    item.classList.add('active');
+    $$('.view').forEach(v => v.classList.remove('active'));
+    const id = item.dataset.view;
+    const view = $(`view-${id}`);
+    if (view) view.classList.add('active');
+    safeText($('topbarTitle'), item.textContent.trim());
+    if (window.innerWidth <= 1080) $('sidebar')?.classList.remove('open');
+  }));
+
+  $('auditList')?.addEventListener('click', () => {});
+}
+
+async function saveSettings() {
+  if (state.saving) return;
+  state.saving = true;
+  const btns = [$('settingsSaveBtn'), $('savePublishBtn')].filter(Boolean);
+  btns.forEach(b => b.disabled = true);
+  const oldLabel = $('settingsSaveBtn')?.textContent || '';
+  if ($('settingsSaveBtn')) $('settingsSaveBtn').innerHTML = '<span class="spinner"></span> Saving...';
+  if ($('savePublishBtn')) $('savePublishBtn').disabled = true;
+
+  try {
+    const config = buildSavedConfigFromUI();
+    await set(tRef('public/config'), config);
+    await writeAudit('settings_saved', { keys: Object.keys(config || {}) });
+    toast('Settings published');
+    updateConfigPreviewWarnings();
+  } catch (e) {
+    console.error(e);
+    toast(e.message || 'Save failed', 'error', 3500);
+  } finally {
+    state.saving = false;
+    btns.forEach(b => b.disabled = false);
+    if ($('settingsSaveBtn')) $('settingsSaveBtn').textContent = '💾 Save & Publish';
+    if ($('savePublishBtn')) $('savePublishBtn').textContent = '💾 Save & Publish';
+  }
+}
+
+async function sendAnnouncement() {
+  const message = ($('announceMessage')?.value || '').trim();
+  if (!message) return toast('Message is required', 'error');
+  const targetType = $('announceTarget')?.value || 'all';
+  const chatIds = targetType === 'list'
+    ? ($('announceChatIds')?.value || '').split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+  const payload = {
+    tenantId: state.tenantId,
+    slug: state.slug,
+    message,
+    level: 'info',
+    target: targetType === 'list' ? { type: 'list', chatIds } : { type: 'all' }
+  };
+  const resEl = $('announceResult');
+  if (resEl) resEl.textContent = 'Sending...';
+  try {
+    const res = await fetch('/.netlify/functions/announce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.errorMessage || data.error || 'Announcement failed');
+    if (resEl) resEl.textContent = `Sent: ${data.success || 0}, Failed: ${data.failed || 0}`;
+    toast('Announcement sent');
+    await writeAudit('announcement_sent', { success: data.success || 0, failed: data.failed || 0 });
+  } catch (e) {
+    if (resEl) resEl.textContent = e.message || 'Announcement failed';
+    toast(e.message || 'Announcement failed', 'error');
+  }
+}
+
+function exportCsv() {
+  const rows = (state.serviceEvents || []).slice();
+  const header = ['ts','counterName','counterId','serviceMs','status','slug'];
+  const lines = [header.join(',')];
+  for (const r of rows) {
+    lines.push(header.map(k => JSON.stringify(r?.[k] ?? '')).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `queuejoy-service-events-${state.slug || 'tenant'}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function cleanOldData() {
+  const days = state.retentionDays || 0;
+  const result = $('cleanResult');
+  if (result) result.textContent = 'Cleaning...';
+  try {
+    const cutoff = days <= 0 ? 0 : NOW() - (days * 86400000);
+    const qSnap = await get(tRef('queue'));
+    let qRemoved = 0;
+    if (qSnap.exists()) {
+      const q = qSnap.val() || {};
+      for (const [k, v] of Object.entries(q)) {
+        const ts = nowTs(v.createdAt || v.joinedAt || v.updatedAt);
+        if (cutoff && ts && ts < cutoff) {
+          await remove(child(tRef('queue'), k));
+          qRemoved++;
+        }
+      }
+    }
+    const eSnap = await get(tRef('analytics/serviceEvents'));
+    let eRemoved = 0;
+    if (eSnap.exists()) {
+      const ev = eSnap.val() || {};
+      for (const [k, v] of Object.entries(ev)) {
+        const ts = nowTs(v.ts || v.createdAt || v.completedAt);
+        if (cutoff && ts && ts < cutoff) {
+          await remove(child(tRef('analytics/serviceEvents'), k));
+          eRemoved++;
+        }
+      }
+    }
+    if (result) result.textContent = `Cleaned queue: ${qRemoved}, events: ${eRemoved}`;
+    toast('Cleanup complete');
+    await writeAudit('cleanup_old_data', { retentionDays: days, queueRemoved: qRemoved, eventsRemoved: eRemoved });
+  } catch (e) {
+    if (result) result.textContent = e.message || 'Cleanup failed';
+    toast(e.message || 'Cleanup failed', 'error');
+  }
+}
+
+async function hardReset() {
+  const result = $('resetResult');
+  const btn = $('hardResetConfirmBtn');
+  if (btn) btn.disabled = true;
+  try {
+    await remove(tRef('queue'));
+    await remove(tRef('analytics/serviceEvents'));
+
+    const qmSnap = await get(tRef('queueMeta'));
+    if (qmSnap.exists()) {
+      const qm = qmSnap.val() || {};
+      const updates = {};
+      for (const key of Object.keys(qm)) {
+        if (key === 'createdAt' || key === 'nextTicket' || key === 'totalWaiting') continue;
+        updates[`queueMeta/${key}`] = null;
+      }
+      updates['queueMeta/createdAt'] = NOW();
+      updates['queueMeta/nextTicket'] = 1;
+      updates['queueMeta/totalWaiting'] = 0;
+      await update(tRef(), updates);
+    }
+
+    const qsSnap = await get(tRef('queueState'));
+    if (qsSnap.exists()) {
+      const qs = qsSnap.val() || {};
+      const updates = {};
+      for (const [k] of Object.entries(qs)) {
+        if (k === 'lastCounterIndex') {
+          updates['queueState/lastCounterIndex'] = 0;
+          continue;
+        }
+        if (typeof k === 'string') {
+          updates[`queueState/${k}/nextTicketNumber`] = 1;
+          updates[`queueState/${k}/nextNumber`] = 1;
+          updates[`queueState/${k}/nowServing`] = 0;
+          updates[`queueState/${k}/lastIssued`] = 0;
+          updates[`queueState/${k}/updatedAt`] = NOW();
+        }
+      }
+      await update(tRef(), updates);
+    }
+
+    const cSnap = await get(tRef('counters'));
+    if (cSnap.exists()) {
+      const cs = cSnap.val() || {};
+      const updates = {};
+      for (const [k] of Object.entries(cs)) {
+        updates[`counters/${k}/nowServing`] = 0;
+        updates[`counters/${k}/lastIssued`] = 0;
+        updates[`counters/${k}/updatedAt`] = NOW();
+      }
+      await update(tRef(), updates);
+    }
+
+    if (result) result.textContent = 'Hard reset complete.';
+    toast('Hard reset complete');
+    await writeAudit('hard_reset');
+  } catch (e) {
+    if (result) result.textContent = e.message || 'Reset failed';
+    toast(e.message || 'Reset failed', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    $('hardResetConfirmWrap')?.classList.add('hidden');
+  }
+}
+
+async function writeAudit(action, details = {}) {
+  try {
+    await set(push(tRef('audit')), {
+      action,
+      details,
+      by: state.user?.email || 'unknown',
+      ts: NOW()
+    });
+  } catch {}
+}
+
+async function bootstrapTenant() {
+  const seeds = [
+    ['public/config', { createdAt: NOW(), updatedAt: NOW(), displayName: state.slug, timezone: 'Asia/Kuala_Lumpur' }],
+    ['public/settings/notifications', { updatedAt: NOW() }],
+    ['queue', {}],
+    ['queueMeta', {}],
+    ['queueState', {}],
+    ['counters', {}],
+    ['telegramConnected', {}],
+    ['public/telegramTokens', {}],
+    ['audit', {}]
+  ];
+  for (const [path, value] of seeds) {
+    try {
+      const snap = await get(tRef(path));
+      if (!snap.exists()) await set(tRef(path), value);
+    } catch {}
+  }
+}
+
+function normalizeConfigSnapshot(v) {
+  const c = v || {};
+  return {
+    ...c,
+    theme: c.theme || {},
+    ad: c.ad || {},
+  };
+}
+
+function subscribeData() {
+  onValue(tRef('public/config'), snap => {
+    state.currentConfig = normalizeConfigSnapshot(snap.exists() ? snap.val() : {});
+    if (state.currentConfig.displayName) {
+      safeText($('sidebarTitle'), state.currentConfig.displayName);
+      document.title = `${state.currentConfig.displayName} — Admin`;
+    }
+    scheduleConfigHydrate();
+    renderPhoneNow();
+  });
+
+  onValue(tRef('public/settings/notifications'), snap => {
+    state.currentNotifications = snap.exists() ? snap.val() || {} : {};
+  });
+
+  onValue(tRef('queue'), snap => {
+    state.queue = snap.exists() ? snap.val() || {} : {};
+    updateCounts();
+  });
+
+  onValue(tRef('queueMeta'), snap => {
+    state.queueMeta = snap.exists() ? snap.val() || {} : {};
+    updateCounts();
+  });
+
+  onValue(tRef('queueState'), snap => {
+    state.queueState = snap.exists() ? snap.val() || {} : {};
+  });
+
+  onValue(tRef('counters'), snap => {
+    state.counters = snap.exists() ? snap.val() || {} : {};
+    renderCounters();
+    updateCounts();
+  });
+
+  onValue(tRef('analytics/serviceEvents'), snap => {
+    state.serviceEvents = snap.exists() ? Object.values(snap.val() || {}) : [];
+    updateCounts();
+    renderRawEvents();
+  });
+
+  onValue(tRef('audit'), snap => {
+    const raw = snap.exists() ? snap.val() || {} : {};
+    state.audit = Object.values(raw).sort((a,b) => (b.ts || 0) - (a.ts || 0));
+    renderAudit();
+  });
+
+  onValue(tRef('telegramConnected'), snap => {
+    state.telegramConnected = snap.exists() ? snap.val() || {} : {};
+  });
+
+  onValue(tRef('public/telegramTokens'), snap => {
+    state.telegramTokens = snap.exists() ? snap.val() || {} : {};
+  });
+}
+
+function setupAuth() {
+  $('authSignInBtn').addEventListener('click', async () => {
+    const email = $('authEmail').value.trim();
+    const password = $('authPassword').value;
+    const err = $('authError');
+    if (!email || !password) {
+      err.textContent = 'Enter email and password';
+      err.classList.remove('hidden');
+      return;
+    }
+    $('authBtnText').classList.add('hidden');
+    $('authBtnSpinner').classList.remove('hidden');
+    $('authSignInBtn').disabled = true;
+    try {
+      await setPersistence(state.auth, $('authRemember').checked ? browserLocalPersistence : browserSessionPersistence);
+      await signInWithEmailAndPassword(state.auth, email, password);
+    } catch (e) {
+      err.textContent = e.message || 'Sign in failed';
+      err.classList.remove('hidden');
+    } finally {
+      $('authBtnText').classList.remove('hidden');
+      $('authBtnSpinner').classList.add('hidden');
+      $('authSignInBtn').disabled = false;
+    }
+  });
+  $('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') $('authSignInBtn').click(); });
+}
+
 async function boot() {
-  var slug = getSlug();
-  if (!slug) {
-    $('authOverlay').innerHTML = '<div class="auth-card"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h2>Missing Tenant Slug</h2><p style="margin-bottom:12px">Access the admin with a valid slug:</p><code style="display:block;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;word-break:break-all;margin-bottom:12px">' + window.location.origin + '/admin.html?slug=your-slug</code><p style="font-size:11px;color:var(--text-light)">If you used <code>/admin.html/your-slug</code>, use <code>?slug=your-slug</code> instead.</p></div>';
+  state.slug = getSlug();
+  if (!state.slug) {
+    $('authOverlay').innerHTML = `<div class="auth-card"><div style="font-size:48px;margin-bottom:10px">⚠️</div><h2>Missing Tenant Slug</h2><p class="muted">Open the admin with a valid slug.</p><div class="tiny" style="margin-top:10px;word-break:break-all">${esc(location.origin + '/admin.html?slug=your-slug')}</div></div>`;
     return;
   }
 
-  var tenantId = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
+  let tenantId = state.slug.replace(/[^a-zA-Z0-9_-]/g, '_');
   try {
-    var res = await fetch('/.netlify/functions/get-tenant?slug=' + encodeURIComponent(slug), { cache: 'no-store' });
+    const res = await fetch('/.netlify/functions/get-tenant?slug=' + encodeURIComponent(state.slug), { cache: 'no-store' });
     if (res.ok) {
-      var j = await res.json();
+      const j = await res.json();
       tenantId = j.tenantId || j.tenant || tenantId;
     }
-  } catch(e) {}
+  } catch {}
 
-  window.__TENANT_SLUG = slug;
-  window.__TENANT_ID = tenantId;
+  state.tenantId = tenantId;
+  safeText($('sidebarSlug'), `slug: ${state.slug}\ntenant: ${state.tenantId}`);
+  const savedTheme = localStorage.getItem('qj-theme');
+  if (savedTheme === 'light') document.documentElement.classList.add('light');
+  safeText($('themeToggle'), document.documentElement.classList.contains('light') ? '☀️ Theme' : '🌙 Theme');
 
-  var app = initializeApp(FIREBASE_CONFIG);
-  var db = getDatabase(app);
-  var auth = getAuth(app);
+  const app = initializeApp(FIREBASE_CONFIG);
+  state.db = getDatabase(app);
+  state.auth = getAuth(app);
 
-  function tRef(path) {
-    path = String(path || '').replace(/^\/+/, '');
-    var base = 'tenants/' + tenantId;
-    return path ? ref(db, base + '/' + path) : ref(db, base);
-  }
+  setupAuth();
+  setupSettingsListeners();
 
-  async function writeAudit(action, details) {
-    details = details || {};
-    try {
-      var auditRef = push(tRef('audit'));
-      await set(auditRef, { action: action, details: details, by: auth.currentUser ? auth.currentUser.email : 'unknown', ts: Date.now() });
-    } catch(e) {}
-  }
-
-  async function bootstrapTenant() {
-    var seeds = [
-      ['public/config', { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, timezone: 'Asia/Kuala_Lumpur' }],
-      ['queue', null],
-      ['counters', null],
-      ['analytics/serviceEvents', null]
-    ];
-    for (var i = 0; i < seeds.length; i++) {
-      var path = seeds[i][0];
-      var defaultVal = seeds[i][1];
-      try {
-        var snap = await get(tRef(path));
-        if (!snap.exists() && defaultVal !== null) await set(tRef(path), defaultVal);
-      } catch(e) {}
-    }
-  }
-
-  // ===== State =====
-  var currentConfig = {};
-  var queueData = [];
-  var serviceEventsData = [];
-  var countersData = {};
-  var pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
-  var queueTrendChart = null;
-  var counterPerfChart = null;
-  var statusPieChart = null;
-  var saving = false;
-  var analyticsRange = 7;
-  var _lastMediaHash = '';
-  var selectedRetention = 1; // days
-
-  // ===== Auth =====
-  $('authSignInBtn').onclick = async function() {
-    var email = $('authEmail').value.trim();
-    var pw = $('authPassword').value;
-    if (!email || !pw) { $('authError').style.display = 'block'; $('authError').textContent = 'Enter email and password'; return; }
-    $('authSignInBtn').disabled = true;
-    $('authBtnText').style.display = 'none';
-    $('authBtnSpinner').style.display = 'inline';
-    $('authError').style.display = 'none';
-    try {
-      var remember = $('authRemember').checked;
-      await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, email, pw);
-    } catch (e) {
-      $('authError').style.display = 'block';
-      $('authError').textContent = e.message || 'Sign in failed';
-    } finally {
-      $('authSignInBtn').disabled = false;
-      $('authBtnText').style.display = 'inline';
-      $('authBtnSpinner').style.display = 'none';
-    }
-  };
-  $('authPassword').addEventListener('keydown', function(e) { if (e.key === 'Enter') $('authSignInBtn').click(); });
-
-  function doSignOut() { signOut(auth); }
-  $('signOutBtn').onclick = doSignOut;
-  $('accountSignOut').onclick = doSignOut;
-
-  onAuthStateChanged(auth, function(user) {
+  onAuthStateChanged(state.auth, async (user) => {
+    state.user = user || null;
     if (user) {
       $('authOverlay').style.display = 'none';
       $('mainArea').style.display = 'block';
-      $('accountEmail').textContent = user.email;
-      $('accountTenantId').textContent = tenantId;
-      $('accountSlug').textContent = slug;
-      $('sidebarSlug').innerHTML = '<small style="opacity:.7">slug:</small> <strong>' + esc(slug) + '</strong>';
-      initApp();
-      writeAudit('login');
+      safeText($('accountEmail'), user.email || '—');
+      safeText($('accountTenantId'), state.tenantId);
+      safeText($('accountSlug'), state.slug);
+      await bootstrapTenant();
+      subscribeData();
+      await writeAudit('login', { email: user.email || null });
+      updateConfigPreviewWarnings();
+      renderPhoneNow();
     } else {
       $('authOverlay').style.display = 'flex';
       $('mainArea').style.display = 'none';
     }
   });
-
-  // ===== Navigation =====
-  $$('.nav-item[data-view]').forEach(function(item) {
-    item.addEventListener('click', function() {
-      $$('.nav-item').forEach(function(i) { i.classList.remove('active'); });
-      item.classList.add('active');
-      var v = item.dataset.view;
-      $$('.view').forEach(function(el) { el.classList.remove('active'); });
-      var viewEl = $('view-' + v);
-      if (viewEl) {
-        viewEl.classList.add('active');
-        viewEl.style.animation = 'none';
-        viewEl.offsetHeight;
-        viewEl.style.animation = '';
-      }
-      $('topbarTitle').textContent = item.textContent.trim();
-      if (v === 'analytics') initCharts();
-      if (window.innerWidth <= 1024) $('sidebar').classList.remove('open');
-    });
-  });
-  $('mobileMenuBtn').onclick = function() { $('sidebar').classList.toggle('open'); };
-
-  // ===== Init app after auth =====
-  var appInitialized = false;
-  async function initApp() {
-    if (appInitialized) return;
-    appInitialized = true;
-    await bootstrapTenant();
-    setupListeners();
-    setupSettingsUI();
-    setupCountersUI();
-    setupAnnouncementsUI();
-    setupAuditUI();
-    setupAnalyticsFilter();
-    setupResetUI();
-  }
-
-  // ===== Firebase listeners =====
-  function setupListeners() {
-    onValue(tRef('public/config'), function(snap) {
-      try {
-        if (!snap.exists()) return;
-        currentConfig = snap.val() || {};
-        populateSettingsForm(currentConfig);
-        schedulePhonePreview();
-        if (currentConfig.displayName) {
-          $('sidebarTitle').textContent = currentConfig.displayName;
-          document.title = currentConfig.displayName + ' — Admin';
-        }
-      } catch (err) {
-        console.error('Safe render error (config listener):', err);
-      }
-    });
-
-    onValue(tRef('queue'), function(snap) {
-      try {
-        queueData = [];
-        if (snap.exists()) {
-          var obj = snap.val() || {};
-          var entries = Object.entries(obj);
-          for (var i = 0; i < entries.length; i++) {
-            var key = entries[i][0];
-            var q = entries[i][1];
-            if (!q || typeof q !== 'object') continue;
-            var ts = null;
-            if (typeof q.createdAt === 'number') ts = q.createdAt;
-            else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
-            if (!ts || isNaN(ts)) {
-              if (typeof q.joinedAt === 'number') ts = q.joinedAt;
-              else if (typeof q.joinedAt === 'string') ts = Date.parse(q.joinedAt);
-            }
-            if (!ts || isNaN(ts)) {
-              if (typeof q.updatedAt === 'number') ts = q.updatedAt;
-              else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
-            }
-            var rawStatus = String(q.status || '').trim().toLowerCase();
-            var classifiedStatus = 'unknown';
-            if (['completed', 'served', 'done'].includes(rawStatus)) classifiedStatus = 'completed';
-            else if (['serving', 'called'].includes(rawStatus)) classifiedStatus = 'serving';
-            else if (['cancelled', 'canceled'].includes(rawStatus)) classifiedStatus = 'cancelled';
-            else if (q.canceledAt || q.canceledBy) classifiedStatus = 'cancelled';
-            else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) classifiedStatus = 'cancelled';
-            else if (rawStatus === 'waiting') classifiedStatus = 'waiting';
-
-            queueData.push(Object.assign({}, q, { _key: key, _ts: ts, _status: classifiedStatus }));
-          }
-        }
-        updateDashboardCounts();
-        updateAnalyticsCounts();
-        updateAnalyticsCharts();
-      } catch (err) {
-        console.error('Safe render error (queue listener):', err);
-      }
-    });
-
-    onValue(tRef('analytics/serviceEvents'), function(snap) {
-      try {
-        serviceEventsData = [];
-        if (snap.exists()) {
-          var obj = snap.val() || {};
-          var vals = Object.values(obj);
-          for (var i = 0; i < vals.length; i++) {
-            var e = vals[i];
-            if (e && typeof e === 'object' && typeof e.serviceMs === 'number') serviceEventsData.push(e);
-          }
-        }
-        updateDashboardCounts();
-        updateAnalyticsCounts();
-        updateAnalyticsCharts();
-        updateRawEventsTable();
-      } catch (err) {
-        console.error('Safe render error (events listener):', err);
-      }
-    });
-
-    onValue(tRef('counters'), function(snap) {
-      try {
-        countersData = snap.exists() ? (snap.val() || {}) : {};
-        renderCounters();
-        var activeCount = Object.values(countersData).filter(function(c) { return c && c.active; }).length;
-        $('dCounters').textContent = activeCount;
-      } catch (err) {
-        console.error('Safe render error (counters listener):', err);
-      }
-    });
-  }
-
-  // ===== Analytics time filter =====
-  function setupAnalyticsFilter() {
-    var filterContainer = $('analyticsTimeFilter');
-    if (!filterContainer) return;
-    filterContainer.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-range]');
-      if (!btn) return;
-      filterContainer.querySelectorAll('.tf-btn').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      analyticsRange = parseInt(btn.dataset.range) || 0;
-      updateAnalyticsCounts();
-      updateAnalyticsCharts();
-      updateRawEventsTable();
-    });
-  }
-
-  function getFilterCutoff() {
-    if (analyticsRange <= 0) return 0;
-    return Date.now() - (analyticsRange * 86400000);
-  }
-
-  function filterByTime(items, tsField) {
-    var cutoff = getFilterCutoff();
-    if (cutoff <= 0) return items;
-    return items.filter(function(item) {
-      var t = item[tsField] || item._ts || item.timestamp || item.completedAt || item.createdAt || 0;
-      return typeof t === 'number' && t >= cutoff;
-    });
-  }
-
-  // ===== Dashboard counts =====
-  function updateDashboardCounts() {
-    var waiting = queueData.filter(function(q) { return q._status === 'waiting'; }).length;
-    var serving = queueData.filter(function(q) { return q._status === 'serving'; }).length;
-    var cancelled = queueData.filter(function(q) { return q._status === 'cancelled'; }).length;
-    var completedQ = queueData.filter(function(q) { return q._status === 'completed'; }).length;
-    var totalCompleted = Math.max(completedQ, serviceEventsData.length);
-
-    $('dTotalQ').textContent = queueData.length;
-    $('dWaiting').textContent = waiting;
-    $('dServing').textContent = serving;
-    $('dCompleted').textContent = totalCompleted;
-    $('dCancelled').textContent = cancelled;
-
-    var validEvents = serviceEventsData.filter(function(e) { return e.serviceMs > 0; });
-    if (validEvents.length > 0) {
-      var avgMs = validEvents.reduce(function(s, e) { return s + e.serviceMs; }, 0) / validEvents.length;
-      $('dAvgService').textContent = (avgMs / 60000).toFixed(1) + ' min';
-      $('dEventCount').textContent = serviceEventsData.length;
-    } else {
-      $('dAvgService').textContent = '— min';
-      $('dEventCount').textContent = serviceEventsData.length || '0';
-    }
-  }
-
-  // ===== Analytics =====
-  function computeStats(arr) {
-    if (!arr.length) return { avg: null, median: null, p90: null };
-    var xs = arr.slice().sort(function(a, b) { return a - b; });
-    var sum = xs.reduce(function(a, b) { return a + b; }, 0);
-    var avg = sum / xs.length;
-    var median = xs.length % 2 ? xs[Math.floor(xs.length / 2)] : (xs[xs.length / 2 - 1] + xs[xs.length / 2]) / 2;
-    var p90 = xs[Math.floor(xs.length * 0.9)] || xs[xs.length - 1];
-    return { avg: avg, median: median, p90: p90 };
-  }
-
-  function updateAnalyticsCounts() {
-    var filteredQueue = filterByTime(queueData, '_ts');
-    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
-
-    var waiting = filteredQueue.filter(function(q) { return q._status === 'waiting'; }).length;
-    var serving = filteredQueue.filter(function(q) { return q._status === 'serving'; }).length;
-    var cancelled = filteredQueue.filter(function(q) { return q._status === 'cancelled'; }).length;
-    var completedQ = filteredQueue.filter(function(q) { return q._status === 'completed'; }).length;
-    var totalCompleted = Math.max(completedQ, filteredEvents.length);
-
-    $('aTotalServed').textContent = totalCompleted;
-    $('aCompleted').textContent = totalCompleted;
-    $('aWaiting').textContent = waiting;
-    $('aServing').textContent = serving;
-    $('aCancelled').textContent = cancelled;
-
-    var validMs = filteredEvents.filter(function(e) { return e.serviceMs > 0; }).map(function(e) { return e.serviceMs / 60000; });
-    var stats = computeStats(validMs);
-    $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '—';
-    $('aMedian').textContent = stats.median !== null ? stats.median.toFixed(1) : '—';
-    $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '—';
-  }
-
-  function updateChartTheme() {
-    var tc = getChartTextColor();
-    var gc = getChartGridColor();
-    [queueTrendChart, counterPerfChart].forEach(function(chart) {
-      if (!chart) return;
-      if (chart.options.scales && chart.options.scales.x) {
-        chart.options.scales.x.ticks.color = tc;
-        chart.options.scales.x.grid.color = gc;
-      }
-      if (chart.options.scales && chart.options.scales.y) {
-        chart.options.scales.y.ticks.color = tc;
-        chart.options.scales.y.grid.color = gc;
-      }
-      chart.update('none');
-    });
-    if (statusPieChart) {
-      statusPieChart.options.plugins.legend.labels.color = tc;
-      statusPieChart.update('none');
-    }
-  }
-
-  function initCharts() {
-    var tc = getChartTextColor();
-    var gc = getChartGridColor();
-    if (!$('queueTrendChart')) return;
-    if (!queueTrendChart) {
-      queueTrendChart = new Chart($('queueTrendChart').getContext('2d'), {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'Queue Activity', data: [], fill: true, tension: 0.35, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.08)', borderWidth: 2, pointBackgroundColor: '#667eea', pointRadius: 3, pointHoverRadius: 5 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: tc }, grid: { color: gc } }, x: { ticks: { color: tc }, grid: { color: gc } } } }
-      });
-    }
-    if (!counterPerfChart) {
-      counterPerfChart = new Chart($('counterPerfChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: [], datasets: [{ label: 'Events', data: [], backgroundColor: ['#667eea', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'], borderRadius: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 400 }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: tc }, grid: { color: gc } }, x: { ticks: { color: tc }, grid: { color: gc } } } }
-      });
-    }
-    if (!statusPieChart && $('statusPieChart')) {
-      statusPieChart = new Chart($('statusPieChart').getContext('2d'), {
-        type: 'pie',
-        data: {
-          labels: ['Completed', 'Waiting', 'Serving', 'Cancelled'],
-          datasets: [{
-            data: [0, 0, 0, 0],
-            backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#64748b'],
-            borderWidth: 2,
-            borderColor: 'transparent'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 400 },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: tc, font: { size: 12, weight: '600' }, padding: 16 }
-            }
-          }
-        }
-      });
-    }
-    updateAnalyticsCharts();
-  }
-
-  function updateAnalyticsCharts() {
-    if (!queueTrendChart) return;
-    var days = analyticsRange > 0 ? Math.min(analyticsRange, 30) : 7;
-    var today = new Date(); today.setHours(0, 0, 0, 0);
-    var labels = [], counts = [];
-    var filteredQueue = filterByTime(queueData, '_ts');
-
-    var titleEl = $('queueTrendTitle');
-    if (titleEl) {
-      var rangeText = analyticsRange <= 0 ? 'All Time' : 'Last ' + analyticsRange + ' Days';
-      titleEl.textContent = 'Queue Trend (' + rangeText + ')';
-    }
-
-    for (var i = days - 1; i >= 0; i--) {
-      var d = new Date(today); d.setDate(d.getDate() - i);
-      var start = d.getTime(), end = start + 86400000;
-      labels.push(d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
-      counts.push(filteredQueue.filter(function(q) { return q._ts && q._ts >= start && q._ts < end; }).length);
-    }
-    queueTrendChart.data.labels = labels;
-    queueTrendChart.data.datasets[0].data = counts;
-    queueTrendChart.update('none');
-
-    // Counter performance
-    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
-    var counterStats = {};
-    if (filteredEvents.length > 0) {
-      filteredEvents.forEach(function(e) {
-        var key = e.counter || e.counterName || e.counterId || 'unknown';
-        counterStats[key] = (counterStats[key] || 0) + 1;
-      });
-    } else {
-      filteredQueue.forEach(function(q) {
-        var key = q.counterName || q.counter || q.counterId;
-        if (key) counterStats[key] = (counterStats[key] || 0) + 1;
-      });
-    }
-    if (counterPerfChart) {
-      counterPerfChart.data.labels = Object.keys(counterStats);
-      counterPerfChart.data.datasets[0].data = Object.values(counterStats);
-      counterPerfChart.update('none');
-    }
-
-    // Pie chart
-    if (statusPieChart) {
-      var waiting = filteredQueue.filter(function(q) { return q._status === 'waiting'; }).length;
-      var serving = filteredQueue.filter(function(q) { return q._status === 'serving'; }).length;
-      var cancelled = filteredQueue.filter(function(q) { return q._status === 'cancelled'; }).length;
-      var completedQ = filteredQueue.filter(function(q) { return q._status === 'completed'; }).length;
-      var totalCompleted = Math.max(completedQ, filteredEvents.length);
-      statusPieChart.data.datasets[0].data = [totalCompleted, waiting, serving, cancelled];
-      statusPieChart.update('none');
-    }
-  }
-
-  function updateRawEventsTable() {
-    var container = $('rawEventsTable');
-    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
-    if (!filteredEvents.length) {
-      container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted)">No service events in this time range.</div>';
-      return;
-    }
-    var rows = filteredEvents.slice().sort(function(a, b) { return (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0); }).slice(0, 50);
-    container.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>' +
-      rows.map(function(e) {
-        return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">' + esc(e.counter || e.counterName || e.counterId || '—') + '</td><td style="padding:8px">' + esc(e.queueNumber || '—') + '</td><td style="padding:8px">' + (e.serviceMs != null ? e.serviceMs : '—') + '</td><td style="padding:8px">' + (e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—') + '</td><td style="padding:8px">' + formatDate(e.completedAt || e.timestamp) + '</td></tr>';
-      }).join('') +
-      '</tbody></table>';
-  }
-
-  // CSV export
-  $('exportCsvBtn').onclick = function() {
-    var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
-    if (!filteredEvents.length) { showToast('No events to export', 'error'); return; }
-    var header = 'counter,queueNumber,serviceMs,serviceMin,completedAt\n';
-    var body = filteredEvents.map(function(e) { return (e.counter || e.counterId || '') + ',' + (e.queueNumber || '') + ',' + e.serviceMs + ',' + (e.serviceMs / 60000).toFixed(2) + ',' + (e.completedAt || ''); }).join('\n');
-    var blob = new Blob([header + body], { type: 'text/csv' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'queuejoy-events-' + slug + '.csv';
-    a.click();
-  };
-
-  // ===== Settings UI =====
-  function populateSettingsForm(cfg) {
-    try {
-      $('cfgDisplayName').value = cfg.displayName || cfg.name || '';
-      $('cfgSmallTextOnTop').value = cfg.smallTextOnTop || cfg.smallTopText || '';
-      $('cfgMainHeading').value = cfg.mainHeading || cfg.mainTitle || cfg.titleinmiddle || '';
-      $('cfgDescription').value = cfg.description || cfg.introText || '';
-      $('cfgButtonText').value = cfg.buttonText || cfg.ctaText || cfg.ctaTitle || '';
-      $('cfgAdText').value = cfg.adText || '';
-      $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
-      $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
-
-      var color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
-      $('cfgColor').value = color;
-      $('cfgColorHex').textContent = color;
-
-      var logoSrc = cfg.logoUrl || (cfg.theme && cfg.theme.logo) || cfg.logo || null;
-      if (logoSrc && !pendingUploads.logoUrl) createMediaPreview(logoSrc, $('cfgLogoPreview'));
-
-      var centerLogoSrc = cfg.centerLogoUrl || null;
-      if (centerLogoSrc && !pendingUploads.centerLogoUrl) createMediaPreview(centerLogoSrc, $('cfgCenterLogoPreview'));
-
-      var adImg = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || null;
-      var adVid = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || null;
-      if (!pendingUploads.adImage && !pendingUploads.adVideo) {
-        if (adVid) createMediaPreview(adVid, $('cfgAdMediaPreview'), 'video', 'Ad Video');
-        else if (adImg) createMediaPreview(adImg, $('cfgAdMediaPreview'));
-      }
-    } catch (err) {
-      console.error('Safe render error (populateSettingsForm):', err);
-    }
-  }
-
-  // ===== DEBOUNCED PHONE PREVIEW =====
-  var schedulePhonePreview = debounce(function() { updatePhonePreviewText(); }, 250);
-  var scheduleMediaPreview = debounce(function() { updatePhonePreviewMedia(); }, 300);
-
-  function setupSettingsUI() {
-    $('cfgColor').oninput = function(e) { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
-
-    ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(function(id) {
-      $(id).addEventListener('input', schedulePhonePreview);
-    });
-
-    $('cfgLogoFile').onchange = async function(e) {
-      var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      var data = await compressImage(f);
-      pendingUploads.logoUrl = data;
-      createMediaPreview(data, $('cfgLogoPreview'), detectMediaType(f));
-      $('cfgLogoName').textContent = f.name;
-      scheduleMediaPreview();
-      showToast('Logo ready (save to publish)', 'success', 1500);
-    };
-
-    $('cfgCenterLogoFile').onchange = async function(e) {
-      var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      var data = await compressImage(f);
-      pendingUploads.centerLogoUrl = data;
-      createMediaPreview(data, $('cfgCenterLogoPreview'), detectMediaType(f));
-      $('cfgCenterLogoName').textContent = f.name;
-      scheduleMediaPreview();
-      showToast('Center logo ready', 'success', 1500);
-    };
-
-    $('cfgAdMediaFile').onchange = async function(e) {
-      var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      var mtype = detectMediaType(f);
-      if (mtype === 'video') {
-        var data = await fileToDataUrl(f);
-        pendingUploads.adVideo = data;
-        pendingUploads.adImage = null;
-        createMediaPreview(data, $('cfgAdMediaPreview'), 'video', f.name, f.size);
-      } else {
-        var data2 = await compressImage(f);
-        pendingUploads.adImage = data2;
-        pendingUploads.adVideo = null;
-        createMediaPreview(data2, $('cfgAdMediaPreview'), mtype, f.name, f.size);
-      }
-      $('cfgAdMediaName').textContent = f.name;
-      scheduleMediaPreview();
-      showToast('Ad media ready', 'success', 1500);
-    };
-
-    $('settingsSaveBtn').onclick = saveSettings;
-    $('savePublishBtn').onclick = saveSettings;
-  }
-
-  // ===== OPTIMIZED SAVE =====
-  async function saveSettings() {
-    if (saving) return;
-    saving = true;
-
-    var btn = $('settingsSaveBtn');
-    var topBtn = $('savePublishBtn');
-    btn.disabled = true;
-    topBtn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Saving...';
-
-    try {
-      var slimConfig = buildCanonicalConfigFromUI(currentConfig, pendingUploads);
-      await set(tRef('public/config'), slimConfig);
-      pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
-
-      btn.classList.add('save-success');
-      btn.textContent = '✅ Published!';
-      showToast('Settings published!');
-      writeAudit('settings_saved');
-      setTimeout(function() {
-        btn.textContent = '💾 Save & Publish';
-        btn.classList.remove('save-success');
-      }, 2000);
-    } catch (e) {
-      console.error('Save failed', e);
-      showToast('Save failed: ' + (e.message || e), 'error');
-      btn.textContent = '💾 Save & Publish';
-    } finally {
-      saving = false;
-      btn.disabled = false;
-      topBtn.disabled = false;
-    }
-  }
-
-  // ===== Phone Preview — SPLIT: text vs media =====
-  function getPhoneTextState() {
-    return {
-      color: ($('cfgColor') ? $('cfgColor').value : '') || (currentConfig.theme && currentConfig.theme.color) || '#8b5cf6',
-      displayName: ($('cfgDisplayName') ? $('cfgDisplayName').value : '') || currentConfig.displayName || '',
-      smallText: ($('cfgSmallTextOnTop') ? $('cfgSmallTextOnTop').value : '') || currentConfig.smallTextOnTop || '',
-      heading: ($('cfgMainHeading') ? $('cfgMainHeading').value : '') || currentConfig.mainHeading || '',
-      desc: ($('cfgDescription') ? $('cfgDescription').value : '') || currentConfig.description || '',
-      btnText: ($('cfgButtonText') ? $('cfgButtonText').value : '') || currentConfig.buttonText || 'Get your queue number',
-      adText: ($('cfgAdText') ? $('cfgAdText').value : '') || currentConfig.adText || ''
-    };
-  }
-
-  function getPhoneMediaState() {
-    return {
-      logoSrc: pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '',
-      centerLogoSrc: pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '',
-      adImgSrc: pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || '',
-      adVidSrc: pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || ''
-    };
-  }
-
-  function computeMediaHash(media) {
-    return (media.logoSrc ? '1' : '0') + (media.centerLogoSrc ? '1' : '0') + (media.adImgSrc ? 'i' : '') + (media.adVidSrc ? 'v' : '') +
-      (media.logoSrc ? media.logoSrc.length : 0) + (media.centerLogoSrc ? media.centerLogoSrc.length : 0);
-  }
-
-  function updatePhonePreviewText() {
-    try {
-      var t = getPhoneTextState();
-      var media = getPhoneMediaState();
-      var mediaHash = computeMediaHash(media);
-      var mediaChanged = mediaHash !== _lastMediaHash;
-      _lastMediaHash = mediaHash;
-
-      if (mediaChanged || !$('phoneScreen').hasChildNodes()) {
-        renderFullPhonePreview(t, media);
-        return;
-      }
-
-      var screen = $('phoneScreen');
-      var headerName = screen.querySelector('[data-pp="name"]');
-      var headerSmall = screen.querySelector('[data-pp="small"]');
-      var headingEl = screen.querySelector('[data-pp="heading"]');
-      var descEl = screen.querySelector('[data-pp="desc"]');
-      var btnEl = screen.querySelector('[data-pp="btn"]');
-      var adTextEl = screen.querySelector('[data-pp="adtext"]');
-      var headerBg = screen.querySelector('[data-pp="header"]');
-
-      if (headerName) headerName.textContent = t.displayName || 'Queue Joy';
-      if (headerSmall) headerSmall.textContent = t.smallText;
-      if (headingEl) headingEl.textContent = t.heading;
-      if (descEl) descEl.textContent = t.desc || 'Real-time queueing system.';
-      if (btnEl) { btnEl.textContent = '🎫 ' + (t.btnText || 'Get your queue number'); btnEl.style.background = t.color; }
-      if (adTextEl) adTextEl.textContent = t.adText || 'Advertisement';
-      if (headerBg) headerBg.style.background = 'linear-gradient(135deg,' + t.color + ',' + t.color + 'dd)';
-    } catch (err) {
-      console.error('Safe render error (updatePhonePreviewText):', err);
-    }
-  }
-
-  function updatePhonePreviewMedia() {
-    var t = getPhoneTextState();
-    var media = getPhoneMediaState();
-    _lastMediaHash = computeMediaHash(media);
-    renderFullPhonePreview(t, media);
-  }
-
-  function renderFullPhonePreview(t, media) {
-    try {
-      var screen = $('phoneScreen');
-      var adHtml = '';
-      if (media.adImgSrc || media.adVidSrc) {
-        adHtml = '<div style="padding:0 16px 12px">' +
-          '<div data-pp="adtext" style="font-size:9px;color:#9ca3af;margin-bottom:4px">' + esc(t.adText || 'Advertisement') + '</div>' +
-          (media.adVidSrc
-            ? '<div style="background:#f3f4f6;border-radius:8px;padding:10px;text-align:center;font-size:10px;color:#6b7280">🎬 Video Ad</div>'
-            : '<img src="' + media.adImgSrc + '" style="width:100%;border-radius:8px;max-height:100px;object-fit:cover" onerror="this.style.display=\'none\'"/>') +
-          '</div>';
-      }
-
-      screen.innerHTML =
-        '<div data-pp="header" style="background:linear-gradient(135deg,' + t.color + ',' + t.color + 'dd);padding:16px;text-align:center">' +
-          (t.smallText ? '<div data-pp="small" style="font-size:9px;color:rgba(255,255,255,0.8);margin-bottom:4px">' + esc(t.smallText) + '</div>' : '<div data-pp="small" style="display:none"></div>') +
-          (media.logoSrc ? '<img src="' + media.logoSrc + '" style="max-height:36px;max-width:120px;margin:0 auto 6px;display:block;border-radius:6px" onerror="this.style.display=\'none\'"/>' : '') +
-          '<div data-pp="name" style="font-size:14px;font-weight:800;color:#fff">' + esc(t.displayName || 'Queue Joy') + '</div>' +
-          '<div style="font-size:9px;color:rgba(255,255,255,0.7);margin-top:2px">Digital Queue System</div>' +
-        '</div>' +
-        (media.centerLogoSrc ? '<div style="text-align:center;padding:12px"><img src="' + media.centerLogoSrc + '" style="max-height:80px;max-width:160px;border-radius:10px" onerror="this.style.display=\'none\'"/></div>' : '') +
-        '<div style="padding:16px;text-align:center">' +
-          (t.heading ? '<div data-pp="heading" style="font-size:18px;font-weight:800;color:#111;margin-bottom:6px">' + esc(t.heading) + '</div>' : '<div data-pp="heading" style="display:none"></div>') +
-          '<div data-pp="desc" style="font-size:11px;color:#6b7280;margin-bottom:12px">' + esc(t.desc || 'Real-time queueing system.') + '</div>' +
-          '<button data-pp="btn" style="background:' + t.color + ';color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:12px;width:100%;cursor:default">🎫 ' + esc(t.btnText) + '</button>' +
-        '</div>' +
-        adHtml +
-        '<div style="text-align:center;padding:8px;font-size:8px;color:#d1d5db">Powered by Queue Joy</div>';
-    } catch (err) {
-      console.error('Safe render error (renderFullPhonePreview):', err);
-    }
-  }
-
-  // ===== Counters =====
-  function setupCountersUI() {
-    $('addCounterBtn').onclick = function() {
-      var form = $('addCounterForm');
-      form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    };
-    $('createCounterBtn').onclick = async function() {
-      var name = $('newCounterName').value.trim();
-      var prefix = $('newCounterPrefix').value.trim().toUpperCase();
-      if (!name || !prefix) { showToast('Name and prefix required', 'error'); return; }
-      var id = 'counter-' + prefix.toLowerCase();
-      try {
-        await set(tRef('counters/' + id), { name: name, prefix: prefix, active: true, lastIssued: 0, nowServing: 0, order: Object.keys(countersData).length + 1 });
-        showToast('Counter created!');
-        writeAudit('counter_created', { name: name, prefix: prefix });
-        $('newCounterName').value = '';
-        $('newCounterPrefix').value = '';
-        $('addCounterForm').style.display = 'none';
-      } catch (e) {
-        showToast('Failed: ' + e.message, 'error');
-      }
-    };
-  }
-
-  function renderCounters() {
-    try {
-      var list = $('countersList');
-      var entries = Object.entries(countersData);
-      $('countersEmpty').style.display = entries.length ? 'none' : 'block';
-      list.innerHTML = entries.map(function(entry) {
-        var id = entry[0];
-        var c = entry[1];
-        return '<div class="counter-row">' +
-          '<div>' +
-            '<div class="counter-name">' + esc(c.name) + ' <span class="badge ' + (c.active ? 'badge-green' : 'badge-red') + '">' + (c.active ? 'Active' : 'Inactive') + '</span></div>' +
-            '<div class="counter-meta">Prefix: ' + esc(c.prefix) + ' · Now Serving: ' + (c.nowServing || 0) + ' · Last Issued: ' + (c.lastIssued || 0) + '</div>' +
-          '</div>' +
-          '<button class="btn btn-secondary btn-sm" data-toggle-counter="' + esc(id) + '">' + (c.active ? 'Deactivate' : 'Activate') + '</button>' +
-        '</div>';
-      }).join('');
-      list.querySelectorAll('[data-toggle-counter]').forEach(function(btn) {
-        btn.onclick = async function() {
-          var cid = btn.dataset.toggleCounter;
-          var current = countersData[cid];
-          if (!current) return;
-          try {
-            await update(tRef('counters/' + cid), { active: !current.active });
-            showToast('Counter ' + (current.active ? 'deactivated' : 'activated'));
-            writeAudit('counter_toggled', { counter: cid, active: !current.active });
-          } catch (e) { showToast('Failed', 'error'); }
-        };
-      });
-    } catch (err) {
-      console.error('Safe render error (renderCounters):', err);
-    }
-  }
-
-  // ===== Announcements =====
-  function setupAnnouncementsUI() {
-    var annCtx = {
-      tRef: tRef,
-      get: function(r) { return get(r); },
-      onValue: function(r, cb) { return onValue(r, cb); },
-      set: function(r, v) { return set(r, v); },
-      update: function(r, v) { return update(r, v); },
-      genId: genId,
-      showToast: showToast,
-      writeAudit: writeAudit,
-      fileToBase64: fileToDataUrl,
-      formatDate: formatDate,
-      slug: slug,
-      tenantId: tenantId
-    };
-
-    function initAnnounce() {
-      if (window.__announceModule && typeof window.__announceModule.init === 'function') {
-        window.__announceModule.init(annCtx);
-        return true;
-      }
-      return false;
-    }
-
-    if (initAnnounce()) return;
-
-    var tries = 0;
-    var timer = setInterval(function() {
-      tries++;
-      if (initAnnounce() || tries >= 20) {
-        clearInterval(timer);
-        if (!(window.__announceModule && typeof window.__announceModule.init === 'function')) {
-          console.error('announce.js module not loaded');
-          var box = $('announceContainer');
-          if (box) box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
-        }
-      }
-    }, 100);
-  }
-
-  // ===== Audit =====
-  function setupAuditUI() {
-    onValue(tRef('audit'), function(snap) {
-      try {
-        var list = $('auditList');
-        if (!snap.exists()) { $('auditEmpty').style.display = 'block'; list.innerHTML = ''; return; }
-        $('auditEmpty').style.display = 'none';
-        var entries = Object.values(snap.val() || {}).filter(function(e) { return e && typeof e === 'object' && e.ts; }).sort(function(a, b) { return (b.ts || 0) - (a.ts || 0); }).slice(0, 50);
-        list.innerHTML = entries.map(function(e) { return '<div class="audit-entry"><div class="audit-time">' + formatDate(e.ts) + '</div><div>' + esc(e.action) + ' <span style="color:var(--text-light);font-size:11px">by ' + esc(e.by || '—') + '</span></div></div>'; }).join('');
-      } catch (err) {
-        console.error('Safe render error (audit):', err);
-      }
-    });
-  }
-
-  // ===== DATA CLEANUP / RESET =====
-  function setupResetUI() {
-    // Retention selector
-    var retSelector = $('retentionSelector');
-    retSelector.querySelectorAll('.retention-opt').forEach(function(opt) {
-      opt.addEventListener('click', function() {
-        retSelector.querySelectorAll('.retention-opt').forEach(function(o) { o.classList.remove('selected'); });
-        opt.classList.add('selected');
-        selectedRetention = parseInt(opt.dataset.retention) || 0;
-      });
-    });
-
-    // Clean Old Data
-    $('cleanOldDataBtn').onclick = async function() {
-      if (selectedRetention <= 0) {
-        showToast('Select a retention period (not "Never")', 'error');
-        return;
-      }
-      var btn = $('cleanOldDataBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Cleaning...';
-      var resultEl = $('cleanResult');
-      resultEl.style.display = 'block';
-      resultEl.textContent = 'Working...';
-
-      try {
-        var cutoff = Date.now() - (selectedRetention * 86400000);
-        var removedQueue = 0;
-        var removedEvents = 0;
-
-        // Clean old queue items
-        var qSnap = await get(tRef('queue'));
-        if (qSnap.exists()) {
-          var qObj = qSnap.val() || {};
-          var updates = {};
-          for (var key in qObj) {
-            if (!qObj.hasOwnProperty(key)) continue;
-            var q = qObj[key];
-            if (!q || typeof q !== 'object') continue;
-            var ts = null;
-            if (typeof q.createdAt === 'number') ts = q.createdAt;
-            else if (typeof q.createdAt === 'string') ts = Date.parse(q.createdAt);
-            if (!ts || isNaN(ts)) {
-              if (typeof q.joinedAt === 'number') ts = q.joinedAt;
-              else if (typeof q.joinedAt === 'string') ts = Date.parse(q.joinedAt);
-            }
-            if (!ts || isNaN(ts)) {
-              if (typeof q.updatedAt === 'number') ts = q.updatedAt;
-              else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
-            }
-            if (!ts || isNaN(ts)) continue; // skip if no timestamp
-            if (ts < cutoff) {
-              updates['queue/' + key] = null;
-              removedQueue++;
-            }
-          }
-          if (Object.keys(updates).length > 0) {
-            await update(tRef(), updates);
-          }
-        }
-
-        // Clean old service events
-        var eSnap = await get(tRef('analytics/serviceEvents'));
-        if (eSnap.exists()) {
-          var eObj = eSnap.val() || {};
-          var eUpdates = {};
-          for (var eKey in eObj) {
-            if (!eObj.hasOwnProperty(eKey)) continue;
-            var ev = eObj[eKey];
-            if (!ev || typeof ev !== 'object') continue;
-            var ets = ev.completedAt || ev.timestamp || ev.createdAt || null;
-            if (typeof ets === 'string') ets = Date.parse(ets);
-            if (!ets || isNaN(ets)) continue;
-            if (ets < cutoff) {
-              eUpdates['analytics/serviceEvents/' + eKey] = null;
-              removedEvents++;
-            }
-          }
-          if (Object.keys(eUpdates).length > 0) {
-            await update(tRef(), eUpdates);
-          }
-        }
-
-        resultEl.style.color = 'var(--green)';
-        resultEl.textContent = '✅ Cleanup complete!\n\n• Queue records removed: ' + removedQueue + '\n• Service events removed: ' + removedEvents + '\n• Retention: ' + selectedRetention + ' day(s)';
-        showToast('Cleaned ' + (removedQueue + removedEvents) + ' old records');
-        writeAudit('data_cleanup', { removedQueue: removedQueue, removedEvents: removedEvents, retentionDays: selectedRetention });
-      } catch (e) {
-        resultEl.style.color = 'var(--red)';
-        resultEl.textContent = '⚠️ Cleanup failed: ' + (e.message || e);
-        showToast('Cleanup failed', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '🧹 Clean Old Data';
-      }
-    };
-
-    // Hard Reset
-    $('hardResetBtn').onclick = function() {
-      $('hardResetBtn').style.display = 'none';
-      $('hardResetConfirmWrap').style.display = 'inline';
-    };
-    $('hardResetCancelBtn').onclick = function() {
-      $('hardResetBtn').style.display = 'inline-flex';
-      $('hardResetConfirmWrap').style.display = 'none';
-    };
-    $('hardResetConfirmBtn').onclick = async function() {
-      var btn = $('hardResetConfirmBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Resetting...';
-      var resultEl = $('resetResult');
-      resultEl.style.display = 'block';
-      resultEl.textContent = 'Working...';
-
-      try {
-        // Delete all queue items
-        await set(tRef('queue'), null);
-
-        // Delete all service events
-        await set(tRef('analytics/serviceEvents'), null);
-
-        // Reset queueMeta — clear numbering for all counters
-        var qmSnap = await get(tRef('queueMeta'));
-        if (qmSnap.exists()) {
-          var qm = qmSnap.val() || {};
-          var qmUpdates = {};
-          for (var cid in qm) {
-            if (!qm.hasOwnProperty(cid)) continue;
-            qmUpdates['queueMeta/' + cid + '/nextNumber'] = 1;
-            qmUpdates['queueMeta/' + cid + '/nextTicket'] = 1;
-            qmUpdates['queueMeta/' + cid + '/nextIssuedNumber'] = 1;
-            qmUpdates['queueMeta/' + cid + '/baselineNumber'] = 0;
-            qmUpdates['queueMeta/' + cid + '/totalWaiting'] = 0;
-            qmUpdates['queueMeta/' + cid + '/nowServing'] = 0;
-            qmUpdates['queueMeta/' + cid + '/lastIssued'] = 0;
-            qmUpdates['queueMeta/' + cid + '/lastCounterIndex'] = 0;
-            qmUpdates['queueMeta/' + cid + '/updatedAt'] = Date.now();
-          }
-          if (Object.keys(qmUpdates).length > 0) await update(tRef(), qmUpdates);
-        }
-
-        // Reset queueState
-        var qsSnap = await get(tRef('queueState'));
-        if (qsSnap.exists()) {
-          var qs = qsSnap.val() || {};
-          var qsUpdates = {};
-          for (var sid in qs) {
-            if (!qs.hasOwnProperty(sid)) continue;
-            qsUpdates['queueState/' + sid + '/nextTicketNumber'] = 1;
-            qsUpdates['queueState/' + sid + '/nextNumber'] = 1;
-            qsUpdates['queueState/' + sid + '/nowServing'] = 0;
-            qsUpdates['queueState/' + sid + '/lastIssued'] = 0;
-            qsUpdates['queueState/' + sid + '/totalWaiting'] = 0;
-            qsUpdates['queueState/' + sid + '/updatedAt'] = Date.now();
-          }
-          if (Object.keys(qsUpdates).length > 0) await update(tRef(), qsUpdates);
-        }
-
-        // Reset counter nowServing/lastIssued
-        var cSnap = await get(tRef('counters'));
-        if (cSnap.exists()) {
-          var cs = cSnap.val() || {};
-          var cUpdates = {};
-          for (var cKey in cs) {
-            if (!cs.hasOwnProperty(cKey)) continue;
-            cUpdates['counters/' + cKey + '/nowServing'] = 0;
-            cUpdates['counters/' + cKey + '/lastIssued'] = 0;
-            cUpdates['counters/' + cKey + '/updatedAt'] = Date.now();
-          }
-          if (Object.keys(cUpdates).length > 0) await update(tRef(), cUpdates);
-        }
-
-        resultEl.style.color = 'var(--green)';
-        resultEl.textContent = '✅ Hard reset complete!\n\n• All queue items deleted\n• All service events deleted\n• Queue numbering reset to zero\n• Counter serving numbers reset\n• Dashboard should now show zeros';
-        showToast('Hard reset complete!');
-        writeAudit('hard_reset');
-      } catch (e) {
-        resultEl.style.color = 'var(--red)';
-        resultEl.textContent = '⚠️ Reset failed: ' + (e.message || e);
-        showToast('Reset failed', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'Yes, Reset Now';
-        $('hardResetBtn').style.display = 'inline-flex';
-        $('hardResetConfirmWrap').style.display = 'none';
-      }
-    };
-  }
-
-  // Initial phone preview
-  updatePhonePreviewText();
 }
 
-boot().catch(function(e) {
-  console.error('Boot failed', e);
-  document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444"><h2>Failed to start admin</h2><p>' + (e.message || e) + '</p></div>';
+boot().catch(err => {
+  console.error(err);
+  document.body.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444"><h2>Failed to start admin</h2><p>${esc(err.message || err)}</p></div>`;
 });
 </script>
 </body>

@@ -1,7 +1,4 @@
-// tenant-template/functions/announce.js
 'use strict';
-
-const { setTimeout: sleep } = require('timers/promises');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const DB_URL = process.env.FIREBASE_DB_URL || process.env.DATABASE_URL;
@@ -19,12 +16,16 @@ function json(statusCode, data) {
 
 function normalizeId(v) {
   if (v === null || v === undefined) return '';
-  const s = String(v).trim();
-  return s;
+  return String(v).trim();
 }
 
 function uniq(arr) {
-  return [...new Set(arr.map(normalizeId).filter(Boolean))];
+  return [...new Set((arr || []).map(normalizeId).filter(Boolean))];
+}
+
+function isProbablyChatId(v) {
+  const s = normalizeId(v);
+  return /^\d+$/.test(s) || /^-?\d{5,}$/.test(s);
 }
 
 function deepExtractChatIds(node, out = new Set()) {
@@ -39,12 +40,9 @@ function deepExtractChatIds(node, out = new Set()) {
 
   if (typeof node.chatId !== 'undefined') out.add(normalizeId(node.chatId));
   if (typeof node.telegramChatId !== 'undefined') out.add(normalizeId(node.telegramChatId));
-  if (typeof node.id !== 'undefined' && (node.used === true || node.connected === true || node.chatId || node.telegramChatId)) {
-    out.add(normalizeId(node.id));
-  }
 
   for (const [k, v] of Object.entries(node)) {
-    if (k === 'chatId' || k === 'telegramChatId' || k === 'id') continue;
+    if (k === 'chatId' || k === 'telegramChatId') continue;
     if (v && typeof v === 'object') deepExtractChatIds(v, out);
   }
 
@@ -55,13 +53,14 @@ async function fetchJson(url, options = {}) {
   const res = await fetch(url, {
     ...options,
     headers: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       ...(options.headers || {})
     }
   });
 
   const text = await res.text();
   let data = null;
+
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
@@ -69,7 +68,7 @@ async function fetchJson(url, options = {}) {
   }
 
   if (!res.ok) {
-    const err = new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+    const err = new Error((data && (data.error || data.message || data.description)) || `HTTP ${res.status}`);
     err.status = res.status;
     err.payload = data;
     throw err;
@@ -79,18 +78,16 @@ async function fetchJson(url, options = {}) {
 }
 
 async function readRtdb(path) {
-  if (!DB_URL) {
-    throw new Error('Missing FIREBASE_DB_URL env var');
-  }
+  if (!DB_URL) throw new Error('Missing FIREBASE_DB_URL env var');
+
   const cleanPath = String(path || '').replace(/^\/+/, '');
   const url = `${DB_URL.replace(/\/+$/, '')}/${cleanPath}.json`;
   return fetchJson(url, { method: 'GET' });
 }
 
 async function writeRtdb(path, value) {
-  if (!DB_URL) {
-    throw new Error('Missing FIREBASE_DB_URL env var');
-  }
+  if (!DB_URL) throw new Error('Missing FIREBASE_DB_URL env var');
+
   const cleanPath = String(path || '').replace(/^\/+/, '');
   const url = `${DB_URL.replace(/\/+$/, '')}/${cleanPath}.json`;
   return fetchJson(url, {
@@ -105,8 +102,8 @@ async function getTenantChatIds(tenantId) {
 
   const paths = [
     `tenants/${tenantId}/telegramConnected`,
-    `tenants/${tenantId}/telegramTokens`,
-    `tenants/${tenantId}/integrations/telegram/tokens`
+    `tenants/${tenantId}/public/telegramTokens`,
+    `tenants/${tenantId}/telegramTokens`
   ];
 
   for (const path of paths) {
@@ -116,40 +113,42 @@ async function getTenantChatIds(tenantId) {
 
       if (path.endsWith('/telegramConnected')) {
         if (typeof node === 'object') {
-          for (const [k, v] of Object.entries(node)) {
-            const keyAsId = normalizeId(k);
-            if (keyAsId) ids.add(keyAsId);
-            if (v && typeof v === 'object') {
-              if (v.chatId) ids.add(normalizeId(v.chatId));
-              if (v.telegramChatId) ids.add(normalizeId(v.telegramChatId));
+          for (const [key, value] of Object.entries(node)) {
+            if (isProbablyChatId(key)) ids.add(normalizeId(key));
+            if (value && typeof value === 'object') {
+              if (value.chatId) ids.add(normalizeId(value.chatId));
+              if (value.telegramChatId) ids.add(normalizeId(value.telegramChatId));
             }
           }
         }
         continue;
       }
 
-      if (path.endsWith('/telegramTokens') || path.endsWith('/integrations/telegram/tokens')) {
-        if (typeof node === 'object') {
-          for (const [tokenId, token] of Object.entries(node)) {
-            if (!token || typeof token !== 'object') continue;
+      if (typeof node === 'object') {
+        for (const [key, token] of Object.entries(node)) {
+          if (!token || typeof token !== 'object') continue;
 
-            const used = token.used === true || token.used === 'true' || token.used === 1 || token.used === '1';
-            const chatId = normalizeId(token.chatId || token.telegramChatId);
+          const used = token.used === true || token.used === 'true' || token.used === 1 || token.used === '1';
+          const chatId = normalizeId(token.chatId || token.telegramChatId);
 
-            // Prefer used tokens, but include any valid chatId fallback if present.
-            if (chatId && (used || token.chatId || token.telegramChatId)) {
-              ids.add(chatId);
-            }
+          if (chatId && (used || token.chatId || token.telegramChatId)) {
+            ids.add(chatId);
+          }
 
-            // If the record structure stores recipient ID as the key, allow that too.
-            if (used && tokenId && /^\d+$/.test(String(tokenId))) {
-              ids.add(String(tokenId));
-            }
+          if (used && isProbablyChatId(key)) {
+            ids.add(normalizeId(key));
+          }
+
+          if (token.meta && typeof token.meta === 'object') {
+            if (token.meta.chatId) ids.add(normalizeId(token.meta.chatId));
+            if (token.meta.telegramChatId) ids.add(normalizeId(token.meta.telegramChatId));
           }
         }
+
+        deepExtractChatIds(node, ids);
       }
     } catch {
-      // Ignore one broken source and continue with the rest.
+      // Ignore one broken source and continue.
     }
   }
 
@@ -158,22 +157,19 @@ async function getTenantChatIds(tenantId) {
 
 function buildTelegramText(message, payload = {}) {
   const parts = [];
+
   if (payload.slug) parts.push(`Tenant: ${payload.slug}`);
   if (payload.level) parts.push(`Level: ${payload.level}`);
   if (payload.font) parts.push(`Font: ${payload.font}`);
+
   parts.push(String(message || '').trim());
   return parts.filter(Boolean).join('\n\n');
 }
 
 async function sendTelegramMessage(chatId, text, media = null) {
-  if (!BOT_TOKEN) {
-    throw new Error('Missing TELEGRAM_BOT_TOKEN env var');
-  }
-
+  if (!BOT_TOKEN) throw new Error('Missing TELEGRAM_BOT_TOKEN env var');
   const baseUrl = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-  // Media support is optional. If the admin sent media, try to send it.
-  // If media fails, fall back to plain text for that recipient.
   if (media && media.data && media.type) {
     const isImage = /^image\//.test(media.type);
     const isVideo = /^video\//.test(media.type);
@@ -215,14 +211,12 @@ async function sendTelegramMessage(chatId, text, media = null) {
     }
   }
 
-  // Plain text fallback
   const res = await fetch(`${baseUrl}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
-      text,
-      parse_mode: 'Markdown'
+      text
     })
   });
 
@@ -239,15 +233,13 @@ async function sendTelegramMessage(chatId, text, media = null) {
 }
 
 async function sendWithRetry(chatId, text, media) {
-  const attempt = async () => sendTelegramMessage(chatId, text, media);
-
   try {
-    return await attempt();
+    return await sendTelegramMessage(chatId, text, media);
   } catch (err) {
     const transient = err.status === 429 || err.status === 502 || err.status === 503 || err.status === 504;
     if (!transient) throw err;
-    await sleep(1200);
-    return await attempt();
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    return await sendTelegramMessage(chatId, text, media);
   }
 }
 
@@ -274,13 +266,7 @@ exports.handler = async (event) => {
         ? uniq(target.chatIds)
         : [];
 
-    let chatIds = [];
-
-    if (customIds.length > 0) {
-      chatIds = customIds;
-    } else {
-      chatIds = await getTenantChatIds(tenantId);
-    }
+    const chatIds = customIds.length > 0 ? customIds : await getTenantChatIds(tenantId);
 
     if (!chatIds.length) {
       return json(200, {
@@ -316,35 +302,17 @@ exports.handler = async (event) => {
           status: 'failed',
           error: err.message || 'send failed'
         });
-
-        // If media fails for a recipient, try text fallback once more.
-        if (media) {
-          try {
-            await sendWithRetry(chatId, text, null);
-            success++;
-            failed--;
-            results[results.length - 1] = { chatId, status: 'ok', fallback: 'text' };
-          } catch (fallbackErr) {
-            results[results.length - 1] = {
-              chatId,
-              status: 'failed',
-              error: fallbackErr.message || 'text fallback failed'
-            };
-          }
-        }
       }
     }
 
-    // Optional send log in Firebase
     try {
       const logId = `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const logPath = `tenants/${tenantId}/integrations/telegram/sentAnnouncements/${logId}`;
+      const logPath = `tenants/${tenantId}/public/announcementLogs/${logId}`;
       const logData = {};
       for (const row of results) {
         logData[row.chatId] = {
           status: row.status,
           error: row.error || null,
-          fallback: row.fallback || null,
           ts: Date.now(),
           slug: slug || null,
           tenantId
@@ -352,7 +320,7 @@ exports.handler = async (event) => {
       }
       await writeRtdb(logPath, logData);
     } catch {
-      // logging failure should not break send response
+      // Logging failure should not break the response.
     }
 
     return json(200, {
