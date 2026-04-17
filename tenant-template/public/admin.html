@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -353,21 +354,21 @@
 
             <label class="field-label">Top Logo</label>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">🖼️ Upload<input type="file" id="cfgLogoFile" accept="image/*"/></label>
+              <label class="file-btn">🖼️ Upload<input type="file" id="cfgLogoFile" accept="image/*"/></label><input class="input" id="cfgLogoUrl" placeholder="…or paste hosted https:// URL" style="margin-top:8px;font-size:12px"/>
               <span id="cfgLogoName" style="font-size:11px;color:var(--text-light)"></span>
             </div>
             <div id="cfgLogoPreview"></div>
 
             <label class="field-label">Center Logo</label>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">🖼️ Upload<input type="file" id="cfgCenterLogoFile" accept="image/*"/></label>
+              <label class="file-btn">🖼️ Upload<input type="file" id="cfgCenterLogoFile" accept="image/*"/></label><input class="input" id="cfgCenterLogoUrl" placeholder="…or paste hosted https:// URL" style="margin-top:8px;font-size:12px"/>
               <span id="cfgCenterLogoName" style="font-size:11px;color:var(--text-light)"></span>
             </div>
             <div id="cfgCenterLogoPreview"></div>
 
             <label class="field-label">Ad Media (Image/GIF/Video)</label>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">📎 Upload<input type="file" id="cfgAdMediaFile" accept="image/*,video/*"/></label>
+              <label class="file-btn">📎 Upload<input type="file" id="cfgAdMediaFile" accept="image/*,video/*"/></label><input class="input" id="cfgAdImageUrl" placeholder="Hosted image URL (https://…)" style="margin-top:8px;font-size:12px"/><input class="input" id="cfgAdVideoUrl" placeholder="Hosted video URL (https://…)" style="margin-top:6px;font-size:12px"/><div id="cfgAdMediaWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:11px;background:rgba(245,158,11,.10);color:var(--amber);border:1px solid rgba(245,158,11,.25)"></div>
               <span id="cfgAdMediaName" style="font-size:11px;color:var(--text-light)"></span>
             </div>
             <div id="cfgAdMediaPreview"></div>
@@ -760,19 +761,40 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   var color = $('cfgColor') ? $('cfgColor').value : '#8b5cf6';
   if (color) raw.theme = { color: color };
 
-  var logoUrl = pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo;
+  // HTTPS-ONLY rule: never persist data:/blob:/base64 into Firebase config.
+  function _httpsOnly(v) {
+    if (!v || typeof v !== 'string') return '';
+    var t = v.trim();
+    if (!t) return '';
+    if (/^https?:\/\//i.test(t)) return t;
+    return ''; // drop data:, blob:, anything else
+  }
+
+  // Logos: prefer typed URL, then existing saved URL (only if https). Local uploads = preview-only.
+  var logoUrl = _httpsOnly($('cfgLogoUrl') && $('cfgLogoUrl').value)
+             || _httpsOnly(currentConfig.logoUrl)
+             || _httpsOnly(currentConfig.theme && currentConfig.theme.logo)
+             || _httpsOnly(currentConfig.logo);
   if (logoUrl) raw.logoUrl = logoUrl;
 
-  var centerLogoUrl = pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl;
+  var centerLogoUrl = _httpsOnly($('cfgCenterLogoUrl') && $('cfgCenterLogoUrl').value)
+                   || _httpsOnly(currentConfig.centerLogoUrl);
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
-  var adVideo = pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || currentConfig.adVideoUrl;
-  var adImage = pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || currentConfig.adImageUrl;
+  // Ad media: typed URL wins; fall back to existing https URL only.
+  var adVideo = _httpsOnly($('cfgAdVideoUrl') && $('cfgAdVideoUrl').value)
+             || _httpsOnly(currentConfig.ad && currentConfig.ad.video)
+             || _httpsOnly(currentConfig.adVideo)
+             || _httpsOnly(currentConfig.adVideoUrl);
+  var adImage = _httpsOnly($('cfgAdImageUrl') && $('cfgAdImageUrl').value)
+             || _httpsOnly(currentConfig.ad && currentConfig.ad.image)
+             || _httpsOnly(currentConfig.adImage)
+             || _httpsOnly(currentConfig.adImageUrl);
   var adLink = $('cfgAdLink') ? $('cfgAdLink').value : '';
 
   var ad = {};
   if (adVideo) ad.video = adVideo;
-  if (adImage && !adVideo) ad.image = adImage;
+  if (adImage && !adVideo) ad.image = adImage;          // status.html shows one media; video wins
   if (adLink && adLink.trim()) ad.link = adLink.trim();
   if (Object.keys(ad).length > 0) raw.ad = ad;
 
@@ -949,7 +971,14 @@ async function boot() {
     onValue(tRef('public/config'), function(snap) {
       try {
         if (!snap.exists()) return;
-        currentConfig = snap.val() || {};
+        var incoming = snap.val() || {};
+        var lastSaved = (typeof window.__qjLastSavedAt === 'function') ? window.__qjLastSavedAt() : 0;
+        var isSaving  = (typeof window.__qjIsSaving === 'function') ? window.__qjIsSaving() : false;
+        // Drop stale / our-own-old snapshots that would otherwise rollback the UI.
+        var incomingTs = Number(incoming.updatedAt || 0);
+        if (isSaving) return;
+        if (lastSaved && incomingTs && incomingTs < lastSaved) return;
+        currentConfig = incoming;
         populateSettingsForm(currentConfig);
         schedulePhonePreview();
         if (currentConfig.displayName) {
@@ -985,7 +1014,7 @@ async function boot() {
             var rawStatus = String(q.status || '').trim().toLowerCase();
             var classifiedStatus = 'unknown';
             if (['completed', 'served', 'done'].includes(rawStatus)) classifiedStatus = 'completed';
-            else if (['serving', 'called'].includes(rawStatus)) classifiedStatus = 'serving';
+            else if (['serving','called','in_progress','inprogress','attending','active'].includes(rawStatus)) classifiedStatus = 'serving';
             else if (['cancelled', 'canceled'].includes(rawStatus)) classifiedStatus = 'cancelled';
             else if (q.canceledAt || q.canceledBy) classifiedStatus = 'cancelled';
             else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) classifiedStatus = 'cancelled';
@@ -1078,14 +1107,16 @@ async function boot() {
     $('dCompleted').textContent = totalCompleted;
     $('dCancelled').textContent = cancelled;
 
-    var validEvents = serviceEventsData.filter(function(e) { return e.serviceMs > 0; });
+    var validEvents = serviceEventsData.filter(function(e) {
+      return e && typeof e.serviceMs === 'number' && isFinite(e.serviceMs) && e.serviceMs > 0 && e.serviceMs < 24*60*60*1000;
+    });
     if (validEvents.length > 0) {
       var avgMs = validEvents.reduce(function(s, e) { return s + e.serviceMs; }, 0) / validEvents.length;
       $('dAvgService').textContent = (avgMs / 60000).toFixed(1) + ' min';
-      $('dEventCount').textContent = serviceEventsData.length;
+      $('dEventCount').textContent = validEvents.length;
     } else {
       $('dAvgService').textContent = '— min';
-      $('dEventCount').textContent = serviceEventsData.length || '0';
+      $('dEventCount').textContent = '0';
     }
   }
 
@@ -1283,6 +1314,14 @@ async function boot() {
       $('cfgButtonText').value = cfg.buttonText || cfg.ctaText || cfg.ctaTitle || '';
       $('cfgAdText').value = cfg.adText || '';
       $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
+      var _adImg0 = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || '';
+      var _adVid0 = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || '';
+      if ($('cfgAdImageUrl')) $('cfgAdImageUrl').value = (typeof _adImg0==='string' && /^https?:\/\//i.test(_adImg0)) ? _adImg0 : '';
+      if ($('cfgAdVideoUrl')) $('cfgAdVideoUrl').value = (typeof _adVid0==='string' && /^https?:\/\//i.test(_adVid0)) ? _adVid0 : '';
+      var _logo0 = cfg.logoUrl || (cfg.theme && cfg.theme.logo) || cfg.logo || '';
+      if ($('cfgLogoUrl')) $('cfgLogoUrl').value = (typeof _logo0==='string' && /^https?:\/\//i.test(_logo0)) ? _logo0 : '';
+      var _clogo0 = cfg.centerLogoUrl || '';
+      if ($('cfgCenterLogoUrl')) $('cfgCenterLogoUrl').value = (typeof _clogo0==='string' && /^https?:\/\//i.test(_clogo0)) ? _clogo0 : '';
       $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
 
       var color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
@@ -1312,6 +1351,27 @@ async function boot() {
 
   function setupSettingsUI() {
     $('cfgColor').oninput = function(e) { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
+
+    // Hosted URL inputs drive preview AND are the only thing that gets saved
+    ['cfgLogoUrl','cfgCenterLogoUrl','cfgAdImageUrl','cfgAdVideoUrl','cfgAdLink'].forEach(function(id){
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener('input', function(){ scheduleMediaPreview(); checkAdMediaWarning(); });
+    });
+
+    function checkAdMediaWarning() {
+      var warn = $('cfgAdMediaWarn'); if (!warn) return;
+      var hasLocal = !!(pendingUploads.adImage || pendingUploads.adVideo);
+      var hasUrl = !!((($('cfgAdImageUrl')||{}).value||'').trim() || (($('cfgAdVideoUrl')||{}).value||'').trim());
+      if (hasLocal && !hasUrl) {
+        warn.style.display = 'block';
+        warn.textContent = '⚠ Local file is preview-only. To publish to status.html, paste a hosted https:// URL above.';
+      } else {
+        warn.style.display = 'none';
+        warn.textContent = '';
+      }
+    }
+    window.__qjCheckAdWarn = checkAdMediaWarning;
 
     ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(function(id) {
       $(id).addEventListener('input', schedulePhonePreview);
@@ -1348,11 +1408,13 @@ async function boot() {
         pendingUploads.adVideo = data;
         pendingUploads.adImage = null;
         createMediaPreview(data, $('cfgAdMediaPreview'), 'video', f.name, f.size);
+        if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
       } else {
         var data2 = await compressImage(f);
         pendingUploads.adImage = data2;
         pendingUploads.adVideo = null;
         createMediaPreview(data2, $('cfgAdMediaPreview'), mtype, f.name, f.size);
+        if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
       }
       $('cfgAdMediaName').textContent = f.name;
       scheduleMediaPreview();
@@ -1363,10 +1425,19 @@ async function boot() {
     $('savePublishBtn').onclick = saveSettings;
   }
 
-  // ===== OPTIMIZED SAVE =====
+  // ===== OPTIMIZED SAVE (race-safe) =====
+  // saveSeq: monotonic id; lastSavedAt: timestamp of our last successful write.
+  // The config listener ignores any incoming snapshot whose updatedAt <= lastSavedAt
+  // and whose payload is older than the in-flight save — preventing rollback.
+  var saveSeq = 0;
+  var lastSavedAt = 0;
+  window.__qjLastSavedAt = function(){ return lastSavedAt; };
+  window.__qjIsSaving = function(){ return saving; };
+
   async function saveSettings() {
     if (saving) return;
     saving = true;
+    var mySeq = ++saveSeq;
 
     var btn = $('settingsSaveBtn');
     var topBtn = $('savePublishBtn');
@@ -1375,15 +1446,27 @@ async function boot() {
     btn.innerHTML = '<span class="spinner"></span> Saving...';
 
     try {
+      // Build from CURRENT UI (source of truth) — never from a stale snapshot.
       var slimConfig = buildCanonicalConfigFromUI(currentConfig, pendingUploads);
+      slimConfig.updatedAt = Date.now();
+      lastSavedAt = slimConfig.updatedAt;
+
       await set(tRef('public/config'), slimConfig);
+
+      // If a newer save was kicked off while we were awaiting, abort post-actions.
+      if (mySeq !== saveSeq) return;
+
+      // Local mirror so the preview & form don't 'rollback' before the listener fires.
+      currentConfig = slimConfig;
       pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+      if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
 
       btn.classList.add('save-success');
       btn.textContent = '✅ Published!';
       showToast('Settings published!');
       writeAudit('settings_saved');
       setTimeout(function() {
+        if (mySeq !== saveSeq) return;
         btn.textContent = '💾 Save & Publish';
         btn.classList.remove('save-success');
       }, 2000);
@@ -1412,11 +1495,15 @@ async function boot() {
   }
 
   function getPhoneMediaState() {
+    var typedLogo = $('cfgLogoUrl') ? $('cfgLogoUrl').value.trim() : '';
+    var typedCLogo = $('cfgCenterLogoUrl') ? $('cfgCenterLogoUrl').value.trim() : '';
+    var typedAdImg = $('cfgAdImageUrl') ? $('cfgAdImageUrl').value.trim() : '';
+    var typedAdVid = $('cfgAdVideoUrl') ? $('cfgAdVideoUrl').value.trim() : '';
     return {
-      logoSrc: pendingUploads.logoUrl || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '',
-      centerLogoSrc: pendingUploads.centerLogoUrl || currentConfig.centerLogoUrl || '',
-      adImgSrc: pendingUploads.adImage || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || '',
-      adVidSrc: pendingUploads.adVideo || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || ''
+      logoSrc: pendingUploads.logoUrl || typedLogo || currentConfig.logoUrl || (currentConfig.theme && currentConfig.theme.logo) || currentConfig.logo || '',
+      centerLogoSrc: pendingUploads.centerLogoUrl || typedCLogo || currentConfig.centerLogoUrl || '',
+      adImgSrc: pendingUploads.adImage || typedAdImg || (currentConfig.ad && currentConfig.ad.image) || currentConfig.adImage || '',
+      adVidSrc: pendingUploads.adVideo || typedAdVid || (currentConfig.ad && currentConfig.ad.video) || currentConfig.adVideo || ''
     };
   }
 
