@@ -1,25 +1,26 @@
 /* /tenant-template/public/announce.js
- * QueueJoy Announcements — browser-safe.
+ * QueueJoy Announcements — browser-safe (FIXED).
  * Exposes window.__announceModule = { init(ctx) }
+ *
+ * What changed:
+ *  - Picture-only announcements work: text is no longer required when media is attached.
+ *  - Helpful inline hints (max file size, "text optional with media").
+ *  - Lazy video preview (placeholder + click-to-load, preload="none") — unchanged behaviour.
+ *  - Plain-text message body — no programmer prefixes.
+ *  - Returns delivery summary (sent / failed / total) in the UI.
+ *  - Reads /public/announcementLogs and uses the new "_summary" rows when present.
  *
  * ctx (provided by admin.html setupAnnouncementsUI):
  *   { tRef, get, onValue, set, update, genId, showToast, writeAudit,
  *     fileToBase64, formatDate, slug, tenantId }
- *
- * Features:
- *  - Plain-text message (no programmer prefixes)
- *  - Templates: Promotion / Reminder / Open / Closed / Custom
- *  - Lazy video preview (placeholder + click-to-load, preload="none")
- *  - Optional media (image/video/audio) sent through the Netlify function
- *  - Delivery summary: sent / failed / total
- *  - Recent delivery logs from public/announcementLogs (read-only)
  */
 (function () {
   'use strict';
 
   var DEFAULT_ENDPOINT = '/.netlify/functions/announce';
   var STYLE_ID = 'qj-announce-ui-styles';
-  var ROOT_ID = 'qj-announce-root';
+  var ROOT_ID  = 'qj-announce-root';
+  var MAX_MEDIA_BYTES = 10 * 1024 * 1024; // 10 MB hard cap (matches Netlify body limits)
 
   var state = {
     mounted: false,
@@ -73,7 +74,7 @@
   function fileToDataUrl(file) {
     return new Promise(function(res, rej) {
       var r = new FileReader();
-      r.onload = function(){ res(String(r.result || '')); };
+      r.onload  = function(){ res(String(r.result || '')); };
       r.onerror = rej;
       r.readAsDataURL(file);
     });
@@ -107,6 +108,7 @@
       '.qj-ann-chip strong{color:var(--text)}',
       '.qj-ann-help{font-size:12px;line-height:1.55;color:var(--text-muted)}',
       '.qj-ann-help code{font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border)}',
+      '.qj-ann-tip{font-size:11px;color:var(--text-muted);margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(102,126,234,.06);border:1px dashed rgba(102,126,234,.25)}',
       '.qj-ann-preview{margin-top:10px;border:1px dashed var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}',
       '.qj-ann-preview img{max-width:100%;max-height:220px;border-radius:10px;display:block}',
       '.qj-ann-preview audio{width:100%}',
@@ -160,7 +162,7 @@
       +     '<div class="qj-ann-head">'
       +       '<div>'
       +         '<div class="qj-ann-title">📣 Send Announcement</div>'
-      +         '<div class="qj-ann-sub">Send a Telegram message to all connected customers, or to specific chat IDs.</div>'
+      +         '<div class="qj-ann-sub">Send a Telegram message — text, picture, or both — to all connected customers or specific chat IDs.</div>'
       +       '</div>'
       +       '<div class="qj-ann-chip" title="Tenant"><span>Tenant</span><strong id="announceTenantChip">—</strong></div>'
       +     '</div>'
@@ -182,7 +184,7 @@
       +         '</div>'
 
       +         '<div class="qj-ann-full">'
-      +           '<label class="field-label">Message</label>'
+      +           '<label class="field-label">Message <span id="announceMsgOptional" style="display:none;font-weight:600;color:#10b981;text-transform:none;letter-spacing:0"> · optional when sending a picture</span></label>'
       +           '<textarea class="input" id="announceMessage" rows="6" placeholder="Type your announcement here..."></textarea>'
       +           '<div class="qj-ann-help" style="margin-top:6px">Plain text. Customers see exactly what you type. Tip: <code>Ctrl</code>+<code>Enter</code> to send.</div>'
       +         '</div>'
@@ -202,8 +204,8 @@
       +             '<button class="btn btn-secondary btn-sm" id="announceClearMediaBtn" type="button">Clear</button>'
       +             '<span class="qj-mini" id="announceMediaName">No file selected</span>'
       +           '</div>'
+      +           '<div class="qj-ann-tip">Max file size <strong>10 MB</strong>. Images, GIFs and short videos work best. For picture-only posts you can leave the message empty.</div>'
       +           '<div class="qj-ann-preview" id="announceMediaPreview" style="display:none"></div>'
-      +           '<div class="qj-ann-help" style="margin-top:6px">Images, GIFs, videos and audio are sent through the backend. Large videos may take longer to upload.</div>'
       +         '</div>'
 
       +         '<div class="qj-ann-full qj-ann-row" style="margin-top:4px">'
@@ -245,6 +247,7 @@
     dom.endpointChip = $('announceEndpointChip');
     dom.template     = $('announceTemplate');
     dom.message      = $('announceMessage');
+    dom.msgOptional  = $('announceMsgOptional');
     dom.target       = $('announceTarget');
     dom.chatIdsWrap  = $('announceChatIdsWrap');
     dom.chatIds      = $('announceChatIds');
@@ -264,6 +267,15 @@
     dom.refreshLogs  = $('announceRefreshLogsBtn');
   }
 
+  function setMessageOptionalHint(on) {
+    if (dom.msgOptional) dom.msgOptional.style.display = on ? 'inline' : 'none';
+    if (dom.message) {
+      dom.message.placeholder = on
+        ? 'Optional caption for your picture (or leave blank to send picture only)…'
+        : 'Type your announcement here...';
+    }
+  }
+
   // ---------- media preview (lazy video) ----------
   function renderMediaPreview() {
     var box = dom.mediaPreview; if (!box) return;
@@ -272,15 +284,18 @@
     if (!m) {
       box.style.display = 'none';
       if (dom.mediaName) dom.mediaName.textContent = 'No file selected';
+      setMessageOptionalHint(false);
       return;
     }
     box.style.display = 'block';
     if (dom.mediaName) dom.mediaName.textContent = (m.name || '') + ' (' + m.type + (m.size ? ', ' + formatBytes(m.size) : '') + ')';
+    setMessageOptionalHint(true);
 
     if (m.kind === 'image' || m.kind === 'gif') {
       var img = document.createElement('img');
       img.alt = 'preview';
       img.loading = 'lazy';
+      img.decoding = 'async';
       img.src = m.dataUrl;
       box.appendChild(img);
       return;
@@ -294,7 +309,6 @@
       return;
     }
     if (m.kind === 'video') {
-      // Lazy: show a placeholder; user clicks to load the <video>.
       var ph = document.createElement('div');
       ph.className = 'qj-ann-vph';
       ph.innerHTML = '<div><div style="font-weight:700;font-size:13px;color:var(--text)">🎬 ' + esc(m.name || 'Video') + '</div>'
@@ -342,7 +356,7 @@
   function hideSummary() { if (dom.summary) dom.summary.style.display = 'none'; }
 
   function buildPayload(ctx) {
-    var message  = String((dom.message && dom.message.value) || '').trim();
+    var message  = String((dom.message && dom.message.value) || '');
     var targetT  = (dom.target && dom.target.value === 'list') ? 'list' : 'all';
     var chatIds  = targetT === 'list' ? normalizeIds(dom.chatIds && dom.chatIds.value) : [];
     var payload = {
@@ -381,7 +395,14 @@
     hideSummary();
 
     var msg = String((dom.message && dom.message.value) || '').trim();
-    if (!msg) { setStatus('Please type a message before sending.', 'error'); dom.message && dom.message.focus(); return; }
+    var hasMedia = !!(state.media && state.media.dataUrl);
+
+    // FIX: picture-only allowed. Only require *something* (text OR media).
+    if (!msg && !hasMedia) {
+      setStatus('Type a message or attach a picture before sending.', 'error');
+      dom.message && dom.message.focus();
+      return;
+    }
 
     var targetT = (dom.target && dom.target.value === 'list') ? 'list' : 'all';
     if (targetT === 'list') {
@@ -391,7 +412,7 @@
 
     var payload = buildPayload(ctx);
     setSending(true);
-    setStatus('Sending announcement…', 'info');
+    setStatus(hasMedia && !msg ? 'Sending picture…' : 'Sending announcement…', 'info');
 
     try {
       var data = await postAnnouncement(payload);
@@ -399,24 +420,35 @@
       var fail  = Number(data.failed  || 0);
       var total = Number(data.total || (Array.isArray(data.chatIds) ? data.chatIds.length : ok + fail));
       showSummary(total, ok, fail);
-      setStatus(
-        fail > 0
-          ? ('Sent with some failures.\nDelivered: ' + ok + '  •  Failed: ' + fail + '  •  Recipients: ' + total)
-          : ('✅ Sent to ' + ok + ' recipient' + (ok === 1 ? '' : 's') + '.'),
-        fail > 0 ? 'error' : 'success'
-      );
 
-      if (typeof ctx.writeAudit === 'function') {
-        try { ctx.writeAudit('announcement_sent', { recipients: total, success: ok, failed: fail, hasMedia: !!state.media, target: targetT }); } catch(_){}
+      if (total === 0) {
+        setStatus('⚠️ ' + (data.error || 'No Telegram recipients found for this tenant.'), 'error');
+      } else {
+        setStatus(
+          fail > 0
+            ? ('Sent with some failures.\nDelivered: ' + ok + '  •  Failed: ' + fail + '  •  Recipients: ' + total)
+            : ('✅ Sent to ' + ok + ' recipient' + (ok === 1 ? '' : 's') + '.'),
+          fail > 0 ? 'error' : 'success'
+        );
       }
 
-      // After success: clear message + media so admin can compose the next one cleanly.
+      if (typeof ctx.writeAudit === 'function') {
+        try { ctx.writeAudit('announcement_sent', { recipients: total, success: ok, failed: fail, hasMedia: hasMedia, target: targetT }); } catch(_){}
+      }
+
+      // Notify the host admin so it can update its delivery analytics widgets.
+      try {
+        window.dispatchEvent(new CustomEvent('qj:announcement-sent', {
+          detail: { total: total, ok: ok, fail: fail, hasMedia: hasMedia, mediaKind: data.mediaKind || null, ts: Date.now() }
+        }));
+      } catch (_) {}
+
+      // Clear after success.
       if (dom.message) dom.message.value = '';
       if (dom.media) dom.media.value = '';
       state.media = null;
       renderMediaPreview();
 
-      // Refresh logs panel if we can
       bindLogs(ctx);
     } catch (err) {
       hideSummary();
@@ -428,15 +460,30 @@
 
   // ---------- logs ----------
   function summarizeLogNode(node) {
+    // Prefer the new "_summary" row when present.
+    if (node && typeof node === 'object' && node._summary && typeof node._summary === 'object') {
+      var s = node._summary;
+      return {
+        ok: Number(s.ok || 0),
+        fail: Number(s.fail || 0),
+        total: Number(s.total || 0),
+        latest: Number(s.ts || 0),
+        hasMedia: !!s.hasMedia,
+        mediaKind: s.mediaKind || null,
+        preview: s.preview || ''
+      };
+    }
     var ok=0, fail=0, latest=0;
-    if (!node || typeof node !== 'object') return { ok:ok, fail:fail, total:0, latest:latest };
-    Object.values(node).forEach(function(v){
+    if (!node || typeof node !== 'object') return { ok:0, fail:0, total:0, latest:0 };
+    Object.entries(node).forEach(function(entry){
+      var k = entry[0], v = entry[1];
+      if (k === '_summary') return;
       if (!v || typeof v !== 'object') return;
       if (v.status === 'ok') ok++;
       else if (v.status === 'failed') fail++;
       var t = Number(v.ts || 0); if (t > latest) latest = t;
     });
-    return { ok:ok, fail:fail, total: ok+fail, latest:latest };
+    return { ok:ok, fail:fail, total: ok+fail, latest:latest, hasMedia:false, mediaKind:null, preview:'' };
   }
 
   function renderLogs(rows) {
@@ -444,10 +491,16 @@
     if (!rows || !rows.length) { dom.logs.innerHTML = '<div class="qj-log-empty">No logs yet.</div>'; return; }
     dom.logs.innerHTML = rows.map(function(r) {
       var when = r.latest ? new Date(r.latest).toLocaleString() : '—';
+      var meta = [];
+      if (r.hasMedia) meta.push((r.mediaKind || 'media').toUpperCase());
+      if (r.preview)  meta.push('“' + esc(r.preview) + '”');
+      var metaHtml = meta.length ? '<div class="qj-log-meta">' + meta.join(' · ') + '</div>' : '';
       return '<div class="qj-log-item">'
            +   '<div class="qj-log-top">'
            +     '<div><div class="qj-log-title">' + esc(r.id) + '</div>'
-           +     '<div class="qj-log-meta">' + esc(when) + '</div></div>'
+           +     '<div class="qj-log-meta">' + esc(when) + '</div>'
+           +     metaHtml
+           +     '</div>'
            +   '</div>'
            +   '<div class="qj-log-badges">'
            +     '<span class="qj-log-badge total">Total ' + r.total + '</span>'
@@ -464,14 +517,22 @@
     try {
       var unsub = ctx.onValue(ctx.tRef('public/announcementLogs'), function(snap) {
         var val = snap && snap.exists && snap.exists() ? snap.val() : null;
-        if (!val) { renderLogs([]); return; }
+        if (!val) {
+          renderLogs([]);
+          try { window.dispatchEvent(new CustomEvent('qj:announcement-logs', { detail: { logs: [] } })); } catch(_){}
+          return;
+        }
         var rows = Object.entries(val).map(function(e){
           var sum = summarizeLogNode(e[1]);
-          return { id: e[0], ok: sum.ok, fail: sum.fail, total: sum.total, latest: sum.latest };
+          return { id: e[0], ok: sum.ok, fail: sum.fail, total: sum.total, latest: sum.latest, hasMedia: sum.hasMedia, mediaKind: sum.mediaKind, preview: sum.preview };
         }).sort(function(a,b){ return (b.latest||0) - (a.latest||0); }).slice(0, 20);
         renderLogs(rows);
+        // Make logs available for delivery analytics in the admin shell.
+        try {
+          window.__qjAnnouncementLogs = rows;
+          window.dispatchEvent(new CustomEvent('qj:announcement-logs', { detail: { logs: rows } }));
+        } catch(_){}
       });
-      // Firebase v9 onValue returns an unsubscribe function
       if (typeof unsub === 'function') state.logsUnsub = unsub;
     } catch (_) {}
   }
@@ -487,12 +548,10 @@
     if (dom.template) dom.template.addEventListener('change', function(){
       var t = TEMPLATES.find(function(x){ return x.id === dom.template.value; });
       if (!t || !dom.message) return;
-      // Only auto-fill if message is empty OR matches another template (avoid clobbering user text).
       var current = String(dom.message.value || '').trim();
       var isOtherTemplate = TEMPLATES.some(function(x){ return x.text && x.text.trim() === current; });
       if (!current || isOtherTemplate) dom.message.value = t.text || '';
       if (current && !isOtherTemplate && t.text) {
-        // Don't overwrite custom typing — but offer.
         if (window.confirm('Replace your current message with the template?')) dom.message.value = t.text;
       }
       dom.message.focus();
@@ -507,13 +566,19 @@
     if (dom.media) dom.media.addEventListener('change', async function(e){
       var f = e.target.files && e.target.files[0];
       if (!f) { state.media = null; renderMediaPreview(); return; }
+      if (f.size > MAX_MEDIA_BYTES) {
+        state.media = null; renderMediaPreview();
+        setStatus('File too large (' + formatBytes(f.size) + '). Max is ' + formatBytes(MAX_MEDIA_BYTES) + '.', 'error');
+        if (dom.media) dom.media.value = '';
+        return;
+      }
       var kind = guessMediaKind(f);
       if (kind === 'unknown') { state.media = null; renderMediaPreview(); setStatus('Unsupported file type. Use image, GIF, video, or audio.', 'error'); return; }
       try {
         var data = await fileToDataUrl(f);
         state.media = { kind: kind, dataUrl: data, type: f.type, name: f.name, size: f.size };
         renderMediaPreview();
-        setStatus('Media loaded: ' + f.name, 'info');
+        setStatus('Media loaded: ' + f.name + ' — text is optional now.', 'info');
       } catch (_) {
         state.media = null; renderMediaPreview(); setStatus('Failed to read media file.', 'error');
       }

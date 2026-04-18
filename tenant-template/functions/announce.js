@@ -1,25 +1,28 @@
 'use strict';
 
 /**
- * QueueJoy Announce — Netlify Function
+ * QueueJoy Announce — Netlify Function (FIXED)
  *
- * Sends a Telegram message (and optional media) to either:
- *   - all connected users for a tenant, OR
- *   - a custom list of chat IDs.
+ * Improvements over previous version:
+ *   • Picture-only announcements work — message is no longer required when media is supplied.
+ *   • The user-facing Telegram message is the admin's plain text only — no
+ *     "Tenant: …" / "Level: …" / "Font: …" prefixes are injected.
+ *   • Captions are sent only when the admin actually typed text.
+ *   • Delivery results returned to the client include success / failed / total
+ *     so the admin UI can render delivery analytics.
  *
- * Recipient resolution (tenant-aware) follows the actual QueueJoy schema:
- *
- *   1) /telegramChatIndex/{chatId}   — entries where .tenantId === tenantId  (preferred)
- *   2) /telegramTokens/{tokenKey}    — entries where .tenantId === tenantId AND .used === true,
- *                                      pulling .chatId
- *
- * The user-facing Telegram message is the admin's plain text — no
- * "Tenant: …" / "Level: …" / "Font: …" prefixes are injected.
+ * Recipient resolution (tenant-aware):
+ *   1) /telegramChatIndex/{chatId}   — entries where .tenantId === tenantId
+ *   2) /telegramTokens/{tokenKey}    — entries where .tenantId === tenantId AND .used === true
+ *   3) Tenant-scoped fallbacks for backward compatibility.
  *
  * Delivery results are written to:
- *   tenants/{tenantId}/public/announcementLogs/{logId}/{chatId} = { status, error?, ts, slug, tenantId }
+ *   tenants/{tenantId}/public/announcementLogs/{logId}/{chatId}
+ *     = { status, error?, ts, slug, tenantId, hasMedia, mediaKind }
  *
- * The log shape is unchanged.
+ * Plus a summary doc at:
+ *   tenants/{tenantId}/public/announcementLogs/{logId}/_summary
+ *     = { ts, total, ok, fail, hasMedia, mediaKind, slug, tenantId, preview }
  */
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -82,7 +85,6 @@ async function getTenantChatIds(tenantId) {
   const ids = new Set();
   if (!tenantId) return [];
 
-  // (1) Global /telegramChatIndex — filter by tenantId.
   try {
     const node = await readRtdb('telegramChatIndex');
     if (node && typeof node === 'object') {
@@ -95,7 +97,6 @@ async function getTenantChatIds(tenantId) {
     }
   } catch { /* tolerate missing path */ }
 
-  // (2) Global /telegramTokens — filter by tenantId + used=true; pull chatId.
   try {
     const node = await readRtdb('telegramTokens');
     if (node && typeof node === 'object') {
@@ -110,7 +111,6 @@ async function getTenantChatIds(tenantId) {
     }
   } catch { /* tolerate missing path */ }
 
-  // (3) Optional tenant-scoped fallback for backward compat.
   for (const path of [
     `tenants/${tenantId}/telegramConnected`,
     `tenants/${tenantId}/public/telegramTokens`,
@@ -201,9 +201,12 @@ async function postTelegramForm(url, form) {
 async function sendTelegramMessage(chatId, text, media = null) {
   if (!BOT_TOKEN) throw new Error('Missing TELEGRAM_BOT_TOKEN env var');
   const baseUrl = `https://api.telegram.org/bot${BOT_TOKEN}`;
-  const safeText = String(text || '');
-  const caption  = safeText.slice(0, 1024);
 
+  const safeText = String(text == null ? '' : text);
+  // Telegram caption limit. Empty caption => omit field entirely.
+  const caption  = safeText ? safeText.slice(0, 1024) : '';
+
+  // Media branch — image / gif / video / audio / document.
   if (media && media.data && media.type) {
     const kind = inferMediaKind(media.type, media.name);
     const { method, field } = getTelegramMediaMethod(kind);
@@ -217,6 +220,13 @@ async function sendTelegramMessage(chatId, text, media = null) {
       if (caption) form.append('caption', caption);
       return await postTelegramForm(`${baseUrl}/${method}`, form);
     }
+  }
+
+  // No media — must have text.
+  if (!safeText) {
+    const err = new Error('Empty announcement: provide text or media.');
+    err.status = 400;
+    throw err;
   }
 
   return await postTelegramJson(`${baseUrl}/sendMessage`, {
@@ -242,9 +252,9 @@ async function sendWithRetry(chatId, text, media) {
 }
 
 /* ------------------------------------------------------------------ *
- * Logging — shape unchanged.
+ * Logging — per-recipient rows + a summary row used by admin analytics.
  * ------------------------------------------------------------------ */
-async function logAnnouncement(tenantId, slug, results) {
+async function logAnnouncement(tenantId, slug, results, summary) {
   if (!tenantId || !DB_URL) return null;
   const logId = `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const logPath = `tenants/${tenantId}/public/announcementLogs/${logId}`;
@@ -257,8 +267,21 @@ async function logAnnouncement(tenantId, slug, results) {
       ts,
       slug:   slug || null,
       tenantId,
+      hasMedia: !!summary.hasMedia,
+      mediaKind: summary.mediaKind || null,
     };
   }
+  payload._summary = {
+    ts,
+    total: summary.total,
+    ok: summary.ok,
+    fail: summary.fail,
+    hasMedia: !!summary.hasMedia,
+    mediaKind: summary.mediaKind || null,
+    slug: slug || null,
+    tenantId,
+    preview: (summary.preview || '').slice(0, 160),
+  };
   await writeRtdb(logPath, payload, 'PUT');
   return { logId, logPath };
 }
@@ -275,7 +298,7 @@ exports.handler = async (event) => {
 
     const tenantId = normalizeId(body.tenantId);
     const slug     = normalizeId(body.slug);
-    const message  = String(body.message == null ? '' : body.message).trim();
+    const message  = String(body.message == null ? '' : body.message); // do NOT trim — preserve user formatting
 
     const target  = body.target || { type: 'all' };
     const customIds =
@@ -288,7 +311,10 @@ exports.handler = async (event) => {
         ? { data: body.media, type: body.mediaType, name: body.mediaName || '' }
         : null;
 
-    if (!message) return json(400, { error: 'Missing message' });
+    // Picture-only is OK. Either text OR media must be present.
+    if (!message.trim() && !media) {
+      return json(400, { error: 'Provide a message, media, or both.' });
+    }
 
     let chatIds = customIds;
     if (!chatIds.length) {
@@ -308,7 +334,7 @@ exports.handler = async (event) => {
       });
     }
 
-    // PLAIN TEXT — exactly what the admin typed.
+    // Plain text exactly as typed — no programmer prefixes.
     const text = message;
 
     let success = 0;
@@ -324,21 +350,31 @@ exports.handler = async (event) => {
         failed++;
         results.push({ chatId, status: 'failed', error: err && err.message ? err.message : 'send failed' });
       }
-      // Soft pacing to avoid Telegram burst limits
       if (chatIds.length > 1) await sleep(120);
     }
 
+    const summary = {
+      total: success + failed,
+      ok: success,
+      fail: failed,
+      hasMedia: !!media,
+      mediaKind: media ? inferMediaKind(media.type, media.name) : null,
+      preview: text.slice(0, 160),
+    };
+
     let logInfo = null;
-    try { if (tenantId) logInfo = await logAnnouncement(tenantId, slug, results); }
+    try { if (tenantId) logInfo = await logAnnouncement(tenantId, slug, results, summary); }
     catch { /* logging must never break sending */ }
 
     return json(200, {
       success,
       failed,
-      total: success + failed,
+      total: summary.total,
       chatIds,
       tenantId: tenantId || null,
       slug: slug || null,
+      hasMedia: summary.hasMedia,
+      mediaKind: summary.mediaKind,
       logId: logInfo ? logInfo.logId : null,
     });
   } catch (err) {

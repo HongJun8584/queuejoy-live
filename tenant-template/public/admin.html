@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -452,6 +453,19 @@
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">Status Distribution (Pie)</div>
         <div class="chart-wrap" style="height:300px;max-width:400px;margin:0 auto"><canvas id="statusPieChart"></canvas></div>
+      </div>
+
+      <!-- Telegram delivery analytics -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">📨 Telegram Announcement Delivery</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;text-align:center">
+          <div><div id="aAnnSent" style="font-size:24px;font-weight:800;color:var(--green)">0</div><div style="font-size:11px;color:var(--text-muted)">Delivered</div></div>
+          <div><div id="aAnnFailed" style="font-size:24px;font-weight:800;color:var(--red)">0</div><div style="font-size:11px;color:var(--text-muted)">Failed</div></div>
+          <div><div id="aAnnTotal" style="font-size:24px;font-weight:800;color:var(--primary)">0</div><div style="font-size:11px;color:var(--text-muted)">Total Attempts</div></div>
+          <div><div id="aAnnRuns" style="font-size:24px;font-weight:800;color:var(--violet)">0</div><div style="font-size:11px;color:var(--text-muted)">Announcements</div></div>
+          <div><div id="aAnnRate" style="font-size:24px;font-weight:800;color:var(--blue)">—</div><div style="font-size:11px;color:var(--text-muted)">Success Rate</div></div>
+        </div>
+        <div id="aAnnEmpty" style="margin-top:10px;font-size:12px;color:var(--text-light);text-align:center;display:none">No announcements yet for this time range.</div>
       </div>
 
       <div class="card">
@@ -1011,14 +1025,17 @@ async function boot() {
               if (typeof q.updatedAt === 'number') ts = q.updatedAt;
               else if (typeof q.updatedAt === 'string') ts = Date.parse(q.updatedAt);
             }
+            // STRICT status classification — only count what the queue item ACTUALLY says.
+            // Counter fields like nowServing/lastIssued live on /counters and must NEVER bleed into queue counts.
             var rawStatus = String(q.status || '').trim().toLowerCase();
             var classifiedStatus = 'unknown';
-            if (['completed', 'served', 'done'].includes(rawStatus)) classifiedStatus = 'completed';
-            else if (['serving','called','in_progress','inprogress','attending','active'].includes(rawStatus)) classifiedStatus = 'serving';
-            else if (['cancelled', 'canceled'].includes(rawStatus)) classifiedStatus = 'cancelled';
-            else if (q.canceledAt || q.canceledBy) classifiedStatus = 'cancelled';
-            else if (typeof q.message === 'string' && /cancell?ed/i.test(q.message)) classifiedStatus = 'cancelled';
-            else if (rawStatus === 'waiting') classifiedStatus = 'waiting';
+            if (['completed', 'served', 'done', 'finished'].includes(rawStatus)) classifiedStatus = 'completed';
+            else if (['serving','called','in_progress','inprogress','attending'].includes(rawStatus)) classifiedStatus = 'serving';
+            else if (['cancelled', 'canceled', 'no_show', 'noshow'].includes(rawStatus)) classifiedStatus = 'cancelled';
+            else if (rawStatus === 'waiting' || rawStatus === 'queued' || rawStatus === 'pending') classifiedStatus = 'waiting';
+            else if (q.completedAt || q.servedAt || q.finishedAt) classifiedStatus = 'completed';
+            else if (q.canceledAt || q.cancelledAt || q.canceledBy) classifiedStatus = 'cancelled';
+            // Anything else stays 'unknown' and is excluded from waiting/serving/completed counts.
 
             queueData.push(Object.assign({}, q, { _key: key, _ts: ts, _status: classifiedStatus }));
           }
@@ -1076,6 +1093,7 @@ async function boot() {
       updateAnalyticsCounts();
       updateAnalyticsCharts();
       updateRawEventsTable();
+      updateAnnouncementAnalytics();
     });
   }
 
@@ -1275,6 +1293,34 @@ async function boot() {
       statusPieChart.update('none');
     }
   }
+
+  // ===== Telegram delivery analytics =====
+  var _annLogs = []; // populated by announce.js via 'qj:announcement-logs'
+  function updateAnnouncementAnalytics() {
+    var cutoff = getFilterCutoff();
+    var rows = (_annLogs || []).filter(function(r){
+      if (!r) return false;
+      if (cutoff <= 0) return true;
+      return Number(r.latest || 0) >= cutoff;
+    });
+    var ok = 0, fail = 0, total = 0, runs = rows.length;
+    rows.forEach(function(r){ ok += Number(r.ok||0); fail += Number(r.fail||0); total += Number(r.total||0); });
+    if ($('aAnnSent'))   $('aAnnSent').textContent   = ok;
+    if ($('aAnnFailed')) $('aAnnFailed').textContent = fail;
+    if ($('aAnnTotal'))  $('aAnnTotal').textContent  = total;
+    if ($('aAnnRuns'))   $('aAnnRuns').textContent   = runs;
+    if ($('aAnnRate'))   $('aAnnRate').textContent   = total > 0 ? Math.round((ok / total) * 100) + '%' : '—';
+    if ($('aAnnEmpty'))  $('aAnnEmpty').style.display = runs === 0 ? 'block' : 'none';
+  }
+  window.addEventListener('qj:announcement-logs', function(ev){
+    try {
+      _annLogs = (ev && ev.detail && Array.isArray(ev.detail.logs)) ? ev.detail.logs : [];
+      updateAnnouncementAnalytics();
+    } catch(_) {}
+  });
+  window.addEventListener('qj:announcement-sent', function(){
+    updateAnnouncementAnalytics();
+  });
 
   function updateRawEventsTable() {
     var container = $('rawEventsTable');
