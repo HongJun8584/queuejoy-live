@@ -9,10 +9,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
-    :root{--theme:#8b5cf6;--theme2:#7c3aed;--bg:#f8f7ff;--surface:#fff;--text:#111827;--text-muted:#6b7280;--border:#e5e7eb;--green:#10b981;--red:#ef4444;--radius:16px;--shadow:0 4px 24px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.03);--shadow-lg:0 12px 40px rgba(0,0,0,.1),0 2px 8px rgba(0,0,0,.05);--ease:cubic-bezier(.16,1,.3,1)}
+    :root{
+      --theme:#8b5cf6;--theme2:#7c3aed;--bg:#f8f7ff;--surface:#fff;--text:#111827;--text-muted:#6b7280;--border:#e5e7eb;
+      --green:#10b981;--red:#ef4444;--radius:16px;--shadow:0 4px 24px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.03);
+      --shadow-lg:0 12px 40px rgba(0,0,0,.1),0 2px 8px rgba(0,0,0,.05);--ease:cubic-bezier(.16,1,.3,1)
+    }
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center}
-
+    html,body{min-height:100%}
+    body{
+      font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);
+      min-height:100vh;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center
+    }
     @keyframes fadeUp{from{opacity:0;transform:translateY(14px);filter:blur(3px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -20,77 +27,62 @@
     @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
     @keyframes slideUp{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
     @keyframes slideDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(100%)}}
-
     .fade-up{animation:fadeUp .5s var(--ease) both}
     .fade-up-1{animation-delay:50ms}
     .fade-up-2{animation-delay:120ms}
     .fade-up-3{animation-delay:200ms}
     .fade-up-4{animation-delay:300ms}
-
     .skeleton{background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:800px 100%;animation:shimmer 1.2s infinite linear;border-radius:8px}
-
     .wrap{width:100%;max-width:440px;padding:16px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
-
     .header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .header-logo{width:44px;height:44px;border-radius:12px;object-fit:contain;flex-shrink:0;background:#f3f4f6}
-    .header-logo-fallback{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--theme),var(--theme2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;flex-shrink:0}
+    .header-logo,.header-logo-fallback{width:44px;height:44px;border-radius:12px;flex-shrink:0}
+    .header-logo{object-fit:contain;background:#f3f4f6;display:block}
+    .header-logo-fallback{background:linear-gradient(135deg,var(--theme),var(--theme2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800}
     .header-info{flex:1;min-width:0}
     .header-small{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.3px;text-transform:uppercase}
     .header-title{font-size:16px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
     .hero{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;text-align:center;padding:32px 24px 28px}
     .hero-logo-wrap{width:88px;height:88px;margin:0 auto 16px;border-radius:50%;overflow:hidden;background:#f9fafb;border:3px solid #f3f4f6;display:flex;align-items:center;justify-content:center}
-    .hero-logo{width:100%;height:100%;object-fit:contain}
+    .hero-logo{width:100%;height:100%;object-fit:contain;display:block}
     .hero-logo-fallback{font-size:36px;font-weight:800;color:var(--theme)}
     .hero-heading{font-size:22px;font-weight:800;line-height:1.2;margin-bottom:6px;color:var(--text)}
     .hero-desc{font-size:14px;color:var(--text-muted);line-height:1.5;margin-bottom:24px}
-
     .cta-btn{width:100%;padding:16px 24px;border:none;border-radius:14px;font-family:inherit;font-size:16px;font-weight:700;color:#fff;cursor:pointer;position:relative;overflow:hidden;transition:all .2s var(--ease);display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--theme),var(--theme2));box-shadow:0 6px 20px color-mix(in srgb,var(--theme) 35%,transparent)}
     .cta-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px color-mix(in srgb,var(--theme) 45%,transparent)}
     .cta-btn:active{transform:scale(.97)}
     .cta-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
     .cta-btn .spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
     .cta-btn .icon{font-size:18px}
-
     .status-line{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-muted);padding:4px 0}
     .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
     .status-dot.live{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.4)}
     .status-dot.loading{background:#f59e0b;animation:pulse 1.2s infinite}
     .status-dot.offline{background:var(--red)}
-
     .success-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px}
     .success-card{background:var(--surface);border-radius:20px;padding:36px 28px;text-align:center;max-width:360px;width:100%;animation:successPop .4s var(--ease) both;box-shadow:var(--shadow-lg)}
     .success-icon{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--green),#14b8a6);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px}
     .success-num{font-size:32px;font-weight:800;color:var(--theme);margin:8px 0 4px}
     .success-sub{font-size:14px;color:var(--text-muted)}
-
     .ad-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
     .ad-label{padding:8px 16px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
-    .ad-media{width:100%;max-height:200px;object-fit:cover;display:block}
-    .ad-media-video{width:100%;max-height:200px;object-fit:cover;display:block}
+    .ad-media,.ad-media-video{width:100%;max-height:200px;object-fit:cover;display:block;background:#000}
     .ad-text{padding:10px 16px;font-size:13px;color:var(--text-muted);line-height:1.4}
-    .ad-empty{padding:28px 16px;text-align:center;color:#d1d5db;font-size:13px}
     .ad-link{text-decoration:none;color:inherit;display:block}
-
     .toast-container{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;width:calc(100% - 32px);max-width:400px;pointer-events:none}
     .toast{pointer-events:auto;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:600;color:#fff;animation:slideUp .3s var(--ease) both;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
     .toast.success{background:var(--green)}
     .toast.error{background:var(--red)}
     .toast.info{background:#3b82f6}
     .toast-exit{animation:slideDown .2s ease-in both}
-
     .footer{text-align:center;padding:12px 0 24px;font-size:11px;color:#d1d5db}
     .footer a{color:var(--theme);text-decoration:none;font-weight:600}
-
     .skel-header{height:68px;border-radius:var(--radius)}
     .skel-hero{height:300px;border-radius:var(--radius)}
     .skel-ad{height:100px;border-radius:var(--radius)}
-
     @media(max-width:480px){.wrap{padding:12px}}
   </style>
 </head>
 <body>
-
 <div class="wrap" id="app">
   <div id="skel" class="fade-up">
     <div class="skeleton skel-header" style="margin-bottom:14px"></div>
@@ -139,18 +131,10 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-import {
-  getDatabase,
-  ref,
-  onValue,
-  get,
-  set,
-  push,
-  runTransaction
-} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import { getDatabase, ref, onValue, get, set, push, runTransaction } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBYJlAo0Hn...", 
+  apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
   authDomain: "queuejoy-live.firebaseapp.com",
   databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "queuejoy-live",
@@ -185,7 +169,6 @@ function safeString(value, fallback = '') {
   }
   return fallback;
 }
-
 function getPath(obj, path) {
   if (!obj || typeof obj !== 'object') return undefined;
   const parts = String(path).split('.');
@@ -196,7 +179,12 @@ function getPath(obj, path) {
   }
   return cur;
 }
-
+function pickFirst(...values) {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
 function darkenHex(hex, amount = 0.12) {
   if (typeof hex !== 'string') return '#7c3aed';
   const m = hex.trim().match(/^#([0-9a-f]{6})$/i);
@@ -207,7 +195,6 @@ function darkenHex(hex, amount = 0.12) {
   const b = Math.max(0, Math.min(255, Math.round((n & 255) * (1 - amount))));
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
-
 function getSessionId() {
   const key = 'qj_session_id';
   try {
@@ -227,10 +214,8 @@ function isSafeUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const lower = url.trim().toLowerCase();
   if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
-  if (lower.startsWith('data:image/') || lower.startsWith('data:video/')) return true;
   return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('/');
 }
-
 function isActiveCounter(counter) {
   if (!counter || typeof counter !== 'object') return false;
   const active = counter.active;
@@ -240,7 +225,6 @@ function isActiveCounter(counter) {
   const s = String(active).trim().toLowerCase();
   return s === 'true' || s === '1' || s === 'yes' || s === 'on';
 }
-
 function showToast(message, type = 'info', ms = 3500) {
   const host = $('toastContainer');
   if (!host) return;
@@ -253,52 +237,18 @@ function showToast(message, type = 'info', ms = 3500) {
     setTimeout(() => toast.remove(), 220);
   }, ms);
 }
-
-function renderMedia(src, container, type = 'image') {
-  container.innerHTML = '';
-  if (!src) return;
-
-  const isVideo = type === 'video' || (
-    typeof src === 'string' &&
-    (src.startsWith('data:video/') || /\.(mp4|webm|ogg|mov)$/i.test(src))
-  );
-
-  if (isVideo) {
-    const video = document.createElement('video');
-    video.src = src;
-    video.autoplay = true;
-    video.loop = true;
-    video.muted = true;
-    video.playsInline = true;
-    video.className = 'ad-media-video';
-    video.loading = 'lazy';
-    container.appendChild(video);
-    return;
-  }
-
-  const img = document.createElement('img');
-  img.src = src;
-  img.alt = 'Advertisement';
-  img.className = 'ad-media';
-  img.loading = 'lazy';
-  img.onerror = () => { img.style.display = 'none'; };
-  container.appendChild(img);
-}
-
 function makeHeaderFallback(name) {
   const div = document.createElement('div');
   div.className = 'header-logo-fallback';
   div.textContent = (safeString(name, 'Q')[0] || 'Q').toUpperCase();
   return div;
 }
-
 function makeCenterFallback() {
   const span = document.createElement('span');
   span.className = 'hero-logo-fallback';
   span.textContent = '🎫';
   return span;
 }
-
 function setHeaderLogo(url, name) {
   const wrap = $('headerLogoWrap');
   if (!wrap) return;
@@ -308,6 +258,7 @@ function setHeaderLogo(url, name) {
     img.className = 'header-logo';
     img.src = url;
     img.alt = 'Logo';
+    img.loading = 'lazy';
     img.onerror = () => {
       if (wrap.contains(img)) {
         wrap.innerHTML = '';
@@ -319,7 +270,6 @@ function setHeaderLogo(url, name) {
     wrap.appendChild(makeHeaderFallback(name));
   }
 }
-
 function setCenterLogo(url) {
   const wrap = $('centerLogoWrap');
   if (!wrap) return;
@@ -329,6 +279,7 @@ function setCenterLogo(url) {
     img.className = 'hero-logo';
     img.src = url;
     img.alt = 'Logo';
+    img.loading = 'lazy';
     img.onerror = () => {
       if (wrap.contains(img)) {
         wrap.innerHTML = '';
@@ -341,73 +292,139 @@ function setCenterLogo(url) {
   }
 }
 
-function renderAd(cfg) {
-  const card = $('adCard');
-  const content = $('adContent');
-  const text = $('adText');
-  const ad = cfg && typeof cfg.ad === 'object' && cfg.ad ? cfg.ad : {};
+/* =========================
+   AD PANEL (status.html style)
+   ========================= */
+function showAd(adData, adText) {
+  const panel = $('adCard');
+  const container = $('adContent');
+  const textEl = $('adText');
+  if (!panel || !container) return;
 
-  const adImage = safeString(ad.image);
-  const adVideo = safeString(ad.video);
-  const adLink = safeString(ad.link);
-  const adText = safeString(cfg.adText);
+  container.innerHTML = '';
+  if (textEl) {
+    textEl.style.display = 'none';
+    textEl.textContent = '';
+  }
 
-  if (!adImage && !adVideo) {
-    card.style.display = 'none';
-    content.innerHTML = '';
-    text.style.display = 'none';
+  if (!adData) {
+    panel.style.display = 'none';
     return;
   }
 
-  card.style.display = '';
-  content.innerHTML = '';
-  text.style.display = 'none';
+  let url = null;
+  let linkHref = null;
 
-  const mediaWrap = document.createElement(adLink && isSafeUrl(adLink) ? 'a' : 'div');
-  if (adLink && isSafeUrl(adLink)) {
-    mediaWrap.href = adLink;
-    mediaWrap.target = '_blank';
-    mediaWrap.rel = 'noopener noreferrer';
-    mediaWrap.className = 'ad-link';
+  if (typeof adData === 'string') {
+    url = adData.trim();
+  } else if (typeof adData === 'object') {
+    url = adData.image || adData.video || adData.url || adData.src || null;
+    linkHref = adData.link || adData.href || null;
+    if (!adText) adText = adData.text || adData.description || null;
   }
 
-  const holder = document.createElement('div');
-  renderMedia(adVideo || adImage, holder, adVideo ? 'video' : 'image');
-  mediaWrap.appendChild(holder);
-  content.appendChild(mediaWrap);
-
-  if (adText) {
-    text.textContent = adText;
-    text.style.display = '';
+  if (!url) {
+    panel.style.display = 'none';
+    return;
   }
+
+  if (adText && textEl) {
+    textEl.textContent = adText;
+    textEl.style.display = '';
+  }
+
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
+    let embedSrc = url;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(url)) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=0&mute=1&playsinline=1`;
+      } else if (/youtu\.be\//.test(url)) {
+        const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
+        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=0&mute=1&playsinline=1`;
+      }
+    } catch {}
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
+      <iframe src="${embedSrc}" frameborder="0" allow="autoplay;encrypted-media;picture-in-picture" allowfullscreen
+      style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>`;
+    panel.style.display = '';
+    return;
+  }
+
+  if (/\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url)) {
+    const v = document.createElement('video');
+    v.src = url;
+    v.className = 'ad-media-video';
+    v.autoplay = true;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.preload = 'metadata';
+    v.addEventListener('loadedmetadata', () => panel.style.display = '');
+    v.addEventListener('error', () => panel.style.display = 'none');
+    container.appendChild(v);
+    v.play().catch(() => {});
+    return;
+  }
+
+  const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
+  if (linkHref) {
+    wrapper.href = linkHref;
+    wrapper.target = '_blank';
+    wrapper.rel = 'noopener noreferrer';
+    wrapper.className = 'ad-link';
+  }
+  const img = document.createElement('img');
+  img.src = url;
+  img.className = 'ad-media';
+  img.alt = 'Promotion';
+  img.loading = 'lazy';
+  img.onload = () => panel.style.display = '';
+  img.onerror = () => panel.style.display = 'none';
+  wrapper.appendChild(img);
+  container.appendChild(wrapper);
 }
 
-function showBlockingState(title, description) {
-  $('skel').style.display = 'none';
-  $('content').style.display = 'flex';
-  $('content').style.flexDirection = 'column';
-  $('content').style.gap = '14px';
-  $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
-  $('statusText').textContent = 'Unavailable';
-  $('headerTitle').textContent = 'Queue Joy';
-  $('smallTopText').textContent = 'Queue Joy';
-  $('mainHeading').textContent = title;
-  $('introText').textContent = description;
-  $('ctaBtn').style.display = 'none';
-  $('adCard').style.display = 'none';
+function normalizeAdData(cfg) {
+  const raw = cfg || {};
+  const adPanel = raw.adPanel && typeof raw.adPanel === 'object' ? raw.adPanel : null;
+  const ad = raw.ad && typeof raw.ad === 'object' ? raw.ad : null;
+  const url = pickFirst(
+    adPanel?.image, adPanel?.video, adPanel?.url, adPanel?.src,
+    ad?.image, ad?.video, ad?.url, ad?.src,
+    raw.adImage, raw.adVideo, raw.adUrl, raw.adSrc
+  );
+  const link = pickFirst(adPanel?.link, adPanel?.href, ad?.link, ad?.href, raw.adLink, raw.adHref);
+  const text = pickFirst(adPanel?.text, adPanel?.description, ad?.text, ad?.description, raw.adText);
+  if (!url) return null;
+  return { url, link, text };
+}
+
+async function refreshAdFromTenantConfig() {
+  if (!db || !state.tenantId) return;
+  try {
+    const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
+    if (snap?.exists?.()) {
+      const cfg = snap.val() || {};
+      const ad = normalizeAdData(cfg);
+      if (ad) {
+        showAd(ad, ad.text || null);
+        return;
+      }
+    }
+    $('adCard')?.style && ($('adCard').style.display = 'none');
+  } catch {}
 }
 
 function updateStatusLine() {
   const dot = $('statusLine')?.querySelector('.status-dot');
   const txt = $('statusText');
   if (!dot || !txt) return;
-
   if (!state.configLoaded || !state.countersLoaded) {
     dot.className = 'status-dot loading';
     txt.textContent = 'Syncing tenant...';
     return;
   }
-
   if (state.connected) {
     dot.className = 'status-dot live';
     txt.textContent = 'Live';
@@ -422,22 +439,30 @@ function applyConfig(cfg) {
   const themeColor = safeString(getPath(cfg, 'theme.color'), '#8b5cf6');
   document.documentElement.style.setProperty('--theme', themeColor);
   document.documentElement.style.setProperty('--theme2', darkenHex(themeColor, 0.12));
-
-  const displayName = safeString(getPath(cfg, 'displayName'), state.slug || 'Queue Joy');
+  const displayName = pickFirst(getPath(cfg, 'displayName'), getPath(cfg, 'businessName'), getPath(cfg, 'name'), state.slug, 'Queue Joy');
   document.title = `${displayName} — Queue`;
-
   $('headerTitle').textContent = displayName;
-  $('smallTopText').textContent = safeString(getPath(cfg, 'smallTextOnTop'), 'Queue Joy');
-  setHeaderLogo(getPath(cfg, 'logoUrl'), displayName);
-  setCenterLogo(getPath(cfg, 'centerLogoUrl'));
-  $('mainHeading').textContent = safeString(getPath(cfg, 'mainHeading'), 'Get your queue number');
-  $('introText').textContent = safeString(getPath(cfg, 'description'), 'Real-time queueing system. Mobile-friendly. No app needed.');
-
-  if (!state.isJoining) {
-    $('ctaBtnText').textContent = safeString(getPath(cfg, 'buttonText'), 'Get your queue number');
-  }
-
-  renderAd(cfg);
+  $('smallTopText').textContent = pickFirst(getPath(cfg, 'smallTextOnTop'), 'Queue Joy');
+  setHeaderLogo(pickFirst(
+    getPath(cfg, 'logoUrl'),
+    getPath(cfg, 'logo'),
+    getPath(cfg, 'theme.logo'),
+    getPath(cfg, 'headerLogoUrl'),
+    getPath(cfg, 'topLogoUrl'),
+    getPath(cfg, 'headerLogo')
+  ), displayName);
+  setCenterLogo(pickFirst(
+    getPath(cfg, 'centerLogoUrl'),
+    getPath(cfg, 'centerLogo'),
+    getPath(cfg, 'heroLogoUrl'),
+    getPath(cfg, 'heroLogo')
+  ));
+  $('mainHeading').textContent = pickFirst(getPath(cfg, 'mainHeading'), 'Get your queue number');
+  $('introText').textContent = pickFirst(getPath(cfg, 'description'), 'Real-time queueing system. Mobile-friendly. No app needed.');
+  if (!state.isJoining) $('ctaBtnText').textContent = pickFirst(getPath(cfg, 'buttonText'), 'Get your queue number');
+  const ad = normalizeAdData(cfg);
+  if (ad) showAd(ad, ad.text || null);
+  else $('adCard') && ($('adCard').style.display = 'none');
 }
 
 function getActiveCounters() {
@@ -448,35 +473,26 @@ function getActiveCounters() {
       const bo = Number(getPath(b[1], 'order') ?? 0) || 0;
       return ao - bo;
     })
-    .map(([id, counter]) => ({
-      id,
-      ...counter,
-      name: safeString(counter.name || counter.label || counter.displayName || id, id)
-    }));
+    .map(([id, counter]) => ({ id, ...counter, name: safeString(counter.name || counter.label || counter.displayName || id, id) }));
 }
 
 function updateCtaState() {
   const btn = $('ctaBtn');
   const txt = $('ctaBtnText');
   if (!btn || !txt) return;
-
   if (!state.configLoaded || !state.countersLoaded) {
     btn.disabled = true;
     txt.textContent = 'Loading...';
     return;
   }
-
   const activeCounters = getActiveCounters();
   if (activeCounters.length === 0) {
     btn.disabled = true;
     txt.textContent = 'No active counters right now';
     return;
   }
-
   btn.disabled = state.isJoining;
-  if (!state.isJoining) {
-    txt.textContent = safeString(getPath(state.config, 'buttonText'), 'Get your queue number');
-  }
+  if (!state.isJoining) txt.textContent = pickFirst(getPath(state.config, 'buttonText'), 'Get your queue number');
 }
 
 function cleanupListeners() {
@@ -498,17 +514,9 @@ function isFinalQueueStatus(status) {
 async function recordServiceCompleted({ queueKey, queueData, completedAt }) {
   const dedupeKey = `qj_service_event:${state.tenantId}:${queueKey}`;
   try { if (sessionStorage.getItem(dedupeKey) === '1') return; } catch {}
-
   const endAt = Number(completedAt || Date.now());
-  const startedAt = Number(
-    queueData?.serviceStartedAt ||
-    queueData?.startedAt ||
-    queueData?.joinedAt ||
-    queueData?.createdAt ||
-    endAt
-  );
+  const startedAt = Number(queueData?.serviceStartedAt || queueData?.startedAt || queueData?.joinedAt || queueData?.createdAt || endAt);
   const serviceMs = Math.max(0, endAt - startedAt);
-
   const payload = {
     type: 'service_completed',
     serviceMs,
@@ -526,7 +534,6 @@ async function recordServiceCompleted({ queueKey, queueData, completedAt }) {
     platform: navigator.platform || '',
     source: 'index.html'
   };
-
   const eventRef = push(ref(db, `tenants/${state.tenantId}/analytics/serviceEvents`));
   await set(eventRef, payload);
   try { sessionStorage.setItem(dedupeKey, '1'); } catch {}
@@ -537,7 +544,6 @@ function watchQueueForCompletion(queueKey) {
     try { state.queueMonitorUnsub(); } catch {}
     state.queueMonitorUnsub = null;
   }
-
   const queueRef = ref(db, `tenants/${state.tenantId}/queue/${queueKey}`);
   state.queueMonitorUnsub = onValue(queueRef, snap => {
     if (!snap.exists()) return;
@@ -548,7 +554,6 @@ function watchQueueForCompletion(queueKey) {
         .catch(err => console.error('service analytics write failed', err));
     }
   }, err => { console.error('queue monitor error', err); });
-
   state.liveUnsubs.push(state.queueMonitorUnsub);
 }
 
@@ -565,7 +570,6 @@ function showSuccess(queueNumber, queueKey) {
       </div>
     </div>
   `;
-
   setTimeout(() => {
     const url = new URL('/status.html', window.location.origin);
     url.searchParams.set('queueId', queueKey);
@@ -578,19 +582,13 @@ function showSuccess(queueNumber, queueKey) {
 }
 
 async function resolveTenantIdOnce(slug) {
-  const response = await fetch(
-    `/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`,
-    { method: 'GET', credentials: 'same-origin', cache: 'no-store' }
-  );
-  if (!response.ok) {
-    throw new Error(`Tenant lookup failed (${response.status})`);
-  }
-
+  const response = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`, {
+    method: 'GET', credentials: 'same-origin', cache: 'no-store'
+  });
+  if (!response.ok) throw new Error(`Tenant lookup failed (${response.status})`);
   const data = await response.json().catch(() => null);
   const tenantId = safeString(data?.tenantId || '', '');
-  if (!tenantId || tenantId.includes('/')) {
-    throw new Error('Invalid tenant returned');
-  }
+  if (!tenantId || tenantId.includes('/')) throw new Error('Invalid tenant returned');
   return tenantId;
 }
 
@@ -606,10 +604,10 @@ function getSlugFromLocation() {
 async function bootstrap() {
   const slug = getSlugFromLocation();
   if (!slug) {
-    showBlockingState('Missing tenant slug', 'Open this page with ?slug=your-slug');
+    $('authOverlay')?.style && ($('authOverlay').style.display = 'none');
+    showToast('Missing tenant slug', 'error');
     return;
   }
-
   state.slug = slug;
   window.__TENANT_SLUG = slug;
 
@@ -618,7 +616,12 @@ async function bootstrap() {
     tenantId = await resolveTenantIdOnce(slug);
   } catch (err) {
     console.error(err);
-    showBlockingState('Tenant lookup failed', 'This page could not resolve a valid tenant for the provided slug.');
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('content').style.flexDirection = 'column';
+    $('content').style.gap = '14px';
+    $('statusText').textContent = 'Tenant lookup failed';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
     return;
   }
 
@@ -628,18 +631,27 @@ async function bootstrap() {
   const configRef = ref(db, `tenants/${tenantId}/public/config`);
   const countersRef = ref(db, `tenants/${tenantId}/counters`);
 
-  let configSnap;
-  let countersSnap;
+  let configSnap, countersSnap;
   try {
     [configSnap, countersSnap] = await Promise.all([get(configRef), get(countersRef)]);
   } catch (err) {
     console.error(err);
-    showBlockingState('Unable to load tenant data', 'The tenant could not be loaded safely. Please refresh or check the slug.');
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('content').style.flexDirection = 'column';
+    $('content').style.gap = '14px';
+    $('statusText').textContent = 'Unable to load tenant data';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
     return;
   }
 
   if (!configSnap.exists()) {
-    showBlockingState('Configuration unavailable', 'This tenant does not have a valid public/config yet.');
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('content').style.flexDirection = 'column';
+    $('content').style.gap = '14px';
+    $('statusText').textContent = 'Configuration unavailable';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
     return;
   }
 
@@ -686,13 +698,11 @@ window.addEventListener('beforeunload', cleanupListeners);
 $('ctaBtn').addEventListener('click', async e => {
   e.preventDefault();
   if (state.isJoining) return;
-
   const activeCounters = getActiveCounters();
   if (activeCounters.length === 0) {
     showToast('No active counters available.', 'error');
     return;
   }
-
   state.isJoining = true;
   updateCtaState();
 
@@ -724,26 +734,11 @@ $('ctaBtn').addEventListener('click', async e => {
 
     const now = Date.now();
     const payload = {
-      queueKey,
-      queueId: queueNumber,
-      queueNumber,
-      number: queueNumber,
-      numberVal: nextNumber,
-      prefix,
-      counterId: chosen.id,
-      counter: chosen.name || chosen.label || chosen.displayName || chosen.id,
-      counterName: chosen.name || chosen.label || chosen.displayName || chosen.id,
-      counterOrder: Number(chosen.order) || 0,
-      status: 'waiting',
-      createdAt: now,
-      updatedAt: now,
-      joinedAt: now,
-      slug: state.slug,
-      tenantId: state.tenantId,
-      sessionId: state.sessionId,
-      userAgent: navigator.userAgent,
-      platform: navigator.platform || '',
-      source: 'index.html'
+      queueKey, queueId: queueNumber, queueNumber, number: queueNumber, numberVal: nextNumber,
+      prefix, counterId: chosen.id, counter: chosen.name || chosen.label || chosen.displayName || chosen.id,
+      counterName: chosen.name || chosen.label || chosen.displayName || chosen.id, counterOrder: Number(chosen.order) || 0,
+      status: 'waiting', createdAt: now, updatedAt: now, joinedAt: now, slug: state.slug, tenantId: state.tenantId,
+      sessionId: state.sessionId, userAgent: navigator.userAgent, platform: navigator.platform || '', source: 'index.html'
     };
 
     await set(ref(db, `tenants/${state.tenantId}/queue/${queueKey}`), payload);
@@ -768,7 +763,12 @@ $('ctaBtn').addEventListener('click', async e => {
 
 bootstrap().catch(err => {
   console.error(err);
-  showBlockingState('Unexpected error', 'Something went wrong while loading this page.');
+  $('skel').style.display = 'none';
+  $('content').style.display = 'flex';
+  $('content').style.flexDirection = 'column';
+  $('content').style.gap = '14px';
+  $('statusText').textContent = 'Unexpected error';
+  $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
 });
 </script>
 </body>
