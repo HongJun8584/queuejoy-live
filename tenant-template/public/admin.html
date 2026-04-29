@@ -1,8 +1,9 @@
 
 
+
 <!doctype html>
 <html lang="en">
-<head>
+<head><base href="/__l5e/documents/">
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>QueueJoy Admin</title>
@@ -237,21 +238,29 @@
 <!-- Auth Overlay -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-card">
-    <div style="font-size:48px;margin-bottom:12px">🎫</div>
+    <div style="font-size:48px;margin-bottom:8px">🎫</div>
     <h2>QueueJoy Admin</h2>
-    <p>Sign in to manage your business</p>
-    <div style="text-align:left">
+    <p id="authSubtitle">Sign in to manage your business</p>
+    <div style="display:flex;gap:6px;background:rgba(255,255,255,0.04);padding:4px;border-radius:10px;margin-bottom:14px">
+      <button type="button" class="btn btn-sm" id="authTabSignIn" style="flex:1;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff">Sign In</button>
+      <button type="button" class="btn btn-sm" id="authTabCreate" style="flex:1;background:transparent;color:var(--text-muted)">Create Account</button>
+    </div>
+    <form id="authForm" onsubmit="event.preventDefault();" style="text-align:left">
       <label class="field-label" style="margin-top:0">Email</label>
-      <input class="input" id="authEmail" type="email" placeholder="admin@example.com"/>
+      <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="admin@example.com"/>
       <label class="field-label">Password</label>
-      <input class="input" id="authPassword" type="password" placeholder="••••••••"/>
-      <div style="margin-top:10px;display:flex;align-items:center;gap:6px">
+      <input class="input" id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••"/>
+      <div id="authConfirmWrap" style="display:none">
+        <label class="field-label">Confirm Password</label>
+        <input class="input" id="authPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repeat password"/>
+      </div>
+      <div id="authRememberWrap" style="margin-top:10px;display:flex;align-items:center;gap:6px">
         <input type="checkbox" id="authRemember" checked/><label for="authRemember" style="font-size:12px;color:var(--text-muted)">Remember me</label>
       </div>
-    </div>
+    </form>
     <button class="btn btn-primary" id="authSignInBtn" style="width:100%;margin-top:16px;padding:12px">
       <span id="authBtnText">Sign In</span>
-      <span id="authBtnSpinner" style="display:none"><span class="spinner"></span>Signing in...</span>
+      <span id="authBtnSpinner" style="display:none"><span class="spinner"></span>Working...</span>
     </button>
     <div id="authError" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.1);color:var(--red);font-size:12px;font-weight:600"></div>
   </div>
@@ -332,17 +341,6 @@
             <input class="input" id="cfgButtonText" placeholder="e.g., Get your queue number"/>
             <label class="field-label">Ad Text</label>
             <input class="input" id="cfgAdText" placeholder="Advertisement text..."/>
-            <label class="field-label">Ad Link</label>
-            <input class="input" id="cfgAdLink" placeholder="https://..."/>
-            <label class="field-label">Timezone</label>
-            <select class="input" id="cfgTimezone">
-              <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (GMT+8)</option>
-              <option value="UTC">UTC</option>
-              <option value="America/New_York">America/New_York (EST)</option>
-              <option value="Europe/London">Europe/London (GMT)</option>
-              <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
-              <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
-            </select>
           </div>
 
           <div class="card fade-in" style="margin-top:16px">
@@ -367,10 +365,12 @@
             </div>
             <div id="cfgCenterLogoPreview"></div>
 
-            <label class="field-label">Ad Media (Image/GIF/Video)</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <label class="file-btn">📎 Upload<input type="file" id="cfgAdMediaFile" accept="image/*,video/*"/></label><input class="input" id="cfgAdImageUrl" placeholder="Hosted image URL (https://…)" style="margin-top:8px;font-size:12px"/><input class="input" id="cfgAdVideoUrl" placeholder="Hosted video URL (https://…)" style="margin-top:6px;font-size:12px"/><div id="cfgAdMediaWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:11px;background:rgba(245,158,11,.10);color:var(--amber);border:1px solid rgba(245,158,11,.25)"></div>
-              <span id="cfgAdMediaName" style="font-size:11px;color:var(--text-light)"></span>
+            <label class="field-label">Ad Media (Hosted URL Only)</label>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <input class="input" id="cfgAdImageUrl" placeholder="Hosted image URL (https://…)" style="font-size:12px"/>
+              <input class="input" id="cfgAdVideoUrl" placeholder="Hosted video URL or YouTube link (https://…)" style="font-size:12px"/>
+              <div style="font-size:11px;color:var(--text-light)">🔒 Ads accept hosted https:// links only — local uploads are not allowed.</div>
+              <div id="cfgAdMediaWarn" style="display:none;padding:8px 10px;border-radius:8px;font-size:11px;background:rgba(245,158,11,.10);color:var(--amber);border:1px solid rgba(245,158,11,.25)"></div>
             </div>
             <div id="cfgAdMediaPreview"></div>
           </div>
@@ -382,11 +382,13 @@
 
         <!-- Phone Preview -->
         <div style="flex-shrink:0">
-          <div style="text-align:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Live Preview</div>
+          <div style="text-align:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Live Preview · index.html</div>
           <div class="phone-frame" id="phoneFrame">
             <div class="phone-notch"></div>
+            <iframe id="phoneIframe" title="Live preview" style="display:none;width:100%;height:calc(100% - 24px);border:0;background:#fff" sandbox="allow-scripts allow-same-origin"></iframe>
             <div class="phone-screen" id="phoneScreen"></div>
           </div>
+          <div style="text-align:center;margin-top:8px"><button class="btn btn-secondary btn-sm" id="phoneReloadBtn">↻ Reload preview</button></div>
         </div>
       </div>
     </div>
@@ -562,7 +564,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 import { getDatabase, ref, onValue, get, set, update, push, child, remove } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
@@ -760,6 +762,18 @@ function deepCleanConfig(obj) {
   return obj;
 }
 
+function isSafeImageUrl(v) {
+  if (!v || typeof v !== 'string') return false;
+  var t = v.trim();
+  if (!t) return false;
+  return /^https?:\/\//i.test(t) || /^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(t);
+}
+function isSafeHostedUrl(v) {
+  if (!v || typeof v !== 'string') return false;
+  var t = v.trim();
+  return !!t && /^https?:\/\//i.test(t);
+}
+
 function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   var raw = {};
   raw.createdAt = currentConfig.createdAt || Date.now();
@@ -770,46 +784,49 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   raw.description = $('cfgDescription') ? $('cfgDescription').value : '';
   raw.buttonText = $('cfgButtonText') ? $('cfgButtonText').value : '';
   raw.adText = $('cfgAdText') ? $('cfgAdText').value : '';
-  raw.timezone = $('cfgTimezone') ? $('cfgTimezone').value : 'Asia/Kuala_Lumpur';
 
   var color = $('cfgColor') ? $('cfgColor').value : '#8b5cf6';
   if (color) raw.theme = { color: color };
 
-  // HTTPS-ONLY rule: never persist data:/blob:/base64 into Firebase config.
-  function _httpsOnly(v) {
-    if (!v || typeof v !== 'string') return '';
-    var t = v.trim();
-    if (!t) return '';
-    if (/^https?:\/\//i.test(t)) return t;
-    return ''; // drop data:, blob:, anything else
+  // LOGOS — allow hosted URL OR data:image/* (base64). Pending upload (data URL) takes priority.
+  function pickLogo(uploaded, typed, existingList) {
+    if (uploaded && isSafeImageUrl(uploaded)) return uploaded;
+    if (typed && isSafeImageUrl(typed)) return typed;
+    for (var i=0; i<existingList.length; i++){ if (isSafeImageUrl(existingList[i])) return existingList[i]; }
+    return '';
   }
-
-  // Logos: prefer typed URL, then existing saved URL (only if https). Local uploads = preview-only.
-  var logoUrl = _httpsOnly($('cfgLogoUrl') && $('cfgLogoUrl').value)
-             || _httpsOnly(currentConfig.logoUrl)
-             || _httpsOnly(currentConfig.theme && currentConfig.theme.logo)
-             || _httpsOnly(currentConfig.logo);
+  var logoUrl = pickLogo(
+    pendingUploads && pendingUploads.logoUrl,
+    $('cfgLogoUrl') && $('cfgLogoUrl').value,
+    [currentConfig.logoUrl, currentConfig.theme && currentConfig.theme.logo, currentConfig.logo]
+  );
   if (logoUrl) raw.logoUrl = logoUrl;
 
-  var centerLogoUrl = _httpsOnly($('cfgCenterLogoUrl') && $('cfgCenterLogoUrl').value)
-                   || _httpsOnly(currentConfig.centerLogoUrl);
+  var centerLogoUrl = pickLogo(
+    pendingUploads && pendingUploads.centerLogoUrl,
+    $('cfgCenterLogoUrl') && $('cfgCenterLogoUrl').value,
+    [currentConfig.centerLogoUrl]
+  );
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
-  // Ad media: typed URL wins; fall back to existing https URL only.
-  var adVideo = _httpsOnly($('cfgAdVideoUrl') && $('cfgAdVideoUrl').value)
-             || _httpsOnly(currentConfig.ad && currentConfig.ad.video)
-             || _httpsOnly(currentConfig.adVideo)
-             || _httpsOnly(currentConfig.adVideoUrl);
-  var adImage = _httpsOnly($('cfgAdImageUrl') && $('cfgAdImageUrl').value)
-             || _httpsOnly(currentConfig.ad && currentConfig.ad.image)
-             || _httpsOnly(currentConfig.adImage)
-             || _httpsOnly(currentConfig.adImageUrl);
-  var adLink = $('cfgAdLink') ? $('cfgAdLink').value : '';
+  // ADS — HOSTED ONLY (no base64, no blob). Reject data:/blob: aggressively.
+  function pickHosted(typed, existingList) {
+    if (typed && isSafeHostedUrl(typed)) return typed;
+    for (var i=0; i<existingList.length; i++){ if (isSafeHostedUrl(existingList[i])) return existingList[i]; }
+    return '';
+  }
+  var adVideo = pickHosted(
+    $('cfgAdVideoUrl') && $('cfgAdVideoUrl').value,
+    [currentConfig.ad && currentConfig.ad.video, currentConfig.adVideo, currentConfig.adVideoUrl]
+  );
+  var adImage = pickHosted(
+    $('cfgAdImageUrl') && $('cfgAdImageUrl').value,
+    [currentConfig.ad && currentConfig.ad.image, currentConfig.adImage, currentConfig.adImageUrl]
+  );
 
   var ad = {};
   if (adVideo) ad.video = adVideo;
-  if (adImage && !adVideo) ad.image = adImage;          // status.html shows one media; video wins
-  if (adLink && adLink.trim()) ad.link = adLink.trim();
+  if (adImage && !adVideo) ad.image = adImage;
   if (Object.keys(ad).length > 0) raw.ad = ad;
 
   return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
@@ -871,7 +888,7 @@ async function boot() {
 
   async function bootstrapTenant() {
     var seeds = [
-      ['public/config', { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug, timezone: 'Asia/Kuala_Lumpur' }],
+      ['public/config', { createdAt: Date.now(), updatedAt: Date.now(), displayName: slug }],
       ['queue', null],
       ['counters', null],
       ['analytics/serviceEvents', null]
@@ -901,28 +918,83 @@ async function boot() {
   var selectedRetention = 1; // days
 
   // ===== Auth =====
+  // Auth mode: 'signin' or 'create'
+  var authMode = 'signin';
+  function setAuthMode(mode) {
+    authMode = mode;
+    var isCreate = mode === 'create';
+    $('authTabSignIn').style.background = isCreate ? 'transparent' : 'linear-gradient(135deg,var(--primary),var(--primary2))';
+    $('authTabSignIn').style.color = isCreate ? 'var(--text-muted)' : '#fff';
+    $('authTabCreate').style.background = isCreate ? 'linear-gradient(135deg,var(--primary),var(--primary2))' : 'transparent';
+    $('authTabCreate').style.color = isCreate ? '#fff' : 'var(--text-muted)';
+    $('authConfirmWrap').style.display = isCreate ? 'block' : 'none';
+    $('authRememberWrap').style.display = isCreate ? 'none' : 'flex';
+    $('authBtnText').textContent = isCreate ? 'Create Account' : 'Sign In';
+    $('authSubtitle').textContent = isCreate ? 'Create a new admin account' : 'Sign in to manage your business';
+    $('authPassword').setAttribute('autocomplete', isCreate ? 'new-password' : 'current-password');
+    $('authError').style.display = 'none';
+  }
+  $('authTabSignIn').onclick = function(){ setAuthMode('signin'); };
+  $('authTabCreate').onclick = function(){ setAuthMode('create'); };
+
+  function showAuthError(msg) {
+    var el = $('authError');
+    el.style.display = 'block';
+    el.textContent = msg;
+  }
+
+  function friendlyAuthError(e) {
+    var code = (e && e.code) || '';
+    var map = {
+      'auth/invalid-email': 'Invalid email address.',
+      'auth/missing-email': 'Email is required.',
+      'auth/missing-password': 'Password is required.',
+      'auth/weak-password': 'Password is too weak. Use at least 6 characters.',
+      'auth/email-already-in-use': 'An account with this email already exists. Try signing in.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/user-not-found': 'No account found for this email.',
+      'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+      'auth/network-request-failed': 'Network error. Check your connection.'
+    };
+    return map[code] || (e && e.message) || 'Authentication failed';
+  }
+
   $('authSignInBtn').onclick = async function() {
     var email = $('authEmail').value.trim();
     var pw = $('authPassword').value;
-    if (!email || !pw) { $('authError').style.display = 'block'; $('authError').textContent = 'Enter email and password'; return; }
+    var pw2 = $('authPasswordConfirm') ? $('authPasswordConfirm').value : '';
+    $('authError').style.display = 'none';
+    if (!email) { showAuthError('Email is required.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email.'); return; }
+    if (!pw) { showAuthError('Password is required.'); return; }
+    if (authMode === 'create') {
+      if (pw.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+      if (pw !== pw2) { showAuthError('Passwords do not match.'); return; }
+    }
     $('authSignInBtn').disabled = true;
     $('authBtnText').style.display = 'none';
     $('authBtnSpinner').style.display = 'inline';
-    $('authError').style.display = 'none';
     try {
-      var remember = $('authRemember').checked;
-      await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, email, pw);
+      var remember = $('authRemember') ? $('authRemember').checked : true;
+      await setPersistence(auth, (authMode === 'create' || remember) ? browserLocalPersistence : browserSessionPersistence);
+      if (authMode === 'create') {
+        await createUserWithEmailAndPassword(auth, email, pw);
+        showToast('Account created — signed in!');
+      } else {
+        await signInWithEmailAndPassword(auth, email, pw);
+      }
     } catch (e) {
-      $('authError').style.display = 'block';
-      $('authError').textContent = e.message || 'Sign in failed';
+      showAuthError(friendlyAuthError(e));
     } finally {
       $('authSignInBtn').disabled = false;
       $('authBtnText').style.display = 'inline';
       $('authBtnSpinner').style.display = 'none';
     }
   };
-  $('authPassword').addEventListener('keydown', function(e) { if (e.key === 'Enter') $('authSignInBtn').click(); });
+  ['authPassword','authPasswordConfirm','authEmail'].forEach(function(id){
+    var el = $(id); if (!el) return;
+    el.addEventListener('keydown', function(e) { if (e.key === 'Enter') $('authSignInBtn').click(); });
+  });
 
   function doSignOut() { signOut(auth); }
   $('signOutBtn').onclick = doSignOut;
@@ -1037,6 +1109,13 @@ async function boot() {
             else if (q.canceledAt || q.cancelledAt || q.canceledBy) classifiedStatus = 'cancelled';
             // Anything else stays 'unknown' and is excluded from waiting/serving/completed counts.
 
+            // AUTO-HEAL: status===serving but no serviceStartedAt → demote to waiting.
+            // This eliminates the "stuck 1 serving" ghost row in the dashboard.
+            if (classifiedStatus === 'serving' && !q.serviceStartedAt) {
+              classifiedStatus = 'waiting';
+              try { update(tRef('queue/' + key), { status: 'waiting', updatedAt: Date.now() }); } catch(_) {}
+            }
+
             queueData.push(Object.assign({}, q, { _key: key, _ts: ts, _status: classifiedStatus }));
           }
         }
@@ -1125,15 +1204,27 @@ async function boot() {
     $('dCompleted').textContent = totalCompleted;
     $('dCancelled').textContent = cancelled;
 
+    // Strict bounds: 1s..2h, derive serviceMs from queue if needed.
+    var MIN_MS = 1000, MAX_MS = 2 * 60 * 60 * 1000;
     var validEvents = serviceEventsData.filter(function(e) {
-      return e && typeof e.serviceMs === 'number' && isFinite(e.serviceMs) && e.serviceMs > 0 && e.serviceMs < 24*60*60*1000;
+      return e && typeof e.serviceMs === 'number' && isFinite(e.serviceMs) && e.serviceMs >= MIN_MS && e.serviceMs <= MAX_MS;
     });
+    if (validEvents.length === 0) {
+      // Fallback: derive from completed queue entries with serviceStartedAt + updatedAt only.
+      validEvents = queueData.filter(function(q){
+        if (q._status !== 'completed') return false;
+        var s = Number(q.serviceStartedAt||0), u = Number(q.updatedAt||q.completedAt||0);
+        if (!s || !u) return false;
+        var ms = u - s;
+        return ms >= MIN_MS && ms <= MAX_MS;
+      }).map(function(q){ return { serviceMs: Number(q.updatedAt||q.completedAt) - Number(q.serviceStartedAt) }; });
+    }
     if (validEvents.length > 0) {
       var avgMs = validEvents.reduce(function(s, e) { return s + e.serviceMs; }, 0) / validEvents.length;
       $('dAvgService').textContent = (avgMs / 60000).toFixed(1) + ' min';
       $('dEventCount').textContent = validEvents.length;
     } else {
-      $('dAvgService').textContent = '— min';
+      $('dAvgService').textContent = '0 min';
       $('dEventCount').textContent = '0';
     }
   }
@@ -1165,11 +1256,22 @@ async function boot() {
     $('aServing').textContent = serving;
     $('aCancelled').textContent = cancelled;
 
-    var validMs = filteredEvents.filter(function(e) { return e.serviceMs > 0; }).map(function(e) { return e.serviceMs / 60000; });
+    var MIN_MS = 1000, MAX_MS = 2 * 60 * 60 * 1000;
+    var validSrc = filteredEvents.filter(function(e) { return e && typeof e.serviceMs === 'number' && e.serviceMs >= MIN_MS && e.serviceMs <= MAX_MS; });
+    if (validSrc.length === 0) {
+      validSrc = filteredQueue.filter(function(q){
+        if (q._status !== 'completed') return false;
+        var s = Number(q.serviceStartedAt||0), u = Number(q.updatedAt||q.completedAt||0);
+        if (!s || !u) return false;
+        var ms = u - s;
+        return ms >= MIN_MS && ms <= MAX_MS;
+      }).map(function(q){ return { serviceMs: Number(q.updatedAt||q.completedAt) - Number(q.serviceStartedAt) }; });
+    }
+    var validMs = validSrc.map(function(e) { return e.serviceMs / 60000; });
     var stats = computeStats(validMs);
-    $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '—';
-    $('aMedian').textContent = stats.median !== null ? stats.median.toFixed(1) : '—';
-    $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '—';
+    $('aAvgMs').textContent = stats.avg !== null ? stats.avg.toFixed(1) : '0';
+    $('aMedian').textContent = stats.median !== null ? stats.median.toFixed(1) : '0';
+    $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '0';
   }
 
   function updateChartTheme() {
@@ -1359,7 +1461,6 @@ async function boot() {
       $('cfgDescription').value = cfg.description || cfg.introText || '';
       $('cfgButtonText').value = cfg.buttonText || cfg.ctaText || cfg.ctaTitle || '';
       $('cfgAdText').value = cfg.adText || '';
-      $('cfgAdLink').value = (cfg.ad && cfg.ad.link) || cfg.adHref || '';
       var _adImg0 = (cfg.ad && cfg.ad.image) || cfg.adImage || cfg.adImageUrl || '';
       var _adVid0 = (cfg.ad && cfg.ad.video) || cfg.adVideo || cfg.adVideoUrl || '';
       if ($('cfgAdImageUrl')) $('cfgAdImageUrl').value = (typeof _adImg0==='string' && /^https?:\/\//i.test(_adImg0)) ? _adImg0 : '';
@@ -1368,7 +1469,7 @@ async function boot() {
       if ($('cfgLogoUrl')) $('cfgLogoUrl').value = (typeof _logo0==='string' && /^https?:\/\//i.test(_logo0)) ? _logo0 : '';
       var _clogo0 = cfg.centerLogoUrl || '';
       if ($('cfgCenterLogoUrl')) $('cfgCenterLogoUrl').value = (typeof _clogo0==='string' && /^https?:\/\//i.test(_clogo0)) ? _clogo0 : '';
-      $('cfgTimezone').value = cfg.timezone || 'Asia/Kuala_Lumpur';
+      // Note: data:image/* logos are kept in pendingUploads (preview-only field), not the URL input.
 
       var color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
       $('cfgColor').value = color;
@@ -1399,7 +1500,7 @@ async function boot() {
     $('cfgColor').oninput = function(e) { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
 
     // Hosted URL inputs drive preview AND are the only thing that gets saved
-    ['cfgLogoUrl','cfgCenterLogoUrl','cfgAdImageUrl','cfgAdVideoUrl','cfgAdLink'].forEach(function(id){
+    ['cfgLogoUrl','cfgCenterLogoUrl','cfgAdImageUrl','cfgAdVideoUrl'].forEach(function(id){
       var el = $(id);
       if (!el) return;
       el.addEventListener('input', function(){ scheduleMediaPreview(); checkAdMediaWarning(); });
@@ -1407,11 +1508,12 @@ async function boot() {
 
     function checkAdMediaWarning() {
       var warn = $('cfgAdMediaWarn'); if (!warn) return;
-      var hasLocal = !!(pendingUploads.adImage || pendingUploads.adVideo);
-      var hasUrl = !!((($('cfgAdImageUrl')||{}).value||'').trim() || (($('cfgAdVideoUrl')||{}).value||'').trim());
-      if (hasLocal && !hasUrl) {
+      var img = (($('cfgAdImageUrl')||{}).value||'').trim();
+      var vid = (($('cfgAdVideoUrl')||{}).value||'').trim();
+      var bad = (img && !/^https?:\/\//i.test(img)) || (vid && !/^https?:\/\//i.test(vid));
+      if (bad) {
         warn.style.display = 'block';
-        warn.textContent = '⚠ Local file is preview-only. To publish to status.html, paste a hosted https:// URL above.';
+        warn.textContent = '⚠ Ad media must be a hosted https:// URL (YouTube, Vimeo, mp4, image). Local/base64 not allowed.';
       } else {
         warn.style.display = 'none';
         warn.textContent = '';
@@ -1443,28 +1545,6 @@ async function boot() {
       $('cfgCenterLogoName').textContent = f.name;
       scheduleMediaPreview();
       showToast('Center logo ready', 'success', 1500);
-    };
-
-    $('cfgAdMediaFile').onchange = async function(e) {
-      var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (f.size > 10 * 1024 * 1024) { showToast('Max 10MB', 'error'); return; }
-      var mtype = detectMediaType(f);
-      if (mtype === 'video') {
-        var data = await fileToDataUrl(f);
-        pendingUploads.adVideo = data;
-        pendingUploads.adImage = null;
-        createMediaPreview(data, $('cfgAdMediaPreview'), 'video', f.name, f.size);
-        if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
-      } else {
-        var data2 = await compressImage(f);
-        pendingUploads.adImage = data2;
-        pendingUploads.adVideo = null;
-        createMediaPreview(data2, $('cfgAdMediaPreview'), mtype, f.name, f.size);
-        if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
-      }
-      $('cfgAdMediaName').textContent = f.name;
-      scheduleMediaPreview();
-      showToast('Ad media ready', 'success', 1500);
     };
 
     $('settingsSaveBtn').onclick = saveSettings;
@@ -1934,14 +2014,63 @@ async function boot() {
     };
   }
 
-  // Initial phone preview
+  // Initial phone preview (DOM fallback live)
   updatePhonePreviewText();
+
+  // Real index.html iframe preview
+  function loadIframePreview() {
+    var f = $('phoneIframe'); if (!f) return;
+    var url = '/index.html?slug=' + encodeURIComponent(slug) + '&preview=1&t=' + Date.now();
+    f.src = url;
+    f.style.display = 'block';
+    var screen = $('phoneScreen');
+    if (screen) screen.style.display = 'none';
+  }
+  // Default to iframe preview so admin sees the REAL public page
+  loadIframePreview();
+  if ($('phoneReloadBtn')) $('phoneReloadBtn').onclick = loadIframePreview;
 }
 
 boot().catch(function(e) {
   console.error('Boot failed', e);
   document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444"><h2>Failed to start admin</h2><p>' + (e.message || e) + '</p></div>';
 });
+</script>
+
+<script>
+// Hide the legacy "/.netlify/functions/announce" endpoint field rendered by announce.js.
+(function(){
+  function sweep(){
+    try {
+      var box = document.getElementById('announceContainer'); if (!box) return;
+      // Hide inputs whose value matches the endpoint
+      box.querySelectorAll('input').forEach(function(inp){
+        var v = String(inp.value||'');
+        var ph = String(inp.placeholder||'');
+        if (v.indexOf('/.netlify/functions/announce') !== -1 || ph.indexOf('/.netlify/functions/announce') !== -1) {
+          var row = inp.closest('label,div,fieldset') || inp;
+          row.style.display = 'none';
+        }
+      });
+      // Hide labels whose text mentions Endpoint
+      box.querySelectorAll('label').forEach(function(lb){
+        var t = (lb.textContent||'').trim().toLowerCase();
+        if (t === 'endpoint' || t.startsWith('endpoint')) {
+          var row = lb.closest('div,fieldset') || lb;
+          row.style.display = 'none';
+        }
+      });
+    } catch(_){}
+  }
+  var mo = new MutationObserver(sweep);
+  document.addEventListener('DOMContentLoaded', function(){
+    sweep();
+    var box = document.getElementById('announceContainer');
+    if (box) mo.observe(box, { childList:true, subtree:true });
+  });
+  // Also sweep periodically for late renders
+  setInterval(sweep, 1500);
+})();
 </script>
 </body>
 </html>
