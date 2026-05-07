@@ -369,7 +369,8 @@
             <div style="display:flex;flex-direction:column;gap:6px">
               <input class="input" id="cfgAdImageUrl" placeholder="Hosted image URL (https://…)" style="font-size:12px"/>
               <input class="input" id="cfgAdVideoUrl" placeholder="Hosted video URL or YouTube link (https://…)" style="font-size:12px"/>
-              <div style="font-size:11px;color:var(--text-light)">🔒 Ads accept hosted https:// links only — local uploads are not allowed.</div>
+              <div style="font-size:11px;color:var(--text-light)">🔒 Only hosted HTTPS image URLs are supported.
+You can get an image URL from Google Images or other websites using “Copy image address”.</div>
               <div id="cfgAdMediaWarn" style="display:none;padding:8px 10px;border-radius:8px;font-size:11px;background:rgba(245,158,11,.10);color:var(--amber);border:1px solid rgba(245,158,11,.25)"></div>
             </div>
             <div id="cfgAdMediaPreview"></div>
@@ -588,6 +589,9 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// expose globally for announce.js and external modules
+window.esc = esc;
+
 // ===== Helpers =====
 const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
@@ -638,7 +642,7 @@ $('themeToggle').addEventListener('click', function() {
   localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
   $('themeToggle').textContent = isLight ? '☀️' : '🌙';
   // Update chart colors if charts exist
-  updateChartTheme();
+  if (typeof updateChartTheme === 'function') updateChartTheme();
 });
 
 function getChartTextColor() {
@@ -1771,20 +1775,21 @@ async function boot() {
 
   // ===== Announcements =====
   function setupAnnouncementsUI() {
-    var annCtx = {
-      tRef: tRef,
-      get: function(r) { return get(r); },
-      onValue: function(r, cb) { return onValue(r, cb); },
-      set: function(r, v) { return set(r, v); },
-      update: function(r, v) { return update(r, v); },
-      genId: genId,
-      showToast: showToast,
-      writeAudit: writeAudit,
-      fileToBase64: fileToDataUrl,
-      formatDate: formatDate,
-      slug: slug,
-      tenantId: tenantId
-    };
+var annCtx = {
+  tRef: tRef,
+  get: function(r) { return get(r); },
+  onValue: function(r, cb) { return onValue(r, cb); },
+  set: function(r, v) { return set(r, v); },
+  update: function(r, v) { return update(r, v); },
+  genId: genId,
+  esc: esc,
+  showToast: showToast,
+  writeAudit: writeAudit,
+  fileToBase64: fileToDataUrl,
+  formatDate: formatDate,
+  slug: slug,
+  tenantId: tenantId
+};
 
     function initAnnounce() {
       if (window.__announceModule && typeof window.__announceModule.init === 'function') {
