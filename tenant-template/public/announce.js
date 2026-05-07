@@ -2,14 +2,7 @@
  * announce.js — QueueJoy Announcement Module (Public UI)
  *
  * Runs in the browser inside admin.html.
- * Never uses `window` directly; uses `globalThis` safe access only.
- *
- * Responsibilities:
- * - Render announcement composer UI
- * - Preview message + media
- * - Discover Telegram-connected subscribers from RTDB
- * - Send announcement payload to the backend Netlify function
- * - Show send log and delivery estimates
+ * Never uses window directly; uses globalThis-safe access only.
  *
  * Expected ctx:
  * {
@@ -38,7 +31,6 @@
 
   const FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
   const MAX_MESSAGE_CHARS = 4000;
-  const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
   const MAX_INLINE_MEDIA_BYTES = 10 * 1024 * 1024;
 
   let ctx = null;
@@ -51,8 +43,7 @@
   let annMediaFile = null;
   let annMediaDataUrl = null;
   let activeChatIds = [];
-  let subscribedPaths = [];
-  let loadedOnce = false;
+  let subscribed = false;
 
   function qel(id) {
     return container ? container.querySelector('#' + id) : document.getElementById(id);
@@ -65,11 +56,6 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
-  }
-
-  function safeText(v, fallback = '') {
-    const s = String(v ?? '').trim();
-    return s.length ? s : fallback;
   }
 
   function notify(message, type) {
@@ -100,8 +86,7 @@
   function normalizeChatId(v) {
     if (v === null || v === undefined) return '';
     const s = String(v).trim();
-    if (!s) return '';
-    return s;
+    return s.length ? s : '';
   }
 
   function isObject(v) {
@@ -125,18 +110,17 @@
         const id = normalizeChatId(value.chatId);
         if (id) ids.add(id);
       }
+
       if (Object.prototype.hasOwnProperty.call(value, 'telegramChatId')) {
         const id = normalizeChatId(value.telegramChatId);
         if (id) ids.add(id);
       }
-      if (Object.prototype.hasOwnProperty.call(value, 'id') && (
-        typeof value.chatId !== 'undefined' ||
-        typeof value.telegramChatId !== 'undefined' ||
-        typeof value.connected !== 'undefined' ||
-        typeof value.used !== 'undefined'
-      )) {
+
+      if (Object.prototype.hasOwnProperty.call(value, 'id')) {
         const id = normalizeChatId(value.id);
-        if (id) ids.add(id);
+        if (id && (typeof value.chatId !== 'undefined' || typeof value.telegramChatId !== 'undefined' || typeof value.connected !== 'undefined' || typeof value.used !== 'undefined')) {
+          ids.add(id);
+        }
       }
 
       for (const [k, v] of Object.entries(value)) {
@@ -149,20 +133,7 @@
     return [...ids].filter(Boolean);
   }
 
-  function firstExistingString(...values) {
-    for (const v of values) {
-      if (typeof v === 'string' && v.trim()) return v.trim();
-      if (typeof v === 'number' && isFinite(v)) return String(v);
-    }
-    return '';
-  }
-
-  function setRecipientCountText(text) {
-    const el = qel('annRecipientCount');
-    if (el) el.textContent = text;
-  }
-
-  function setResultBox(kind, text, html) {
+  function setResultBox(kind, htmlOrText, useHtml) {
     const el = qel('annResult');
     if (!el) return;
     el.style.display = 'block';
@@ -176,8 +147,13 @@
       el.style.background = 'rgba(239,68,68,0.1)';
       el.style.color = 'var(--red)';
     }
-    if (html) el.innerHTML = html;
-    else el.textContent = text;
+    if (useHtml) el.innerHTML = htmlOrText;
+    else el.textContent = htmlOrText;
+  }
+
+  function setRecipientCountText(text) {
+    const el = qel('annRecipientCount');
+    if (el) el.textContent = text;
   }
 
   function renderUI() {
@@ -216,7 +192,7 @@
           <span id="annMediaName" style="font-size:12px;color:var(--text-muted);transition:opacity .2s"></span>
           <button type="button" id="annMediaClear" class="btn btn-secondary btn-sm" style="display:none">✕ Remove</button>
         </div>
-        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB. Media over 5MB may be sent as text only depending on backend limits.</p>
+        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB. Media may be sent as text only if backend limits are exceeded.</p>
         <div id="annMediaPreview" style="margin-top:8px"></div>
 
         <label class="field-label">Target Audience</label>
@@ -318,7 +294,7 @@
 
   function schedulePreview() {
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(updatePreview, 150);
+    previewTimer = setTimeout(updatePreview, 120);
   }
 
   function updatePreview() {
@@ -339,14 +315,12 @@
     const prev = qel('annMediaPreview');
     if (!prev) return;
 
-    const vids = prev.querySelectorAll('video');
-    vids.forEach(v => {
+    prev.querySelectorAll('video').forEach(v => {
       try { v.pause(); } catch (_) {}
       try { v.removeAttribute('src'); } catch (_) {}
     });
 
-    const audios = prev.querySelectorAll('audio');
-    audios.forEach(a => {
+    prev.querySelectorAll('audio').forEach(a => {
       try { a.pause(); } catch (_) {}
       try { a.removeAttribute('src'); } catch (_) {}
     });
@@ -460,33 +434,31 @@
       : 'Estimated: 0 recipients';
   }
 
-  function getBackendUrl() {
-    // Primary Netlify function endpoint
+  function backendUrl() {
     return '/.netlify/functions/announce';
   }
 
-  async function sendWithRetry(payload) {
-    const doFetch = () => fetch(getBackendUrl(), {
+  async function postAnnouncement(payload) {
+    const res = await fetch(backendUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    return res;
+  }
 
-    let res;
+  async function sendWithRetry(payload) {
     try {
-      res = await doFetch();
+      let res = await postAnnouncement(payload);
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        await new Promise(r => setTimeout(r, 1000));
+        res = await postAnnouncement(payload);
+      }
+      return res;
     } catch (e) {
       await new Promise(r => setTimeout(r, 1000));
-      res = await doFetch();
-      return res;
+      return postAnnouncement(payload);
     }
-
-    if (res.status === 502 || res.status === 503 || res.status === 504) {
-      await new Promise(r => setTimeout(r, 1500));
-      res = await doFetch();
-    }
-
-    return res;
   }
 
   async function doSend() {
@@ -551,8 +523,13 @@
 
     try {
       const res = await sendWithRetry(payload);
+
       let body = null;
-      try { body = await res.json(); } catch (_) { body = null; }
+      try {
+        body = await res.json();
+      } catch (_) {
+        body = null;
+      }
 
       if (resultDiv) resultDiv.style.display = 'block';
 
@@ -570,11 +547,7 @@
       const failedCount = Number(body && body.failed ? body.failed : 0);
 
       if (successCount > 0) {
-        setResultBox(
-          'success',
-          '',
-          `✅ Sent to ${successCount} recipient(s)${failedCount ? ` · ⚠️ ${failedCount} failed` : ''}`
-        );
+        setResultBox('success', `✅ Sent to ${successCount} recipient(s)${failedCount ? ` · ⚠️ ${failedCount} failed` : ''}`);
 
         if (composerEl) composerEl.value = '';
         clearMedia();
@@ -611,8 +584,8 @@
     }
   }
 
-  function getTimestampFromAnnouncementNode(node) {
-    if (!node) return 0;
+  function getTimestampFromNode(node) {
+    if (!node || typeof node !== 'object') return 0;
     if (typeof node.ts === 'number') return node.ts;
     if (typeof node.timestamp === 'number') return node.timestamp;
     if (typeof node.createdAt === 'number') return node.createdAt;
@@ -621,7 +594,7 @@
 
   function renderSendLogRows(data) {
     const announcements = Object.entries(data)
-      .sort((a, b) => getTimestampFromAnnouncementNode(b[1]) - getTimestampFromAnnouncementNode(a[1]))
+      .sort((a, b) => getTimestampFromNode(b[1]) - getTimestampFromNode(a[1]))
       .slice(0, 10);
 
     if (!announcements.length) {
@@ -630,7 +603,8 @@
 
     return announcements.map(([annId, annNode]) => {
       if (!isObject(annNode)) {
-        return `<div class="audit-entry"><div class="audit-time">${escapeHtml(ctx && typeof ctx.formatDate === 'function' ? ctx.formatDate(0) : '')}</div><div>${escapeHtml(annId)}</div></div>`;
+        const fmt0 = ctx && typeof ctx.formatDate === 'function' ? ctx.formatDate(0) : '';
+        return `<div class="audit-entry"><div class="audit-time">${escapeHtml(fmt0)}</div><div>${escapeHtml(annId)}</div></div>`;
       }
 
       let ok = 0;
@@ -640,8 +614,9 @@
       const chatEntries = Object.entries(annNode);
       for (const [, v] of chatEntries) {
         if (!v || typeof v !== 'object') continue;
-        ts = Math.max(ts, getTimestampFromAnnouncementNode(v));
-        if (String(v.status || '').toLowerCase() === 'ok' || String(v.status || '').toLowerCase() === 'sent') ok += 1;
+        ts = Math.max(ts, getTimestampFromNode(v));
+        const status = String(v.status || '').toLowerCase();
+        if (status === 'ok' || status === 'sent' || status === 'success') ok += 1;
         else fail += 1;
       }
 
@@ -733,7 +708,8 @@
   }
 
   function attachLiveSubscriberWatchers() {
-    if (!ctx || !ctx.onValue || !ctx.tRef) return;
+    if (!ctx || !ctx.onValue || !ctx.tRef || subscribed) return;
+    subscribed = true;
 
     const paths = [
       'integrations/telegram/tokens',
@@ -747,17 +723,12 @@
       'telegram/subscribers'
     ];
 
-    // avoid duplicate subscriptions if init is called more than once unexpectedly
-    if (subscribedPaths.length) return;
-    subscribedPaths = paths.slice();
-
     paths.forEach(path => {
       try {
         ctx.onValue(ctx.tRef(path), snap => {
           if (!snap || !snap.exists()) return;
           const ids = extractChatIdsDeep(snap.val());
           if (!ids.length) return;
-
           const merged = new Set([...activeChatIds, ...ids].map(normalizeChatId).filter(Boolean));
           activeChatIds = [...merged];
           subscriberCount = activeChatIds.length;
@@ -776,11 +747,6 @@
     });
   }
 
-  function loadDefaultRecipients() {
-    attachLiveSubscriberWatchers();
-    refreshSubscribers().catch(() => {});
-  }
-
   function init(context) {
     if (initialized) return;
     initialized = true;
@@ -795,11 +761,11 @@
 
     renderUI();
     updatePreview();
-    loadDefaultRecipients();
+    attachLiveSubscriberWatchers();
+    refreshSubscribers().catch(() => {});
     loadSendLog();
 
-    if (ctx && typeof ctx.writeAudit === 'function' && !loadedOnce) {
-      loadedOnce = true;
+    if (ctx && typeof ctx.writeAudit === 'function') {
       try {
         ctx.writeAudit('announcement_ui_loaded');
       } catch (_) {}
@@ -814,18 +780,18 @@
     refreshSubscribers
   };
 
-  // Auto-init if the container is already present
+  root.__announceCtx = root.__announceCtx || null;
+
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-        if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function') {
-          root.__announceModule.init(root.__announceCtx || null);
+        if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function' && root.__announceCtx) {
+          root.__announceModule.init(root.__announceCtx);
         }
       });
     } else {
-      if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function') {
-        // Only auto-init if a context was preloaded
-        if (root.__announceCtx) root.__announceModule.init(root.__announceCtx);
+      if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function' && root.__announceCtx) {
+        root.__announceModule.init(root.__announceCtx);
       }
     }
   }
