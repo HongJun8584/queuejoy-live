@@ -2,7 +2,7 @@
  * announce.js — QueueJoy Announcement Module (Public UI)
  *
  * Runs in the browser inside admin.html.
- * Does NOT use window in any server function context.
+ * Never uses `window` directly; uses `globalThis` safe access only.
  *
  * Responsibilities:
  * - Render announcement composer UI
@@ -21,9 +21,13 @@
 (function () {
   'use strict';
 
+  const root = typeof globalThis !== 'undefined'
+    ? globalThis
+    : (typeof self !== 'undefined' ? self : {});
+
   const TEMPLATES = [
-    { name: '🎉 Promotion', text: '🎉 *Special Promotion!*\n\nWe have an exciting deal for you today! Don\'t miss out on our limited-time offer.\n\nVisit us now!' },
-    { name: '🆕 New Product', text: '🆕 *New Product Alert!*\n\nWe\'re thrilled to introduce our latest addition. Come check it out!\n\nAvailable now.' },
+    { name: '🎉 Promotion', text: "🎉 *Special Promotion!*\n\nWe have an exciting deal for you today! Don't miss out on our limited-time offer.\n\nVisit us now!" },
+    { name: '🆕 New Product', text: "🆕 *New Product Alert!*\n\nWe're thrilled to introduce our latest addition. Come check it out!\n\nAvailable now." },
     { name: '📋 Notice', text: '📋 *Important Notice!*\n\nPlease be informed of the following update regarding our services.\n\nThank you for your understanding.' },
     { name: '🚨 Urgent Update', text: '🚨 *Urgent Update!*\n\nThis is an important message that requires your immediate attention.\n\nPlease read carefully.' },
     { name: '👋 Friendly Reminder', text: '👋 *Friendly Reminder!*\n\nJust a quick reminder about our services. We look forward to seeing you!\n\nHave a great day!' },
@@ -35,6 +39,7 @@
   const FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
   const MAX_MESSAGE_CHARS = 4000;
   const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
+  const MAX_INLINE_MEDIA_BYTES = 10 * 1024 * 1024;
 
   let ctx = null;
   let container = null;
@@ -46,6 +51,8 @@
   let annMediaFile = null;
   let annMediaDataUrl = null;
   let activeChatIds = [];
+  let subscribedPaths = [];
+  let loadedOnce = false;
 
   function qel(id) {
     return container ? container.querySelector('#' + id) : document.getElementById(id);
@@ -65,51 +72,112 @@
     return s.length ? s : fallback;
   }
 
+  function notify(message, type) {
+    try {
+      if (ctx && typeof ctx.showToast === 'function') {
+        ctx.showToast(message, type || 'success');
+        return;
+      }
+      if (typeof root.showToast === 'function') {
+        root.showToast(message, type || 'success');
+        return;
+      }
+    } catch (_) {}
+    console.log((type || 'info').toUpperCase() + ': ' + message);
+  }
+
   function parseChatIds(raw) {
     if (!raw || typeof raw !== 'string') return [];
-    return [...new Set(raw.split(/[\n,\s]+/).map(s => s.trim()).filter(Boolean))];
+    return [...new Set(
+      raw.split(/[\n,\s]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(normalizeChatId)
+        .filter(Boolean)
+    )];
   }
 
   function normalizeChatId(v) {
     if (v === null || v === undefined) return '';
-    return String(v).trim();
+    const s = String(v).trim();
+    if (!s) return '';
+    return s;
   }
 
-  function isLikelyChatIdRecord(obj) {
-    return obj && typeof obj === 'object' && (
-      typeof obj.chatId === 'string' || typeof obj.chatId === 'number' ||
-      typeof obj.telegramChatId === 'string' || typeof obj.telegramChatId === 'number' ||
-      typeof obj.used === 'boolean' ||
-      typeof obj.connected === 'boolean'
-    );
+  function isObject(v) {
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
   }
 
-  function extractChatIdsFromNode(node) {
+  function extractChatIdsDeep(node) {
     const ids = new Set();
+
     const walk = (value) => {
-      if (!value) return;
+      if (value === null || value === undefined) return;
+
       if (Array.isArray(value)) {
         value.forEach(walk);
         return;
       }
+
       if (typeof value !== 'object') return;
 
-      if (typeof value.chatId !== 'undefined') ids.add(normalizeChatId(value.chatId));
-      if (typeof value.telegramChatId !== 'undefined') ids.add(normalizeChatId(value.telegramChatId));
-      if (typeof value.id !== 'undefined' && isLikelyChatIdRecord(value)) ids.add(normalizeChatId(value.id));
+      if (Object.prototype.hasOwnProperty.call(value, 'chatId')) {
+        const id = normalizeChatId(value.chatId);
+        if (id) ids.add(id);
+      }
+      if (Object.prototype.hasOwnProperty.call(value, 'telegramChatId')) {
+        const id = normalizeChatId(value.telegramChatId);
+        if (id) ids.add(id);
+      }
+      if (Object.prototype.hasOwnProperty.call(value, 'id') && (
+        typeof value.chatId !== 'undefined' ||
+        typeof value.telegramChatId !== 'undefined' ||
+        typeof value.connected !== 'undefined' ||
+        typeof value.used !== 'undefined'
+      )) {
+        const id = normalizeChatId(value.id);
+        if (id) ids.add(id);
+      }
 
       for (const [k, v] of Object.entries(value)) {
         if (k === 'chatId' || k === 'telegramChatId' || k === 'id') continue;
-        if (typeof v === 'object') walk(v);
+        if (v && typeof v === 'object') walk(v);
       }
     };
+
     walk(node);
     return [...ids].filter(Boolean);
+  }
+
+  function firstExistingString(...values) {
+    for (const v of values) {
+      if (typeof v === 'string' && v.trim()) return v.trim();
+      if (typeof v === 'number' && isFinite(v)) return String(v);
+    }
+    return '';
   }
 
   function setRecipientCountText(text) {
     const el = qel('annRecipientCount');
     if (el) el.textContent = text;
+  }
+
+  function setResultBox(kind, text, html) {
+    const el = qel('annResult');
+    if (!el) return;
+    el.style.display = 'block';
+    if (kind === 'success') {
+      el.style.background = 'rgba(16,185,129,0.1)';
+      el.style.color = 'var(--green)';
+    } else if (kind === 'warning') {
+      el.style.background = 'rgba(245,158,11,0.1)';
+      el.style.color = 'var(--amber)';
+    } else {
+      el.style.background = 'rgba(239,68,68,0.1)';
+      el.style.color = 'var(--red)';
+    }
+    if (html) el.innerHTML = html;
+    else el.textContent = text;
   }
 
   function renderUI() {
@@ -148,7 +216,7 @@
           <span id="annMediaName" style="font-size:12px;color:var(--text-muted);transition:opacity .2s"></span>
           <button type="button" id="annMediaClear" class="btn btn-secondary btn-sm" style="display:none">✕ Remove</button>
         </div>
-        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB. Media over 5MB will be sent as text only.</p>
+        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB. Media over 5MB may be sent as text only depending on backend limits.</p>
         <div id="annMediaPreview" style="margin-top:8px"></div>
 
         <label class="field-label">Target Audience</label>
@@ -167,6 +235,7 @@
             <span id="annSendSpinner" style="display:none"><span class="spinner"></span>Sending...</span>
           </button>
         </div>
+
         <div id="annResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-weight:600;font-size:13px;transition:all .3s ease"></div>
       </div>
 
@@ -216,11 +285,13 @@
 
     const composer = qel('annComposer');
     if (composer) composer.addEventListener('input', schedulePreview);
+
     const fontSel = qel('annFont');
     if (fontSel) fontSel.addEventListener('change', updatePreview);
 
     const mediaInput = qel('annMediaInput');
     if (mediaInput) mediaInput.addEventListener('change', handleMedia);
+
     const mediaClear = qel('annMediaClear');
     if (mediaClear) mediaClear.addEventListener('click', clearMedia);
 
@@ -240,6 +311,9 @@
 
     const sendBtn = qel('annSendBtn');
     if (sendBtn) sendBtn.addEventListener('click', doSend);
+
+    const chatIds = qel('annChatIds');
+    if (chatIds) chatIds.addEventListener('input', updateRecipientCount);
   }
 
   function schedulePreview() {
@@ -261,36 +335,74 @@
     prev.style.fontFamily = font + ', sans-serif';
   }
 
+  function clearObjectUrlsFromPreview() {
+    const prev = qel('annMediaPreview');
+    if (!prev) return;
+
+    const vids = prev.querySelectorAll('video');
+    vids.forEach(v => {
+      try { v.pause(); } catch (_) {}
+      try { v.removeAttribute('src'); } catch (_) {}
+    });
+
+    const audios = prev.querySelectorAll('audio');
+    audios.forEach(a => {
+      try { a.pause(); } catch (_) {}
+      try { a.removeAttribute('src'); } catch (_) {}
+    });
+
+    prev.innerHTML = '';
+  }
+
+  function clearMedia() {
+    annMediaFile = null;
+    annMediaDataUrl = null;
+
+    const input = qel('annMediaInput');
+    if (input) input.value = '';
+
+    const name = qel('annMediaName');
+    if (name) name.textContent = '';
+
+    const clearBtn = qel('annMediaClear');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    clearObjectUrlsFromPreview();
+  }
+
   function handleMedia(e) {
-    const f = e.target.files?.[0];
+    const f = e.target && e.target.files ? e.target.files[0] : null;
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) {
-      ctx.showToast('Max 10MB', 'error');
+
+    if (f.size > MAX_INLINE_MEDIA_BYTES) {
+      notify('Max 10MB', 'error');
       return;
     }
 
-    if (annMediaFile && annMediaFile.name === f.name && annMediaFile.size === f.size) return;
-
     annMediaFile = f;
+
     const nameEl = qel('annMediaName');
-    if (nameEl) nameEl.textContent = `${f.name} (${(f.size / 1024).toFixed(0)}KB)`;
+    if (nameEl) nameEl.textContent = `${f.name} (${Math.round(f.size / 1024)}KB)`;
+
     const clearBtn = qel('annMediaClear');
     if (clearBtn) clearBtn.style.display = 'inline';
 
     const prev = qel('annMediaPreview');
     if (prev) {
-      const oldVid = prev.querySelector('video');
-      if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); oldVid.load(); }
-      const oldAudio = prev.querySelector('audio');
-      if (oldAudio) { oldAudio.pause(); oldAudio.removeAttribute('src'); }
-      prev.innerHTML = '';
+      clearObjectUrlsFromPreview();
 
       if (f.type.startsWith('video/')) {
         const url = URL.createObjectURL(f);
         const placeholder = document.createElement('div');
         placeholder.className = 'media-placeholder';
         placeholder.innerHTML = `
-          <div class="mp-meta"><span class="mp-icon">🎬</span><div><div style="font-weight:600;font-size:12px;color:var(--text)">${escapeHtml(f.name)}</div><div style="font-size:10px;color:var(--text-light)">${(f.size / 1024).toFixed(0)} KB</div></div></div>
+          <div class="mp-meta">
+            <span class="mp-icon">🎬</span>
+            <div>
+              <div style="font-weight:600;font-size:12px;color:var(--text)">${escapeHtml(f.name)}</div>
+              <div style="font-size:10px;color:var(--text-light)">${Math.round(f.size / 1024)} KB</div>
+            </div>
+          </div>
           <button type="button" class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>
         `;
         const loadBtn = placeholder.querySelector('.mp-load-btn');
@@ -332,23 +444,6 @@
     reader.readAsDataURL(f);
   }
 
-  function clearMedia() {
-    annMediaFile = null;
-    annMediaDataUrl = null;
-    const input = qel('annMediaInput');
-    if (input) input.value = '';
-    const name = qel('annMediaName');
-    if (name) name.textContent = '';
-    const clearBtn = qel('annMediaClear');
-    if (clearBtn) clearBtn.style.display = 'none';
-    const prev = qel('annMediaPreview');
-    if (prev) {
-      const oldVid = prev.querySelector('video');
-      if (oldVid) { oldVid.pause(); oldVid.removeAttribute('src'); }
-      prev.innerHTML = '';
-    }
-  }
-
   function updateRecipientCount() {
     const el = qel('annRecipientCount');
     if (!el) return;
@@ -365,18 +460,56 @@
       : 'Estimated: 0 recipients';
   }
 
+  function getBackendUrl() {
+    // Primary Netlify function endpoint
+    return '/.netlify/functions/announce';
+  }
+
+  async function sendWithRetry(payload) {
+    const doFetch = () => fetch(getBackendUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    let res;
+    try {
+      res = await doFetch();
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 1000));
+      res = await doFetch();
+      return res;
+    }
+
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      await new Promise(r => setTimeout(r, 1500));
+      res = await doFetch();
+    }
+
+    return res;
+  }
+
   async function doSend() {
     if (sending) return;
 
     const composerEl = qel('annComposer');
     const message = (composerEl ? composerEl.value : '').trim();
-    if (!message) { ctx.showToast('Enter a message', 'error'); return; }
-    if (message.length > MAX_MESSAGE_CHARS) { ctx.showToast(`Message too long (max ${MAX_MESSAGE_CHARS} chars)`, 'error'); return; }
+
+    if (!message) {
+      notify('Enter a message', 'error');
+      return;
+    }
+
+    if (message.length > MAX_MESSAGE_CHARS) {
+      notify(`Message too long (max ${MAX_MESSAGE_CHARS} chars)`, 'error');
+      return;
+    }
 
     const font = (qel('annFont') || {}).value || 'Inter';
+
     const payload = {
-      slug: ctx.slug,
-      tenantId: ctx.tenantId,
+      slug: ctx && ctx.slug ? ctx.slug : '',
+      tenantId: ctx && ctx.tenantId ? ctx.tenantId : '',
       message,
       font,
       level: 'info',
@@ -386,18 +519,19 @@
     if (annTarget.type === 'list') {
       const raw = (qel('annChatIds') || {}).value || '';
       const ids = parseChatIds(raw);
-      if (!ids.length) { ctx.showToast('Enter at least one chat ID', 'error'); return; }
+      if (!ids.length) {
+        notify('Enter at least one chat ID', 'error');
+        return;
+      }
       payload.target = { type: 'list', chatIds: ids };
     } else {
       payload.target = { type: 'all' };
       if (activeChatIds.length) payload.telegramChatIds = activeChatIds;
-      if (subscriberCount === 0) ctx.showToast('No Telegram-connected customers found', 'error');
     }
 
     if (annMediaFile && annMediaDataUrl) {
-      const base64Size = annMediaDataUrl.length;
-      if (base64Size > MAX_MEDIA_BYTES * 1.37) {
-        ctx.showToast('Media too large for inline send. Sending text only.', 'error');
+      if (annMediaDataUrl.length > MAX_INLINE_MEDIA_BYTES * 1.37) {
+        notify('Media too large for inline send. Sending text only.', 'error');
       } else {
         payload.media = annMediaDataUrl;
         payload.mediaType = annMediaFile.type;
@@ -418,7 +552,7 @@
     try {
       const res = await sendWithRetry(payload);
       let body = null;
-      try { body = await res.json(); } catch { body = null; }
+      try { body = await res.json(); } catch (_) { body = null; }
 
       if (resultDiv) resultDiv.style.display = 'block';
 
@@ -428,44 +562,47 @@
         if (res.status === 413 || /too large|payload|size/i.test(String(errorMsg))) {
           errorMsg = 'Payload too large. Remove media or shorten the message.';
         }
-        if (resultDiv) {
-          resultDiv.style.background = 'rgba(239,68,68,0.1)';
-          resultDiv.style.color = 'var(--red)';
-          resultDiv.textContent = `⚠️ Server error (${res.status}): ${errorMsg}`;
-        }
+        setResultBox('error', `⚠️ Server error (${res.status}): ${errorMsg}`);
         return;
       }
 
-      if (body && body.success > 0) {
-        if (resultDiv) {
-          resultDiv.style.background = 'rgba(16,185,129,0.1)';
-          resultDiv.style.color = 'var(--green)';
-          resultDiv.innerHTML = `✅ Sent to ${body.success} recipient(s)${body.failed ? ` · ⚠️ ${body.failed} failed` : ''}`;
-        }
+      const successCount = Number(body && body.success ? body.success : 0);
+      const failedCount = Number(body && body.failed ? body.failed : 0);
+
+      if (successCount > 0) {
+        setResultBox(
+          'success',
+          '',
+          `✅ Sent to ${successCount} recipient(s)${failedCount ? ` · ⚠️ ${failedCount} failed` : ''}`
+        );
+
         if (composerEl) composerEl.value = '';
         clearMedia();
         updatePreview();
-        ctx.writeAudit('announcement_sent', { success: body.success, failed: body.failed || 0, mode: annTarget.type });
+
+        if (ctx && typeof ctx.writeAudit === 'function') {
+          try {
+            ctx.writeAudit('announcement_sent', {
+              success: successCount,
+              failed: failedCount,
+              mode: annTarget.type
+            });
+          } catch (_) {}
+        }
+
         loadSendLog();
         return;
       }
 
-      if (body && body.success === 0 && body.failed > 0) {
-        if (resultDiv) {
-          resultDiv.style.background = 'rgba(239,68,68,0.1)';
-          resultDiv.style.color = 'var(--red)';
-          resultDiv.textContent = `⚠️ All ${body.failed} delivery attempts failed`;
-        }
+      if (successCount === 0 && failedCount > 0) {
+        setResultBox('error', `⚠️ All ${failedCount} delivery attempts failed`);
         return;
       }
 
-      if (resultDiv) {
-        resultDiv.style.background = 'rgba(239,68,68,0.1)';
-        resultDiv.style.color = 'var(--red)';
-        resultDiv.textContent = `⚠️ ${body?.error || body?.message || 'No recipients or unknown response'}`;
-      }
+      setResultBox('error', `⚠️ ${body?.error || body?.message || 'No recipients or unknown response'}`);
     } catch (e) {
-      ctx.showToast('Network error: ' + (e.message || 'Failed to connect'), 'error');
+      notify('Network error: ' + (e.message || 'Failed to connect'), 'error');
+      setResultBox('error', `⚠️ Network error: ${e.message || 'Failed to connect'}`);
     } finally {
       sending = false;
       if (btn) btn.disabled = false;
@@ -474,164 +611,222 @@
     }
   }
 
-  async function sendWithRetry(payload) {
-    const doFetch = () => fetch('/.netlify/functions/announce', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    let res;
-    try {
-      res = await doFetch();
-    } catch (e) {
-      await new Promise(r => setTimeout(r, 1000));
-      res = await doFetch();
-      return res;
-    }
-
-    if (res.status === 502 || res.status === 503) {
-      await new Promise(r => setTimeout(r, 1500));
-      res = await doFetch();
-    }
-
-    return res;
-  }
-
-  function getFirstTs(chats) {
-    if (!chats || typeof chats !== 'object') return 0;
-    const vals = Object.values(chats);
-    for (const v of vals) {
-      if (v && v.ts) return v.ts;
-    }
+  function getTimestampFromAnnouncementNode(node) {
+    if (!node) return 0;
+    if (typeof node.ts === 'number') return node.ts;
+    if (typeof node.timestamp === 'number') return node.timestamp;
+    if (typeof node.createdAt === 'number') return node.createdAt;
     return 0;
   }
 
   function renderSendLogRows(data) {
     const announcements = Object.entries(data)
-      .sort((a, b) => getFirstTs(b[1]) - getFirstTs(a[1]))
+      .sort((a, b) => getTimestampFromAnnouncementNode(b[1]) - getTimestampFromAnnouncementNode(a[1]))
       .slice(0, 10);
 
-    if (!announcements.length) return '<p style="color:var(--text-muted)">No send logs yet.</p>';
+    if (!announcements.length) {
+      return '<p style="color:var(--text-muted)">No send logs yet.</p>';
+    }
 
-    return announcements.map(([annId, chats]) => {
-      const chatEntries = (chats && typeof chats === 'object') ? Object.entries(chats) : [];
-      const ok = chatEntries.filter(([, v]) => v && v.status === 'ok').length;
-      const fail = chatEntries.length - ok;
-      const ts = chatEntries[0]?.[1]?.ts;
-      return `<div class="audit-entry" style="transition:background .15s"><div class="audit-time">${escapeHtml(ctx.formatDate(ts))} — ${escapeHtml(annId)}</div><div style="margin-top:4px"><span class="badge badge-green">${ok} sent</span> ${fail ? `<span class="badge badge-red">${fail} failed</span>` : ''}</div></div>`;
+    return announcements.map(([annId, annNode]) => {
+      if (!isObject(annNode)) {
+        return `<div class="audit-entry"><div class="audit-time">${escapeHtml(ctx && typeof ctx.formatDate === 'function' ? ctx.formatDate(0) : '')}</div><div>${escapeHtml(annId)}</div></div>`;
+      }
+
+      let ok = 0;
+      let fail = 0;
+      let ts = 0;
+
+      const chatEntries = Object.entries(annNode);
+      for (const [, v] of chatEntries) {
+        if (!v || typeof v !== 'object') continue;
+        ts = Math.max(ts, getTimestampFromAnnouncementNode(v));
+        if (String(v.status || '').toLowerCase() === 'ok' || String(v.status || '').toLowerCase() === 'sent') ok += 1;
+        else fail += 1;
+      }
+
+      const fmt = ctx && typeof ctx.formatDate === 'function'
+        ? ctx.formatDate(ts)
+        : new Date(ts || Date.now()).toLocaleString();
+
+      return `
+        <div class="audit-entry" style="transition:background .15s">
+          <div class="audit-time">${escapeHtml(fmt)} — ${escapeHtml(annId)}</div>
+          <div style="margin-top:4px">
+            <span class="badge badge-green">${ok} sent</span>
+            ${fail ? `<span class="badge badge-red">${fail} failed</span>` : ''}
+          </div>
+        </div>
+      `;
     }).join('');
   }
 
   function loadSendLog() {
-    if (!ctx || !ctx.get) return;
-    ctx.get(ctx.tRef('integrations/telegram/sentAnnouncements')).then(snap => {
-      const logDiv = qel('annSendLog');
-      if (!logDiv) return;
-      if (!snap.exists()) { logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>'; return; }
-      const data = snap.val();
-      if (!data || typeof data !== 'object') { logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>'; return; }
-      logDiv.innerHTML = renderSendLogRows(data);
-    }).catch(() => {
-      const logDiv = qel('annSendLog');
-      if (logDiv) logDiv.innerHTML = '<p style="color:var(--text-muted)">Could not load send logs.</p>';
-    });
+    if (!ctx || !ctx.get || !ctx.tRef) return;
+
+    const logPaths = [
+      'integrations/telegram/sentAnnouncements',
+      'integrations/telegram/announcementLogs',
+      'announcements/sent',
+      'announcements/logs'
+    ];
+
+    const tryPath = (idx) => {
+      if (idx >= logPaths.length) {
+        const logDiv = qel('annSendLog');
+        if (logDiv) logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>';
+        return;
+      }
+
+      ctx.get(ctx.tRef(logPaths[idx]))
+        .then(snap => {
+          if (!snap || !snap.exists()) {
+            tryPath(idx + 1);
+            return;
+          }
+
+          const data = snap.val();
+          const logDiv = qel('annSendLog');
+          if (!logDiv) return;
+
+          if (!data || typeof data !== 'object') {
+            tryPath(idx + 1);
+            return;
+          }
+
+          logDiv.innerHTML = renderSendLogRows(data);
+        })
+        .catch(() => {
+          tryPath(idx + 1);
+        });
+    };
+
+    tryPath(0);
   }
 
   function collectTelegramChatIds() {
-    const ids = new Set();
+    if (!ctx || !ctx.get || !ctx.tRef) return Promise.resolve([]);
+
     const paths = [
       'integrations/telegram/tokens',
       'integrations/telegram/connected',
       'integrations/telegram/chatIds',
+      'integrations/telegram/subscribers',
       'telegramTokens',
-      'telegram/tokens'
+      'telegramConnections',
+      'telegram/connected',
+      'telegram/chatIds',
+      'telegram/subscribers'
     ];
 
     return Promise.all(paths.map(path => {
-      if (!ctx || !ctx.get) return Promise.resolve(null);
-      return ctx.get(ctx.tRef(path)).then(snap => {
-        if (!snap.exists()) return null;
-        return snap.val();
-      }).catch(() => null);
+      return ctx.get(ctx.tRef(path))
+        .then(snap => (snap && snap.exists()) ? snap.val() : null)
+        .catch(() => null);
     })).then(values => {
+      const ids = new Set();
       values.forEach(v => {
-        if (!v) return;
-        extractChatIdsFromNode(v).forEach(id => ids.add(id));
+        extractChatIdsDeep(v).forEach(id => ids.add(id));
       });
       return [...ids].filter(Boolean);
     });
   }
 
-  function initSubscribers() {
-    const watchedPaths = [
+  function attachLiveSubscriberWatchers() {
+    if (!ctx || !ctx.onValue || !ctx.tRef) return;
+
+    const paths = [
       'integrations/telegram/tokens',
       'integrations/telegram/connected',
       'integrations/telegram/chatIds',
-      'telegramTokens'
+      'integrations/telegram/subscribers',
+      'telegramTokens',
+      'telegramConnections',
+      'telegram/connected',
+      'telegram/chatIds',
+      'telegram/subscribers'
     ];
 
-    let seen = false;
-    const setFromNode = (node) => {
-      const ids = extractChatIdsFromNode(node).map(normalizeChatId).filter(Boolean);
-      if (ids.length) {
-        activeChatIds = [...new Set([...activeChatIds, ...ids])];
-        subscriberCount = activeChatIds.length;
-        updateRecipientCount();
-        seen = true;
-      }
-    };
+    // avoid duplicate subscriptions if init is called more than once unexpectedly
+    if (subscribedPaths.length) return;
+    subscribedPaths = paths.slice();
 
-    watchedPaths.forEach(path => {
-      ctx.onValue(ctx.tRef(path), snap => {
-        if (!snap.exists()) return;
-        setFromNode(snap.val());
-      });
-    });
+    paths.forEach(path => {
+      try {
+        ctx.onValue(ctx.tRef(path), snap => {
+          if (!snap || !snap.exists()) return;
+          const ids = extractChatIdsDeep(snap.val());
+          if (!ids.length) return;
 
-    if (!seen) {
-      collectTelegramChatIds().then(ids => {
-        if (ids.length) {
-          activeChatIds = ids;
-          subscriberCount = ids.length;
+          const merged = new Set([...activeChatIds, ...ids].map(normalizeChatId).filter(Boolean));
+          activeChatIds = [...merged];
+          subscriberCount = activeChatIds.length;
           updateRecipientCount();
-        }
-      }).catch(() => {});
+        });
+      } catch (_) {}
+    });
+  }
+
+  function refreshSubscribers() {
+    return collectTelegramChatIds().then(ids => {
+      activeChatIds = ids;
+      subscriberCount = ids.length;
+      updateRecipientCount();
+      return ids;
+    });
+  }
+
+  function loadDefaultRecipients() {
+    attachLiveSubscriberWatchers();
+    refreshSubscribers().catch(() => {});
+  }
+
+  function init(context) {
+    if (initialized) return;
+    initialized = true;
+
+    ctx = context || {};
+    container = document.getElementById('announceContainer');
+
+    if (!container) {
+      console.error('announce.js: #announceContainer not found');
+      return;
+    }
+
+    renderUI();
+    updatePreview();
+    loadDefaultRecipients();
+    loadSendLog();
+
+    if (ctx && typeof ctx.writeAudit === 'function' && !loadedOnce) {
+      loadedOnce = true;
+      try {
+        ctx.writeAudit('announcement_ui_loaded');
+      } catch (_) {}
     }
   }
 
-  function bindChatIdCounter() {
-    const chatInput = qel('annChatIds');
-    if (chatInput) chatInput.addEventListener('input', updateRecipientCount);
-  }
-
-  window.__announceModule = {
-    init(context) {
-      if (initialized) return;
-      initialized = true;
-      ctx = context;
-      container = document.getElementById('announceContainer');
-      if (!container) {
-        console.error('announce.js: #announceContainer not found');
-        return;
-      }
-      renderUI();
-      updatePreview();
-      initSubscribers();
-      loadSendLog();
-      bindChatIdCounter();
-      if (ctx && ctx.writeAudit) ctx.writeAudit('announcement_ui_loaded');
-    },
+  root.__announceModule = {
+    init,
     getSubscriberCount() {
       return subscriberCount;
     },
-    refreshSubscribers() {
-      return collectTelegramChatIds().then(ids => {
-        activeChatIds = ids;
-        subscriberCount = ids.length;
-        updateRecipientCount();
-        return ids;
-      });
-    }
+    refreshSubscribers
   };
+
+  // Auto-init if the container is already present
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function') {
+          root.__announceModule.init(root.__announceCtx || null);
+        }
+      });
+    } else {
+      if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function') {
+        // Only auto-init if a context was preloaded
+        if (root.__announceCtx) root.__announceModule.init(root.__announceCtx);
+      }
+    }
+  }
 })();

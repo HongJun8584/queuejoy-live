@@ -234,7 +234,6 @@
   </style>
 </head>
 <body>
-<script>globalThis.window = globalThis.window || globalThis;</script>
 
 <!-- Auth Overlay -->
 <div class="auth-overlay" id="authOverlay">
@@ -370,8 +369,7 @@
             <div style="display:flex;flex-direction:column;gap:6px">
               <input class="input" id="cfgAdImageUrl" placeholder="Hosted image URL (https://…)" style="font-size:12px"/>
               <input class="input" id="cfgAdVideoUrl" placeholder="Hosted video URL or YouTube link (https://…)" style="font-size:12px"/>
-              <div style="font-size:11px;color:var(--text-light)">🔒 Only hosted HTTPS image URLs are supported.
-You can get an image URL from Google Images or other websites using “Copy image address”.</div>
+              <div style="font-size:11px;color:var(--text-light)">🔒 Ads accept hosted https:// links only — local uploads are not allowed.</div>
               <div id="cfgAdMediaWarn" style="display:none;padding:8px 10px;border-radius:8px;font-size:11px;background:rgba(245,158,11,.10);color:var(--amber);border:1px solid rgba(245,158,11,.25)"></div>
             </div>
             <div id="cfgAdMediaPreview"></div>
@@ -548,7 +546,7 @@ You can get an image URL from Google Images or other websites using “Copy imag
 <!-- announce.js module loaded BEFORE the main script -->
 <script>
   (function loadAnnounceModule() {
-    if (globalThis.__announceModule && typeof globalThis.__announceModule.init === 'function') return;
+    if (window.__announceModule && typeof window.__announceModule.init === 'function') return;
     var s = document.createElement('script');
     s.src = '/announce.js';
     s.defer = true;
@@ -589,8 +587,6 @@ function esc(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-
-globalThis.esc = esc;
 
 // ===== Helpers =====
 const $ = id => document.getElementById(id);
@@ -641,7 +637,8 @@ $('themeToggle').addEventListener('click', function() {
   var isLight = document.documentElement.classList.toggle('light');
   localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
   $('themeToggle').textContent = isLight ? '☀️' : '🌙';
-  if (typeof globalThis.updateChartTheme === 'function') globalThis.updateChartTheme();
+  // Update chart colors if charts exist
+  updateChartTheme();
 });
 
 function getChartTextColor() {
@@ -837,14 +834,14 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
 
 // ===== Slug resolution =====
 function getSlug() {
-  var p = new URLSearchParams(globalThis.location.search);
+  var p = new URLSearchParams(window.location.search);
   var s = p.get('slug') || p.get('tenant') || p.get('tenantSlug');
   if (s && s.trim()) return s.trim();
-  var path = globalThis.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  var path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
   if (path.length >= 2 && path[0].includes('admin')) {
     var slug = path[1];
     if (slug && !slug.includes('.')) {
-      globalThis.location.href = globalThis.location.origin + '/admin.html?slug=' + encodeURIComponent(slug);
+      window.location.href = window.location.origin + '/admin.html?slug=' + encodeURIComponent(slug);
       return null;
     }
   }
@@ -855,7 +852,7 @@ function getSlug() {
 async function boot() {
   var slug = getSlug();
   if (!slug) {
-    $('authOverlay').innerHTML = '<div class="auth-card"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h2>Missing Tenant Slug</h2><p style="margin-bottom:12px">Access the admin with a valid slug:</p><code style="display:block;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;word-break:break-all;margin-bottom:12px">' + globalThis.location.origin + '/admin.html?slug=your-slug</code><p style="font-size:11px;color:var(--text-light)">If you used <code>/admin.html/your-slug</code>, use <code>?slug=your-slug</code> instead.</p></div>';
+    $('authOverlay').innerHTML = '<div class="auth-card"><div style="font-size:48px;margin-bottom:12px">⚠️</div><h2>Missing Tenant Slug</h2><p style="margin-bottom:12px">Access the admin with a valid slug:</p><code style="display:block;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;word-break:break-all;margin-bottom:12px">' + window.location.origin + '/admin.html?slug=your-slug</code><p style="font-size:11px;color:var(--text-light)">If you used <code>/admin.html/your-slug</code>, use <code>?slug=your-slug</code> instead.</p></div>';
     return;
   }
 
@@ -868,8 +865,8 @@ async function boot() {
     }
   } catch(e) {}
 
-  globalThis.__TENANT_SLUG = slug;
-  globalThis.__TENANT_ID = tenantId;
+  window.__TENANT_SLUG = slug;
+  window.__TENANT_ID = tenantId;
 
   var app = initializeApp(FIREBASE_CONFIG);
   var db = getDatabase(app);
@@ -919,81 +916,6 @@ async function boot() {
   var analyticsRange = 7;
   var _lastMediaHash = '';
   var selectedRetention = 1; // days
-  function toTs(v) {
-    if (v === null || v === undefined || v === '') return 0;
-    if (typeof v === 'number') return isFinite(v) ? v : 0;
-    if (typeof v === 'string') {
-      var n = Date.parse(v);
-      return isNaN(n) ? 0 : n;
-    }
-    return 0;
-  }
-
-  function normalizeServiceEvent(e) {
-    if (!e || typeof e !== 'object') return null;
-    var completedAt = toTs(e.completedAt || e.timestamp || e.createdAt || e.finishedAt || e.updatedAt);
-    var startedAt = toTs(e.serviceStartedAt || e.startedAt || e.servedAt || e.calledAt);
-    var joinedAt = toTs(e.joinedAt || e.queueJoinedAt || e.queueCreatedAt || e.createdAt);
-    var serviceMs = Number(e.serviceMs || e.durationMs || e.serviceTimeMs || 0);
-    var waitMs = Number(e.waitMs || e.queueMs || 0);
-
-    if (!(serviceMs > 0)) {
-      if (startedAt && completedAt && completedAt > startedAt) serviceMs = completedAt - startedAt;
-      else if (completedAt && joinedAt && completedAt > joinedAt) serviceMs = completedAt - joinedAt;
-    }
-    if (!(waitMs > 0)) {
-      if (joinedAt && startedAt && startedAt > joinedAt) waitMs = startedAt - joinedAt;
-      else if (joinedAt && completedAt && completedAt > joinedAt) waitMs = completedAt - joinedAt;
-    }
-
-    var out = {};
-    for (var k in e) {
-      if (Object.prototype.hasOwnProperty.call(e, k)) out[k] = e[k];
-    }
-    if (serviceMs > 0) out.serviceMs = serviceMs;
-    if (waitMs > 0) out.waitMs = waitMs;
-    if (completedAt) out.completedAt = completedAt;
-    if (startedAt) out.serviceStartedAt = startedAt;
-    if (joinedAt) out.joinedAt = joinedAt;
-    return out;
-  }
-
-  function computeQueueServiceMs(q) {
-    if (!q || typeof q !== 'object') return 0;
-    var s = toTs(q.serviceStartedAt || q.startedAt || q.servedAt || q.calledAt);
-    var c = toTs(q.completedAt || q.finishedAt || q.updatedAt || q.timestamp);
-    var j = toTs(q.joinedAt || q.createdAt);
-    if (s && c && c > s) return c - s;
-    if (c && j && c > j) return c - j;
-    return 0;
-  }
-
-  function updateChartTheme() {
-    try {
-      var tc = getChartTextColor();
-      var gc = getChartGridColor();
-      [queueTrendChart, counterPerfChart].forEach(function(chart) {
-        if (!chart) return;
-        if (chart.options.scales && chart.options.scales.x) {
-          chart.options.scales.x.ticks.color = tc;
-          chart.options.scales.x.grid.color = gc;
-        }
-        if (chart.options.scales && chart.options.scales.y) {
-          chart.options.scales.y.ticks.color = tc;
-          chart.options.scales.y.grid.color = gc;
-        }
-        chart.update('none');
-      });
-      if (statusPieChart && statusPieChart.options && statusPieChart.options.plugins && statusPieChart.options.plugins.legend && statusPieChart.options.plugins.legend.labels) {
-        statusPieChart.options.plugins.legend.labels.color = tc;
-        statusPieChart.update('none');
-      }
-    } catch (e) {
-      console.warn('updateChartTheme failed', e);
-    }
-  }
-  globalThis.updateChartTheme = updateChartTheme;
-
 
   // ===== Auth =====
   // Auth mode: 'signin' or 'create'
@@ -1110,7 +1032,7 @@ async function boot() {
       }
       $('topbarTitle').textContent = item.textContent.trim();
       if (v === 'analytics') initCharts();
-      if (globalThis.innerWidth <= 1024) $('sidebar').classList.remove('open');
+      if (window.innerWidth <= 1024) $('sidebar').classList.remove('open');
     });
   });
   $('mobileMenuBtn').onclick = function() { $('sidebar').classList.toggle('open'); };
@@ -1136,8 +1058,8 @@ async function boot() {
       try {
         if (!snap.exists()) return;
         var incoming = snap.val() || {};
-        var lastSaved = (typeof globalThis.__qjLastSavedAt === 'function') ? globalThis.__qjLastSavedAt() : 0;
-        var isSaving  = (typeof globalThis.__qjIsSaving === 'function') ? globalThis.__qjIsSaving() : false;
+        var lastSaved = (typeof window.__qjLastSavedAt === 'function') ? window.__qjLastSavedAt() : 0;
+        var isSaving  = (typeof window.__qjIsSaving === 'function') ? window.__qjIsSaving() : false;
         // Drop stale / our-own-old snapshots that would otherwise rollback the UI.
         var incomingTs = Number(incoming.updatedAt || 0);
         if (isSaving) return;
@@ -1212,8 +1134,8 @@ async function boot() {
           var obj = snap.val() || {};
           var vals = Object.values(obj);
           for (var i = 0; i < vals.length; i++) {
-            var e = normalizeServiceEvent(vals[i]);
-            if (e) serviceEventsData.push(e);
+            var e = vals[i];
+            if (e && typeof e === 'object' && typeof e.serviceMs === 'number') serviceEventsData.push(e);
           }
         }
         updateDashboardCounts();
@@ -1288,12 +1210,14 @@ async function boot() {
       return e && typeof e.serviceMs === 'number' && isFinite(e.serviceMs) && e.serviceMs >= MIN_MS && e.serviceMs <= MAX_MS;
     });
     if (validEvents.length === 0) {
-      // Fallback: derive from completed queue entries using available timestamps.
+      // Fallback: derive from completed queue entries with serviceStartedAt + updatedAt only.
       validEvents = queueData.filter(function(q){
         if (q._status !== 'completed') return false;
-        var ms = computeQueueServiceMs(q);
+        var s = Number(q.serviceStartedAt||0), u = Number(q.updatedAt||q.completedAt||0);
+        if (!s || !u) return false;
+        var ms = u - s;
         return ms >= MIN_MS && ms <= MAX_MS;
-      }).map(function(q){ return { serviceMs: computeQueueServiceMs(q) }; });
+      }).map(function(q){ return { serviceMs: Number(q.updatedAt||q.completedAt) - Number(q.serviceStartedAt) }; });
     }
     if (validEvents.length > 0) {
       var avgMs = validEvents.reduce(function(s, e) { return s + e.serviceMs; }, 0) / validEvents.length;
@@ -1337,9 +1261,11 @@ async function boot() {
     if (validSrc.length === 0) {
       validSrc = filteredQueue.filter(function(q){
         if (q._status !== 'completed') return false;
-        var ms = computeQueueServiceMs(q);
+        var s = Number(q.serviceStartedAt||0), u = Number(q.updatedAt||q.completedAt||0);
+        if (!s || !u) return false;
+        var ms = u - s;
         return ms >= MIN_MS && ms <= MAX_MS;
-      }).map(function(q){ return { serviceMs: computeQueueServiceMs(q) }; });
+      }).map(function(q){ return { serviceMs: Number(q.updatedAt||q.completedAt) - Number(q.serviceStartedAt) }; });
     }
     var validMs = validSrc.map(function(e) { return e.serviceMs / 60000; });
     var stats = computeStats(validMs);
@@ -1348,12 +1274,26 @@ async function boot() {
     $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '0';
   }
 
-$('themeToggle').addEventListener('click', function() {
-  var isLight = document.documentElement.classList.toggle('light');
-  localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
-  $('themeToggle').textContent = isLight ? '☀️' : '🌙';
-  if (typeof globalThis.updateChartTheme === 'function') globalThis.updateChartTheme();
-});
+  function updateChartTheme() {
+    var tc = getChartTextColor();
+    var gc = getChartGridColor();
+    [queueTrendChart, counterPerfChart].forEach(function(chart) {
+      if (!chart) return;
+      if (chart.options.scales && chart.options.scales.x) {
+        chart.options.scales.x.ticks.color = tc;
+        chart.options.scales.x.grid.color = gc;
+      }
+      if (chart.options.scales && chart.options.scales.y) {
+        chart.options.scales.y.ticks.color = tc;
+        chart.options.scales.y.grid.color = gc;
+      }
+      chart.update('none');
+    });
+    if (statusPieChart) {
+      statusPieChart.options.plugins.legend.labels.color = tc;
+      statusPieChart.update('none');
+    }
+  }
 
   function initCharts() {
     var tc = getChartTextColor();
@@ -1474,13 +1414,13 @@ $('themeToggle').addEventListener('click', function() {
     if ($('aAnnRate'))   $('aAnnRate').textContent   = total > 0 ? Math.round((ok / total) * 100) + '%' : '—';
     if ($('aAnnEmpty'))  $('aAnnEmpty').style.display = runs === 0 ? 'block' : 'none';
   }
-  globalThis.addEventListener('qj:announcement-logs', function(ev){
+  window.addEventListener('qj:announcement-logs', function(ev){
     try {
       _annLogs = (ev && ev.detail && Array.isArray(ev.detail.logs)) ? ev.detail.logs : [];
       updateAnnouncementAnalytics();
     } catch(_) {}
   });
-  globalThis.addEventListener('qj:announcement-sent', function(){
+  window.addEventListener('qj:announcement-sent', function(){
     updateAnnouncementAnalytics();
   });
 
@@ -1494,7 +1434,7 @@ $('themeToggle').addEventListener('click', function() {
     var rows = filteredEvents.slice().sort(function(a, b) { return (b.timestamp || b.completedAt || 0) - (a.timestamp || a.completedAt || 0); }).slice(0, 50);
     container.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Counter</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Queue #</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (ms)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Service (min)</th><th style="padding:8px;text-align:left;color:var(--text-muted);font-size:11px">Completed</th></tr></thead><tbody>' +
       rows.map(function(e) {
-        return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">' + esc(e.counter || e.counterName || e.counterId || '—') + '</td><td style="padding:8px">' + esc(e.queueNumber || '—') + '</td><td style="padding:8px">' + ((e.serviceMs != null ? e.serviceMs : computeQueueServiceMs(e)) || '—') + '</td><td style="padding:8px">' + ((e.serviceMs != null ? e.serviceMs : computeQueueServiceMs(e)) > 0 ? (((e.serviceMs != null ? e.serviceMs : computeQueueServiceMs(e)) / 60000).toFixed(1)) : '—') + '</td><td style="padding:8px">' + formatDate(e.completedAt || e.timestamp) + '</td></tr>';
+        return '<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px">' + esc(e.counter || e.counterName || e.counterId || '—') + '</td><td style="padding:8px">' + esc(e.queueNumber || '—') + '</td><td style="padding:8px">' + (e.serviceMs != null ? e.serviceMs : '—') + '</td><td style="padding:8px">' + (e.serviceMs != null ? (e.serviceMs / 60000).toFixed(1) : '—') + '</td><td style="padding:8px">' + formatDate(e.completedAt || e.timestamp) + '</td></tr>';
       }).join('') +
       '</tbody></table>';
   }
@@ -1504,7 +1444,7 @@ $('themeToggle').addEventListener('click', function() {
     var filteredEvents = filterByTime(serviceEventsData, 'completedAt');
     if (!filteredEvents.length) { showToast('No events to export', 'error'); return; }
     var header = 'counter,queueNumber,serviceMs,serviceMin,completedAt\n';
-    var body = filteredEvents.map(function(e) { return (e.counter || e.counterId || '') + ',' + (e.queueNumber || '') + ',' + (e.serviceMs != null ? e.serviceMs : computeQueueServiceMs(e)) + ',' + (((e.serviceMs != null ? e.serviceMs : computeQueueServiceMs(e)) > 0 ? (e.serviceMs != null ? e.serviceMs : computeQueueServiceMs(e)) : 0) / 60000).toFixed(2) + ',' + (e.completedAt || ''); }).join('\n');
+    var body = filteredEvents.map(function(e) { return (e.counter || e.counterId || '') + ',' + (e.queueNumber || '') + ',' + e.serviceMs + ',' + (e.serviceMs / 60000).toFixed(2) + ',' + (e.completedAt || ''); }).join('\n');
     var blob = new Blob([header + body], { type: 'text/csv' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1579,7 +1519,7 @@ $('themeToggle').addEventListener('click', function() {
         warn.textContent = '';
       }
     }
-    globalThis.__qjCheckAdWarn = checkAdMediaWarning;
+    window.__qjCheckAdWarn = checkAdMediaWarning;
 
     ['cfgDisplayName', 'cfgSmallTextOnTop', 'cfgMainHeading', 'cfgDescription', 'cfgButtonText', 'cfgAdText'].forEach(function(id) {
       $(id).addEventListener('input', schedulePhonePreview);
@@ -1617,8 +1557,8 @@ $('themeToggle').addEventListener('click', function() {
   // and whose payload is older than the in-flight save — preventing rollback.
   var saveSeq = 0;
   var lastSavedAt = 0;
-  globalThis.__qjLastSavedAt = function(){ return lastSavedAt; };
-  globalThis.__qjIsSaving = function(){ return saving; };
+  window.__qjLastSavedAt = function(){ return lastSavedAt; };
+  window.__qjIsSaving = function(){ return saving; };
 
   async function saveSettings() {
     if (saving) return;
@@ -1645,7 +1585,7 @@ $('themeToggle').addEventListener('click', function() {
       // Local mirror so the preview & form don't 'rollback' before the listener fires.
       currentConfig = slimConfig;
       pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
-      if (globalThis.__qjCheckAdWarn) globalThis.__qjCheckAdWarn();
+      if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
 
       btn.classList.add('save-success');
       btn.textContent = '✅ Published!';
@@ -1831,25 +1771,24 @@ $('themeToggle').addEventListener('click', function() {
 
   // ===== Announcements =====
   function setupAnnouncementsUI() {
-var annCtx = {
-  tRef: tRef,
-  get: function(r) { return get(r); },
-  onValue: function(r, cb) { return onValue(r, cb); },
-  set: function(r, v) { return set(r, v); },
-  update: function(r, v) { return update(r, v); },
-  genId: genId,
-  esc: esc,
-  showToast: showToast,
-  writeAudit: writeAudit,
-  fileToBase64: fileToDataUrl,
-  formatDate: formatDate,
-  slug: slug,
-  tenantId: tenantId
-};
+    var annCtx = {
+      tRef: tRef,
+      get: function(r) { return get(r); },
+      onValue: function(r, cb) { return onValue(r, cb); },
+      set: function(r, v) { return set(r, v); },
+      update: function(r, v) { return update(r, v); },
+      genId: genId,
+      showToast: showToast,
+      writeAudit: writeAudit,
+      fileToBase64: fileToDataUrl,
+      formatDate: formatDate,
+      slug: slug,
+      tenantId: tenantId
+    };
 
     function initAnnounce() {
-      if (globalThis.__announceModule && typeof globalThis.__announceModule.init === 'function') {
-        globalThis.__announceModule.init(annCtx);
+      if (window.__announceModule && typeof window.__announceModule.init === 'function') {
+        window.__announceModule.init(annCtx);
         return true;
       }
       return false;
@@ -1862,7 +1801,7 @@ var annCtx = {
       tries++;
       if (initAnnounce() || tries >= 20) {
         clearInterval(timer);
-        if (!(globalThis.__announceModule && typeof globalThis.__announceModule.init === 'function')) {
+        if (!(window.__announceModule && typeof window.__announceModule.init === 'function')) {
           console.error('announce.js module not loaded');
           var box = $('announceContainer');
           if (box) box.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--red)">⚠️ Announcement module failed to load.</div>';
