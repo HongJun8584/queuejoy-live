@@ -589,8 +589,7 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
-// expose globally for announce.js and external modules
-window.esc = esc;
+globalThis.esc = esc;
 
 // ===== Helpers =====
 const $ = id => document.getElementById(id);
@@ -641,8 +640,7 @@ $('themeToggle').addEventListener('click', function() {
   var isLight = document.documentElement.classList.toggle('light');
   localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
   $('themeToggle').textContent = isLight ? '☀️' : '🌙';
-  // Update chart colors if charts exist
-  if (typeof updateChartTheme === 'function') updateChartTheme();
+  if (typeof globalThis.updateChartTheme === 'function') globalThis.updateChartTheme();
 });
 
 function getChartTextColor() {
@@ -1278,26 +1276,12 @@ async function boot() {
     $('aP90').textContent = stats.p90 !== null ? stats.p90.toFixed(1) : '0';
   }
 
-  function updateChartTheme() {
-    var tc = getChartTextColor();
-    var gc = getChartGridColor();
-    [queueTrendChart, counterPerfChart].forEach(function(chart) {
-      if (!chart) return;
-      if (chart.options.scales && chart.options.scales.x) {
-        chart.options.scales.x.ticks.color = tc;
-        chart.options.scales.x.grid.color = gc;
-      }
-      if (chart.options.scales && chart.options.scales.y) {
-        chart.options.scales.y.ticks.color = tc;
-        chart.options.scales.y.grid.color = gc;
-      }
-      chart.update('none');
-    });
-    if (statusPieChart) {
-      statusPieChart.options.plugins.legend.labels.color = tc;
-      statusPieChart.update('none');
-    }
-  }
+$('themeToggle').addEventListener('click', function() {
+  var isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('qj-theme', isLight ? 'light' : 'dark');
+  $('themeToggle').textContent = isLight ? '☀️' : '🌙';
+  if (typeof globalThis.updateChartTheme === 'function') globalThis.updateChartTheme();
+});
 
   function initCharts() {
     var tc = getChartTextColor();
