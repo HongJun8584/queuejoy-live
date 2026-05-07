@@ -1,613 +1,832 @@
-/* /tenant-template/public/announce.js
- * QueueJoy Announcements — browser-safe (FIXED).
- * Exposes window.__announceModule = { init(ctx) }
+/**
+ * announce.js — QueueJoy Announcement Module (Public UI)
  *
- * What changed:
- *  - Picture-only announcements work: text is no longer required when media is attached.
- *  - Helpful inline hints (max file size, "text optional with media").
- *  - Lazy video preview (placeholder + click-to-load, preload="none") — unchanged behaviour.
- *  - Plain-text message body — no programmer prefixes.
- *  - Returns delivery summary (sent / failed / total) in the UI.
- *  - Reads /public/announcementLogs and uses the new "_summary" rows when present.
+ * Runs in the browser inside admin.html.
+ * Never uses `window` directly; uses `globalThis` safe access only.
  *
- * ctx (provided by admin.html setupAnnouncementsUI):
- *   { tRef, get, onValue, set, update, genId, showToast, writeAudit,
- *     fileToBase64, formatDate, slug, tenantId }
+ * Responsibilities:
+ * - Render announcement composer UI
+ * - Preview message + media
+ * - Discover Telegram-connected subscribers from RTDB
+ * - Send announcement payload to the backend Netlify function
+ * - Show send log and delivery estimates
+ *
+ * Expected ctx:
+ * {
+ *   tRef, get, onValue, set, update, genId,
+ *   showToast, writeAudit, fileToBase64, formatDate,
+ *   slug, tenantId
+ * }
  */
 (function () {
   'use strict';
 
-  var DEFAULT_ENDPOINT = '/.netlify/functions/announce';
-  var STYLE_ID = 'qj-announce-ui-styles';
-  var ROOT_ID  = 'qj-announce-root';
-  var MAX_MEDIA_BYTES = 10 * 1024 * 1024; // 10 MB hard cap (matches Netlify body limits)
+  const root = typeof globalThis !== 'undefined'
+    ? globalThis
+    : (typeof self !== 'undefined' ? self : {});
 
-  var state = {
-    mounted: false,
-    bound: false,
-    sending: false,
-    media: null,             // { kind, dataUrl, type, name, size }  -- preview/upload only
-    logsUnsub: null,
-    ctx: null,
-  };
-  var dom = {};
-
-  // ---------- Templates (admin can pick a starter, then edit freely) ----------
-  var TEMPLATES = [
-    { id: 'custom',    label: '✏️  Custom (blank)', text: '' },
-    { id: 'promo',     label: '🎉 Promotion',
-      text: '🎉 Today only!\n\nGet 20% off your next order.\nShow this message at the counter to claim.\n\nThanks for queueing with us!' },
-    { id: 'reminder',  label: '🔔 Reminder',
-      text: '🔔 Friendly reminder:\nYour queue is almost ready. Please return to the counter when your number is called. Thank you!' },
-    { id: 'open',      label: '🟢 We’re Open',
-      text: '🟢 We are now OPEN!\nGrab your queue number and join us — we’d love to serve you today.' },
-    { id: 'closed',    label: '🔴 We’re Closed',
-      text: '🔴 We are now CLOSED for the day.\nThank you for visiting. See you again tomorrow!' },
-    { id: 'delay',     label: '⏳ Slight Delay',
-      text: '⏳ Heads up:\nWe are running a few minutes behind right now. We appreciate your patience and will call your number shortly.' },
-    { id: 'thanks',    label: '🙏 Thank You',
-      text: '🙏 Thank you for queueing with us today!\nWe hope you had a great experience. See you again soon.' }
+  const TEMPLATES = [
+    { name: '🎉 Promotion', text: "🎉 *Special Promotion!*\n\nWe have an exciting deal for you today! Don't miss out on our limited-time offer.\n\nVisit us now!" },
+    { name: '🆕 New Product', text: "🆕 *New Product Alert!*\n\nWe're thrilled to introduce our latest addition. Come check it out!\n\nAvailable now." },
+    { name: '📋 Notice', text: '📋 *Important Notice!*\n\nPlease be informed of the following update regarding our services.\n\nThank you for your understanding.' },
+    { name: '🚨 Urgent Update', text: '🚨 *Urgent Update!*\n\nThis is an important message that requires your immediate attention.\n\nPlease read carefully.' },
+    { name: '👋 Friendly Reminder', text: '👋 *Friendly Reminder!*\n\nJust a quick reminder about our services. We look forward to seeing you!\n\nHave a great day!' },
+    { name: '🎄 Holiday Update', text: '🎄 *Holiday Update!*\n\nWishing you a wonderful holiday season! Please note our updated hours during this period.\n\nHappy holidays!' },
+    { name: '⏰ Service Delay', text: '⏰ *Service Delay Notice!*\n\nWe apologize for any inconvenience. There is currently a slight delay in our service.\n\nThank you for your patience.' },
+    { name: '💰 Special Offer', text: '💰 *Special Offer!*\n\nFor a limited time only — enjoy exclusive savings on our services.\n\nHurry, offer ends soon!' }
   ];
 
-  // ---------- helpers ----------
-  function $(id) { return document.getElementById(id); }
-  function esc(v) {
-    if (v == null) return '';
-    return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-                     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-  function normalizeIds(raw) {
-    return String(raw || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-  }
-  function formatBytes(b) {
-    if (!b && b !== 0) return '';
-    if (b < 1024) return b + ' B';
-    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-    return (b/1048576).toFixed(1) + ' MB';
-  }
-  function setStatus(msg, kind) {
-    var el = dom.result; if (!el) return;
-    el.textContent = msg || '';
-    el.dataset.kind = kind || 'info';
-    el.style.display = msg ? 'block' : 'none';
-  }
-  function fileToDataUrl(file) {
-    return new Promise(function(res, rej) {
-      var r = new FileReader();
-      r.onload  = function(){ res(String(r.result || '')); };
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
-  }
-  function guessMediaKind(file) {
-    if (!file) return 'unknown';
-    var t = (file.type || '').toLowerCase();
-    if (t === 'image/gif') return 'gif';
-    if (t.indexOf('image/') === 0) return 'image';
-    if (t.indexOf('video/') === 0) return 'video';
-    if (t.indexOf('audio/') === 0) return 'audio';
-    return 'unknown';
+  const FONTS = ['Inter', 'Poppins', 'Roboto', 'DM Sans', 'Georgia', 'Courier New', 'Arial'];
+  const MAX_MESSAGE_CHARS = 4000;
+  const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
+  const MAX_INLINE_MEDIA_BYTES = 10 * 1024 * 1024;
+
+  let ctx = null;
+  let container = null;
+  let initialized = false;
+  let sending = false;
+  let previewTimer = null;
+  let subscriberCount = 0;
+  let annTarget = { type: 'all' };
+  let annMediaFile = null;
+  let annMediaDataUrl = null;
+  let activeChatIds = [];
+  let subscribedPaths = [];
+  let loadedOnce = false;
+
+  function qel(id) {
+    return container ? container.querySelector('#' + id) : document.getElementById(id);
   }
 
-  // ---------- styles ----------
-  function ensureStyles() {
-    if ($(STYLE_ID)) return;
-    var st = document.createElement('style');
-    st.id = STYLE_ID;
-    st.textContent = [
-      '.qj-ann-wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);gap:16px;align-items:start}',
-      '.qj-ann-card{background:var(--card-solid);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card)}',
-      '.qj-ann-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}',
-      '.qj-ann-title{font-size:16px;font-weight:800;color:var(--text)}',
-      '.qj-ann-sub{font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.45}',
-      '.qj-ann-body{padding:18px}',
-      '.qj-ann-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}',
-      '.qj-ann-full{grid-column:1/-1}',
-      '.qj-ann-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}',
-      '.qj-ann-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:12px;color:var(--text-muted);font-weight:600}',
-      '.qj-ann-chip strong{color:var(--text)}',
-      '.qj-ann-help{font-size:12px;line-height:1.55;color:var(--text-muted)}',
-      '.qj-ann-help code{font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border)}',
-      '.qj-ann-tip{font-size:11px;color:var(--text-muted);margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(102,126,234,.06);border:1px dashed rgba(102,126,234,.25)}',
-      '.qj-ann-preview{margin-top:10px;border:1px dashed var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}',
-      '.qj-ann-preview img{max-width:100%;max-height:220px;border-radius:10px;display:block}',
-      '.qj-ann-preview audio{width:100%}',
-      '.qj-ann-vph{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,.04)}',
-      '.qj-ann-status{margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:13px;display:none;white-space:pre-wrap;color:var(--text)}',
-      '.qj-ann-status[data-kind="success"]{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.09);color:#10b981}',
-      '.qj-ann-status[data-kind="error"]{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.09);color:#ef4444}',
-      '.qj-ann-status[data-kind="info"]{border-color:rgba(102,126,234,.25);background:rgba(102,126,234,.08);color:#667eea}',
-      '.qj-ann-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}',
-      '.qj-sum-card{padding:10px 12px;border:1px solid var(--border);border-radius:10px;text-align:center;background:rgba(255,255,255,.02)}',
-      '.qj-sum-card .v{font-size:20px;font-weight:800;color:var(--text)}',
-      '.qj-sum-card .l{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}',
-      '.qj-sum-card.ok .v{color:#10b981}.qj-sum-card.fail .v{color:#ef4444}.qj-sum-card.tot .v{color:#667eea}',
-      '.qj-ann-send{min-width:170px;justify-content:center}',
-      '.qj-log-item{padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.02);margin-bottom:10px}',
-      '.qj-log-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}',
-      '.qj-log-title{font-weight:700;font-size:13px;color:var(--text)}',
-      '.qj-log-meta{font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.45}',
-      '.qj-log-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}',
-      '.qj-log-badge{font-size:11px;padding:4px 8px;border-radius:999px;font-weight:700}',
-      '.qj-log-badge.ok{background:rgba(16,185,129,.12);color:#10b981}',
-      '.qj-log-badge.fail{background:rgba(239,68,68,.12);color:#ef4444}',
-      '.qj-log-badge.total{background:rgba(102,126,234,.12);color:#667eea}',
-      '.qj-log-empty{padding:20px;border:1px dashed var(--border);border-radius:12px;color:var(--text-muted);text-align:center;font-size:13px;background:rgba(255,255,255,.02)}',
-      '.qj-mini{font-size:11px;color:var(--text-light)}',
-      '.qj-loading{display:inline-flex;align-items:center;gap:8px}',
-      '@media (max-width:1024px){.qj-ann-wrap{grid-template-columns:1fr}.qj-ann-grid{grid-template-columns:1fr}}'
-    ].join('');
-    document.head.appendChild(st);
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
-  // ---------- shell ----------
-  function renderShell() {
-    var host = $('announceContainer') || $('view-announcements') || document.body;
-    var root = $(ROOT_ID);
-    if (!root) {
-      root = document.createElement('div');
-      root.id = ROOT_ID;
-      if (host.id === 'announceContainer') { host.innerHTML = ''; }
-      host.appendChild(root);
-    }
-    dom.root = root;
-
-    var tplOpts = TEMPLATES.map(function(t){
-      return '<option value="' + esc(t.id) + '">' + esc(t.label) + '</option>';
-    }).join('');
-
-    root.innerHTML = ''
-      + '<div class="qj-ann-wrap">'
-      +   '<div class="qj-ann-card">'
-      +     '<div class="qj-ann-head">'
-      +       '<div>'
-      +         '<div class="qj-ann-title">📣 Send Announcement</div>'
-      +         '<div class="qj-ann-sub">Send a Telegram message — text, picture, or both — to all connected customers or specific chat IDs.</div>'
-      +       '</div>'
-      +       '<div class="qj-ann-chip" title="Tenant"><span>Tenant</span><strong id="announceTenantChip">—</strong></div>'
-      +     '</div>'
-      +     '<div class="qj-ann-body">'
-      +       '<div class="qj-ann-grid">'
-
-      +         '<div>'
-      +           '<label class="field-label" style="margin-top:0">Template</label>'
-      +           '<select class="input" id="announceTemplate">' + tplOpts + '</select>'
-      +           '<div class="qj-ann-help" style="margin-top:6px">Pick a starter, then edit the text below.</div>'
-      +         '</div>'
-
-      +         '<div>'
-      +           '<label class="field-label" style="margin-top:0">Target</label>'
-      +           '<select class="input" id="announceTarget">'
-      +             '<option value="all">All connected users</option>'
-      +             '<option value="list">Custom chat IDs</option>'
-      +           '</select>'
-      +         '</div>'
-
-      +         '<div class="qj-ann-full">'
-      +           '<label class="field-label">Message <span id="announceMsgOptional" style="display:none;font-weight:600;color:#10b981;text-transform:none;letter-spacing:0"> · optional when sending a picture</span></label>'
-      +           '<textarea class="input" id="announceMessage" rows="6" placeholder="Type your announcement here..."></textarea>'
-      +           '<div class="qj-ann-help" style="margin-top:6px">Plain text. Customers see exactly what you type. Tip: <code>Ctrl</code>+<code>Enter</code> to send.</div>'
-      +         '</div>'
-
-      +         '<div class="qj-ann-full" id="announceChatIdsWrap" style="display:none">'
-      +           '<label class="field-label">Custom Chat IDs</label>'
-      +           '<textarea class="input" id="announceChatIds" rows="3" placeholder="123456789, -1001234567890"></textarea>'
-      +           '<div class="qj-ann-help" style="margin-top:6px">Separate IDs with commas. Used only when Target is set to “Custom chat IDs”.</div>'
-      +         '</div>'
-
-      +         '<div class="qj-ann-full">'
-      +           '<label class="field-label">Media (optional)</label>'
-      +           '<div class="qj-ann-row">'
-      +             '<label class="file-btn btn btn-secondary btn-sm" style="padding:8px 12px">📎 Upload Media'
-      +               '<input type="file" id="announceMedia" accept="image/*,video/*,audio/*" style="display:none"/>'
-      +             '</label>'
-      +             '<button class="btn btn-secondary btn-sm" id="announceClearMediaBtn" type="button">Clear</button>'
-      +             '<span class="qj-mini" id="announceMediaName">No file selected</span>'
-      +           '</div>'
-      +           '<div class="qj-ann-tip">Max file size <strong>10 MB</strong>. Images, GIFs and short videos work best. For picture-only posts you can leave the message empty.</div>'
-      +           '<div class="qj-ann-preview" id="announceMediaPreview" style="display:none"></div>'
-      +         '</div>'
-
-      +         '<div class="qj-ann-full qj-ann-row" style="margin-top:4px">'
-      +           '<button class="btn btn-primary qj-ann-send" id="announceSendBtn" type="button">'
-      +             '<span id="announceSendText">📨 Send Announcement</span>'
-      +             '<span id="announceSendSpin" style="display:none" class="qj-loading"><span class="spinner"></span>Sending…</span>'
-      +           '</button>'
-      +           '<div class="qj-ann-chip" title="Endpoint"><span>Endpoint</span><strong id="announceEndpointChip">—</strong></div>'
-      +         '</div>'
-
-      +         '<div class="qj-ann-full">'
-      +           '<div class="qj-ann-status" id="announceResult" data-kind="info">Ready.</div>'
-      +           '<div class="qj-ann-summary" id="announceSummary" style="display:none">'
-      +             '<div class="qj-sum-card tot"><div class="v" id="annSumTotal">0</div><div class="l">Recipients</div></div>'
-      +             '<div class="qj-sum-card ok"><div class="v" id="annSumOk">0</div><div class="l">Delivered</div></div>'
-      +             '<div class="qj-sum-card fail"><div class="v" id="annSumFail">0</div><div class="l">Failed</div></div>'
-      +           '</div>'
-      +         '</div>'
-
-      +       '</div>'
-      +     '</div>'
-      +   '</div>'
-
-      +   '<div class="qj-ann-card">'
-      +     '<div class="qj-ann-head">'
-      +       '<div>'
-      +         '<div class="qj-ann-title">📜 Recent delivery logs</div>'
-      +         '<div class="qj-ann-sub">Latest results from <code>public/announcementLogs</code>.</div>'
-      +       '</div>'
-      +       '<button class="btn btn-secondary btn-sm" id="announceRefreshLogsBtn" type="button">Refresh</button>'
-      +     '</div>'
-      +     '<div class="qj-ann-body">'
-      +       '<div id="announceLogs"><div class="qj-log-empty">No logs yet.</div></div>'
-      +     '</div>'
-      +   '</div>'
-      + '</div>';
-
-    dom.tenantChip   = $('announceTenantChip');
-    dom.endpointChip = $('announceEndpointChip');
-    dom.template     = $('announceTemplate');
-    dom.message      = $('announceMessage');
-    dom.msgOptional  = $('announceMsgOptional');
-    dom.target       = $('announceTarget');
-    dom.chatIdsWrap  = $('announceChatIdsWrap');
-    dom.chatIds      = $('announceChatIds');
-    dom.media        = $('announceMedia');
-    dom.mediaName    = $('announceMediaName');
-    dom.mediaPreview = $('announceMediaPreview');
-    dom.clearMediaBtn= $('announceClearMediaBtn');
-    dom.sendBtn      = $('announceSendBtn');
-    dom.sendText     = $('announceSendText');
-    dom.sendSpin     = $('announceSendSpin');
-    dom.result       = $('announceResult');
-    dom.summary      = $('announceSummary');
-    dom.sumTotal     = $('annSumTotal');
-    dom.sumOk        = $('annSumOk');
-    dom.sumFail      = $('annSumFail');
-    dom.logs         = $('announceLogs');
-    dom.refreshLogs  = $('announceRefreshLogsBtn');
+  function safeText(v, fallback = '') {
+    const s = String(v ?? '').trim();
+    return s.length ? s : fallback;
   }
 
-  function setMessageOptionalHint(on) {
-    if (dom.msgOptional) dom.msgOptional.style.display = on ? 'inline' : 'none';
-    if (dom.message) {
-      dom.message.placeholder = on
-        ? 'Optional caption for your picture (or leave blank to send picture only)…'
-        : 'Type your announcement here...';
-    }
+  function notify(message, type) {
+    try {
+      if (ctx && typeof ctx.showToast === 'function') {
+        ctx.showToast(message, type || 'success');
+        return;
+      }
+      if (typeof root.showToast === 'function') {
+        root.showToast(message, type || 'success');
+        return;
+      }
+    } catch (_) {}
+    console.log((type || 'info').toUpperCase() + ': ' + message);
   }
 
-  // ---------- media preview (lazy video) ----------
-  function renderMediaPreview() {
-    var box = dom.mediaPreview; if (!box) return;
-    box.innerHTML = '';
-    var m = state.media;
-    if (!m) {
-      box.style.display = 'none';
-      if (dom.mediaName) dom.mediaName.textContent = 'No file selected';
-      setMessageOptionalHint(false);
-      return;
-    }
-    box.style.display = 'block';
-    if (dom.mediaName) dom.mediaName.textContent = (m.name || '') + ' (' + m.type + (m.size ? ', ' + formatBytes(m.size) : '') + ')';
-    setMessageOptionalHint(true);
-
-    if (m.kind === 'image' || m.kind === 'gif') {
-      var img = document.createElement('img');
-      img.alt = 'preview';
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      img.src = m.dataUrl;
-      box.appendChild(img);
-      return;
-    }
-    if (m.kind === 'audio') {
-      var au = document.createElement('audio');
-      au.controls = true;
-      au.preload = 'none';
-      au.src = m.dataUrl;
-      box.appendChild(au);
-      return;
-    }
-    if (m.kind === 'video') {
-      var ph = document.createElement('div');
-      ph.className = 'qj-ann-vph';
-      ph.innerHTML = '<div><div style="font-weight:700;font-size:13px;color:var(--text)">🎬 ' + esc(m.name || 'Video') + '</div>'
-                   + '<div class="qj-mini">' + esc(m.type) + (m.size ? ' · ' + formatBytes(m.size) : '') + '</div></div>'
-                   + '<button class="btn btn-secondary btn-sm" type="button">▶ Load Preview</button>';
-      var btn = ph.querySelector('button');
-      btn.addEventListener('click', function () {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Loading…';
-        var v = document.createElement('video');
-        v.controls = true;
-        v.playsInline = true;
-        v.muted = true;
-        v.preload = 'metadata';
-        v.style.maxWidth = '100%';
-        v.style.maxHeight = '240px';
-        v.style.borderRadius = '10px';
-        v.style.display = 'block';
-        v.onloadeddata = function () { ph.replaceWith(v); };
-        v.onerror = function () { btn.disabled = false; btn.textContent = '⚠️ Failed — retry'; };
-        v.src = m.dataUrl;
-        v.load();
-      });
-      box.appendChild(ph);
-      return;
-    }
-    box.innerHTML = '<div class="qj-log-empty">Selected file type is not supported for inline preview.</div>';
+  function parseChatIds(raw) {
+    if (!raw || typeof raw !== 'string') return [];
+    return [...new Set(
+      raw.split(/[\n,\s]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(normalizeChatId)
+        .filter(Boolean)
+    )];
   }
 
-  // ---------- send ----------
-  function setSending(on) {
-    state.sending = !!on;
-    if (!dom.sendBtn) return;
-    dom.sendBtn.disabled = on;
-    if (dom.sendText) dom.sendText.style.display = on ? 'none' : 'inline';
-    if (dom.sendSpin) dom.sendSpin.style.display = on ? 'inline-flex' : 'none';
+  function normalizeChatId(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v).trim();
+    if (!s) return '';
+    return s;
   }
-  function showSummary(total, ok, fail) {
-    if (!dom.summary) return;
-    dom.summary.style.display = 'grid';
-    dom.sumTotal.textContent = String(total || 0);
-    dom.sumOk.textContent    = String(ok || 0);
-    dom.sumFail.textContent  = String(fail || 0);
-  }
-  function hideSummary() { if (dom.summary) dom.summary.style.display = 'none'; }
 
-  function buildPayload(ctx) {
-    var message  = String((dom.message && dom.message.value) || '');
-    var targetT  = (dom.target && dom.target.value === 'list') ? 'list' : 'all';
-    var chatIds  = targetT === 'list' ? normalizeIds(dom.chatIds && dom.chatIds.value) : [];
-    var payload = {
-      tenantId: ctx.tenantId || '',
-      slug: ctx.slug || '',
-      message: message,
-      target: targetT === 'list' ? { type: 'list', chatIds: chatIds } : { type: 'all' }
+  function isObject(v) {
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  function extractChatIdsDeep(node) {
+    const ids = new Set();
+
+    const walk = (value) => {
+      if (value === null || value === undefined) return;
+
+      if (Array.isArray(value)) {
+        value.forEach(walk);
+        return;
+      }
+
+      if (typeof value !== 'object') return;
+
+      if (Object.prototype.hasOwnProperty.call(value, 'chatId')) {
+        const id = normalizeChatId(value.chatId);
+        if (id) ids.add(id);
+      }
+      if (Object.prototype.hasOwnProperty.call(value, 'telegramChatId')) {
+        const id = normalizeChatId(value.telegramChatId);
+        if (id) ids.add(id);
+      }
+      if (Object.prototype.hasOwnProperty.call(value, 'id') && (
+        typeof value.chatId !== 'undefined' ||
+        typeof value.telegramChatId !== 'undefined' ||
+        typeof value.connected !== 'undefined' ||
+        typeof value.used !== 'undefined'
+      )) {
+        const id = normalizeChatId(value.id);
+        if (id) ids.add(id);
+      }
+
+      for (const [k, v] of Object.entries(value)) {
+        if (k === 'chatId' || k === 'telegramChatId' || k === 'id') continue;
+        if (v && typeof v === 'object') walk(v);
+      }
     };
-    if (state.media && state.media.dataUrl) {
-      payload.media = state.media.dataUrl;
-      payload.mediaType = state.media.type;
-      payload.mediaName = state.media.name || '';
-    }
-    return payload;
+
+    walk(node);
+    return [...ids].filter(Boolean);
   }
 
-  async function postAnnouncement(payload) {
-    var endpoint = DEFAULT_ENDPOINT;
-    var res = await fetch(endpoint, {
+  function firstExistingString(...values) {
+    for (const v of values) {
+      if (typeof v === 'string' && v.trim()) return v.trim();
+      if (typeof v === 'number' && isFinite(v)) return String(v);
+    }
+    return '';
+  }
+
+  function setRecipientCountText(text) {
+    const el = qel('annRecipientCount');
+    if (el) el.textContent = text;
+  }
+
+  function setResultBox(kind, text, html) {
+    const el = qel('annResult');
+    if (!el) return;
+    el.style.display = 'block';
+    if (kind === 'success') {
+      el.style.background = 'rgba(16,185,129,0.1)';
+      el.style.color = 'var(--green)';
+    } else if (kind === 'warning') {
+      el.style.background = 'rgba(245,158,11,0.1)';
+      el.style.color = 'var(--amber)';
+    } else {
+      el.style.background = 'rgba(239,68,68,0.1)';
+      el.style.color = 'var(--red)';
+    }
+    if (html) el.innerHTML = html;
+    else el.textContent = text;
+  }
+
+  function renderUI() {
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="card ann-fade-in" style="padding:22px;margin-bottom:16px">
+        <div class="card-header">📢 Compose Announcement</div>
+
+        <label class="field-label" style="margin-top:0">Quick Templates</label>
+        <div id="annTemplates" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+          ${TEMPLATES.map((t, i) => `<button type="button" class="btn btn-secondary btn-sm ann-tpl-btn" data-ann-tpl="${i}">${escapeHtml(t.name)}</button>`).join('')}
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <div>
+            <label class="field-label" style="margin-top:0">Font</label>
+            <select id="annFont" class="input" style="width:160px;padding:8px 12px;font-size:13px">
+              ${FONTS.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex;gap:4px;margin-top:18px">
+            <button type="button" class="btn btn-secondary btn-sm" id="annBoldBtn" style="font-weight:900;font-size:14px" title="Bold">B</button>
+          </div>
+        </div>
+
+        <label class="field-label">Message</label>
+        <textarea id="annComposer" class="input" rows="6" placeholder="Type your announcement here... Use *bold* for emphasis." style="font-size:14px;line-height:1.6"></textarea>
+
+        <label class="field-label">Preview</label>
+        <div id="annPreview" style="padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border);font-size:14px;line-height:1.6;min-height:60px;white-space:pre-wrap;word-break:break-word;color:var(--text);transition:all .2s ease"></div>
+
+        <label class="field-label">Attach Media</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label class="file-btn">📎 Choose File<input type="file" id="annMediaInput" accept="image/*,video/*,audio/*" style="position:absolute;left:-9999px"/></label>
+          <span id="annMediaName" style="font-size:12px;color:var(--text-muted);transition:opacity .2s"></span>
+          <button type="button" id="annMediaClear" class="btn btn-secondary btn-sm" style="display:none">✕ Remove</button>
+        </div>
+        <p style="margin-top:4px;font-size:11px;color:var(--text-muted)">Images, GIFs, videos, audio. Max 10MB. Media over 5MB may be sent as text only depending on backend limits.</p>
+        <div id="annMediaPreview" style="margin-top:8px"></div>
+
+        <label class="field-label">Target Audience</label>
+        <div id="annTargetGroup" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <div class="target-opt selected" data-ann-target="all">🌍 Telegram-connected customers</div>
+          <div class="target-opt" data-ann-target="list">📋 Specific Chat IDs</div>
+        </div>
+        <div id="annTargetListWrap" style="display:none;margin-bottom:12px">
+          <textarea id="annChatIds" class="input" rows="2" placeholder="Comma or newline separated chat IDs..."></textarea>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:10px">
+          <span class="badge badge-blue" id="annRecipientCount">Estimated: 0 recipients</span>
+          <button type="button" class="btn btn-primary" id="annSendBtn">
+            <span id="annSendText">📱 Send Now</span>
+            <span id="annSendSpinner" style="display:none"><span class="spinner"></span>Sending...</span>
+          </button>
+        </div>
+
+        <div id="annResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-weight:600;font-size:13px;transition:all .3s ease"></div>
+      </div>
+
+      <div class="card ann-fade-in" style="padding:22px;animation-delay:.1s">
+        <div class="card-header">📋 Send Log</div>
+        <div id="annSendLog" style="font-size:13px;color:var(--text-muted)">No announcements sent yet.</div>
+      </div>
+    `;
+
+    bindEvents();
+  }
+
+  function bindEvents() {
+    const tplContainer = qel('annTemplates');
+    if (tplContainer) {
+      tplContainer.addEventListener('click', e => {
+        const btn = e.target.closest('[data-ann-tpl]');
+        if (!btn) return;
+        const idx = parseInt(btn.dataset.annTpl, 10);
+        const tpl = TEMPLATES[idx];
+        const composer = qel('annComposer');
+        if (tpl && composer) {
+          composer.value = tpl.text;
+          updatePreview();
+        }
+      });
+    }
+
+    const boldBtn = qel('annBoldBtn');
+    if (boldBtn) {
+      boldBtn.addEventListener('click', () => {
+        const ta = qel('annComposer');
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const val = ta.value;
+        if (start !== end) {
+          ta.value = val.slice(0, start) + '*' + val.slice(start, end) + '*' + val.slice(end);
+        } else {
+          ta.value = val.slice(0, start) + '**' + val.slice(start);
+          ta.selectionStart = ta.selectionEnd = start + 1;
+        }
+        ta.focus();
+        updatePreview();
+      });
+    }
+
+    const composer = qel('annComposer');
+    if (composer) composer.addEventListener('input', schedulePreview);
+
+    const fontSel = qel('annFont');
+    if (fontSel) fontSel.addEventListener('change', updatePreview);
+
+    const mediaInput = qel('annMediaInput');
+    if (mediaInput) mediaInput.addEventListener('change', handleMedia);
+
+    const mediaClear = qel('annMediaClear');
+    if (mediaClear) mediaClear.addEventListener('click', clearMedia);
+
+    const targetGroup = qel('annTargetGroup');
+    if (targetGroup) {
+      targetGroup.querySelectorAll('[data-ann-target]').forEach(opt => {
+        opt.addEventListener('click', () => {
+          targetGroup.querySelectorAll('[data-ann-target]').forEach(x => x.classList.remove('selected'));
+          opt.classList.add('selected');
+          annTarget.type = opt.dataset.annTarget;
+          const listWrap = qel('annTargetListWrap');
+          if (listWrap) listWrap.style.display = annTarget.type === 'list' ? 'block' : 'none';
+          updateRecipientCount();
+        });
+      });
+    }
+
+    const sendBtn = qel('annSendBtn');
+    if (sendBtn) sendBtn.addEventListener('click', doSend);
+
+    const chatIds = qel('annChatIds');
+    if (chatIds) chatIds.addEventListener('input', updateRecipientCount);
+  }
+
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(updatePreview, 150);
+  }
+
+  function updatePreview() {
+    const raw = (qel('annComposer') || {}).value || '';
+    const font = (qel('annFont') || {}).value || 'Inter';
+    const prev = qel('annPreview');
+    if (!prev) return;
+
+    const safe = escapeHtml(raw)
+      .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+
+    prev.innerHTML = safe || '<span style="color:var(--text-light)">Preview will appear here...</span>';
+    prev.style.fontFamily = font + ', sans-serif';
+  }
+
+  function clearObjectUrlsFromPreview() {
+    const prev = qel('annMediaPreview');
+    if (!prev) return;
+
+    const vids = prev.querySelectorAll('video');
+    vids.forEach(v => {
+      try { v.pause(); } catch (_) {}
+      try { v.removeAttribute('src'); } catch (_) {}
+    });
+
+    const audios = prev.querySelectorAll('audio');
+    audios.forEach(a => {
+      try { a.pause(); } catch (_) {}
+      try { a.removeAttribute('src'); } catch (_) {}
+    });
+
+    prev.innerHTML = '';
+  }
+
+  function clearMedia() {
+    annMediaFile = null;
+    annMediaDataUrl = null;
+
+    const input = qel('annMediaInput');
+    if (input) input.value = '';
+
+    const name = qel('annMediaName');
+    if (name) name.textContent = '';
+
+    const clearBtn = qel('annMediaClear');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    clearObjectUrlsFromPreview();
+  }
+
+  function handleMedia(e) {
+    const f = e.target && e.target.files ? e.target.files[0] : null;
+    if (!f) return;
+
+    if (f.size > MAX_INLINE_MEDIA_BYTES) {
+      notify('Max 10MB', 'error');
+      return;
+    }
+
+    annMediaFile = f;
+
+    const nameEl = qel('annMediaName');
+    if (nameEl) nameEl.textContent = `${f.name} (${Math.round(f.size / 1024)}KB)`;
+
+    const clearBtn = qel('annMediaClear');
+    if (clearBtn) clearBtn.style.display = 'inline';
+
+    const prev = qel('annMediaPreview');
+    if (prev) {
+      clearObjectUrlsFromPreview();
+
+      if (f.type.startsWith('video/')) {
+        const url = URL.createObjectURL(f);
+        const placeholder = document.createElement('div');
+        placeholder.className = 'media-placeholder';
+        placeholder.innerHTML = `
+          <div class="mp-meta">
+            <span class="mp-icon">🎬</span>
+            <div>
+              <div style="font-weight:600;font-size:12px;color:var(--text)">${escapeHtml(f.name)}</div>
+              <div style="font-size:10px;color:var(--text-light)">${Math.round(f.size / 1024)} KB</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm mp-load-btn">▶ Load Preview</button>
+        `;
+        const loadBtn = placeholder.querySelector('.mp-load-btn');
+        loadBtn.addEventListener('click', () => {
+          loadBtn.innerHTML = '<span class="spinner"></span> Loading...';
+          loadBtn.disabled = true;
+          const v = document.createElement('video');
+          v.preload = 'none';
+          v.controls = true;
+          v.muted = true;
+          v.playsInline = true;
+          v.style.cssText = 'width:100%;max-width:300px;border-radius:10px';
+          v.onloadeddata = () => { placeholder.replaceWith(v); };
+          v.onerror = () => { loadBtn.textContent = '⚠️ Failed'; loadBtn.disabled = false; };
+          v.src = url;
+          v.load();
+        });
+        prev.appendChild(placeholder);
+      } else if (f.type.startsWith('audio/')) {
+        const url = URL.createObjectURL(f);
+        const a = document.createElement('audio');
+        a.src = url;
+        a.controls = true;
+        a.style.cssText = 'width:100%;max-width:300px';
+        prev.appendChild(a);
+      } else {
+        const url = URL.createObjectURL(f);
+        const img = document.createElement('img');
+        img.src = url;
+        img.loading = 'lazy';
+        img.style.cssText = 'max-width:300px;width:100%;border-radius:10px';
+        prev.appendChild(img);
+      }
+    }
+
+    annMediaDataUrl = null;
+    const reader = new FileReader();
+    reader.onload = () => { annMediaDataUrl = reader.result; };
+    reader.readAsDataURL(f);
+  }
+
+  function updateRecipientCount() {
+    const el = qel('annRecipientCount');
+    if (!el) return;
+
+    if (annTarget.type === 'list') {
+      const raw = (qel('annChatIds') || {}).value || '';
+      const ids = parseChatIds(raw);
+      el.textContent = ids.length > 0 ? `Custom list: ${ids.length} ID(s)` : 'Custom list';
+      return;
+    }
+
+    el.textContent = subscriberCount > 0
+      ? `Estimated: ${subscriberCount} recipients`
+      : 'Estimated: 0 recipients';
+  }
+
+  function getBackendUrl() {
+    // Primary Netlify function endpoint
+    return '/.netlify/functions/announce';
+  }
+
+  async function sendWithRetry(payload) {
+    const doFetch = () => fetch(getBackendUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    var data = {};
-    try { data = await res.json(); } catch (_) {}
-    if (!res.ok) {
-      var err = new Error(data.errorMessage || data.error || ('HTTP ' + res.status));
-      err.status = res.status; err.payload = data;
-      throw err;
+
+    let res;
+    try {
+      res = await doFetch();
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 1000));
+      res = await doFetch();
+      return res;
     }
-    return data;
+
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      await new Promise(r => setTimeout(r, 1500));
+      res = await doFetch();
+    }
+
+    return res;
   }
 
-  async function sendAnnouncement(ctx) {
-    if (state.sending) return;
-    hideSummary();
+  async function doSend() {
+    if (sending) return;
 
-    var msg = String((dom.message && dom.message.value) || '').trim();
-    var hasMedia = !!(state.media && state.media.dataUrl);
+    const composerEl = qel('annComposer');
+    const message = (composerEl ? composerEl.value : '').trim();
 
-    // FIX: picture-only allowed. Only require *something* (text OR media).
-    if (!msg && !hasMedia) {
-      setStatus('Type a message or attach a picture before sending.', 'error');
-      dom.message && dom.message.focus();
+    if (!message) {
+      notify('Enter a message', 'error');
       return;
     }
 
-    var targetT = (dom.target && dom.target.value === 'list') ? 'list' : 'all';
-    if (targetT === 'list') {
-      var ids = normalizeIds(dom.chatIds && dom.chatIds.value);
-      if (!ids.length) { setStatus('Add at least one chat ID for the custom target.', 'error'); dom.chatIds && dom.chatIds.focus(); return; }
+    if (message.length > MAX_MESSAGE_CHARS) {
+      notify(`Message too long (max ${MAX_MESSAGE_CHARS} chars)`, 'error');
+      return;
     }
 
-    var payload = buildPayload(ctx);
-    setSending(true);
-    setStatus(hasMedia && !msg ? 'Sending picture…' : 'Sending announcement…', 'info');
+    const font = (qel('annFont') || {}).value || 'Inter';
+
+    const payload = {
+      slug: ctx && ctx.slug ? ctx.slug : '',
+      tenantId: ctx && ctx.tenantId ? ctx.tenantId : '',
+      message,
+      font,
+      level: 'info',
+      source: 'admin-ui'
+    };
+
+    if (annTarget.type === 'list') {
+      const raw = (qel('annChatIds') || {}).value || '';
+      const ids = parseChatIds(raw);
+      if (!ids.length) {
+        notify('Enter at least one chat ID', 'error');
+        return;
+      }
+      payload.target = { type: 'list', chatIds: ids };
+    } else {
+      payload.target = { type: 'all' };
+      if (activeChatIds.length) payload.telegramChatIds = activeChatIds;
+    }
+
+    if (annMediaFile && annMediaDataUrl) {
+      if (annMediaDataUrl.length > MAX_INLINE_MEDIA_BYTES * 1.37) {
+        notify('Media too large for inline send. Sending text only.', 'error');
+      } else {
+        payload.media = annMediaDataUrl;
+        payload.mediaType = annMediaFile.type;
+        payload.mediaName = annMediaFile.name;
+      }
+    }
+
+    const btn = qel('annSendBtn');
+    const text = qel('annSendText');
+    const spin = qel('annSendSpinner');
+    const resultDiv = qel('annResult');
+
+    sending = true;
+    if (btn) btn.disabled = true;
+    if (text) text.style.display = 'none';
+    if (spin) spin.style.display = 'inline';
 
     try {
-      var data = await postAnnouncement(payload);
-      var ok    = Number(data.success || 0);
-      var fail  = Number(data.failed  || 0);
-      var total = Number(data.total || (Array.isArray(data.chatIds) ? data.chatIds.length : ok + fail));
-      showSummary(total, ok, fail);
+      const res = await sendWithRetry(payload);
+      let body = null;
+      try { body = await res.json(); } catch (_) { body = null; }
 
-      if (total === 0) {
-        setStatus('⚠️ ' + (data.error || 'No Telegram recipients found for this tenant.'), 'error');
-      } else {
-        setStatus(
-          fail > 0
-            ? ('Sent with some failures.\nDelivered: ' + ok + '  •  Failed: ' + fail + '  •  Recipients: ' + total)
-            : ('✅ Sent to ' + ok + ' recipient' + (ok === 1 ? '' : 's') + '.'),
-          fail > 0 ? 'error' : 'success'
+      if (resultDiv) resultDiv.style.display = 'block';
+
+      if (!res.ok) {
+        let errorMsg = 'Unknown error';
+        if (body) errorMsg = body.error || body.message || body.details || JSON.stringify(body).slice(0, 240);
+        if (res.status === 413 || /too large|payload|size/i.test(String(errorMsg))) {
+          errorMsg = 'Payload too large. Remove media or shorten the message.';
+        }
+        setResultBox('error', `⚠️ Server error (${res.status}): ${errorMsg}`);
+        return;
+      }
+
+      const successCount = Number(body && body.success ? body.success : 0);
+      const failedCount = Number(body && body.failed ? body.failed : 0);
+
+      if (successCount > 0) {
+        setResultBox(
+          'success',
+          '',
+          `✅ Sent to ${successCount} recipient(s)${failedCount ? ` · ⚠️ ${failedCount} failed` : ''}`
         );
+
+        if (composerEl) composerEl.value = '';
+        clearMedia();
+        updatePreview();
+
+        if (ctx && typeof ctx.writeAudit === 'function') {
+          try {
+            ctx.writeAudit('announcement_sent', {
+              success: successCount,
+              failed: failedCount,
+              mode: annTarget.type
+            });
+          } catch (_) {}
+        }
+
+        loadSendLog();
+        return;
       }
 
-      if (typeof ctx.writeAudit === 'function') {
-        try { ctx.writeAudit('announcement_sent', { recipients: total, success: ok, failed: fail, hasMedia: hasMedia, target: targetT }); } catch(_){}
+      if (successCount === 0 && failedCount > 0) {
+        setResultBox('error', `⚠️ All ${failedCount} delivery attempts failed`);
+        return;
       }
 
-      // Notify the host admin so it can update its delivery analytics widgets.
-      try {
-        window.dispatchEvent(new CustomEvent('qj:announcement-sent', {
-          detail: { total: total, ok: ok, fail: fail, hasMedia: hasMedia, mediaKind: data.mediaKind || null, ts: Date.now() }
-        }));
-      } catch (_) {}
-
-      // Clear after success.
-      if (dom.message) dom.message.value = '';
-      if (dom.media) dom.media.value = '';
-      state.media = null;
-      renderMediaPreview();
-
-      bindLogs(ctx);
-    } catch (err) {
-      hideSummary();
-      setStatus('❌ ' + (err && err.message ? err.message : 'Announcement failed.'), 'error');
+      setResultBox('error', `⚠️ ${body?.error || body?.message || 'No recipients or unknown response'}`);
+    } catch (e) {
+      notify('Network error: ' + (e.message || 'Failed to connect'), 'error');
+      setResultBox('error', `⚠️ Network error: ${e.message || 'Failed to connect'}`);
     } finally {
-      setSending(false);
+      sending = false;
+      if (btn) btn.disabled = false;
+      if (text) text.style.display = 'inline';
+      if (spin) spin.style.display = 'none';
     }
   }
 
-  // ---------- logs ----------
-  function summarizeLogNode(node) {
-    // Prefer the new "_summary" row when present.
-    if (node && typeof node === 'object' && node._summary && typeof node._summary === 'object') {
-      var s = node._summary;
-      return {
-        ok: Number(s.ok || 0),
-        fail: Number(s.fail || 0),
-        total: Number(s.total || 0),
-        latest: Number(s.ts || 0),
-        hasMedia: !!s.hasMedia,
-        mediaKind: s.mediaKind || null,
-        preview: s.preview || ''
-      };
-    }
-    var ok=0, fail=0, latest=0;
-    if (!node || typeof node !== 'object') return { ok:0, fail:0, total:0, latest:0 };
-    Object.entries(node).forEach(function(entry){
-      var k = entry[0], v = entry[1];
-      if (k === '_summary') return;
-      if (!v || typeof v !== 'object') return;
-      if (v.status === 'ok') ok++;
-      else if (v.status === 'failed') fail++;
-      var t = Number(v.ts || 0); if (t > latest) latest = t;
-    });
-    return { ok:ok, fail:fail, total: ok+fail, latest:latest, hasMedia:false, mediaKind:null, preview:'' };
+  function getTimestampFromAnnouncementNode(node) {
+    if (!node) return 0;
+    if (typeof node.ts === 'number') return node.ts;
+    if (typeof node.timestamp === 'number') return node.timestamp;
+    if (typeof node.createdAt === 'number') return node.createdAt;
+    return 0;
   }
 
-  function renderLogs(rows) {
-    if (!dom.logs) return;
-    if (!rows || !rows.length) { dom.logs.innerHTML = '<div class="qj-log-empty">No logs yet.</div>'; return; }
-    dom.logs.innerHTML = rows.map(function(r) {
-      var when = r.latest ? new Date(r.latest).toLocaleString() : '—';
-      var meta = [];
-      if (r.hasMedia) meta.push((r.mediaKind || 'media').toUpperCase());
-      if (r.preview)  meta.push('“' + esc(r.preview) + '”');
-      var metaHtml = meta.length ? '<div class="qj-log-meta">' + meta.join(' · ') + '</div>' : '';
-      return '<div class="qj-log-item">'
-           +   '<div class="qj-log-top">'
-           +     '<div><div class="qj-log-title">' + esc(r.id) + '</div>'
-           +     '<div class="qj-log-meta">' + esc(when) + '</div>'
-           +     metaHtml
-           +     '</div>'
-           +   '</div>'
-           +   '<div class="qj-log-badges">'
-           +     '<span class="qj-log-badge total">Total ' + r.total + '</span>'
-           +     '<span class="qj-log-badge ok">Delivered ' + r.ok + '</span>'
-           +     '<span class="qj-log-badge fail">Failed ' + r.fail + '</span>'
-           +   '</div>'
-           + '</div>';
+  function renderSendLogRows(data) {
+    const announcements = Object.entries(data)
+      .sort((a, b) => getTimestampFromAnnouncementNode(b[1]) - getTimestampFromAnnouncementNode(a[1]))
+      .slice(0, 10);
+
+    if (!announcements.length) {
+      return '<p style="color:var(--text-muted)">No send logs yet.</p>';
+    }
+
+    return announcements.map(([annId, annNode]) => {
+      if (!isObject(annNode)) {
+        return `<div class="audit-entry"><div class="audit-time">${escapeHtml(ctx && typeof ctx.formatDate === 'function' ? ctx.formatDate(0) : '')}</div><div>${escapeHtml(annId)}</div></div>`;
+      }
+
+      let ok = 0;
+      let fail = 0;
+      let ts = 0;
+
+      const chatEntries = Object.entries(annNode);
+      for (const [, v] of chatEntries) {
+        if (!v || typeof v !== 'object') continue;
+        ts = Math.max(ts, getTimestampFromAnnouncementNode(v));
+        if (String(v.status || '').toLowerCase() === 'ok' || String(v.status || '').toLowerCase() === 'sent') ok += 1;
+        else fail += 1;
+      }
+
+      const fmt = ctx && typeof ctx.formatDate === 'function'
+        ? ctx.formatDate(ts)
+        : new Date(ts || Date.now()).toLocaleString();
+
+      return `
+        <div class="audit-entry" style="transition:background .15s">
+          <div class="audit-time">${escapeHtml(fmt)} — ${escapeHtml(annId)}</div>
+          <div style="margin-top:4px">
+            <span class="badge badge-green">${ok} sent</span>
+            ${fail ? `<span class="badge badge-red">${fail} failed</span>` : ''}
+          </div>
+        </div>
+      `;
     }).join('');
   }
 
-  function bindLogs(ctx) {
-    if (typeof ctx.onValue !== 'function' || typeof ctx.tRef !== 'function') return;
-    if (state.logsUnsub) { try { state.logsUnsub(); } catch(_){} state.logsUnsub = null; }
-    try {
-      var unsub = ctx.onValue(ctx.tRef('public/announcementLogs'), function(snap) {
-        var val = snap && snap.exists && snap.exists() ? snap.val() : null;
-        if (!val) {
-          renderLogs([]);
-          try { window.dispatchEvent(new CustomEvent('qj:announcement-logs', { detail: { logs: [] } })); } catch(_){}
-          return;
-        }
-        var rows = Object.entries(val).map(function(e){
-          var sum = summarizeLogNode(e[1]);
-          return { id: e[0], ok: sum.ok, fail: sum.fail, total: sum.total, latest: sum.latest, hasMedia: sum.hasMedia, mediaKind: sum.mediaKind, preview: sum.preview };
-        }).sort(function(a,b){ return (b.latest||0) - (a.latest||0); }).slice(0, 20);
-        renderLogs(rows);
-        // Make logs available for delivery analytics in the admin shell.
-        try {
-          window.__qjAnnouncementLogs = rows;
-          window.dispatchEvent(new CustomEvent('qj:announcement-logs', { detail: { logs: rows } }));
-        } catch(_){}
-      });
-      if (typeof unsub === 'function') state.logsUnsub = unsub;
-    } catch (_) {}
-  }
+  function loadSendLog() {
+    if (!ctx || !ctx.get || !ctx.tRef) return;
 
-  // ---------- bindings ----------
-  function bind(ctx) {
-    if (state.bound) return;
+    const logPaths = [
+      'integrations/telegram/sentAnnouncements',
+      'integrations/telegram/announcementLogs',
+      'announcements/sent',
+      'announcements/logs'
+    ];
 
-    if (dom.target) dom.target.addEventListener('change', function(){
-      dom.chatIdsWrap.style.display = dom.target.value === 'list' ? 'block' : 'none';
-    });
-
-    if (dom.template) dom.template.addEventListener('change', function(){
-      var t = TEMPLATES.find(function(x){ return x.id === dom.template.value; });
-      if (!t || !dom.message) return;
-      var current = String(dom.message.value || '').trim();
-      var isOtherTemplate = TEMPLATES.some(function(x){ return x.text && x.text.trim() === current; });
-      if (!current || isOtherTemplate) dom.message.value = t.text || '';
-      if (current && !isOtherTemplate && t.text) {
-        if (window.confirm('Replace your current message with the template?')) dom.message.value = t.text;
-      }
-      dom.message.focus();
-    });
-
-    if (dom.message) dom.message.addEventListener('keydown', function(e){
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); sendAnnouncement(ctx); }
-    });
-
-    if (dom.sendBtn) dom.sendBtn.addEventListener('click', function(){ sendAnnouncement(ctx); });
-
-    if (dom.media) dom.media.addEventListener('change', async function(e){
-      var f = e.target.files && e.target.files[0];
-      if (!f) { state.media = null; renderMediaPreview(); return; }
-      if (f.size > MAX_MEDIA_BYTES) {
-        state.media = null; renderMediaPreview();
-        setStatus('File too large (' + formatBytes(f.size) + '). Max is ' + formatBytes(MAX_MEDIA_BYTES) + '.', 'error');
-        if (dom.media) dom.media.value = '';
+    const tryPath = (idx) => {
+      if (idx >= logPaths.length) {
+        const logDiv = qel('annSendLog');
+        if (logDiv) logDiv.innerHTML = '<p style="color:var(--text-muted)">No send logs yet.</p>';
         return;
       }
-      var kind = guessMediaKind(f);
-      if (kind === 'unknown') { state.media = null; renderMediaPreview(); setStatus('Unsupported file type. Use image, GIF, video, or audio.', 'error'); return; }
+
+      ctx.get(ctx.tRef(logPaths[idx]))
+        .then(snap => {
+          if (!snap || !snap.exists()) {
+            tryPath(idx + 1);
+            return;
+          }
+
+          const data = snap.val();
+          const logDiv = qel('annSendLog');
+          if (!logDiv) return;
+
+          if (!data || typeof data !== 'object') {
+            tryPath(idx + 1);
+            return;
+          }
+
+          logDiv.innerHTML = renderSendLogRows(data);
+        })
+        .catch(() => {
+          tryPath(idx + 1);
+        });
+    };
+
+    tryPath(0);
+  }
+
+  function collectTelegramChatIds() {
+    if (!ctx || !ctx.get || !ctx.tRef) return Promise.resolve([]);
+
+    const paths = [
+      'integrations/telegram/tokens',
+      'integrations/telegram/connected',
+      'integrations/telegram/chatIds',
+      'integrations/telegram/subscribers',
+      'telegramTokens',
+      'telegramConnections',
+      'telegram/connected',
+      'telegram/chatIds',
+      'telegram/subscribers'
+    ];
+
+    return Promise.all(paths.map(path => {
+      return ctx.get(ctx.tRef(path))
+        .then(snap => (snap && snap.exists()) ? snap.val() : null)
+        .catch(() => null);
+    })).then(values => {
+      const ids = new Set();
+      values.forEach(v => {
+        extractChatIdsDeep(v).forEach(id => ids.add(id));
+      });
+      return [...ids].filter(Boolean);
+    });
+  }
+
+  function attachLiveSubscriberWatchers() {
+    if (!ctx || !ctx.onValue || !ctx.tRef) return;
+
+    const paths = [
+      'integrations/telegram/tokens',
+      'integrations/telegram/connected',
+      'integrations/telegram/chatIds',
+      'integrations/telegram/subscribers',
+      'telegramTokens',
+      'telegramConnections',
+      'telegram/connected',
+      'telegram/chatIds',
+      'telegram/subscribers'
+    ];
+
+    // avoid duplicate subscriptions if init is called more than once unexpectedly
+    if (subscribedPaths.length) return;
+    subscribedPaths = paths.slice();
+
+    paths.forEach(path => {
       try {
-        var data = await fileToDataUrl(f);
-        state.media = { kind: kind, dataUrl: data, type: f.type, name: f.name, size: f.size };
-        renderMediaPreview();
-        setStatus('Media loaded: ' + f.name + ' — text is optional now.', 'info');
-      } catch (_) {
-        state.media = null; renderMediaPreview(); setStatus('Failed to read media file.', 'error');
+        ctx.onValue(ctx.tRef(path), snap => {
+          if (!snap || !snap.exists()) return;
+          const ids = extractChatIdsDeep(snap.val());
+          if (!ids.length) return;
+
+          const merged = new Set([...activeChatIds, ...ids].map(normalizeChatId).filter(Boolean));
+          activeChatIds = [...merged];
+          subscriberCount = activeChatIds.length;
+          updateRecipientCount();
+        });
+      } catch (_) {}
+    });
+  }
+
+  function refreshSubscribers() {
+    return collectTelegramChatIds().then(ids => {
+      activeChatIds = ids;
+      subscriberCount = ids.length;
+      updateRecipientCount();
+      return ids;
+    });
+  }
+
+  function loadDefaultRecipients() {
+    attachLiveSubscriberWatchers();
+    refreshSubscribers().catch(() => {});
+  }
+
+  function init(context) {
+    if (initialized) return;
+    initialized = true;
+
+    ctx = context || {};
+    container = document.getElementById('announceContainer');
+
+    if (!container) {
+      console.error('announce.js: #announceContainer not found');
+      return;
+    }
+
+    renderUI();
+    updatePreview();
+    loadDefaultRecipients();
+    loadSendLog();
+
+    if (ctx && typeof ctx.writeAudit === 'function' && !loadedOnce) {
+      loadedOnce = true;
+      try {
+        ctx.writeAudit('announcement_ui_loaded');
+      } catch (_) {}
+    }
+  }
+
+  root.__announceModule = {
+    init,
+    getSubscriberCount() {
+      return subscriberCount;
+    },
+    refreshSubscribers
+  };
+
+  // Auto-init if the container is already present
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function') {
+          root.__announceModule.init(root.__announceCtx || null);
+        }
+      });
+    } else {
+      if (document.getElementById('announceContainer') && root.__announceModule && typeof root.__announceModule.init === 'function') {
+        // Only auto-init if a context was preloaded
+        if (root.__announceCtx) root.__announceModule.init(root.__announceCtx);
       }
-    });
-
-    if (dom.clearMediaBtn) dom.clearMediaBtn.addEventListener('click', function(){
-      state.media = null;
-      if (dom.media) dom.media.value = '';
-      renderMediaPreview();
-      setStatus('Media cleared.', 'info');
-    });
-
-    if (dom.refreshLogs) dom.refreshLogs.addEventListener('click', function(){ bindLogs(ctx); });
-
-    state.bound = true;
+    }
   }
-
-  // ---------- public ----------
-  function init(ctx) {
-    if (!ctx || typeof ctx !== 'object') return;
-    state.ctx = ctx;
-    ensureStyles();
-    if (!state.mounted) { renderShell(); state.mounted = true; }
-    if (dom.tenantChip)   dom.tenantChip.textContent   = ctx.slug || ctx.tenantId || '—';
-    if (dom.endpointChip) dom.endpointChip.textContent = DEFAULT_ENDPOINT;
-    bind(ctx);
-    bindLogs(ctx);
-    setStatus('Ready.', 'info');
-  }
-
-  window.__announceModule = { init: init };
 })();
