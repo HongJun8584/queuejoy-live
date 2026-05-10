@@ -159,7 +159,9 @@ const state = {
   isJoining: false,
   sessionId: '',
   liveUnsubs: [],
-  queueMonitorUnsub: null
+  queueMonitorUnsub: null,
+  lastAd: null,
+  lastAdKey: ''
 };
 
 function safeString(value, fallback = '') {
@@ -235,7 +237,7 @@ function isSafeVideoUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const lower = url.trim().toLowerCase();
   if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
-  if (isDataVideoUrl(url)) return false; // blocked on purpose to avoid heavy base64 video payloads
+  if (isDataVideoUrl(url)) return false;
   return isHttpUrl(url);
 }
 function isActiveCounter(counter) {
@@ -316,127 +318,34 @@ function setCenterLogo(url) {
   }
 }
 
-function showAd(adData, adText) {
-  const panel = $('adCard');
-  const container = $('adContent');
-  const textEl = $('adText');
-  if (!panel || !container) return;
-
-  container.innerHTML = '';
-  if (textEl) {
-    textEl.style.display = 'none';
-    textEl.textContent = '';
+function adCacheKey() {
+  return state.tenantId ? `qj_ad_cache_${state.tenantId}` : 'qj_ad_cache_global';
+}
+function loadCachedAd() {
+  try {
+    const raw = localStorage.getItem(adCacheKey());
+    if (!raw) return null;
+    const ad = JSON.parse(raw);
+    if (!ad || typeof ad !== 'object' || !ad.url) return null;
+    return ad;
+  } catch (_) {
+    return null;
   }
-
-  if (!adData) {
-    panel.style.display = 'none';
-    return;
-  }
-
-  let url = null;
-  let linkHref = null;
-  let kind = 'auto';
-
-  if (typeof adData === 'string') {
-    url = adData.trim();
-  } else if (typeof adData === 'object') {
-    url = pickFirst(adData.image, adData.video, adData.url, adData.src);
-    linkHref = pickFirst(adData.link, adData.href);
-    kind = adData.kind || (adData.video ? 'video' : adData.image ? 'image' : 'auto');
-    if (!adText) adText = pickFirst(adData.text, adData.description);
-  }
-
-  if (!url) {
-    panel.style.display = 'none';
-    return;
-  }
-
-  if (adText && textEl) {
-    textEl.textContent = adText;
-    textEl.style.display = '';
-  }
-
-  const showPanel = () => { panel.style.display = ''; };
-  const hidePanel = () => { panel.style.display = 'none'; };
-
-  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
-    let embedSrc = url;
-    try {
-      if (/youtube\.com\/watch\?v=/.test(url)) {
-        const vid = new URL(url).searchParams.get('v');
-        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1`;
-      } else if (/youtu\.be\//.test(url)) {
-        const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
-        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1`;
-      } else if (/vimeo\.com/i.test(url)) {
-        const id = url.split('/').filter(Boolean).pop().split(/[?#]/)[0];
-        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
-      }
-    } catch {}
-    container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
-      <iframe src="${embedSrc}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen
-      style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>`;
-    showPanel();
-    return;
-  }
-
-  const looksLikeVideo =
-    kind === 'video' ||
-    (isSafeVideoUrl(url) && /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url));
-
-  if (looksLikeVideo) {
-    const v = document.createElement('video');
-    v.src = url;
-    v.className = 'ad-media-video';
-    v.autoplay = true;
-    v.muted = true;
-    v.loop = true;
-    v.playsInline = true;
-    v.preload = 'metadata';
-    v.controls = false;
-    v.setAttribute('muted', '');
-    v.setAttribute('playsinline', '');
-    v.setAttribute('webkit-playsinline', '');
-
-    v.addEventListener('loadedmetadata', showPanel);
-    v.addEventListener('canplay', () => {
-      showPanel();
-      v.play().catch(() => {});
-    });
-    v.addEventListener('error', hidePanel);
-
-    container.appendChild(v);
-
-    const playNow = () => v.play().catch(() => {});
-    requestAnimationFrame(playNow);
-    setTimeout(playNow, 250);
-    setTimeout(playNow, 1000);
-    return;
-  }
-
-  const isImage = isSafeImageUrl(url);
-  if (isImage) {
-    const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
-    if (linkHref) {
-      wrapper.href = linkHref;
-      wrapper.target = '_blank';
-      wrapper.rel = 'noopener noreferrer';
-      wrapper.className = 'ad-link';
-    }
-    const img = document.createElement('img');
-    img.src = url;
-    img.className = 'ad-media';
-    img.alt = 'Promotion';
-    img.loading = 'lazy';
-    img.referrerPolicy = 'no-referrer';
-    img.onload = showPanel;
-    img.onerror = hidePanel;
-    wrapper.appendChild(img);
-    container.appendChild(wrapper);
-    return;
-  }
-
-  hidePanel();
+}
+function saveCachedAd(ad) {
+  try {
+    if (!ad || !ad.url) return;
+    localStorage.setItem(adCacheKey(), JSON.stringify(ad));
+  } catch (_) {}
+}
+function clearCachedAd() {
+  try {
+    localStorage.removeItem(adCacheKey());
+  } catch (_) {}
+}
+function adSignature(ad) {
+  if (!ad || typeof ad !== 'object') return '';
+  return [ad.kind || '', ad.url || '', ad.link || '', ad.text || '', ad.title || ''].join('|');
 }
 
 function normalizeAdData(cfg) {
@@ -452,20 +361,27 @@ function normalizeAdData(cfg) {
   const imageUrl = pickFirst(
     adPanel?.image,
     ad?.image,
+    ad?.img,
+    ad?.photo,
     raw.adImage,
-    business?.adImage
+    raw.adImageUrl,
+    business?.adImage,
+    business?.adImageUrl
   );
   const videoUrl = pickFirst(
     adPanel?.video,
     ad?.video,
     raw.adVideo,
-    business?.adVideo
+    raw.adVideoUrl,
+    business?.adVideo,
+    business?.adVideoUrl
   );
   const genericUrl = pickFirst(
     adPanel?.url, adPanel?.src,
     ad?.url, ad?.src,
     raw.adUrl, raw.adSrc,
-    business?.adUrl, business?.adSrc
+    business?.adUrl, business?.adSrc,
+    ad?.link, ad?.href
   );
   const link = pickFirst(
     adPanel?.link, adPanel?.href,
@@ -479,30 +395,169 @@ function normalizeAdData(cfg) {
     raw.adText,
     business?.adText
   );
+  const title = pickFirst(
+    adPanel?.title,
+    ad?.title,
+    raw.adTitle,
+    business?.adTitle
+  );
 
-  if (imageUrl) return { url: imageUrl, link, text, kind: 'image' };
-  if (videoUrl) return { url: videoUrl, link, text, kind: 'video' };
+  if (imageUrl) return { url: imageUrl, link, text, title, kind: 'image' };
+  if (videoUrl) return { url: videoUrl, link, text, title, kind: 'video' };
   if (genericUrl) {
     const looksLikeVideo = /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(genericUrl) || /youtube\.com|youtu\.be|vimeo\.com/i.test(genericUrl);
-    return { url: genericUrl, link, text, kind: looksLikeVideo ? 'video' : 'image' };
+    return { url: genericUrl, link, text, title, kind: looksLikeVideo ? 'video' : 'image' };
   }
   return null;
+}
+
+function renderAd(adData, fromCache = false) {
+  const panel = $('adCard');
+  const container = $('adContent');
+  const textEl = $('adText');
+  if (!panel || !container) return;
+
+  if (!adData || !adData.url) {
+    if (state.lastWorkingAd) {
+      renderAd(state.lastWorkingAd, true);
+      return;
+    }
+    panel.style.display = 'none';
+    return;
+  }
+
+  const url = safeString(adData.url);
+  const text = safeString(adData.text);
+  const linkHref = safeString(adData.link);
+  const kind = safeString(adData.kind, 'image');
+
+  container.innerHTML = '';
+  panel.style.display = '';
+  panel.style.visibility = 'visible';
+  panel.style.opacity = '1';
+
+  if (textEl) {
+    if (text) {
+      textEl.textContent = text;
+      textEl.style.display = '';
+    } else {
+      textEl.style.display = 'none';
+      textEl.textContent = '';
+    }
+  }
+
+  const showPanel = () => {
+    panel.style.display = '';
+    panel.style.visibility = 'visible';
+    panel.style.opacity = '1';
+  };
+
+  const retryRender = () => {
+    clearTimeout(state.adRetryTimer);
+    state.adRetryTimer = setTimeout(() => {
+      if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
+    }, 1200);
+  };
+
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
+    let embedSrc = url;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(url)) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?autoplay=1&mute=1&playsinline=1&rel=0`;
+      } else if (/youtu\.be\//.test(url)) {
+        const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
+        embedSrc = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`;
+      } else if (/vimeo\.com/i.test(url)) {
+        const id = url.split('/').filter(Boolean).pop().split(/[?#]/)[0];
+        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
+      }
+    } catch (e) {
+      console.error('embed parse error', e);
+    }
+
+    container.innerHTML = `<div style="position:relative;width:100%;padding-top:56.25%;background:#000;overflow:hidden;border-radius:12px;"><iframe src="${embedSrc}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;border:0;"></iframe></div>`;
+    showPanel();
+    state.lastWorkingAd = adData;
+    saveCachedAd(adData);
+    return;
+  }
+
+  const looksLikeVideo = kind === 'video' || /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url);
+
+  if (looksLikeVideo) {
+    const video = document.createElement('video');
+    video.className = 'ad-media-video';
+    video.src = url;
+    video.autoplay = true;
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.controls = false;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    video.addEventListener('loadeddata', showPanel);
+    video.addEventListener('canplay', () => { showPanel(); video.play().catch(() => {}); });
+    video.addEventListener('error', e => { console.error('video ad failed', e); if (!fromCache) retryRender(); });
+
+    container.appendChild(video);
+    requestAnimationFrame(() => video.play().catch(() => {}));
+    state.lastWorkingAd = adData;
+    saveCachedAd(adData);
+    return;
+  }
+
+  const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
+  if (linkHref) {
+    wrapper.href = linkHref;
+    wrapper.target = '_blank';
+    wrapper.rel = 'noopener noreferrer';
+    wrapper.className = 'ad-link';
+  }
+
+  const img = document.createElement('img');
+  img.className = 'ad-media';
+  img.src = url;
+  img.alt = 'Promotion';
+  img.loading = 'eager';
+  img.decoding = 'async';
+  img.referrerPolicy = 'no-referrer';
+  img.onload = () => showPanel();
+  img.onerror = e => { console.error('image ad failed', e); if (!fromCache) retryRender(); };
+
+  wrapper.appendChild(img);
+  container.appendChild(wrapper);
+  showPanel();
+  state.lastWorkingAd = adData;
+  saveCachedAd(adData);
+}
+
+function showAd(adData) {
+  renderAd(adData, false);
 }
 
 async function refreshAdFromTenantConfig() {
   if (!db || !state.tenantId) return;
   try {
     const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
-    if (snap?.exists?.()) {
-      const cfg = snap.val() || {};
-      const ad = normalizeAdData(cfg);
-      if (ad) {
-        showAd(ad, ad.text || null);
-        return;
-      }
+    if (!snap.exists()) {
+      if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
+      return;
     }
-    $('adCard')?.style && ($('adCard').style.display = 'none');
-  } catch {}
+    const cfg = snap.val() || {};
+    const ad = normalizeAdData(cfg);
+    if (ad && ad.url) {
+      showAd(ad);
+      return;
+    }
+    if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
+  } catch (err) {
+    console.error('refreshAdFromTenantConfig failed', err);
+    if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
+  }
 }
 
 function updateStatusLine() {
@@ -595,8 +650,13 @@ function applyConfig(cfg) {
   }
 
   const ad = normalizeAdData(cfg);
-  if (ad) showAd(ad, ad.text || null);
-  else $('adCard') && ($('adCard').style.display = 'none');
+  if (ad && ad.url) {
+    showAd(ad);
+  } else if (state.lastWorkingAd) {
+    renderAd(state.lastWorkingAd, true);
+  } else {
+    $('adCard') && ($('adCard').style.display = 'none');
+  }
 }
 
 function getActiveCounters() {
@@ -760,6 +820,7 @@ async function bootstrap() {
   }
 
   state.tenantId = tenantId;
+  state.lastAd = loadCachedAd();
   window.__TENANT_ID = tenantId;
 
   const configRef = ref(db, `tenants/${tenantId}/public/config`);
@@ -807,8 +868,19 @@ async function bootstrap() {
     if (!snap.exists()) return;
     state.config = snap.val() || {};
     applyConfig(state.config);
+
+    const ad = normalizeAdData(state.config);
+    if (ad && ad.url) {
+      showAd(ad);
+    } else if (state.lastWorkingAd) {
+      renderAd(state.lastWorkingAd, true);
+    }
+
     updateCtaState();
-  }, err => console.error('config listener error', err)));
+  }, err => {
+    console.error('config listener error', err);
+    if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
+  }));
 
   state.liveUnsubs.push(onValue(countersRef, snap => {
     state.counters = snap.exists() ? (snap.val() || {}) : {};
@@ -824,6 +896,7 @@ async function bootstrap() {
 
   updateStatusLine();
   updateCtaState();
+  refreshAdFromTenantConfig().catch(() => {});
 }
 
 window.addEventListener('pagehide', cleanupListeners);
