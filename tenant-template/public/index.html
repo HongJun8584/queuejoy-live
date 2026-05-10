@@ -446,7 +446,7 @@ function normalizeAdData(cfg) {
     business?.adTitle
   );
 
-  if (imageUrl) return { url: imageUrl, link, text, title, kind: 'image' };
+  if (imageUrl) return { url: imageUrl, link, text, title, kind: isGifUrl(imageUrl) ? 'image' : 'image' };
   if (videoUrl) return { url: videoUrl, link, text, title, kind: 'video' };
   if (genericUrl) {
     return { url: genericUrl, link, text, title, kind: isProbablyVideoUrl(genericUrl, '') ? 'video' : 'image' };
@@ -502,25 +502,40 @@ function renderAd(adData, fromCache = false) {
     }, 1200);
   };
 
-  // YouTube/Vimeo are rendered as a safe preview card + open button.
-  // This avoids embedded player configuration errors such as YouTube error 153.
+  // YouTube/Vimeo are rendered as an auto-playing embedded player with loop.
+  // Sound is left ON by default. Browsers may still block autoplay-with-sound
+  // until the user has interacted with the page.
   if (isYoutubeOrVimeo(url)) {
     const youtubeId = extractYoutubeId(url);
     const vimeoId = extractVimeoId(url);
-    let thumbUrl = '';
+    let playerSrc = url;
 
-    if (youtubeId) {
-      thumbUrl = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+    try {
+      if (youtubeId) {
+        playerSrc = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&controls=1&playsinline=1&loop=1&playlist=${youtubeId}&rel=0&modestbranding=1&mute=0`;
+      } else if (vimeoId) {
+        playerSrc = `https://player.vimeo.com/video/${vimeoId}?autoplay=1&loop=1&muted=0&title=0&byline=0&portrait=0&playsinline=1`;
+      }
+    } catch (e) {
+      console.error('embed parse error', e);
     }
 
-    const openLink = linkHref || url;
-    const videoLabel = youtubeId ? 'YouTube video' : (vimeoId ? 'Vimeo video' : 'Hosted video');
-
+    const label = text || adData.title || 'Advertisement';
     container.innerHTML = `
       <div style="padding:12px">
-        <div style="position:relative;border-radius:12px;overflow:hidden;background:#111;min-height:170px;display:flex;align-items:center;justify-content:center">
-          ${thumbUrl ? `<img src="${thumbUrl}" alt="Video preview" loading="eager" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block">` : `<div style="width:100%;height:170px;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,#222,#111)">🎬 ${videoLabel}</div>`}
-          <a href="${openLink}" target="_blank" rel="noopener noreferrer" style="position:absolute;inset:auto 12px 12px 12px;background:rgba(0,0,0,.72);color:#fff;text-decoration:none;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;text-align:center">▶ Open video</a>
+        <div style="position:relative;border-radius:12px;overflow:hidden;background:#111;min-height:170px">
+          <iframe
+            src="${playerSrc}"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+            loading="eager"
+            referrerpolicy="no-referrer"
+            style="width:100%;height:220px;border:0;display:block;background:#000"
+          ></iframe>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <span>${escapeHtml(label)}</span>
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;color:var(--theme);text-decoration:none">Open</a>
         </div>
       </div>`;
 
@@ -536,18 +551,20 @@ function renderAd(adData, fromCache = false) {
     video.className = 'ad-media-video';
     video.src = url;
     video.autoplay = true;
-    video.muted = true;
+    video.muted = false;
     video.loop = true;
     video.playsInline = true;
     video.preload = 'metadata';
     video.controls = true;
-    video.setAttribute('muted', '');
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
 
     video.addEventListener('loadedmetadata', keepOpen);
     video.addEventListener('loadeddata', keepOpen);
-    video.addEventListener('canplay', () => { keepOpen(); video.play().catch(() => {}); });
+    video.addEventListener('canplay', () => {
+      keepOpen();
+      video.play().catch(() => {});
+    });
     video.addEventListener('error', e => { console.error('video ad failed', e); if (!fromCache) retryLater(); });
 
     container.appendChild(video);
