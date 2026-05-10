@@ -160,7 +160,13 @@ const state = {
   sessionId: '',
   liveUnsubs: [],
   queueMonitorUnsub: null,
-  adPlayer: null
+
+  // Ad runtime state
+  adRetryTimer: null,
+  adRetryCount: 0,
+  adLastGood: null,
+  adLastKey: '',
+  adRenderSeq: 0
 };
 
 function safeString(value, fallback = '') {
@@ -236,7 +242,7 @@ function isSafeVideoUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const lower = url.trim().toLowerCase();
   if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
-  if (isDataVideoUrl(url)) return false;
+  if (isDataVideoUrl(url)) return false; // blocked on purpose to avoid heavy base64 video payloads
   return isHttpUrl(url);
 }
 function isActiveCounter(counter) {
@@ -317,52 +323,39 @@ function setCenterLogo(url) {
   }
 }
 
-let youtubeApiPromise = null;
-function loadYouTubeIframeApi() {
-  if (window.YT && window.YT.Player) return Promise.resolve();
-  if (!youtubeApiPromise) {
-    youtubeApiPromise = new Promise(resolve => {
-      const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        try { if (typeof prev === 'function') prev(); } catch {}
-        resolve();
-      };
-      if (!document.querySelector('script[data-qj-youtube-api="1"]')) {
-        const script = document.createElement('script');
-        script.src = 'https://www.youtube.com/iframe_api';
-        script.async = true;
-        script.dataset.qjYoutubeApi = '1';
-        document.head.appendChild(script);
-      }
-    });
+function clearAdRetryTimer() {
+  if (state.adRetryTimer) {
+    clearTimeout(state.adRetryTimer);
+    state.adRetryTimer = null;
   }
-  return youtubeApiPromise;
 }
-function destroyAdPlayer() {
-  if (state.adPlayer && typeof state.adPlayer.destroy === 'function') {
-    try { state.adPlayer.destroy(); } catch {}
-  }
-  state.adPlayer = null;
+
+function showAdPanel() {
+  const panel = $('adCard');
+  if (panel) panel.style.display = '';
 }
-function extractYouTubeVideoId(url) {
-  if (!url || typeof url !== 'string') return '';
-  try {
-    const u = new URL(url, window.location.href);
-    if (u.hostname.includes('youtu.be')) {
-      return u.pathname.split('/').filter(Boolean)[0] || '';
-    }
-    if (u.searchParams.get('v')) return u.searchParams.get('v') || '';
-    const parts = u.pathname.split('/').filter(Boolean);
-    const embedIndex = parts.indexOf('embed');
-    if (embedIndex >= 0 && parts[embedIndex + 1]) return parts[embedIndex + 1];
-    return parts.pop() || '';
-  } catch {
-    const m =
-      url.match(/[?&]v=([^&#]+)/i) ||
-      url.match(/youtu\.be\/([^&#?/]+)/i) ||
-      url.match(/youtube\.com\/embed\/([^&#?/]+)/i);
-    return m ? decodeURIComponent(m[1]) : '';
-  }
+
+function hideAdPanel() {
+  const panel = $('adCard');
+  if (panel) panel.style.display = 'none';
+}
+
+function rememberGoodAd(adData, adText) {
+  state.adLastGood = {
+    adData: JSON.parse(JSON.stringify(adData || null)),
+    adText: safeString(adText, ''),
+    at: Date.now()
+  };
+  state.adRetryCount = 0;
+}
+
+function retryAdRender() {
+  clearAdRetryTimer();
+  if (state.adRetryCount >= 4) return;
+  state.adRetryCount += 1;
+  state.adRetryTimer = setTimeout(() => {
+    refreshAdFromTenantConfig(true).catch(() => {});
+  }, 650 * state.adRetryCount);
 }
 
 function showAd(adData, adText) {
@@ -371,7 +364,10 @@ function showAd(adData, adText) {
   const textEl = $('adText');
   if (!panel || !container) return;
 
-  destroyAdPlayer();
+  state.adRenderSeq += 1;
+  const renderSeq = state.adRenderSeq;
+
+  clearAdRetryTimer();
   container.innerHTML = '';
   if (textEl) {
     textEl.style.display = 'none';
@@ -379,8 +375,13 @@ function showAd(adData, adText) {
   }
 
   if (!adData) {
-    panel.style.display = 'none';
-    return;
+    if (state.adLastGood?.adData) {
+      adData = state.adLastGood.adData;
+      adText = state.adLastGood.adText;
+    } else {
+      hideAdPanel();
+      return;
+    }
   }
 
   let url = null;
@@ -397,7 +398,21 @@ function showAd(adData, adText) {
   }
 
   if (!url) {
-    panel.style.display = 'none';
+    if (state.adLastGood?.adData) {
+      url = pickFirst(
+        state.adLastGood.adData.image,
+        state.adLastGood.adData.video,
+        state.adLastGood.adData.url,
+        state.adLastGood.adData.src
+      );
+      linkHref = pickFirst(state.adLastGood.adData.link, state.adLastGood.adData.href);
+      kind = state.adLastGood.adData.kind || kind;
+      adText = adText || state.adLastGood.adText;
+    }
+  }
+
+  if (!url) {
+    hideAdPanel();
     return;
   }
 
@@ -406,53 +421,44 @@ function showAd(adData, adText) {
     textEl.style.display = '';
   }
 
-  const showPanel = () => { panel.style.display = ''; };
-  const hidePanel = () => { panel.style.display = 'none'; };
+  const markVisible = () => {
+    if (renderSeq !== state.adRenderSeq) return;
+    showAdPanel();
+    rememberGoodAd({ url, link: linkHref, kind }, adText || '');
+  };
 
-  if (/youtube\.com|youtu\.be/i.test(url)) {
-    const videoId = extractYouTubeVideoId(url);
-    if (!videoId) {
-      hidePanel();
+  const failAndRetry = () => {
+    if (renderSeq !== state.adRenderSeq) return;
+    if (state.adLastGood?.adData) {
+      showAd(state.adLastGood.adData, state.adLastGood.adText);
       return;
     }
+    retryAdRender();
+  };
 
-    const playerId = `qj-yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    container.innerHTML = `<div id="${playerId}" style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000"></div>`;
-    showPanel();
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
+    let embedSrc = url;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(url)) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1&loop=1&playlist=${encodeURIComponent(vid)}`;
+      } else if (/youtu\.be\//.test(url)) {
+        const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
+        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1&loop=1&playlist=${encodeURIComponent(id)}`;
+      } else if (/vimeo\.com/i.test(url)) {
+        const id = url.split('/').filter(Boolean).pop().split(/[?#]/)[0];
+        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1&loop=1`;
+      }
+    } catch {}
 
-    loadYouTubeIframeApi().then(() => {
-      const mount = document.getElementById(playerId);
-      if (!mount) return;
-
-      state.adPlayer = new YT.Player(playerId, {
-        videoId,
-        playerVars: {
-          autoplay: 1,
-          controls: 1,
-          rel: 0,
-          playsinline: 1,
-          mute: 1,
-          loop: 1,
-          playlist: videoId,
-          modestbranding: 1,
-          origin: window.location.origin
-        },
-        events: {
-          onReady: event => {
-            try { event.target.mute(); } catch {}
-            try { event.target.playVideo(); } catch {}
-            showPanel();
-          },
-          onStateChange: event => {
-            if (event.data === YT.PlayerState.ENDED) {
-              refreshAdFromTenantConfig().catch(() => {});
-            }
-          }
-        }
-      });
-    }).catch(() => {
-      hidePanel();
-    });
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
+      <iframe
+        src="${embedSrc}"
+        frameborder="0"
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowfullscreen
+        style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>`;
+    markVisible();
     return;
   }
 
@@ -466,7 +472,7 @@ function showAd(adData, adText) {
     v.className = 'ad-media-video';
     v.autoplay = true;
     v.muted = true;
-    v.loop = false;
+    v.loop = true;
     v.playsInline = true;
     v.preload = 'auto';
     v.controls = false;
@@ -474,44 +480,32 @@ function showAd(adData, adText) {
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
 
-    let played = false;
-    const tryPlay = () => {
-      if (played) return;
-      v.play().then(() => {
-        played = true;
-        showPanel();
-      }).catch(() => {
-        setTimeout(() => {
-          v.play().then(() => {
-            played = true;
-            showPanel();
-          }).catch(() => {});
-        }, 200);
-      });
+    const playNow = () => {
+      if (renderSeq !== state.adRenderSeq) return;
+      v.play().catch(() => {});
     };
 
     v.addEventListener('loadedmetadata', () => {
-      showPanel();
-      tryPlay();
+      markVisible();
+      playNow();
     });
     v.addEventListener('canplay', () => {
-      showPanel();
-      tryPlay();
+      markVisible();
+      playNow();
     });
-    v.addEventListener('playing', () => {
-      played = true;
-      showPanel();
-    });
+    v.addEventListener('playing', markVisible);
     v.addEventListener('ended', () => {
-      refreshAdFromTenantConfig().catch(() => {});
+      try { v.currentTime = 0; } catch {}
+      playNow();
     });
-    v.addEventListener('error', hidePanel);
+    v.addEventListener('error', failAndRetry);
 
     container.appendChild(v);
 
-    requestAnimationFrame(tryPlay);
-    setTimeout(tryPlay, 250);
-    setTimeout(tryPlay, 1000);
+    requestAnimationFrame(playNow);
+    setTimeout(playNow, 250);
+    setTimeout(playNow, 1000);
+    setTimeout(playNow, 2000);
     return;
   }
 
@@ -524,6 +518,7 @@ function showAd(adData, adText) {
       wrapper.rel = 'noopener noreferrer';
       wrapper.className = 'ad-link';
     }
+
     const img = document.createElement('img');
     img.src = url;
     img.className = 'ad-media';
@@ -531,14 +526,29 @@ function showAd(adData, adText) {
     img.loading = 'eager';
     img.decoding = 'async';
     img.referrerPolicy = 'no-referrer';
-    img.onload = showPanel;
-    img.onerror = hidePanel;
+
+    const onReady = () => {
+      if (renderSeq !== state.adRenderSeq) return;
+      markVisible();
+    };
+
+    img.onload = onReady;
+    img.onerror = failAndRetry;
+
     wrapper.appendChild(img);
     container.appendChild(wrapper);
+
+    if (img.complete && img.naturalWidth > 0) {
+      onReady();
+    } else {
+      setTimeout(() => {
+        if (img.complete && img.naturalWidth > 0) onReady();
+      }, 150);
+    }
     return;
   }
 
-  hidePanel();
+  failAndRetry();
 }
 
 function normalizeAdData(cfg) {
@@ -585,13 +595,13 @@ function normalizeAdData(cfg) {
   if (imageUrl) return { url: imageUrl, link, text, kind: 'image' };
   if (videoUrl) return { url: videoUrl, link, text, kind: 'video' };
   if (genericUrl) {
-    const looksLikeVideo = /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(genericUrl) || /youtube\.com|youtu\.be/i.test(genericUrl);
+    const looksLikeVideo = /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(genericUrl) || /youtube\.com|youtu\.be|vimeo\.com/i.test(genericUrl);
     return { url: genericUrl, link, text, kind: looksLikeVideo ? 'video' : 'image' };
   }
   return null;
 }
 
-async function refreshAdFromTenantConfig() {
+async function refreshAdFromTenantConfig(force = false) {
   if (!db || !state.tenantId) return;
   try {
     const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
@@ -599,12 +609,25 @@ async function refreshAdFromTenantConfig() {
       const cfg = snap.val() || {};
       const ad = normalizeAdData(cfg);
       if (ad) {
+        state.adLastKey = JSON.stringify(ad);
         showAd(ad, ad.text || null);
         return;
       }
     }
-    $('adCard')?.style && ($('adCard').style.display = 'none');
-  } catch {}
+
+    if (force && state.adLastGood?.adData) {
+      showAd(state.adLastGood.adData, state.adLastGood.adText);
+      return;
+    }
+
+    if (!state.adLastGood?.adData) {
+      hideAdPanel();
+    }
+  } catch {
+    if (force && state.adLastGood?.adData) {
+      showAd(state.adLastGood.adData, state.adLastGood.adText);
+    }
+  }
 }
 
 function updateStatusLine() {
@@ -696,9 +719,23 @@ function applyConfig(cfg) {
     );
   }
 
+  // Ad panel: render from config, but keep last known good ad if config momentarily comes through without it.
   const ad = normalizeAdData(cfg);
-  if (ad) showAd(ad, ad.text || null);
-  else $('adCard') && ($('adCard').style.display = 'none');
+  if (ad) {
+    showAd(ad, ad.text || null);
+  } else if (state.adLastGood?.adData) {
+    showAd(state.adLastGood.adData, state.adLastGood.adText);
+  } else {
+    $('adCard') && ($('adCard').style.display = 'none');
+  }
+
+  // Small safety retry so the ad is present even when the first config read arrives before media is ready.
+  if (ad || state.adLastGood?.adData) {
+    clearAdRetryTimer();
+    state.adRetryTimer = setTimeout(() => {
+      refreshAdFromTenantConfig(true).catch(() => {});
+    }, 900);
+  }
 }
 
 function getActiveCounters() {
@@ -740,7 +777,7 @@ function cleanupListeners() {
     try { state.queueMonitorUnsub(); } catch {}
     state.queueMonitorUnsub = null;
   }
-  destroyAdPlayer();
+  clearAdRetryTimer();
 }
 
 function isFinalQueueStatus(status) {
@@ -927,10 +964,16 @@ async function bootstrap() {
 
   updateStatusLine();
   updateCtaState();
+
+  // Final ad safety pass after the page settles.
+  setTimeout(() => refreshAdFromTenantConfig(true).catch(() => {}), 1200);
 }
 
 window.addEventListener('pagehide', cleanupListeners);
 window.addEventListener('beforeunload', cleanupListeners);
+window.addEventListener('pageshow', () => {
+  if (state.tenantId) setTimeout(() => refreshAdFromTenantConfig(true).catch(() => {}), 250);
+});
 
 $('ctaBtn').addEventListener('click', async e => {
   e.preventDefault();
