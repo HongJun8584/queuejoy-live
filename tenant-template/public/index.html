@@ -160,8 +160,7 @@ const state = {
   sessionId: '',
   liveUnsubs: [],
   queueMonitorUnsub: null,
-  lastAd: null,
-  lastAdKey: ''
+  adRefreshTimer: null
 };
 
 function safeString(value, fallback = '') {
@@ -237,7 +236,7 @@ function isSafeVideoUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const lower = url.trim().toLowerCase();
   if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
-  if (isDataVideoUrl(url)) return false;
+  if (isDataVideoUrl(url)) return false; // blocked on purpose to avoid heavy base64 video payloads
   return isHttpUrl(url);
 }
 function isActiveCounter(counter) {
@@ -318,78 +317,169 @@ function setCenterLogo(url) {
   }
 }
 
-function adCacheKey() {
-  return state.tenantId ? `qj_ad_cache_${state.tenantId}` : 'qj_ad_cache_global';
-}
-
-function loadCachedAd() {
-  try {
-    const raw = localStorage.getItem(adCacheKey());
-    if (!raw) return null;
-    const ad = JSON.parse(raw);
-    return ad && typeof ad === 'object' && ad.url ? ad : null;
-  } catch (_) {
-    return null;
+function clearAdRefreshTimer() {
+  if (state.adRefreshTimer) {
+    clearTimeout(state.adRefreshTimer);
+    state.adRefreshTimer = null;
   }
 }
 
-function saveCachedAd(ad) {
-  try {
-    if (ad && ad.url) localStorage.setItem(adCacheKey(), JSON.stringify(ad));
-  } catch (_) {}
+function scheduleAdRefresh(delay = 450) {
+  clearAdRefreshTimer();
+  state.adRefreshTimer = setTimeout(() => {
+    state.adRefreshTimer = null;
+    refreshAdFromTenantConfig().catch(() => {});
+  }, delay);
 }
 
-function clearCachedAd() {
-  try { localStorage.removeItem(adCacheKey()); } catch (_) {}
-}
+function showAd(adData, adText, attempt = 0) {
+  const panel = $('adCard');
+  const container = $('adContent');
+  const textEl = $('adText');
+  if (!panel || !container) return;
 
-function adSignature(ad) {
-  if (!ad || typeof ad !== 'object') return '';
-  return [ad.kind || '', ad.url || '', ad.link || '', ad.text || '', ad.title || ''].join('|');
-}
+  container.innerHTML = '';
+  if (textEl) {
+    textEl.style.display = 'none';
+    textEl.textContent = '';
+  }
 
-function isYoutubeOrVimeo(url) {
-  return /youtube\.com|youtu\.be|vimeo\.com/i.test(String(url || ''));
-}
+  if (!adData) {
+    panel.style.display = 'none';
+    return;
+  }
 
-function isGifUrl(url) {
-  const u = String(url || '').trim().toLowerCase();
-  return /\.(gif)([?#].*)?$/.test(u) || /^data:image\/gif/i.test(u);
-}
+  let url = null;
+  let linkHref = null;
+  let kind = 'auto';
 
-function isProbablyVideoUrl(url, kind) {
-  const u = String(url || '').trim();
-  if (!u) return false;
-  if (String(kind || '').toLowerCase() === 'video') return true;
-  if (isYoutubeOrVimeo(u)) return true;
-  if (/video/i.test(u) && /^https?:\/\//i.test(u)) return true;
-  return /\.(mp4|webm|ogg|mov|m4v|3gp|m3u8|mpd)([?#].*)?$/i.test(u);
-}
+  if (typeof adData === 'string') {
+    url = adData.trim();
+  } else if (typeof adData === 'object') {
+    url = pickFirst(adData.image, adData.video, adData.url, adData.src);
+    linkHref = pickFirst(adData.link, adData.href);
+    kind = adData.kind || (adData.video ? 'video' : adData.image ? 'image' : 'auto');
+    if (!adText) adText = pickFirst(adData.text, adData.description);
+  }
 
-function extractYoutubeId(url) {
-  const u = String(url || '');
-  try {
-    if (/youtube\.com\/watch\?v=/.test(u)) {
-      return new URL(u).searchParams.get('v') || '';
+  if (!url) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = '';
+
+  if (adText && textEl) {
+    textEl.textContent = adText;
+    textEl.style.display = '';
+  }
+
+  const showPanel = () => { panel.style.display = ''; };
+  const hidePanel = () => { panel.style.display = 'none'; };
+
+  const retry = () => {
+    if (attempt < 2) {
+      scheduleAdRefresh(300);
+    } else {
+      hidePanel();
     }
-    if (/youtu\.be\//.test(u)) {
-      return u.split('youtu.be/')[1].split(/[?#]/)[0] || '';
-    }
-    if (/youtube\.com\/embed\//.test(u)) {
-      return u.split('/embed/')[1].split(/[?#]/)[0] || '';
-    }
-  } catch (_) {}
-  return '';
-}
+  };
 
-function extractVimeoId(url) {
-  const u = String(url || '');
-  try {
-    if (/vimeo\.com/i.test(u)) {
-      return u.split('/').filter(Boolean).pop().split(/[?#]/)[0] || '';
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
+    let embedSrc = url;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(url)) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1`;
+      } else if (/youtu\.be\//.test(url)) {
+        const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
+        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1`;
+      } else if (/vimeo\.com/i.test(url)) {
+        const id = url.split('/').filter(Boolean).pop().split(/[?#]/)[0];
+        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
+      }
+    } catch {}
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
+      <iframe src="${embedSrc}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen
+      style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>`;
+    showPanel();
+    scheduleAdRefresh(1200);
+    return;
+  }
+
+  const looksLikeVideo =
+    kind === 'video' ||
+    (isSafeVideoUrl(url) && /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url));
+
+  if (looksLikeVideo) {
+    const v = document.createElement('video');
+    v.src = url;
+    v.className = 'ad-media-video';
+    v.autoplay = true;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.controls = false;
+    v.setAttribute('muted', '');
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+
+    let settled = false;
+    const markReady = () => {
+      settled = true;
+      showPanel();
+    };
+
+    v.addEventListener('loadedmetadata', markReady);
+    v.addEventListener('canplay', () => {
+      markReady();
+      v.play().catch(() => {});
+    });
+    v.addEventListener('error', () => {
+      if (!settled) retry();
+      else hidePanel();
+    });
+
+    container.appendChild(v);
+
+    const playNow = () => v.play().catch(() => {});
+    requestAnimationFrame(playNow);
+    setTimeout(playNow, 250);
+    setTimeout(playNow, 1000);
+    setTimeout(() => {
+      if (!settled && v.readyState < 2) retry();
+    }, 2200);
+
+    showPanel();
+    return;
+  }
+
+  const isImage = isSafeImageUrl(url);
+  if (isImage) {
+    const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
+    if (linkHref) {
+      wrapper.href = linkHref;
+      wrapper.target = '_blank';
+      wrapper.rel = 'noopener noreferrer';
+      wrapper.className = 'ad-link';
     }
-  } catch (_) {}
-  return '';
+    const img = document.createElement('img');
+    img.src = url;
+    img.className = 'ad-media';
+    img.alt = 'Promotion';
+    img.loading = 'eager';
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = showPanel;
+    img.onerror = retry;
+    wrapper.appendChild(img);
+    container.appendChild(wrapper);
+    scheduleAdRefresh(1800);
+    return;
+  }
+
+  hidePanel();
 }
 
 function normalizeAdData(cfg) {
@@ -405,27 +495,20 @@ function normalizeAdData(cfg) {
   const imageUrl = pickFirst(
     adPanel?.image,
     ad?.image,
-    ad?.img,
-    ad?.photo,
     raw.adImage,
-    raw.adImageUrl,
-    business?.adImage,
-    business?.adImageUrl
+    business?.adImage
   );
   const videoUrl = pickFirst(
     adPanel?.video,
     ad?.video,
     raw.adVideo,
-    raw.adVideoUrl,
-    business?.adVideo,
-    business?.adVideoUrl
+    business?.adVideo
   );
   const genericUrl = pickFirst(
     adPanel?.url, adPanel?.src,
     ad?.url, ad?.src,
     raw.adUrl, raw.adSrc,
-    business?.adUrl, business?.adSrc,
-    ad?.link, ad?.href
+    business?.adUrl, business?.adSrc
   );
   const link = pickFirst(
     adPanel?.link, adPanel?.href,
@@ -439,189 +522,31 @@ function normalizeAdData(cfg) {
     raw.adText,
     business?.adText
   );
-  const title = pickFirst(
-    adPanel?.title,
-    ad?.title,
-    raw.adTitle,
-    business?.adTitle
-  );
 
-  if (imageUrl) return { url: imageUrl, link, text, title, kind: isGifUrl(imageUrl) ? 'image' : 'image' };
-  if (videoUrl) return { url: videoUrl, link, text, title, kind: 'video' };
+  if (imageUrl) return { url: imageUrl, link, text, kind: 'image' };
+  if (videoUrl) return { url: videoUrl, link, text, kind: 'video' };
   if (genericUrl) {
-    return { url: genericUrl, link, text, title, kind: isProbablyVideoUrl(genericUrl, '') ? 'video' : 'image' };
+    const looksLikeVideo = /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(genericUrl) || /youtube\.com|youtu\.be|vimeo\.com/i.test(genericUrl);
+    return { url: genericUrl, link, text, kind: looksLikeVideo ? 'video' : 'image' };
   }
   return null;
-}
-
-function renderAd(adData, fromCache = false) {
-  const panel = $('adCard');
-  const container = $('adContent');
-  const textEl = $('adText');
-  if (!panel || !container) return;
-
-  if (!adData || !adData.url) {
-    if (state.lastWorkingAd) {
-      renderAd(state.lastWorkingAd, true);
-      return;
-    }
-    panel.style.display = 'none';
-    return;
-  }
-
-  const url = safeString(adData.url);
-  const text = safeString(adData.text);
-  const linkHref = safeString(adData.link);
-  const kind = safeString(adData.kind, 'image');
-
-  container.innerHTML = '';
-  panel.style.display = '';
-  panel.style.visibility = 'visible';
-  panel.style.opacity = '1';
-
-  if (textEl) {
-    if (text) {
-      textEl.textContent = text;
-      textEl.style.display = '';
-    } else {
-      textEl.style.display = 'none';
-      textEl.textContent = '';
-    }
-  }
-
-  const keepOpen = () => {
-    panel.style.display = '';
-    panel.style.visibility = 'visible';
-    panel.style.opacity = '1';
-  };
-
-  const retryLater = () => {
-    clearTimeout(state.adRetryTimer);
-    state.adRetryTimer = setTimeout(() => {
-      if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
-    }, 1200);
-  };
-
-  // YouTube/Vimeo are rendered as an auto-playing embedded player with loop.
-  // Sound is left ON by default. Browsers may still block autoplay-with-sound
-  // until the user has interacted with the page.
-  if (isYoutubeOrVimeo(url)) {
-    const youtubeId = extractYoutubeId(url);
-    const vimeoId = extractVimeoId(url);
-    let playerSrc = url;
-
-    try {
-      if (youtubeId) {
-        playerSrc = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&controls=1&playsinline=1&loop=1&playlist=${youtubeId}&rel=0&modestbranding=1&mute=0`;
-      } else if (vimeoId) {
-        playerSrc = `https://player.vimeo.com/video/${vimeoId}?autoplay=1&loop=1&muted=0&title=0&byline=0&portrait=0&playsinline=1`;
-      }
-    } catch (e) {
-      console.error('embed parse error', e);
-    }
-
-    const label = text || adData.title || 'Advertisement';
-    container.innerHTML = `
-      <div style="padding:12px">
-        <div style="position:relative;border-radius:12px;overflow:hidden;background:#111;min-height:170px">
-          <iframe
-            src="${playerSrc}"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowfullscreen
-            loading="eager"
-            referrerpolicy="no-referrer"
-            style="width:100%;height:220px;border:0;display:block;background:#000"
-          ></iframe>
-        </div>
-        <div style="margin-top:8px;font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;gap:8px;align-items:center">
-          <span>${escapeHtml(label)}</span>
-          <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="font-weight:700;color:var(--theme);text-decoration:none">Open</a>
-        </div>
-      </div>`;
-
-    keepOpen();
-    state.lastWorkingAd = adData;
-    saveCachedAd(adData);
-    return;
-  }
-
-  const looksLikeVideo = isProbablyVideoUrl(url, kind);
-  if (looksLikeVideo) {
-    const video = document.createElement('video');
-    video.className = 'ad-media-video';
-    video.src = url;
-    video.autoplay = true;
-    video.muted = false;
-    video.loop = true;
-    video.playsInline = true;
-    video.preload = 'metadata';
-    video.controls = true;
-    video.setAttribute('playsinline', '');
-    video.setAttribute('webkit-playsinline', '');
-
-    video.addEventListener('loadedmetadata', keepOpen);
-    video.addEventListener('loadeddata', keepOpen);
-    video.addEventListener('canplay', () => {
-      keepOpen();
-      video.play().catch(() => {});
-    });
-    video.addEventListener('error', e => { console.error('video ad failed', e); if (!fromCache) retryLater(); });
-
-    container.appendChild(video);
-    requestAnimationFrame(() => video.play().catch(() => {}));
-    setTimeout(() => video.play().catch(() => {}), 250);
-    state.lastWorkingAd = adData;
-    saveCachedAd(adData);
-    return;
-  }
-
-  const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
-  if (linkHref) {
-    wrapper.href = linkHref;
-    wrapper.target = '_blank';
-    wrapper.rel = 'noopener noreferrer';
-    wrapper.className = 'ad-link';
-  }
-
-  const img = document.createElement('img');
-  img.className = 'ad-media';
-  img.src = url;
-  img.alt = 'Promotion';
-  img.loading = 'eager';
-  img.decoding = 'async';
-  img.referrerPolicy = 'no-referrer';
-  img.onload = () => keepOpen();
-  img.onerror = e => { console.error('image ad failed', e); if (!fromCache) retryLater(); };
-
-  wrapper.appendChild(img);
-  container.appendChild(wrapper);
-  keepOpen();
-  state.lastWorkingAd = adData;
-  saveCachedAd(adData);
-}
-
-function showAd(adData) {
-  renderAd(adData, false);
 }
 
 async function refreshAdFromTenantConfig() {
   if (!db || !state.tenantId) return;
   try {
     const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
-    if (!snap.exists()) {
-      if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
-      return;
+    if (snap?.exists?.()) {
+      const cfg = snap.val() || {};
+      const ad = normalizeAdData(cfg);
+      if (ad) {
+        showAd(ad, ad.text || null);
+        return;
+      }
     }
-    const cfg = snap.val() || {};
-    const ad = normalizeAdData(cfg);
-    if (ad && ad.url) {
-      showAd(ad);
-      return;
-    }
-    if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
-  } catch (err) {
-    console.error('refreshAdFromTenantConfig failed', err);
-    if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
+    $('adCard')?.style && ($('adCard').style.display = 'none');
+  } catch {
+    // keep silent; ad panel should not affect the rest of the page
   }
 }
 
@@ -715,10 +640,9 @@ function applyConfig(cfg) {
   }
 
   const ad = normalizeAdData(cfg);
-  if (ad && ad.url) {
-    showAd(ad);
-  } else if (state.lastWorkingAd) {
-    renderAd(state.lastWorkingAd, true);
+  if (ad) {
+    showAd(ad, ad.text || null);
+    scheduleAdRefresh(700);
   } else {
     $('adCard') && ($('adCard').style.display = 'none');
   }
@@ -763,6 +687,7 @@ function cleanupListeners() {
     try { state.queueMonitorUnsub(); } catch {}
     state.queueMonitorUnsub = null;
   }
+  clearAdRefreshTimer();
 }
 
 function isFinalQueueStatus(status) {
@@ -885,7 +810,6 @@ async function bootstrap() {
   }
 
   state.tenantId = tenantId;
-  state.lastAd = loadCachedAd();
   window.__TENANT_ID = tenantId;
 
   const configRef = ref(db, `tenants/${tenantId}/public/config`);
@@ -933,19 +857,8 @@ async function bootstrap() {
     if (!snap.exists()) return;
     state.config = snap.val() || {};
     applyConfig(state.config);
-
-    const ad = normalizeAdData(state.config);
-    if (ad && ad.url) {
-      showAd(ad);
-    } else if (state.lastWorkingAd) {
-      renderAd(state.lastWorkingAd, true);
-    }
-
     updateCtaState();
-  }, err => {
-    console.error('config listener error', err);
-    if (state.lastWorkingAd) renderAd(state.lastWorkingAd, true);
-  }));
+  }, err => console.error('config listener error', err)));
 
   state.liveUnsubs.push(onValue(countersRef, snap => {
     state.counters = snap.exists() ? (snap.val() || {}) : {};
@@ -961,7 +874,6 @@ async function bootstrap() {
 
   updateStatusLine();
   updateCtaState();
-  refreshAdFromTenantConfig().catch(() => {});
 }
 
 window.addEventListener('pagehide', cleanupListeners);
