@@ -159,8 +159,7 @@ const state = {
   isJoining: false,
   sessionId: '',
   liveUnsubs: [],
-  queueMonitorUnsub: null,
-  adRefreshTimer: null
+  queueMonitorUnsub: null
 };
 
 function safeString(value, fallback = '') {
@@ -236,7 +235,7 @@ function isSafeVideoUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const lower = url.trim().toLowerCase();
   if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
-  if (isDataVideoUrl(url)) return false; // blocked on purpose to avoid heavy base64 video payloads
+  if (isDataVideoUrl(url)) return false;
   return isHttpUrl(url);
 }
 function isActiveCounter(counter) {
@@ -317,22 +316,7 @@ function setCenterLogo(url) {
   }
 }
 
-function clearAdRefreshTimer() {
-  if (state.adRefreshTimer) {
-    clearTimeout(state.adRefreshTimer);
-    state.adRefreshTimer = null;
-  }
-}
-
-function scheduleAdRefresh(delay = 450) {
-  clearAdRefreshTimer();
-  state.adRefreshTimer = setTimeout(() => {
-    state.adRefreshTimer = null;
-    refreshAdFromTenantConfig().catch(() => {});
-  }, delay);
-}
-
-function showAd(adData, adText, attempt = 0) {
+function showAd(adData, adText) {
   const panel = $('adCard');
   const container = $('adContent');
   const textEl = $('adText');
@@ -367,43 +351,34 @@ function showAd(adData, adText, attempt = 0) {
     return;
   }
 
-  panel.style.display = '';
+  const showPanel = () => { panel.style.display = ''; };
+  const hidePanel = () => { panel.style.display = 'none'; };
 
   if (adText && textEl) {
     textEl.textContent = adText;
     textEl.style.display = '';
   }
 
-  const showPanel = () => { panel.style.display = ''; };
-  const hidePanel = () => { panel.style.display = 'none'; };
-
-  const retry = () => {
-    if (attempt < 2) {
-      scheduleAdRefresh(300);
-    } else {
-      hidePanel();
-    }
-  };
-
   if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
     let embedSrc = url;
     try {
       if (/youtube\.com\/watch\?v=/.test(url)) {
         const vid = new URL(url).searchParams.get('v');
-        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1`;
+        if (vid) {
+          embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&playsinline=1&controls=1&loop=1&playlist=${encodeURIComponent(vid)}`;
+        }
       } else if (/youtu\.be\//.test(url)) {
         const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
-        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1`;
+        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&playsinline=1&controls=1&loop=1&playlist=${encodeURIComponent(id)}`;
       } else if (/vimeo\.com/i.test(url)) {
         const id = url.split('/').filter(Boolean).pop().split(/[?#]/)[0];
-        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1`;
+        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=0&playsinline=1&loop=1`;
       }
     } catch {}
     container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
       <iframe src="${embedSrc}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen
       style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>`;
     showPanel();
-    scheduleAdRefresh(1200);
     return;
   }
 
@@ -417,29 +392,23 @@ function showAd(adData, adText, attempt = 0) {
     v.className = 'ad-media-video';
     v.autoplay = true;
     v.muted = true;
-    v.loop = true;
+    v.loop = false;
     v.playsInline = true;
-    v.preload = 'auto';
+    v.preload = 'metadata';
     v.controls = false;
     v.setAttribute('muted', '');
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
 
-    let settled = false;
-    const markReady = () => {
-      settled = true;
-      showPanel();
-    };
-
-    v.addEventListener('loadedmetadata', markReady);
+    v.addEventListener('loadedmetadata', showPanel);
     v.addEventListener('canplay', () => {
-      markReady();
+      showPanel();
       v.play().catch(() => {});
     });
-    v.addEventListener('error', () => {
-      if (!settled) retry();
-      else hidePanel();
+    v.addEventListener('ended', () => {
+      refreshAdFromTenantConfig().catch(() => {});
     });
+    v.addEventListener('error', hidePanel);
 
     container.appendChild(v);
 
@@ -447,11 +416,7 @@ function showAd(adData, adText, attempt = 0) {
     requestAnimationFrame(playNow);
     setTimeout(playNow, 250);
     setTimeout(playNow, 1000);
-    setTimeout(() => {
-      if (!settled && v.readyState < 2) retry();
-    }, 2200);
 
-    showPanel();
     return;
   }
 
@@ -472,10 +437,9 @@ function showAd(adData, adText, attempt = 0) {
     img.decoding = 'async';
     img.referrerPolicy = 'no-referrer';
     img.onload = showPanel;
-    img.onerror = retry;
+    img.onerror = hidePanel;
     wrapper.appendChild(img);
     container.appendChild(wrapper);
-    scheduleAdRefresh(1800);
     return;
   }
 
@@ -541,13 +505,9 @@ async function refreshAdFromTenantConfig() {
       const ad = normalizeAdData(cfg);
       if (ad) {
         showAd(ad, ad.text || null);
-        return;
       }
     }
-    $('adCard')?.style && ($('adCard').style.display = 'none');
-  } catch {
-    // keep silent; ad panel should not affect the rest of the page
-  }
+  } catch {}
 }
 
 function updateStatusLine() {
@@ -640,12 +600,8 @@ function applyConfig(cfg) {
   }
 
   const ad = normalizeAdData(cfg);
-  if (ad) {
-    showAd(ad, ad.text || null);
-    scheduleAdRefresh(700);
-  } else {
-    $('adCard') && ($('adCard').style.display = 'none');
-  }
+  if (ad) showAd(ad, ad.text || null);
+  else $('adCard') && ($('adCard').style.display = 'none');
 }
 
 function getActiveCounters() {
@@ -687,7 +643,6 @@ function cleanupListeners() {
     try { state.queueMonitorUnsub(); } catch {}
     state.queueMonitorUnsub = null;
   }
-  clearAdRefreshTimer();
 }
 
 function isFinalQueueStatus(status) {
