@@ -7,29 +7,73 @@
 <meta name="description" content="Track your queue position & play sound when it's your turn" />
 <style>
   :root { --primary:#7c3aed; --accent:#8b5cf6; --muted:#6b7280; }
-  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(135deg,#f6f5ff,#f0efff);color:#111827;display:flex;align-items:center;justify-content:center}
-  .card{width:98%;max-width:520px;background:#fff;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(17,24,39,0.06);text-align:center}
+  html,body{
+    height:100%;
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(135deg,#f6f5ff,#f0efff);
+    color:#111827;
+    display:flex;
+    align-items:center;
+    justify-content:center
+  }
+  .card{
+    width:98%;
+    max-width:520px;
+    background:#fff;
+    border-radius:14px;
+    padding:22px;
+    box-shadow:0 20px 60px rgba(17,24,39,0.06);
+    text-align:center
+  }
   h1{font-size:22px;margin:0 0 6px;font-weight:800}
-  .sub{color:var(--muted);font-size:14px;margin-bottom:18px}
-  #yourNumber{font-size:62px;font-weight:900;color:var(--primary);letter-spacing:4px}
-  #counterName{font-size:28px;font-weight:800;color:var(--accent);margin-top:12px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:18px;line-height:1.5}
+  #yourNumber{font-size:62px;font-weight:900;color:var(--primary);letter-spacing:4px;line-height:1}
+  #counterName{font-size:28px;font-weight:800;color:var(--accent);margin-top:12px;min-height:36px}
   .small{font-size:13px;color:var(--muted);margin-top:8px}
   .controls{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
-  button{padding:10px 14px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
+  button{
+    padding:10px 14px;
+    border-radius:10px;
+    border:0;
+    font-weight:700;
+    cursor:pointer
+  }
   .btn-primary{background:linear-gradient(90deg,var(--accent),var(--primary));color:#fff}
-  .btn-outline{background:#fff;border:1px solid rgba(0,0,0,0.06)}
-  #statusBanner{margin-top:12px;font-size:13px;color:var(--muted)}
-  .qa-badge{position:fixed;right:12px;bottom:12px;background:#111827;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;z-index:9999;display:none}
-  .error{color:#b91c1c;margin-top:10px;font-weight:700}
-  .hint{font-size:12px;color:#6b7280;margin-top:8px}
-  .promo-note{margin-top:10px;font-size:13px;color:#0f172a;background:#eef2ff;padding:8px;border-radius:8px;display:none}
-  .small-muted{font-size:11px;color:#9ca3af;margin-top:6px}
+  .btn-outline{background:#fff;border:1px solid rgba(0,0,0,0.08);color:#111827}
+  #statusBanner{margin-top:12px;font-size:13px;color:var(--muted);min-height:18px}
+  .qa-badge{
+    position:fixed;
+    right:12px;
+    bottom:12px;
+    background:#111827;
+    color:#fff;
+    padding:8px 10px;
+    border-radius:8px;
+    font-size:12px;
+    z-index:9999;
+    display:none;
+    opacity:0.92
+  }
+  .error{color:#b91c1c;margin-top:10px;font-weight:700;min-height:18px}
+  .hint{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.45}
+  .promo-note{
+    margin-top:10px;
+    font-size:13px;
+    color:#0f172a;
+    background:#eef2ff;
+    padding:8px;
+    border-radius:8px;
+    display:none;
+    line-height:1.4
+  }
+  .small-muted{font-size:11px;color:#9ca3af;margin-top:6px;line-height:1.45}
 </style>
 </head>
 <body>
   <div class="card" role="main" aria-live="polite">
     <h1>It's Your Turn</h1>
-    <div class="sub">This page will play a sound when your number is called (sound-only; no push notifications).</div>
+    <div class="sub">This page will play a sound and show a browser alert when your number is called.</div>
 
     <div id="yourNumber">—</div>
     <div class="small">Your Queue Number</div>
@@ -39,36 +83,28 @@
 
     <div class="controls" style="margin-top:18px">
       <button id="promoBtn" class="btn-outline">Subscribe Notices &amp; Promos</button>
+      <button id="enableBtn" class="btn-primary">Enable Alerts</button>
     </div>
 
     <div id="statusBanner">Connecting...</div>
     <div id="errorBox" class="error" style="display:none"></div>
-    <div id="promoNote" class="promo-note">Subscribed to notices & promos (Telegram).</div>
+    <div id="promoNote" class="promo-note">Telegram opened. Press Start in Telegram to finish subscribing.</div>
     <div class="hint">If the number isn't updating, open devtools console for diagnostics.</div>
-    <div class="small-muted" id="autoplayNote">Browser autoplay rules may block sound unless the site is allowed (see notes below).</div>
+    <div class="small-muted" id="autoplayNote">Browser autoplay rules may block sound unless the site is allowed.</div>
   </div>
 
   <div id="qaBadge" class="qa-badge"><small>slug</small> <span id="qaSlug"></span> · <small>id</small> <span id="qaId"></span></div>
 
-  <!-- fallback audio file (short beep) -->
   <audio id="beepAudio" preload="auto" crossorigin="anonymous">
     <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
     <source src="https://actions.google.com/sounds/v1/alarms/beep_short.mp3" type="audio/mpeg">
   </audio>
 
 <script type="module">
-/* your_turn.html — sound-first behavior
-   Important: browsers block autoplay of audible media for background tabs unless the site is allowed.
-   This page:
-    - Detects "called" events and attempts to play an audible beep immediately (file + WebAudio oscillator)
-    - Repeatedly attempts to resume an AudioContext (best-effort)
-    - Suggests reliable deployment options below (PWA, kiosk, native wrapper, or Chrome flags)
-*/
-
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
-/* ====== CONFIG ====== */
+/* ===== CONFIG ===== */
 const DEFAULT_FIREBASE_CONFIG = {
   apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
   authDomain: "queuejoy-live.firebaseapp.com",
@@ -82,14 +118,15 @@ const DEFAULT_FIREBASE_CONFIG = {
 
 const GET_TENANT_ENDPOINT = '/.netlify/functions/get-tenant';
 const GET_FIREBASE_CLIENT_CONFIG = '/.netlify/functions/get-firebase-config';
-const CREATE_LINK_ENDPOINT = '/.netlify/functions/createTelegramLink';
-const TELEGRAM_BOT_URL = 'https://t.me/QueueJoyBot';
+const TELEGRAM_BOT_USERNAME = 'queuejoy_notify_bot';
+const TELEGRAM_BOT_URL = `https://t.me/${TELEGRAM_BOT_USERNAME}`;
 
-/* ====== UI ====== */
+/* ===== UI ===== */
 const yourNumberEl = document.getElementById('yourNumber');
 const counterNameEl = document.getElementById('counterName');
 const statusBanner = document.getElementById('statusBanner');
 const promoBtn = document.getElementById('promoBtn');
+const enableBtn = document.getElementById('enableBtn');
 const promoNote = document.getElementById('promoNote');
 const errorBox = document.getElementById('errorBox');
 const qaBadge = document.getElementById('qaBadge');
@@ -98,84 +135,231 @@ const qaId = document.getElementById('qaId');
 const beepAudio = document.getElementById('beepAudio');
 const autoplayNote = document.getElementById('autoplayNote');
 
-/* ====== STATE ====== */
-let firebaseApp = null, db = null;
-let TENANT_SLUG = null, TENANT_ID = null;
+/* ===== STATE ===== */
+let firebaseApp = null;
+let db = null;
+let TENANT_SLUG = null;
+let TENANT_ID = null;
 let currentQueueKey = null;
-let qListenerRef = null, cListenerRef = null;
-let audioCtx = null, audioUnlocked = false;
+let qListenerRef = null;
+let cListenerRef = null;
+let audioCtx = null;
+let audioUnlocked = false;
 let lastSeenTicket = null;
-const alertKeyPrefix = 'qj_alerted_';
+let lastCounterId = null;
 let reconnectDelay = 1000;
 let audioResumeInterval = null;
 
-/* ====== HELPERS ====== */
+/* ===== HELPERS ===== */
 function log(...a){ console.log('[YOUR_TURN]', ...a); }
 function warn(...a){ console.warn('[YOUR_TURN]', ...a); }
-function fail(msg){ errorBox.style.display='block'; errorBox.textContent = String(msg); console.error('[YOUR_TURN]', msg); }
-function clearError(){ errorBox.style.display='none'; errorBox.textContent=''; }
-
+function fail(msg){
+  errorBox.style.display = 'block';
+  errorBox.textContent = String(msg);
+  console.error('[YOUR_TURN]', msg);
+}
+function clearError(){
+  errorBox.style.display = 'none';
+  errorBox.textContent = '';
+}
+function safeText(v, fallback='—'){
+  if (v === undefined || v === null || v === '') return fallback;
+  return String(v);
+}
 function getParam(keys){
   try {
     const usp = new URLSearchParams(window.location.search);
-    for (const k of keys){ const v = usp.get(k); if (v) return v; }
+    for (const k of keys) {
+      const v = usp.get(k);
+      if (v) return v;
+    }
   } catch(e){}
   return null;
 }
 function getSlugFromUrl(){
-  try { const usp = new URLSearchParams(window.location.search); if (usp.get('slug')) return usp.get('slug'); } catch(e){}
+  try {
+    const usp = new URLSearchParams(window.location.search);
+    if (usp.get('slug')) return usp.get('slug');
+  } catch(e){}
   const parts = location.pathname.replace(/^\/+|\/+$/g,'').split('/');
   if (parts && parts.length && parts[0] && !parts[0].includes('.')) return parts[0];
   return null;
 }
 function parseTicketNum(ticket){
-  if(!ticket) return NaN;
-  const s = String(ticket);
+  if (!ticket && ticket !== 0) return NaN;
+  const s = String(ticket).trim();
   const m = s.match(/(\d+)$/);
-  return m ? parseInt(m[1],10) : ( /^\d+$/.test(s) ? parseInt(s,10) : NaN );
+  return m ? parseInt(m[1],10) : (/^\d+$/.test(s) ? parseInt(s,10) : NaN);
 }
-function readableTicket(ticket){ return (ticket===undefined || ticket===null || ticket==='') ? '—' : String(ticket); }
+function readableTicket(ticket){
+  return (ticket === undefined || ticket === null || ticket === '') ? '—' : String(ticket);
+}
+function isTruthy(v){
+  return v === true || v === 'true' || v === 1 || v === '1' || v === 'yes' || v === 'YES';
+}
+function normalizeKey(v){
+  return String(v || '').trim();
+}
+function currentStorageScope(){
+  return `qj_${TENANT_ID || TENANT_SLUG || 'global'}_${currentQueueKey || 'unknown'}`;
+}
+function alertedKey(ticket){
+  return `qj_alerted_${currentStorageScope()}_${String(ticket || 'unknown')}`;
+}
+function promoLocalKey(){
+  return `qj_promos_${currentStorageScope()}`;
+}
+function enabledLocalKey(){
+  return `qj_enabled_${currentStorageScope()}`;
+}
+function getBotPayload(){
+  const tenantPart = normalizeKey(TENANT_ID || TENANT_SLUG || 'global').replace(/[^A-Za-z0-9_-]/g,'');
+  const queuePart = normalizeKey(currentQueueKey || 'queue').replace(/[^A-Za-z0-9_-]/g,'');
+  const payload = `sub_${tenantPart}_${queuePart}`;
+  return payload.slice(0, 60);
+}
 
-/* ====== Tenant & Firebase helpers ====== */
+/* ===== TENANT / FIREBASE ===== */
 async function resolveTenant(slug){
-  if(!slug) return null;
+  if (!slug) return null;
   try {
     const res = await fetch(`${GET_TENANT_ENDPOINT}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
-    if (!res.ok) { log('get-tenant returned',res.status); return null; }
+    if (!res.ok) {
+      log('get-tenant returned', res.status);
+      return null;
+    }
     return await res.json().catch(()=>null);
-  } catch(e){ warn('resolveTenant failed', e); return null; }
+  } catch(e){
+    warn('resolveTenant failed', e);
+    return null;
+  }
 }
 async function fetchClientConfig(slug){
   try {
     const res = await fetch(`${GET_FIREBASE_CLIENT_CONFIG}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
     if (!res.ok) return null;
     return await res.json().catch(()=>null);
-  } catch(e){ return null; }
+  } catch(e){
+    return null;
+  }
 }
 async function initFirebase(clientCfg){
   try {
-    const cfg = clientCfg && (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig) && clientCfg.firebaseClientConfig?.databaseURL ? clientCfg.firebaseClientConfig : DEFAULT_FIREBASE_CONFIG;
+    const cfg =
+      clientCfg &&
+      (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig) &&
+      (clientCfg.firebaseClientConfig?.databaseURL || clientCfg.firebaseConfig?.databaseURL)
+        ? (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig)
+        : DEFAULT_FIREBASE_CONFIG;
+
     if (!getApps().length) firebaseApp = initializeApp(cfg);
     else firebaseApp = getApps()[0];
+
     db = getDatabase(firebaseApp);
     log('Firebase initialized using', cfg.databaseURL || cfg);
     return true;
-  } catch(e){ warn('Firebase init failed', e); db = null; return false; }
+  } catch(e){
+    warn('Firebase init failed', e);
+    db = null;
+    return false;
+  }
 }
 async function findExistingPath(candidates){
-  if(!db) return candidates[0] || null;
-  for(const p of candidates){
-    try{
-      const snap = await get(ref(db,p)).catch(()=>null);
+  if (!db) return candidates[0] || null;
+  for (const p of candidates) {
+    try {
+      const snap = await get(ref(db, p)).catch(()=>null);
       const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-      log('probe',p,'exists=',exists);
+      log('probe', p, 'exists=', exists);
       if (exists) return p;
-    }catch(e){ warn('probe failed',p,e); }
+    } catch(e){
+      warn('probe failed', p, e);
+    }
   }
   return null;
 }
 
-/* ====== Listeners attaching ====== */
+/* ===== NORMALIZE SNAPSHOT DATA ===== */
+function pickQueueObject(val){
+  if (!val) return {};
+  if (typeof val === 'string') return { raw: val };
+  if (typeof val !== 'object') return {};
+  return val.queue || val.data || val.item || val.value || val;
+}
+function extractQueueData(q){
+  const obj = pickQueueObject(q);
+  const ticket =
+    obj.ticketNumber ||
+    obj.ticket ||
+    obj.number ||
+    obj.id ||
+    obj.queueId ||
+    obj.token ||
+    obj.key ||
+    obj.queueNumber ||
+    obj.queue_key ||
+    (typeof q === 'string' ? q : null);
+
+  const counterId =
+    obj.counterId ||
+    obj.counterAssigned ||
+    obj.counter ||
+    obj.counter_key ||
+    obj.counterKey ||
+    obj.counterNameId ||
+    obj.currentCounterId ||
+    null;
+
+  const counterName =
+    obj.counterAssignedName ||
+    obj.counterName ||
+    obj.counterNameDisplay ||
+    obj.counterDisplay ||
+    obj.currentCounterName ||
+    obj.name ||
+    null;
+
+  const nowServing =
+    obj.nowServing ||
+    obj.nowServingValue ||
+    obj.current ||
+    obj.currentServing ||
+    obj.serving ||
+    obj.calledNumber ||
+    obj.displayCurrent ||
+    null;
+
+  const calledFlag =
+    isTruthy(obj.called) ||
+    !!obj.calledAt ||
+    !!obj.notifiedAt ||
+    !!obj.servedAt ||
+    !!obj.pingedAt;
+
+  return { obj, ticket, counterId, counterName, nowServing, calledFlag };
+}
+function extractCounterData(c){
+  const obj = pickQueueObject(c);
+  const nowServing =
+    obj.nowServing ||
+    obj.nowServingValue ||
+    obj.current ||
+    obj.currentServing ||
+    obj.serving ||
+    null;
+
+  const name =
+    obj.name ||
+    obj.displayName ||
+    obj.counterName ||
+    obj.counterNameDisplay ||
+    obj.title ||
+    null;
+
+  return { obj, nowServing, name };
+}
+
+/* ===== PATH ATTACH ===== */
 async function attachQueue(queueKey){
   if (!db || !queueKey) return;
   detachQueue();
@@ -188,42 +372,43 @@ async function attachQueue(queueKey){
     `${tBase}queue/${queueKey}`,
     `${tBase}public/queues/${queueKey}`,
     `${tBase}public/queue/${queueKey}`,
+    `${tBase}queuesById/${queueKey}`,
+    `${tBase}queuesByNumber/${queueKey}`,
     `queues/${queueKey}`,
     `queue/${queueKey}`,
     `${queueKey}`
   ];
 
   const chosen = (await findExistingPath(candidates)) || candidates[0];
-  log('chosen queue path',chosen);
+  log('chosen queue path', chosen);
 
   try {
     qListenerRef = ref(db, chosen);
-    onValue(qListenerRef, snap => {
+    onValue(qListenerRef, async snap => {
       try {
         if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
-          yourNumberEl.textContent = '—'; counterNameEl.textContent = '—'; statusBanner.textContent = 'Queue not found';
+          yourNumberEl.textContent = '—';
+          counterNameEl.textContent = '—';
+          statusBanner.textContent = 'Queue not found';
           return;
         }
+
         const q = snap.val() || {};
-        const ticket = q.ticketNumber || q.ticket || q.number || q.id || q.queueId || q.token || q.key || (typeof q === 'string' ? q : null);
+        const { ticket, counterId, counterName, nowServing, calledFlag } = extractQueueData(q);
+
         lastSeenTicket = ticket;
         yourNumberEl.textContent = readableTicket(ticket);
-
-        const calledFlag = q.called === true || q.called === 'true' || q.calledAt || q.notifiedAt;
-        const counterId = q.counterId || q.counterAssigned || q.counter || q.counter_key || q.counterKey || null;
-        const counterName = q.counterAssignedName || q.counterName || q.counterNameDisplay || q.counterDisplay || null;
 
         if (counterName) counterNameEl.textContent = counterName;
         else if (counterId) counterNameEl.textContent = `Counter ${counterId}`;
         else counterNameEl.textContent = '—';
 
-        if (q.nowServing || q.nowServingValue || q.current) {
-          const now = q.nowServing || q.nowServingValue || q.current;
-          const nowNum = parseTicketNum(now);
+        if (nowServing !== undefined && nowServing !== null) {
+          const nowNum = parseTicketNum(nowServing);
           const ticketNum = parseTicketNum(ticket);
           if (!isNaN(nowNum) && !isNaN(ticketNum)) {
             const ahead = Math.max(0, ticketNum - nowNum);
-            statusBanner.textContent = (ahead === 0 ? "You're next!" : `${ahead} ahead`);
+            statusBanner.textContent = ahead === 0 ? "You're next!" : `${ahead} ahead`;
           } else {
             statusBanner.textContent = 'Monitoring queue...';
           }
@@ -231,16 +416,22 @@ async function attachQueue(queueKey){
           statusBanner.textContent = 'Monitoring queue...';
         }
 
-        if (calledFlag) {
-          // PLAY SOUND (sound-only) — best-effort
-          alertBySound(ticket, counterName || counterId);
-          return;
+        if (counterId && counterId !== lastCounterId) {
+          lastCounterId = counterId;
+          await attachCounter(counterId);
+        } else if (counterId && !cListenerRef) {
+          await attachCounter(counterId);
         }
 
-        if (counterId) attachCounter(counterId);
+        if (calledFlag) {
+          alertBySound(ticket, counterName || counterId);
+        }
 
-      } catch(e){ warn('q onValue callback failed', e); }
+      } catch(e){
+        warn('queue listener callback failed', e);
+      }
     });
+
     statusBanner.textContent = 'Listening for your number...';
   } catch(e){
     warn('attachQueue failed', e);
@@ -248,130 +439,175 @@ async function attachQueue(queueKey){
     scheduleReconnect(()=>attachQueue(queueKey));
   }
 }
-
-function detachQueue(){ try { if (qListenerRef) off(qListenerRef); qListenerRef = null; } catch(e){}; detachCounter(); }
+function detachQueue(){
+  try { if (qListenerRef) off(qListenerRef); } catch(e){}
+  qListenerRef = null;
+  detachCounter();
+}
 async function attachCounter(counterId){
   if (!db || !counterId) return;
   detachCounter();
+
   const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
   const candidates = [
     `${tBase}counters/${counterId}`,
     `${tBase}public/counters/${counterId}`,
+    `${tBase}counter/${counterId}`,
     `counters/${counterId}`,
-    `public/counters/${counterId}`
+    `public/counters/${counterId}`,
+    `counter/${counterId}`
   ];
+
   const chosen = (await findExistingPath(candidates)) || candidates[0];
   log('chosen counter path', chosen);
+
   try {
     cListenerRef = ref(db, chosen);
     onValue(cListenerRef, snap => {
-      if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
-      const c = snap.val() || {};
-      const nowServing = c.nowServing || c.nowServingValue || c.current || null;
-      const name = c.name || c.displayName || c.counterName || null;
-      if (name) counterNameEl.textContent = name;
-      if (nowServing !== undefined && nowServing !== null) {
-        const nowStr = String(nowServing);
-        if (lastSeenTicket && (nowStr === String(lastSeenTicket) || parseTicketNum(nowStr) >= parseTicketNum(lastSeenTicket))) {
-          alertBySound(lastSeenTicket, name || counterId);
+      try {
+        if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
+
+        const c = snap.val() || {};
+        const { nowServing, name } = extractCounterData(c);
+
+        if (name) counterNameEl.textContent = name;
+        if (nowServing !== undefined && nowServing !== null) {
+          const nowStr = String(nowServing);
+          const ticketStr = String(lastSeenTicket || '');
+
+          if (ticketStr && (nowStr === ticketStr || parseTicketNum(nowStr) >= parseTicketNum(ticketStr))) {
+            alertBySound(lastSeenTicket, name || counterId);
+          }
+
+          if (name) document.getElementById('counterName').textContent = name;
+          else document.getElementById('counterName').textContent = `Counter ${counterId}`;
         }
-        document.getElementById('counterName').textContent = name || `Counter ${counterId}`;
+      } catch(e){
+        warn('counter listener callback failed', e);
       }
     });
-  } catch(e){ warn('attachCounter failed',e); scheduleReconnect(()=>attachCounter(counterId)); }
+  } catch(e){
+    warn('attachCounter failed', e);
+    scheduleReconnect(()=>attachCounter(counterId));
+  }
+}
+function detachCounter(){
+  try { if (cListenerRef) off(cListenerRef); } catch(e){}
+  cListenerRef = null;
 }
 
-function detachCounter(){ try { if (cListenerRef) off(cListenerRef); cListenerRef = null; } catch(e){} }
-
-/* ====== reconnect helper ====== */
+/* ===== RECONNECT ===== */
 function scheduleReconnect(fn){
   reconnectDelay = Math.min(30_000, reconnectDelay * 1.8 || 1000);
-  setTimeout(()=>{ try{ fn(); reconnectDelay = 1000; } catch(e){ warn('reconnect attempt failed',e); } }, reconnectDelay);
+  setTimeout(()=>{
+    try{
+      fn();
+      reconnectDelay = 1000;
+    } catch(e){
+      warn('reconnect attempt failed', e);
+    }
+  }, reconnectDelay);
 }
 
-/* ====== SOUND LOGIC (best-effort autoplay) ====== */
-
-/* try to create/resume audio context; call often - browsers sometimes allow resume after user interacts elsewhere */
+/* ===== AUDIO / NOTIFICATION ===== */
 async function tryResumeAudioContext() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') {
-      await audioCtx.resume().catch(()=>{ /* often blocked */ });
+      await audioCtx.resume().catch(()=>{});
     }
     audioUnlocked = (audioCtx && audioCtx.state === 'running');
     if (audioUnlocked) {
-      autoplayNote.textContent = 'Audio unlocked (will play sound when called).';
+      autoplayNote.textContent = 'Audio unlocked. Sound will play when called.';
     }
-  } catch(e){ warn('tryResumeAudioContext failed', e); }
+  } catch(e){
+    warn('tryResumeAudioContext failed', e);
+  }
 }
-
-/* play short oscillator chime if audio context is running */
 function playOscillatorChime() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') {
-      // attempt synchronous resume; may still be blocked
-      audioCtx.resume().catch(()=>{});
-    }
-    if (audioCtx.state !== 'running') {
-      // cannot run oscillator if context not running
-      return;
-    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    if (audioCtx.state !== 'running') return;
+
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = 'sine';
     o.frequency.value = 880;
     g.gain.value = 0.0001;
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+
     const now = audioCtx.currentTime;
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
     o.start(now);
     o.stop(now + 0.9);
-    setTimeout(()=>{ try{o.disconnect(); g.disconnect();}catch(_){} }, 1200);
-  } catch(e){ warn('playOscillatorChime error', e); }
-}
 
-/* attempt to play fallback audio element (may be allowed in some desktops) */
+    setTimeout(()=>{ try{ o.disconnect(); g.disconnect(); } catch(_){} }, 1200);
+  } catch(e){
+    warn('playOscillatorChime error', e);
+  }
+}
 function playBeepFile() {
   try {
     if (!beepAudio) return;
     beepAudio.currentTime = 0;
     const p = beepAudio.play();
     if (p && p.catch) {
-      p.catch(err => { /* autoplay blocked */ log('beepAudio.play blocked', err); });
+      p.catch(err => { log('beepAudio.play blocked', err); });
     }
-  } catch(e){ warn('beepFile play failed', e); }
+  } catch(e){
+    warn('playBeepFile failed', e);
+  }
 }
-
-/* single entrypoint when we detect "called" */
-function alertBySound(ticket, counterName) {
+async function showBrowserNotification(title, body) {
+  try {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission().catch(()=>{});
+    }
+    if (Notification.permission !== 'granted') return false;
+    new Notification(title, {
+      body,
+      tag: currentStorageScope(),
+      renotify: true
+    });
+    return true;
+  } catch(e){
+    warn('showBrowserNotification failed', e);
+    return false;
+  }
+}
+async function alertBySound(ticket, counterName) {
   try {
     if (!ticket) ticket = '—';
-    const alertedKey = alertKeyPrefix + (currentQueueKey || 'unknown') + '_' + String(ticket);
-    if (localStorage.getItem(alertedKey)) { log('already alerted', alertedKey); return; }
-    localStorage.setItem(alertedKey, '1');
+
+    const key = alertedKey(ticket);
+    if (localStorage.getItem(key)) {
+      log('already alerted', key);
+      return;
+    }
+    localStorage.setItem(key, '1');
 
     yourNumberEl.textContent = readableTicket(ticket);
     if (counterName) counterNameEl.textContent = counterName;
 
-    // 1) Try playing fallback audio element first
     playBeepFile();
-
-    // 2) Try oscillator (works only if audioCtx running)
     playOscillatorChime();
-
-    // 3) Try to repeatedly resume audio context (useful if user interacts later)
     tryResumeAudioContext();
-
-    // small vibration as extra cue if supported
     try { if (navigator.vibrate) navigator.vibrate([200,80,200]); } catch(e){}
 
-  } catch(e){ warn('alertBySound failed', e); }
-}
+    await showBrowserNotification(
+      'QueueJoy — Your Turn',
+      `${readableTicket(ticket)}${counterName ? ` • ${counterName}` : ''}`
+    );
 
-/* keep trying to resume audio context every few seconds (best-effort) */
+  } catch(e){
+    warn('alertBySound failed', e);
+  }
+}
 function startAudioResumeLoop() {
   if (audioResumeInterval) return;
   audioResumeInterval = setInterval(() => {
@@ -379,23 +615,47 @@ function startAudioResumeLoop() {
   }, 4000);
 }
 
-/* ====== BOOTSTRAP ====== */
+/* ===== TELEGRAM SUBSCRIBE ===== */
+function buildTelegramLink() {
+  const payload = getBotPayload();
+  return `${TELEGRAM_BOT_URL}?start=${encodeURIComponent(payload)}`;
+}
+function markTelegramPromptShown() {
+  localStorage.setItem(promoLocalKey(), '1');
+  promoNote.style.display = 'block';
+}
+function isTelegramPromptShown() {
+  return localStorage.getItem(promoLocalKey()) === '1';
+}
+
+/* ===== BOOTSTRAP ===== */
 async function bootstrap() {
   try {
     clearError();
-    const queueKey = getParam(['queueId','queueid','qid','id']) || getParam(['token']) || null;
-    if (!queueKey) { fail('Missing queueId (use ?queueId=...)'); return; }
+
+    const queueKey =
+      getParam(['queueId','queueid','qid','id']) ||
+      getParam(['token']) ||
+      null;
+
+    if (!queueKey) {
+      fail('Missing queueId (use ?queueId=...)');
+      statusBanner.textContent = 'Missing queue id';
+      return;
+    }
+
     statusBanner.textContent = 'Resolving tenant...';
     currentQueueKey = queueKey;
 
     const slug = getSlugFromUrl();
     if (slug) {
-      qaBadge.style.display='block';
+      qaBadge.style.display = 'block';
       qaSlug.textContent = slug;
       qaId.textContent = '(resolving...)';
       TENANT_SLUG = slug;
+
       const tenantResp = await resolveTenant(slug);
-      if (tenantResp && (tenantResp.tenantId || tenantResp.tenant)) {
+      if (tenantResp && (tenantResp.tenantId || tenantResp.tenant || tenantResp.id)) {
         TENANT_ID = tenantResp.tenantId || tenantResp.tenant || tenantResp.id || slug;
       } else {
         TENANT_ID = slug;
@@ -403,24 +663,26 @@ async function bootstrap() {
       qaId.textContent = TENANT_ID;
     }
 
-    let clientCfg = null;
-    try { clientCfg = await fetchClientConfig(TENANT_SLUG || ''); } catch(e){}
-
+    const clientCfg = await fetchClientConfig(TENANT_SLUG || '');
     const inited = await initFirebase(clientCfg);
-    if (!inited) { statusBanner.textContent = 'Firebase init failed'; fail('Firebase init failed'); return; }
+    if (!inited) {
+      statusBanner.textContent = 'Firebase init failed';
+      fail('Firebase init failed');
+      return;
+    }
 
-    // Start trying to resume audio context in background (best-effort)
     startAudioResumeLoop();
 
-    // Attach queue & counter listeners
     await attachQueue(currentQueueKey);
     statusBanner.textContent = 'Listening for your number...';
 
-    // If previously subscribed to promos locally, show note
-    try { if (localStorage.getItem('qj_promos_'+(TENANT_ID||TENANT_SLUG||'global'))) promoNote.style.display='block'; } catch(e){}
+    if (isTelegramPromptShown()) {
+      promoNote.style.display = 'block';
+    }
 
-    // visibility change: try resume audio
-    document.addEventListener('visibilitychange', () => { tryResumeAudioContext(); });
+    document.addEventListener('visibilitychange', () => {
+      tryResumeAudioContext();
+    });
 
   } catch(e) {
     warn('bootstrap failed', e);
@@ -428,47 +690,54 @@ async function bootstrap() {
   }
 }
 
-/* ====== UI: promo button (keeps behavior from earlier) ====== */
-promoBtn.addEventListener('click', async () => {
+/* ===== BUTTONS ===== */
+enableBtn.addEventListener('click', async () => {
   try {
-    // best-effort resume audio on this gesture (if user interacts)
+    localStorage.setItem(enabledLocalKey(), '1');
     await tryResumeAudioContext().catch(()=>{});
-    let url = `${TELEGRAM_BOT_URL}?start=${encodeURIComponent(currentQueueKey)}`;
-    try {
-      const res = await fetch(CREATE_LINK_ENDPOINT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ queueKey: currentQueueKey, tenantId: TENANT_ID, purpose: 'promo' }) });
-      if (res.ok) {
-        const j = await res.json().catch(()=>null);
-        if (j && (j.link || j.token)) url = j.link || `${TELEGRAM_BOT_URL}?start=${j.token}`;
-      }
-    } catch(e){ warn('promo createLink failed', e); }
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!w) { const a=document.createElement('a'); a.href=url; a.target='_blank'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-    localStorage.setItem('qj_promos_'+(TENANT_ID||TENANT_SLUG||'global'), '1');
-    promoNote.style.display = 'block';
-  } catch(e){ warn('promoBtn failed', e); }
+    await showBrowserNotification('QueueJoy', 'Alerts enabled for this page.');
+    autoplayNote.textContent = 'Alerts enabled. If your number is called, this page will beep and notify.';
+    statusBanner.textContent = 'Alerts enabled.';
+  } catch(e){
+    warn('enableBtn failed', e);
+  }
 });
 
-/* ====== Start ====== */
+promoBtn.addEventListener('click', async () => {
+  try {
+    await tryResumeAudioContext().catch(()=>{});
+    localStorage.setItem(promoLocalKey(), '1');
+    markTelegramPromptShown();
+
+    const url = buildTelegramLink();
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    statusBanner.textContent = 'Telegram opened. Press Start to subscribe.';
+  } catch(e){
+    warn('promoBtn failed', e);
+  }
+});
+
+/* ===== START ===== */
 bootstrap();
 
-/* ====== CLEANUP ====== */
-window.addEventListener('beforeunload', () => { try { if (qListenerRef) off(qListenerRef); if (cListenerRef) off(cListenerRef); if (audioResumeInterval) clearInterval(audioResumeInterval); } catch(_){} });
-
-/* ====== NOTES for deployers (read this) ======
-1) Browser autoplay rules:
-   - Most browsers block audible autoplay when the page is not interacted with by the user.
-   - Some desktop browsers allow autoplay for sites with high engagement or explicit user settings.
-2) To ensure 100% reliable background sound in production, use one of these:
-   - Install the page as a PWA (Chrome may allow more background privileges).
-   - Run Chrome in Kiosk mode or with command line: --autoplay-policy=no-user-gesture-required
-   - Run inside a native wrapper (Electron, NW.js) or a dedicated kiosk device/app.
-   - Ask users to click once anywhere (or press the "Subscribe" button) on first visit to unlock audio; after that the page can play sound when called.
-3) Service Workers and Push Notifications cannot play arbitrary audio in the background.
-   - A push notification can alert the user visually, but cannot reliably start audio playback in the page's audio context.
-4) If you want, I can:
-   - Add a tiny 'Please tap once to enable sound' overlay for first-time visitors (it’s the most user-friendly and reliable approach).
-   - Provide instructions to convert this page into a PWA so users can 'Add to home screen' and gain better background behavior.
-============================================== */
+/* ===== CLEANUP ===== */
+window.addEventListener('beforeunload', () => {
+  try {
+    if (qListenerRef) off(qListenerRef);
+    if (cListenerRef) off(cListenerRef);
+    if (audioResumeInterval) clearInterval(audioResumeInterval);
+  } catch(_){}
+});
 </script>
 </body>
 </html>

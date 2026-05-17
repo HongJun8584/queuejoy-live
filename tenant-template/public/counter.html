@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -1114,6 +1115,10 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = numVal || 1;
         counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = now;
         await update(ref(db), counterUpdates);
+
+        // Release immediately so the next call can happen without waiting
+        // for notification delivery. The fetch below runs independently.
+        callNextLock = false;
 
         playBeep();
 
