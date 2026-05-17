@@ -1137,37 +1137,41 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           }
         }
 
-        try {
-          const payload = {
-            calledFull: queueNumber,
-            counterName: counter.name || counterId,
-            counterId,
-            recipients,
-            tenantId: window.__TENANT_ID,
-            slug: window.__TENANT_SLUG,
-            sessionId: SESSION_ID,
-            userAgent: navigator.userAgent,
-            platform: navigator.platform || 'counter-panel'
-          };
-          const url = `${NOTIFY_ENDPOINT}?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (res.ok) {
-            const rj = await res.json().catch(() => null);
-            const sentCount = rj && rj.sent ? rj.sent : 0;
-            showToast(`${queueNumber} called — ${sentCount} notification${sentCount !== 1 ? 's' : ''} sent`, 'success');
-          } else {
-            const txt = await res.text().catch(() => '');
-            console.warn('Notify returned', res.status, txt);
-            showToast(`${queueNumber} called — notification may have failed`, 'error');
+        // Fire-and-forget notification so the counter does not wait on the network.
+        // The queue action completes immediately; notification status is shown later.
+        void (async () => {
+          try {
+            const payload = {
+              calledFull: queueNumber,
+              counterName: counter.name || counterId,
+              counterId,
+              recipients,
+              tenantId: window.__TENANT_ID,
+              slug: window.__TENANT_SLUG,
+              sessionId: SESSION_ID,
+              userAgent: navigator.userAgent,
+              platform: navigator.platform || 'counter-panel'
+            };
+            const url = `${NOTIFY_ENDPOINT}?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+              const rj = await res.json().catch(() => null);
+              const sentCount = rj && rj.sent ? rj.sent : 0;
+              showToast(`${queueNumber} called — ${sentCount} notification${sentCount !== 1 ? 's' : ''} sent`, 'success');
+            } else {
+              const txt = await res.text().catch(() => '');
+              console.warn('Notify returned', res.status, txt);
+              showToast(`${queueNumber} called — notification may have failed`, 'error');
+            }
+          } catch (notifyErr) {
+            console.error('Notify error', notifyErr);
+            showToast(`${queueNumber} called — notification failed. Please retry.`, 'error');
           }
-        } catch (notifyErr) {
-          console.error('Notify error', notifyErr);
-          showToast(`${queueNumber} called — notification failed. Please retry.`, 'error');
-        }
+        })();
       } catch (err) {
         console.error('callNext error', err);
         showToast('Failed to call next: ' + err.message, 'error');
