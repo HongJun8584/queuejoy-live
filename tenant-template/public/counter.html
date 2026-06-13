@@ -914,6 +914,73 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       closeModal(eventPopup);
     });
 
+    function ensureQueueSummaryBar() {
+      if (document.getElementById('queueSummaryBar')) return;
+      const main = document.querySelector('main');
+      if (!main) return;
+
+      const bar = document.createElement('section');
+      bar.id = 'queueSummaryBar';
+      bar.className = 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4';
+
+      bar.innerHTML = `
+        <div class="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-sm shadow-lg p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Live Queue Pace</p>
+          <div class="mt-2 text-2xl font-black text-slate-900 tabular-nums" id="summaryEta">—</div>
+          <p class="mt-1 text-xs text-slate-500">Estimated wait for the next ticket</p>
+        </div>
+        <div class="rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white shadow-lg p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-500">Average Service</p>
+          <div class="mt-2 text-2xl font-black text-indigo-700 tabular-nums" id="summaryAvgService">—</div>
+          <p class="mt-1 text-xs text-indigo-500/80">Synced from completed service events</p>
+        </div>
+        <div class="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white shadow-lg p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-500">Average Wait</p>
+          <div class="mt-2 text-2xl font-black text-violet-700 tabular-nums" id="summaryAvgWait">—</div>
+          <p class="mt-1 text-xs text-violet-500/80">Computed from queue start to call time</p>
+        </div>
+        <div class="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white shadow-lg p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-500">Queue Health</p>
+          <div class="mt-2 text-2xl font-black text-emerald-700 tabular-nums" id="summaryHealth">—</div>
+          <p class="mt-1 text-xs text-emerald-500/80">Waiting / active counters / completed</p>
+        </div>
+      `;
+
+      main.insertBefore(bar, main.firstChild);
+    }
+
+    function updateQueueSummaryBar() {
+      const etaEl = document.getElementById('summaryEta');
+      const avgServiceEl = document.getElementById('summaryAvgService');
+      const avgWaitEl = document.getElementById('summaryAvgWait');
+      const healthEl = document.getElementById('summaryHealth');
+      if (!etaEl || !avgServiceEl || !avgWaitEl || !healthEl) return;
+
+      const ids = Object.keys(countersData || {});
+      const activeCounters = ids.filter(id => (countersData[id] || {}).active !== false).length || ids.length || 0;
+      let totalWaiting = 0;
+      let allService = [];
+      let allWait = [];
+      let completedTickets = 0;
+
+      for (const id of ids) {
+        const metrics = getCounterMetrics(id);
+        totalWaiting += metrics.waitingCount;
+        if (Number.isFinite(metrics.avgServiceMin)) allService.push(metrics.avgServiceMin);
+        if (Number.isFinite(metrics.avgWaitMin)) allWait.push(metrics.avgWaitMin);
+        completedTickets += metrics.completedCount || 0;
+      }
+
+      const avgService = allService.length ? (allService.reduce((a, b) => a + b, 0) / allService.length) : 3;
+      const avgWait = allWait.length ? (allWait.reduce((a, b) => a + b, 0) / allWait.length) : null;
+      const nextEta = totalWaiting > 0 ? totalWaiting * avgService : 0;
+
+      etaEl.textContent = formatMinutes(nextEta);
+      avgServiceEl.textContent = formatMinutes(avgService);
+      avgWaitEl.textContent = avgWait != null ? formatMinutes(avgWait) : '—';
+      healthEl.textContent = `${totalWaiting} waiting • ${activeCounters} active • ${completedTickets} done`;
+    }
+
     async function repairCounterBaselines() {
       const updates = {};
       for (const [cid, c] of Object.entries(countersData || {})) {
@@ -924,37 +991,153 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (Object.keys(updates).length) await update(ref(db), updates);
     }
 
+    
+    function toEpoch(value, fallback = 0) {
+      if (value == null || value === '') return fallback;
+      if (typeof value === 'number' && Number.isFinite(value)) return value > 0 ? value : fallback;
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    }
+
+    function normalizeQueueStatus(entry) {
+      const raw = String(entry?.status || '').trim().toLowerCase();
+      if (['completed', 'served', 'done', 'finished'].includes(raw) || entry?.completedAt || entry?.serviceEventId) return 'completed';
+      if (['serving', 'called', 'in_progress', 'inprogress', 'attending'].includes(raw) || entry?.calledAt || entry?.serviceStartedAt) return 'serving';
+      if (['cancelled', 'canceled', 'no_show', 'noshow'].includes(raw) || entry?.canceledAt || entry?.cancelledAt || entry?.canceledBy) return 'cancelled';
+      if (['waiting', 'queued', 'pending'].includes(raw) || !raw) return 'waiting';
+      return raw;
+    }
+
+    function resolveQueueCounterId(entry) {
+      return String(entry?.counterId || entry?.counter || entry?.counterAssigned || '').trim();
+    }
+
     function getQueueNumber(entry, key) {
       return entry?.number || entry?.queueNumber || entry?.queueId || key;
     }
 
+    function getQueueTimeBundle(entry, fallbackNow = Date.now()) {
+      const joinedAt = toEpoch(entry?.joinedAt || entry?.createdAt || entry?.timestamp || entry?.queuedAt || entry?.updatedAt, fallbackNow);
+      const calledAt = toEpoch(entry?.calledAt || entry?.serviceStartedAt || entry?.startedAt || entry?.lastCalledAt, 0) || null;
+      const serviceStartedAt = toEpoch(entry?.serviceStartedAt || entry?.calledAt || entry?.startedAt || calledAt || joinedAt, joinedAt);
+      const completedAt = toEpoch(entry?.completedAt || entry?.serviceEndedAt || entry?.finishedAt || entry?.servedAt, 0) || null;
+
+      const waitMs = calledAt != null ? Math.max(0, calledAt - joinedAt) : null;
+      const serviceMs = completedAt != null ? Math.max(0, completedAt - serviceStartedAt) : null;
+
+      return { joinedAt, calledAt, serviceStartedAt, completedAt, waitMs, serviceMs };
+    }
+
     function getServiceStart(entry, fallbackNow) {
-      const raw = entry?.calledAt || entry?.updatedAt || entry?.timestamp || entry?.createdAt || fallbackNow;
-      const n = Number(raw);
-      if (Number.isFinite(n) && n > 0) return n;
-      const d = new Date(raw).getTime();
-      return Number.isFinite(d) && d > 0 ? d : fallbackNow;
+      const bundle = getQueueTimeBundle(entry, fallbackNow);
+      return bundle.serviceStartedAt || fallbackNow;
+    }
+
+    function getCounterCompletionStats(counterId) {
+      const completed = [];
+      for (const [key, entry] of Object.entries(queueData || {})) {
+        if (!entry) continue;
+        if (resolveQueueCounterId(entry) !== String(counterId)) continue;
+        if (normalizeQueueStatus(entry) !== 'completed') continue;
+        const t = getQueueTimeBundle(entry);
+        if (Number.isFinite(t.waitMs) && t.waitMs >= 0) completed.push({ type: 'wait', ms: t.waitMs, key, entry });
+        if (Number.isFinite(t.serviceMs) && t.serviceMs >= 0) completed.push({ type: 'service', ms: t.serviceMs, key, entry });
+      }
+
+      const waits = completed.filter(x => x.type === 'wait').map(x => x.ms);
+      const services = completed.filter(x => x.type === 'service').map(x => x.ms);
+
+      const avgWaitMin = waits.length ? (waits.reduce((a, b) => a + b, 0) / waits.length) / 60000 : null;
+      const avgServiceMin = services.length ? (services.reduce((a, b) => a + b, 0) / services.length) / 60000 : null;
+
+      return {
+        waits,
+        services,
+        avgWaitMin,
+        avgServiceMin,
+        completedCount: Math.max(waits.length, services.length)
+      };
+    }
+
+    function getCounterMetrics(counterId) {
+      const waitingEntries = [];
+      let servingEntry = null;
+
+      for (const [key, entry] of Object.entries(queueData || {})) {
+        if (!entry) continue;
+        if (resolveQueueCounterId(entry) !== String(counterId)) continue;
+
+        const status = normalizeQueueStatus(entry);
+        if (status === 'waiting') {
+          waitingEntries.push({ key, entry, ts: getQueueTimeBundle(entry).joinedAt });
+        } else if (status === 'serving') {
+          const ts = getQueueTimeBundle(entry).calledAt || getQueueTimeBundle(entry).joinedAt;
+          if (!servingEntry || ts < (servingEntry.ts || Infinity)) {
+            servingEntry = { key, entry, ts };
+          }
+        }
+      }
+
+      waitingEntries.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      const stats = getCounterCompletionStats(counterId);
+      const waitingCount = waitingEntries.length;
+      const fallbackAvg = 3;
+      const avgServiceMin = Math.max(1, Math.round((stats.avgServiceMin || fallbackAvg) * 10) / 10);
+      const avgWaitMin = stats.avgWaitMin != null ? Math.max(0, Math.round(stats.avgWaitMin * 10) / 10) : null;
+      const estimatedWaitMin = waitingCount > 0 ? waitingCount * avgServiceMin : 0;
+
+      return {
+        waitingEntries,
+        servingEntry,
+        waitingCount,
+        avgServiceMin,
+        avgWaitMin,
+        estimatedWaitMin,
+        completedCount: stats.completedCount
+      };
+    }
+
+    function formatMinutes(mins) {
+      const value = Number(mins);
+      if (!Number.isFinite(value) || value <= 0.01) return 'Now';
+      if (value < 60) return `${Math.max(1, Math.round(value))} min`;
+      const h = Math.floor(value / 60);
+      const m = Math.round(value % 60);
+      return m ? `${h}h ${m}m` : `${h}h`;
     }
 
     async function writeServiceEvent({ completedEntry, completedKey, counterId, counterName, now }) {
       if (!completedEntry || !completedKey) return null;
+      const status = normalizeQueueStatus(completedEntry);
+      if (status === 'cancelled' || status === 'completed') return null;
       if (completedEntry.completedAt || completedEntry.serviceEventId || completedEntry.serviceEventWrittenAt) return null;
       if (completedServiceEventKeys.has(completedKey)) return null;
 
       completedServiceEventKeys.add(completedKey);
 
-      const startedAt = getServiceStart(completedEntry, now);
+      const times = getQueueTimeBundle(completedEntry, now);
+      const startedAt = times.serviceStartedAt || times.calledAt || now;
+      const calledAt = times.calledAt || startedAt;
+      const joinedAt = times.joinedAt || startedAt;
       const completedAt = now;
-      let serviceMs = completedAt - startedAt;
+
+      let waitMs = Number.isFinite(times.waitMs) ? times.waitMs : Math.max(0, calledAt - joinedAt);
+      let serviceMs = Number.isFinite(times.serviceMs) ? times.serviceMs : Math.max(0, completedAt - startedAt);
+
+      if (!Number.isFinite(waitMs) || waitMs < 0) waitMs = 0;
       if (!Number.isFinite(serviceMs) || serviceMs <= 0) serviceMs = 1000;
-      if (serviceMs < 1000) serviceMs = 1000;
 
       const queueNumber = getQueueNumber(completedEntry, completedKey);
       const prefix = String(queueNumber || '').replace(/\d+$/, '');
       const event = {
         type: 'service_completed',
+        waitMs,
+        waitMin: waitMs / 60000,
         serviceMs,
-        startedAt,
+        serviceMin: serviceMs / 60000,
+        joinedAt,
+        calledAt,
+        serviceStartedAt: startedAt,
         completedAt,
         timestamp: completedAt,
         counterId: String(counterId || ''),
@@ -973,10 +1156,18 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       const eventId = eventRef.key;
 
       const qUpdates = {};
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/status`] = 'completed';
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/joinedAt`] = joinedAt;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/calledAt`] = calledAt;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/serviceStartedAt`] = startedAt;
       qUpdates[`${TENANT_ROOT}/queue/${completedKey}/completedAt`] = completedAt;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/waitMs`] = waitMs;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/serviceMs`] = serviceMs;
       qUpdates[`${TENANT_ROOT}/queue/${completedKey}/serviceEventId`] = eventId;
       qUpdates[`${TENANT_ROOT}/queue/${completedKey}/serviceEventWrittenAt`] = completedAt;
       qUpdates[`${TENANT_ROOT}/queue/${completedKey}/updatedAt`] = completedAt;
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/completedByCounterId`] = String(counterId || '');
+      qUpdates[`${TENANT_ROOT}/queue/${completedKey}/completedByCounterName`] = String(counterName || counterId || '');
       await update(ref(db), qUpdates);
 
       return eventId;
@@ -993,6 +1184,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         nextNumber: (payload.lastIssued || 1) + 1,
         nextIssuedNumber: (payload.lastIssued || 1) + 1,
         baselineNumber: 1,
+        avgServiceMin: payload.avgServiceMin || 3,
+        avgWaitMin: payload.avgWaitMin || 0,
         updatedAt: now
       };
       const updates = {};
@@ -1001,32 +1194,25 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       return update(ref(db), updates);
     }
 
+
     function getWaitingCount(counterId) {
-      let count = 0;
-      for (const e of Object.values(queueData)) {
-        if (!e) continue;
-        const cid = e.counterId || e.counter || e.counterAssigned;
-        if (String(cid) === String(counterId) && (e.status === 'waiting' || !e.status)) count++;
-      }
-      return count;
+      return getCounterMetrics(counterId).waitingCount;
     }
 
     function getServingItem(counterId) {
-      for (const [k, e] of Object.entries(queueData)) {
-        if (!e) continue;
-        const cid = e.counterId || e.counter || e.counterAssigned;
-        const st = String(e.status || '').toLowerCase();
-        if (String(cid) === String(counterId) && st === 'serving') return { key: k, entry: e };
-      }
-      return null;
+      const servingEntry = getCounterMetrics(counterId).servingEntry;
+      return servingEntry ? { key: servingEntry.key, entry: servingEntry.entry } : null;
     }
+
 
     async function callNext(counterId) {
       if (callNextLock) {
         showToast('Please wait — processing previous call', 'info');
         return;
       }
+
       callNextLock = true;
+      const startedAt = Date.now();
 
       try {
         const counter = countersData[counterId];
@@ -1035,49 +1221,46 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           return;
         }
 
-        const servingNow = getServingItem(counterId);
+        const counterName = counter.name || counterId;
+        const metrics = getCounterMetrics(counterId);
+        const target = metrics.waitingEntries[0];
 
-        let earliestKey = null;
-        let earliestEntry = null;
-        let earliestTs = Infinity;
-
-        for (const [k, e] of Object.entries(queueData)) {
-          if (!e) continue;
-          const cid = String(e.counterId || e.counter || e.counterAssigned || '');
-          if (cid !== String(counterId)) continue;
-          const st = String(e.status || 'waiting').toLowerCase();
-          if (st !== 'waiting') continue;
-          const ts = e.createdAt || e.joinedAt || e.timestamp || e.updatedAt || 0;
-          const tsNum = typeof ts === 'number' ? ts : (new Date(ts).getTime() || 0);
-          if (tsNum < earliestTs || !earliestKey) {
-            earliestTs = tsNum;
-            earliestKey = k;
-            earliestEntry = e;
-          }
-        }
-
-        if (!earliestKey || !earliestEntry) {
+        if (!target) {
           showToast('No waiting tickets for this counter', 'info');
           return;
         }
 
-        const now = Date.now();
-        const queueNumber = getQueueNumber(earliestEntry, earliestKey);
-        const numVal = Number.isFinite(Number(earliestEntry.numberVal))
-          ? Number(earliestEntry.numberVal)
-          : parseNumericSuffix(queueNumber);
+        const targetKey = target.key;
+        const targetEntry = target.entry;
+        const queueNumber = getQueueNumber(targetEntry, targetKey);
+        const txNow = Date.now();
 
-        const tx = await runTransaction(tenantRef(`queue/${earliestKey}`), current => {
+        const tx = await runTransaction(tenantRef(`queue/${targetKey}`), current => {
           if (!current) return current;
-          const st = String(current.status || 'waiting').toLowerCase();
-          if (st !== 'waiting') return undefined;
+
+          const currentStatus = normalizeQueueStatus(current);
+          if (!['waiting', 'queued', 'pending'].includes(currentStatus)) return undefined;
+
+          const currentCounterId = resolveQueueCounterId(current);
+          if (currentCounterId && String(currentCounterId) !== String(counterId)) return undefined;
+
+          const joinedAt = toEpoch(current.joinedAt || current.createdAt || current.timestamp || current.updatedAt, txNow);
+          const serviceStartedAt = txNow;
+          const notificationFingerprint = `${counterId}:${targetKey}:${txNow}`;
+
           return {
             ...current,
             status: 'serving',
-            calledAt: now,
-            updatedAt: now,
+            calledAt: txNow,
+            serviceStartedAt,
+            joinedAt,
+            updatedAt: txNow,
             counterId: String(counterId),
-            counterName: counter.name || counterId
+            counterName,
+            calledByCounterId: String(counterId),
+            calledByCounterName: counterName,
+            notificationFingerprint,
+            notificationQueuedAt: txNow
           };
         });
 
@@ -1086,92 +1269,108 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           return;
         }
 
-        if (servingNow && servingNow.key && servingNow.key !== earliestKey) {
-          const completionUpdates = {};
-          completionUpdates[`${TENANT_ROOT}/queue/${servingNow.key}/status`] = 'completed';
-          completionUpdates[`${TENANT_ROOT}/queue/${servingNow.key}/completedAt`] = now;
-          completionUpdates[`${TENANT_ROOT}/queue/${servingNow.key}/updatedAt`] = now;
-          await update(ref(db), completionUpdates);
-
-          try {
-            await writeServiceEvent({
-              completedEntry: servingNow.entry,
-              completedKey: servingNow.key,
-              counterId,
-              counterName: counter.name || counterId,
-              now
-            });
-          } catch (analyticsErr) {
-            console.warn('Failed to write service analytics', analyticsErr);
+        const servingNow = getServingItem(counterId);
+        if (servingNow && servingNow.key && servingNow.key !== targetKey) {
+          const servingStatus = normalizeQueueStatus(servingNow.entry);
+          if (servingStatus === 'serving') {
+            try {
+              await writeServiceEvent({
+                completedEntry: servingNow.entry,
+                completedKey: servingNow.key,
+                counterId,
+                counterName,
+                now: txNow
+              });
+            } catch (analyticsErr) {
+              console.warn('Failed to write service analytics', analyticsErr);
+            }
           }
         }
 
-        const counterUpdates = {};
-        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = numVal || 1;
-        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/updatedAt`] = now;
-        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/busy`] = false;
-        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/nowServing`] = numVal || 1;
-        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/updatedAt`] = now;
-        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = numVal || 1;
-        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = now;
-        await update(ref(db), counterUpdates);
+        const updatedMetrics = getCounterMetrics(counterId);
 
-        // Release immediately so the next call can happen without waiting
-        // for notification delivery. The fetch below runs independently.
-        callNextLock = false;
+        const counterUpdates = {};
+        const targetNumVal = Number.isFinite(Number(targetEntry.numberVal)) && Number(targetEntry.numberVal) > 0
+          ? Number(targetEntry.numberVal)
+          : (parseNumericSuffix(String(queueNumber || '')) || Number(queueNumber) || 1);
+        const nowServingVal = targetNumVal || 1;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/nowServing`] = nowServingVal;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/updatedAt`] = txNow;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/busy`] = false;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/lastAdvanceAt`] = txNow;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/avgServiceMin`] = updatedMetrics.avgServiceMin || 3;
+        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/avgWaitMin`] = updatedMetrics.avgWaitMin || 0;
+        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/nowServing`] = nowServingVal;
+        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/updatedAt`] = txNow;
+        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/avgServiceMin`] = updatedMetrics.avgServiceMin || 3;
+        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/avgWaitMin`] = updatedMetrics.avgWaitMin || 0;
+        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = nowServingVal;
+        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = txNow;
+        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/avgServiceMin`] = updatedMetrics.avgServiceMin || 3;
+        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/avgWaitMin`] = updatedMetrics.avgWaitMin || 0;
+        await update(ref(db), counterUpdates);
 
         playBeep();
 
-        const recipients = [];
-        for (const [k, e] of Object.entries(queueData)) {
-          if (!e) continue;
-          const cid = String(e.counterId || e.counter || e.counterAssigned || '');
-          if (cid !== String(counterId)) continue;
-          const chatId = e.chatId || e.telegramChatId;
-          if (chatId) {
-            recipients.push({
+        const chatId = targetEntry.chatId || targetEntry.telegramChatId || targetEntry.telegram_chat_id;
+        const recipients = chatId
+          ? [{
               chatId,
-              theirNumber: getQueueNumber(e, k),
-              ticketId: k
-            });
-          }
-        }
+              theirNumber: queueNumber,
+              ticketId: targetKey
+            }]
+          : [];
 
-        // Fire-and-forget notification so the counter does not wait on the network.
-        // The queue action completes immediately; notification status is shown later.
-        void (async () => {
-          try {
-            const payload = {
-              calledFull: queueNumber,
-              counterName: counter.name || counterId,
-              counterId,
-              recipients,
-              tenantId: window.__TENANT_ID,
-              slug: window.__TENANT_SLUG,
-              sessionId: SESSION_ID,
-              userAgent: navigator.userAgent,
-              platform: navigator.platform || 'counter-panel'
-            };
-            const url = `${NOTIFY_ENDPOINT}?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-              const rj = await res.json().catch(() => null);
-              const sentCount = rj && rj.sent ? rj.sent : 0;
-              showToast(`${queueNumber} called — ${sentCount} notification${sentCount !== 1 ? 's' : ''} sent`, 'success');
-            } else {
-              const txt = await res.text().catch(() => '');
-              console.warn('Notify returned', res.status, txt);
-              showToast(`${queueNumber} called — notification may have failed`, 'error');
+        const notificationPayload = {
+          calledFull: queueNumber,
+          counterName,
+          counterId,
+          queueId: targetKey,
+          recipients,
+          tenantId: window.__TENANT_ID,
+          slug: window.__TENANT_SLUG,
+          sessionId: SESSION_ID,
+          userAgent: navigator.userAgent,
+          platform: navigator.platform || 'counter-panel',
+          calledAt: txNow,
+          notificationFingerprint: `${counterId}:${targetKey}:${txNow}`,
+          queueStatus: 'serving'
+        };
+
+        if (recipients.length) {
+          void (async () => {
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 2500);
+              const url = `${NOTIFY_ENDPOINT}?slug=${encodeURIComponent(window.__TENANT_SLUG)}`;
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notificationPayload),
+                signal: controller.signal,
+                keepalive: true
+              });
+              clearTimeout(timeoutId);
+
+              if (res.ok) {
+                const rj = await res.json().catch(() => null);
+                const sentCount = Number(rj?.sent || 0);
+                showToast(`${queueNumber} called — ${sentCount > 0 ? `${sentCount} notification${sentCount !== 1 ? 's' : ''} sent` : 'notification queued'}`, 'success');
+              } else {
+                showToast(`${queueNumber} called — notification queued`, 'success');
+              }
+            } catch (notifyErr) {
+              if (notifyErr?.name === 'AbortError') {
+                showToast(`${queueNumber} called — notification queued`, 'success');
+              } else {
+                console.warn('Notify error', notifyErr);
+                showToast(`${queueNumber} called — notification queued`, 'success');
+              }
             }
-          } catch (notifyErr) {
-            console.error('Notify error', notifyErr);
-            showToast(`${queueNumber} called — notification failed. Please retry.`, 'error');
-          }
-        })();
+          })();
+        } else {
+          showToast(`${queueNumber} called`, 'success');
+        }
       } catch (err) {
         console.error('callNext error', err);
         showToast('Failed to call next: ' + err.message, 'error');
@@ -1179,6 +1378,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         callNextLock = false;
       }
     }
+
 
     onValue(tenantRef('counters'), (snap) => {
       countersData = snap.val() || {};
@@ -1201,7 +1401,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         for (const [k, entry] of Object.entries(newData)) {
           if (!entry) continue;
           const oldEntry = previousQueueData[k];
-          const st = String(entry.status || 'waiting').toLowerCase();
+          const st = normalizeQueueStatus(entry);
 
           if (!oldEntry && st === 'waiting') {
             const dedupeKey = `join_${k}`;
@@ -1235,7 +1435,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       } else {
         for (const [k, entry] of Object.entries(newData)) {
           if (!entry) continue;
-          const st = String(entry.status || 'waiting').toLowerCase();
+          const st = normalizeQueueStatus(entry);
           if (st === 'waiting') popupDedupeKeys.add(`join_${k}`);
           if (st === 'cancelled' || st === 'canceled') popupDedupeKeys.add(`cancel_${k}`);
           if (entry.serviceEventId || entry.serviceEventWrittenAt || entry.completedAt) {
@@ -1276,8 +1476,11 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       updatePreview();
     });
 
+
     function renderCounters() {
       if (!countersLoaded) return;
+
+      ensureQueueSummaryBar();
 
       const ids = Object.keys(countersData || {});
       loadingState.classList.add('hidden');
@@ -1286,6 +1489,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (!ids.length) {
         countersGrid.classList.add('hidden');
         emptyState.classList.remove('hidden');
+        updateQueueSummaryBar();
         return;
       }
 
@@ -1301,30 +1505,36 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         const prefix = c.prefix || '';
         const nowServingVal = Number.isFinite(Number(c.nowServing)) && Number(c.nowServing) > 0 ? Number(c.nowServing) : 1;
         const lastIssuedVal = Number.isFinite(Number(c.lastIssued)) && Number(c.lastIssued) > 0 ? Number(c.lastIssued) : 1;
-        const waiting = getWaitingCount(counterId);
+        const metrics = getCounterMetrics(counterId);
+        const waiting = metrics.waitingCount;
         const isActive = c.active !== false;
+        const isBusy = Boolean(c.busy);
+        const avgService = metrics.avgServiceMin || 3;
+        const avgWait = metrics.avgWaitMin;
+        const eta = metrics.estimatedWaitMin;
 
         const servingDisplay = fmt(prefix, nowServingVal);
         const lastIssuedDisplay = fmt(prefix, lastIssuedVal);
         const nextNumDisplay = fmt(prefix, Math.max(lastIssuedVal, 1) + 1);
-        const callBtnDisabled = waiting === 0 || !isActive;
-        const callBtnText = waiting > 0 ? 'Call Next' : 'None Waiting';
+        const callBtnDisabled = waiting === 0 || !isActive || callNextLock;
+        const callBtnText = callNextLock && waiting > 0 ? 'Calling…' : (waiting > 0 ? 'Call Next' : 'None Waiting');
 
         const card = document.createElement('div');
-        card.className = 'counter-card animate-fade-in-up';
+        card.className = 'counter-card animate-fade-in-up border border-slate-200 bg-white/95 backdrop-blur-sm';
         card.style.animationDelay = `${idx * 80}ms`;
         card.dataset.counterId = counterId;
         card.innerHTML = `
           <div class="p-5 pb-0">
-            <div class="flex items-start justify-between mb-4">
-              <div>
-                <h3 class="text-base font-bold text-gray-900 leading-tight">${esc(c.name || counterId)}${c.active === false ? ' <span class="text-xs text-gray-400">(inactive)</span>' : ''}</h3>
-                <div class="flex items-center gap-2 mt-1">
-                  <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="background:linear-gradient(135deg,#eef2ff,#f5f3ff);color:#4338ca">${esc(prefix)} Series</span>
-                  ${waiting > 0 ? `<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">${waiting} waiting</span>` : ''}
+            <div class="flex items-start justify-between gap-3 mb-4">
+              <div class="min-w-0">
+                <h3 class="text-base font-bold text-gray-900 leading-tight truncate">${esc(c.name || counterId)}${c.active === false ? ' <span class="text-xs text-gray-400">(inactive)</span>' : ''}</h3>
+                <div class="flex flex-wrap items-center gap-2 mt-2">
+                  <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">${esc(prefix)} Series</span>
+                  <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isActive ? 'Live' : 'Inactive'}</span>
+                  ${waiting > 0 ? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">${waiting} waiting</span>` : `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">Idle</span>`}
                 </div>
               </div>
-              <div class="flex gap-1.5">
+              <div class="flex gap-1.5 flex-shrink-0">
                 <button class="btn-icon editBtn" title="Edit">
                   <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
                 </button>
@@ -1336,19 +1546,37 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           </div>
 
           <div class="px-5">
-            <div class="serving-display mb-4">
-              <p class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Now Serving</p>
-              <p class="serving-number">${esc(servingDisplay)}</p>
+            <div class="rounded-2xl bg-gradient-to-br from-indigo-50 via-white to-purple-50 border border-indigo-100 p-4 mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-400">Now Serving</p>
+                <span class="text-[11px] font-medium text-slate-500">${isBusy ? 'Busy' : 'Ready'}</span>
+              </div>
+              <p class="serving-number !text-4xl">${esc(servingDisplay)}</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 mb-4">
-              <div class="bg-gray-50 rounded-xl p-3">
-                <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Last Issued</p>
-                <p class="text-lg font-bold text-gray-800 tabular-nums">${esc(lastIssuedDisplay)}</p>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Last Issued</p>
+                <p class="text-lg font-bold text-slate-900 tabular-nums">${esc(lastIssuedDisplay)}</p>
               </div>
-              <div class="bg-gray-50 rounded-xl p-3">
-                <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">Next Number</p>
-                <p class="text-lg font-bold text-gray-800 tabular-nums">${esc(nextNumDisplay)}</p>
+              <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Next Number</p>
+                <p class="text-lg font-bold text-slate-900 tabular-nums">${esc(nextNumDisplay)}</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="rounded-2xl border border-slate-100 bg-white p-3">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Service</p>
+                <p class="text-sm font-extrabold text-indigo-600 tabular-nums">${formatMinutes(avgService)}</p>
+              </div>
+              <div class="rounded-2xl border border-slate-100 bg-white p-3">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Wait</p>
+                <p class="text-sm font-extrabold text-violet-600 tabular-nums">${avgWait != null ? formatMinutes(avgWait) : '—'}</p>
+              </div>
+              <div class="rounded-2xl border border-slate-100 bg-white p-3">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">ETA</p>
+                <p class="text-sm font-extrabold text-emerald-600 tabular-nums">${formatMinutes(eta)}</p>
               </div>
             </div>
           </div>
@@ -1369,6 +1597,10 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         card.querySelector('.editBtn').addEventListener('click', () => openEditCounter(counterId));
         card.querySelector('.deleteBtn').addEventListener('click', () => { deleteTargetId = counterId; openModal(deleteModal); });
         card.querySelector('.callBtn').addEventListener('click', () => {
+          if (callNextLock) {
+            showToast('Please wait — processing previous call', 'info');
+            return;
+          }
           card.classList.add('animate-called-flash');
           setTimeout(() => card.classList.remove('animate-called-flash'), 900);
           callNext(counterId);
@@ -1381,7 +1613,11 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         countersGrid.classList.remove('hidden');
         emptyState.classList.remove('hidden');
       }
+
+      updateQueueSummaryBar();
     }
+
+
 
     function openAddCounter() {
       counterModalTitle.textContent = 'Add Counter';
