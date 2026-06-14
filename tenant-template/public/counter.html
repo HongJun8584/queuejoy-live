@@ -921,28 +921,18 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
       const bar = document.createElement('section');
       bar.id = 'queueSummaryBar';
-      bar.className = 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4';
+      bar.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
 
       bar.innerHTML = `
-        <div class="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-sm shadow-lg p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Live Queue Pace</p>
-          <div class="mt-2 text-2xl font-black text-slate-900 tabular-nums" id="summaryEta">—</div>
-          <p class="mt-1 text-xs text-slate-500">Estimated wait for the next ticket</p>
-        </div>
-        <div class="rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white shadow-lg p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-500">Average Service</p>
-          <div class="mt-2 text-2xl font-black text-indigo-700 tabular-nums" id="summaryAvgService">—</div>
-          <p class="mt-1 text-xs text-indigo-500/80">Synced from completed service events</p>
-        </div>
         <div class="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white shadow-lg p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-500">Average Wait</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-500">Average Wait Time</p>
           <div class="mt-2 text-2xl font-black text-violet-700 tabular-nums" id="summaryAvgWait">—</div>
-          <p class="mt-1 text-xs text-violet-500/80">Computed from queue start to call time</p>
+          <p class="mt-1 text-xs text-violet-500/80">Computed from queue join to call time</p>
         </div>
         <div class="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white shadow-lg p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-500">Queue Health</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-500">Counter Health</p>
           <div class="mt-2 text-2xl font-black text-emerald-700 tabular-nums" id="summaryHealth">—</div>
-          <p class="mt-1 text-xs text-emerald-500/80">Waiting / active counters / completed</p>
+          <p class="mt-1 text-xs text-emerald-500/80">Masked admin display: 0 waiting • 0 serving</p>
         </div>
       `;
 
@@ -950,35 +940,25 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     }
 
     function updateQueueSummaryBar() {
-      const etaEl = document.getElementById('summaryEta');
-      const avgServiceEl = document.getElementById('summaryAvgService');
       const avgWaitEl = document.getElementById('summaryAvgWait');
       const healthEl = document.getElementById('summaryHealth');
-      if (!etaEl || !avgServiceEl || !avgWaitEl || !healthEl) return;
+      if (!avgWaitEl || !healthEl) return;
 
       const ids = Object.keys(countersData || {});
       const activeCounters = ids.filter(id => (countersData[id] || {}).active !== false).length || ids.length || 0;
-      let totalWaiting = 0;
-      let allService = [];
       let allWait = [];
       let completedTickets = 0;
 
       for (const id of ids) {
         const metrics = getCounterMetrics(id);
-        totalWaiting += metrics.waitingCount;
-        if (Number.isFinite(metrics.avgServiceMin)) allService.push(metrics.avgServiceMin);
         if (Number.isFinite(metrics.avgWaitMin)) allWait.push(metrics.avgWaitMin);
         completedTickets += metrics.completedCount || 0;
       }
 
-      const avgService = allService.length ? (allService.reduce((a, b) => a + b, 0) / allService.length) : 3;
       const avgWait = allWait.length ? (allWait.reduce((a, b) => a + b, 0) / allWait.length) : null;
-      const nextEta = totalWaiting > 0 ? totalWaiting * avgService : 0;
 
-      etaEl.textContent = formatMinutes(nextEta);
-      avgServiceEl.textContent = formatMinutes(avgService);
       avgWaitEl.textContent = avgWait != null ? formatMinutes(avgWait) : '—';
-      healthEl.textContent = `${totalWaiting} waiting • ${activeCounters} active • ${completedTickets} done`;
+      healthEl.textContent = `0 waiting • 0 serving • ${completedTickets} done`;
     }
 
     async function repairCounterBaselines() {
@@ -995,6 +975,28 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     function toEpoch(value, fallback = 0) {
       if (value == null || value === '') return fallback;
       if (typeof value === 'number' && Number.isFinite(value)) return value > 0 ? value : fallback;
+
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^\d+$/.test(trimmed)) {
+          const num = Number(trimmed);
+          return Number.isFinite(num) && num > 0 ? num : fallback;
+        }
+      }
+
+      if (value && typeof value === 'object') {
+        if (Number.isFinite(Number(value.seconds))) {
+          const sec = Number(value.seconds);
+          const ns = Number(value.nanoseconds || 0);
+          return Math.max(0, (sec * 1000) + Math.floor(ns / 1e6));
+        }
+        if (Number.isFinite(Number(value._seconds))) {
+          const sec = Number(value._seconds);
+          const ns = Number(value._nanoseconds || 0);
+          return Math.max(0, (sec * 1000) + Math.floor(ns / 1e6));
+        }
+      }
+
       const parsed = Date.parse(value);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
     }
@@ -1035,13 +1037,17 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
     function getCounterCompletionStats(counterId) {
       const completed = [];
+      const completedKeys = new Set();
+
       for (const [key, entry] of Object.entries(queueData || {})) {
         if (!entry) continue;
         if (resolveQueueCounterId(entry) !== String(counterId)) continue;
         if (normalizeQueueStatus(entry) !== 'completed') continue;
+
         const t = getQueueTimeBundle(entry);
         if (Number.isFinite(t.waitMs) && t.waitMs >= 0) completed.push({ type: 'wait', ms: t.waitMs, key, entry });
         if (Number.isFinite(t.serviceMs) && t.serviceMs >= 0) completed.push({ type: 'service', ms: t.serviceMs, key, entry });
+        completedKeys.add(key);
       }
 
       const waits = completed.filter(x => x.type === 'wait').map(x => x.ms);
@@ -1055,7 +1061,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         services,
         avgWaitMin,
         avgServiceMin,
-        completedCount: Math.max(waits.length, services.length)
+        completedCount: completedKeys.size
       };
     }
 
@@ -1509,11 +1515,11 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         const waiting = metrics.waitingCount;
         const isActive = c.active !== false;
         const isBusy = Boolean(c.busy);
-        const avgService = metrics.avgServiceMin || 3;
         const avgWait = metrics.avgWaitMin;
-        const eta = metrics.estimatedWaitMin;
+        const uiWaitingCount = 0;
+        const uiServingCount = 0;
 
-        const servingDisplay = fmt(prefix, nowServingVal);
+        const servingDisplay = String(uiServingCount);
         const lastIssuedDisplay = fmt(prefix, lastIssuedVal);
         const nextNumDisplay = fmt(prefix, Math.max(lastIssuedVal, 1) + 1);
         const callBtnDisabled = waiting === 0 || !isActive || callNextLock;
@@ -1531,7 +1537,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
                 <div class="flex flex-wrap items-center gap-2 mt-2">
                   <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">${esc(prefix)} Series</span>
                   <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isActive ? 'Live' : 'Inactive'}</span>
-                  ${waiting > 0 ? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">${waiting} waiting</span>` : `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">Idle</span>`}
+                  <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">${uiWaitingCount} waiting</span>
+                  <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">${uiServingCount} serving</span>
                 </div>
               </div>
               <div class="flex gap-1.5 flex-shrink-0">
@@ -1546,37 +1553,22 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           </div>
 
           <div class="px-5">
-            <div class="rounded-2xl bg-gradient-to-br from-indigo-50 via-white to-purple-50 border border-indigo-100 p-4 mb-4">
+            <div class="rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-white border border-emerald-100 p-4 mb-4">
               <div class="flex items-center justify-between mb-2">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-400">Now Serving</p>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-500">Counter Health</p>
                 <span class="text-[11px] font-medium text-slate-500">${isBusy ? 'Busy' : 'Ready'}</span>
               </div>
-              <p class="serving-number !text-4xl">${esc(servingDisplay)}</p>
+              <p class="serving-number !text-4xl">${uiWaitingCount} waiting • ${uiServingCount} serving</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 mb-3">
-              <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Last Issued</p>
-                <p class="text-lg font-bold text-slate-900 tabular-nums">${esc(lastIssuedDisplay)}</p>
-              </div>
-              <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Next Number</p>
-                <p class="text-lg font-bold text-slate-900 tabular-nums">${esc(nextNumDisplay)}</p>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-3 mb-4">
-              <div class="rounded-2xl border border-slate-100 bg-white p-3">
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Service</p>
-                <p class="text-sm font-extrabold text-indigo-600 tabular-nums">${formatMinutes(avgService)}</p>
-              </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
               <div class="rounded-2xl border border-slate-100 bg-white p-3">
                 <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Wait</p>
                 <p class="text-sm font-extrabold text-violet-600 tabular-nums">${avgWait != null ? formatMinutes(avgWait) : '—'}</p>
               </div>
               <div class="rounded-2xl border border-slate-100 bg-white p-3">
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">ETA</p>
-                <p class="text-sm font-extrabold text-emerald-600 tabular-nums">${formatMinutes(eta)}</p>
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Health</p>
+                <p class="text-sm font-extrabold text-emerald-600 tabular-nums">0 waiting • 0 serving</p>
               </div>
             </div>
           </div>
