@@ -606,7 +606,10 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     let callNextLock = false;
 
     const esc = (s) => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const fmt = (prefix, num) => `${prefix}${String(num).padStart(3, '0')}`;
+    const fmt = (prefix, num) => {
+      const n = typeof num === 'bigint' ? num.toString() : String(Number.isFinite(Number(num)) ? Math.trunc(Number(num)) : (num ?? ''));
+      return `${prefix}${n.padStart(3, '0')}`;
+    };
     const parseNumericSuffix = (s) => {
       const m = String(s || '').match(/(\d+)$/);
       return m ? parseInt(m[1], 10) : 0;
@@ -932,7 +935,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         <div class="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white shadow-lg p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-500">Counter Health</p>
           <div class="mt-2 text-2xl font-black text-emerald-700 tabular-nums" id="summaryHealth">—</div>
-          <p class="mt-1 text-xs text-emerald-500/80">Masked admin display: 0 waiting • 0 serving</p>
+          <p class="mt-1 text-xs text-emerald-500/80">Masked admin display: waiting and serving always 0</p>
         </div>
       `;
 
@@ -1190,7 +1193,6 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         nextNumber: (payload.lastIssued || 1) + 1,
         nextIssuedNumber: (payload.lastIssued || 1) + 1,
         baselineNumber: 1,
-        avgServiceMin: payload.avgServiceMin || 3,
         avgWaitMin: payload.avgWaitMin || 0,
         updatedAt: now
       };
@@ -1304,15 +1306,12 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         counterUpdates[`${TENANT_ROOT}/counters/${counterId}/updatedAt`] = txNow;
         counterUpdates[`${TENANT_ROOT}/counters/${counterId}/busy`] = false;
         counterUpdates[`${TENANT_ROOT}/counters/${counterId}/lastAdvanceAt`] = txNow;
-        counterUpdates[`${TENANT_ROOT}/counters/${counterId}/avgServiceMin`] = updatedMetrics.avgServiceMin || 3;
         counterUpdates[`${TENANT_ROOT}/counters/${counterId}/avgWaitMin`] = updatedMetrics.avgWaitMin || 0;
         counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/nowServing`] = nowServingVal;
         counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/updatedAt`] = txNow;
-        counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/avgServiceMin`] = updatedMetrics.avgServiceMin || 3;
         counterUpdates[`${TENANT_ROOT}/queueMeta/${counterId}/avgWaitMin`] = updatedMetrics.avgWaitMin || 0;
         counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/nowServing`] = nowServingVal;
         counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/updatedAt`] = txNow;
-        counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/avgServiceMin`] = updatedMetrics.avgServiceMin || 3;
         counterUpdates[`${TENANT_ROOT}/queueState/${counterId}/avgWaitMin`] = updatedMetrics.avgWaitMin || 0;
         await update(ref(db), counterUpdates);
 
