@@ -1,47 +1,211 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>QueueJoy — Your Turn (sound-first)</title>
-<meta name="description" content="Track your queue position & play sound when it's your turn" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QueueJoy — Your Turn</title>
+<meta name="description" content="Track your queue position and get a gentle alert when your turn comes." />
 <style>
-  :root { --primary:#7c3aed; --accent:#8b5cf6; --muted:#6b7280; }
-  html,body{
-    height:100%;
+  :root{
+    --bg: #f7f5ff;
+    --surface: rgba(255,255,255,.88);
+    --surface-2: #ffffff;
+    --border: rgba(124,58,237,.10);
+    --text: #111827;
+    --muted: #6b7280;
+    --primary: #7c3aed;
+    --primary-2: #8b5cf6;
+    --shadow: 0 18px 60px rgba(17,24,39,.08);
+    --shadow-soft: 0 10px 30px rgba(17,24,39,.06);
+    --radius: 24px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
     margin:0;
-    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    background:linear-gradient(135deg,#f6f5ff,#f0efff);
-    color:#111827;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(circle at top, rgba(139,92,246,.12), transparent 32%),
+      linear-gradient(180deg, #fbfaff 0%, var(--bg) 100%);
     display:flex;
     align-items:center;
-    justify-content:center
+    justify-content:center;
+    padding:18px;
   }
-  .card{
-    width:98%;
-    max-width:520px;
-    background:#fff;
-    border-radius:14px;
-    padding:22px;
-    box-shadow:0 20px 60px rgba(17,24,39,0.06);
-    text-align:center
+  .wrap{
+    width:min(560px, 100%);
   }
-  h1{font-size:22px;margin:0 0 6px;font-weight:800}
-  .sub{color:var(--muted);font-size:14px;margin-bottom:18px;line-height:1.5}
-  #yourNumber{font-size:62px;font-weight:900;color:var(--primary);letter-spacing:4px;line-height:1}
-  #counterName{font-size:28px;font-weight:800;color:var(--accent);margin-top:12px;min-height:36px}
-  .small{font-size:13px;color:var(--muted);margin-top:8px}
-  .controls{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
-  button{
-    padding:10px 14px;
-    border-radius:10px;
-    border:0;
+  .shell{
+    background:var(--surface);
+    border:1px solid rgba(124,58,237,.10);
+    border-radius:30px;
+    box-shadow:var(--shadow);
+    backdrop-filter: blur(18px);
+    overflow:hidden;
+  }
+  .topbar{
+    padding:22px 22px 10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-width:0;
+  }
+  .dot{
+    width:14px;
+    height:14px;
+    border-radius:999px;
+    background:linear-gradient(135deg,var(--primary),var(--primary-2));
+    box-shadow:0 0 0 8px rgba(124,58,237,.10);
+    flex:none;
+  }
+  .brand h1{
+    margin:0;
+    font-size:16px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .brand p{
+    margin:2px 0 0;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .pill{
+    flex:none;
+    border:1px solid var(--border);
+    background:rgba(255,255,255,.75);
+    color:var(--muted);
+    border-radius:999px;
+    padding:8px 12px;
+    font-size:12px;
     font-weight:700;
-    cursor:pointer
   }
-  .btn-primary{background:linear-gradient(90deg,var(--accent),var(--primary));color:#fff}
-  .btn-outline{background:#fff;border:1px solid rgba(0,0,0,0.08);color:#111827}
-  #statusBanner{margin-top:12px;font-size:13px;color:var(--muted);min-height:18px}
+  .content{
+    padding:8px 16px 16px;
+    display:grid;
+    gap:12px;
+  }
+  .section{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:24px;
+    padding:18px;
+    box-shadow:var(--shadow-soft);
+  }
+  .label{
+    font-size:12px;
+    color:var(--muted);
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    margin-bottom:10px;
+  }
+  .counter-name{
+    font-size:26px;
+    line-height:1.1;
+    font-weight:900;
+    letter-spacing:-0.03em;
+    margin:0;
+    color:#1f1633;
+    word-break:break-word;
+  }
+  .customer-number{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .big-number{
+    font-size:66px;
+    line-height:1;
+    font-weight:950;
+    letter-spacing:-0.05em;
+    color:var(--primary);
+    margin:0;
+    word-break:break-word;
+  }
+  .number-meta{
+    display:grid;
+    gap:6px;
+    justify-items:end;
+    text-align:right;
+  }
+  .number-meta .caption{
+    font-size:12px;
+    color:var(--muted);
+    font-weight:700;
+  }
+  .status{
+    font-size:13px;
+    color:#4338ca;
+    font-weight:700;
+    line-height:1.4;
+    margin-top:10px;
+  }
+  .subscribe-copy{
+    font-size:14px;
+    color:var(--muted);
+    line-height:1.55;
+    margin:0 0 14px;
+  }
+  .actions{
+    display:grid;
+    gap:10px;
+  }
+  .btn{
+    appearance:none;
+    border:0;
+    border-radius:18px;
+    padding:14px 16px;
+    font-size:15px;
+    font-weight:800;
+    cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+    min-height:52px;
+  }
+  .btn:active{ transform:scale(.99); }
+  .btn-primary{
+    color:#fff;
+    background:linear-gradient(135deg,var(--primary),var(--primary-2));
+    box-shadow:0 14px 24px rgba(124,58,237,.18);
+  }
+  .btn-ghost{
+    color:#1f1633;
+    background:rgba(124,58,237,.06);
+    border:1px solid rgba(124,58,237,.10);
+  }
+  .note{
+    margin-top:10px;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.45;
+  }
+  .error{
+    display:none;
+    margin-top:10px;
+    color:#b91c1c;
+    font-size:13px;
+    font-weight:700;
+    background:#fef2f2;
+    border:1px solid #fecaca;
+    padding:12px 14px;
+    border-radius:14px;
+  }
+  .footer{
+    padding:0 22px 20px;
+    color:#9ca3af;
+    font-size:11px;
+    text-align:center;
+  }
   .qa-badge{
     position:fixed;
     right:12px;
@@ -49,48 +213,68 @@
     background:#111827;
     color:#fff;
     padding:8px 10px;
-    border-radius:8px;
+    border-radius:10px;
     font-size:12px;
     z-index:9999;
     display:none;
-    opacity:0.92
+    opacity:.92;
   }
-  .error{color:#b91c1c;margin-top:10px;font-weight:700;min-height:18px}
-  .hint{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.45}
-  .promo-note{
-    margin-top:10px;
-    font-size:13px;
-    color:#0f172a;
-    background:#eef2ff;
-    padding:8px;
-    border-radius:8px;
-    display:none;
-    line-height:1.4
+  @media (max-width: 420px){
+    .topbar{ padding:18px 18px 8px; }
+    .content{ padding:8px 12px 12px; }
+    .section{ padding:16px; border-radius:22px; }
+    .counter-name{ font-size:22px; }
+    .big-number{ font-size:58px; }
+    .customer-number{ align-items:flex-start; flex-direction:column; }
+    .number-meta{ justify-items:start; text-align:left; }
   }
-  .small-muted{font-size:11px;color:#9ca3af;margin-top:6px;line-height:1.45}
 </style>
 </head>
 <body>
-  <div class="card" role="main" aria-live="polite">
-    <h1>It's Your Turn</h1>
-    <div class="sub">This page will play a sound and show a browser alert when your number is called.</div>
+  <div class="wrap" role="main" aria-live="polite">
+    <div class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <div class="dot" aria-hidden="true"></div>
+          <div>
+            <h1>QueueJoy</h1>
+            <p>Your turn page</p>
+          </div>
+        </div>
+        <div id="livePill" class="pill">Connecting…</div>
+      </div>
 
-    <div id="yourNumber">—</div>
-    <div class="small">Your Queue Number</div>
+      <div class="content">
+        <section class="section" aria-label="Counter section">
+          <div class="label">Counter</div>
+          <h2 id="counterName" class="counter-name">—</h2>
+        </section>
 
-    <div id="counterName">—</div>
-    <div class="small">Proceed To</div>
+        <section class="section" aria-label="Customer number section">
+          <div class="label">Customer number</div>
+          <div class="customer-number">
+            <p id="yourNumber" class="big-number">—</p>
+            <div class="number-meta">
+              <div class="caption">Queue position</div>
+              <div id="queueStatus" class="caption">Waiting for live update</div>
+            </div>
+          </div>
+          <div id="errorBox" class="error"></div>
+        </section>
 
-    <div class="controls" style="margin-top:18px">
-      <button id="promoBtn" class="btn-outline">Subscribe Notices &amp; Promos</button>
-      <button id="enableBtn" class="btn-primary">Enable Alerts</button>
+        <section class="section" aria-label="Subscribe section">
+          <div class="label">Subscribe to promotion and notice</div>
+          <p class="subscribe-copy">Get Telegram updates for this queue. Sound and vibration are used here instead of browser notification popups.</p>
+          <div class="actions">
+            <button id="promoBtn" class="btn btn-primary" type="button">Subscribe on Telegram</button>
+            <button id="soundBtn" class="btn btn-ghost" type="button">Enable sound &amp; vibration</button>
+          </div>
+          <div class="note" id="subscribeNote">Press the Telegram button to receive the queue-specific start link.</div>
+        </section>
+      </div>
+
+      <div class="footer" id="footerText">Subscribe to Telegram to get future updates!</div>
     </div>
-
-    <div id="statusBanner">Connecting...</div>
-    <div id="errorBox" class="error" style="display:none"></div>
-    <div id="promoNote" class="promo-note">Telegram opened. Press Start in Telegram to finish subscribing.</div>
-    <div class="hint">If the number isn't updating, open devtools console for diagnostics.</div>
-    <div class="small-muted" id="autoplayNote">Browser autoplay rules may block sound unless the site is allowed.</div>
   </div>
 
   <div id="qaBadge" class="qa-badge"><small>slug</small> <span id="qaSlug"></span> · <small>id</small> <span id="qaId"></span></div>
@@ -104,7 +288,6 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
-/* ===== CONFIG ===== */
 const DEFAULT_FIREBASE_CONFIG = {
   apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
   authDomain: "queuejoy-live.firebaseapp.com",
@@ -121,21 +304,21 @@ const GET_FIREBASE_CLIENT_CONFIG = '/.netlify/functions/get-firebase-config';
 const TELEGRAM_BOT_USERNAME = 'queuejoy_notify_bot';
 const TELEGRAM_BOT_URL = `https://t.me/${TELEGRAM_BOT_USERNAME}`;
 
-/* ===== UI ===== */
-const yourNumberEl = document.getElementById('yourNumber');
-const counterNameEl = document.getElementById('counterName');
-const statusBanner = document.getElementById('statusBanner');
-const promoBtn = document.getElementById('promoBtn');
-const enableBtn = document.getElementById('enableBtn');
-const promoNote = document.getElementById('promoNote');
-const errorBox = document.getElementById('errorBox');
-const qaBadge = document.getElementById('qaBadge');
-const qaSlug = document.getElementById('qaSlug');
-const qaId = document.getElementById('qaId');
-const beepAudio = document.getElementById('beepAudio');
-const autoplayNote = document.getElementById('autoplayNote');
+const ui = {
+  yourNumber: document.getElementById('yourNumber'),
+  counterName: document.getElementById('counterName'),
+  queueStatus: document.getElementById('queueStatus'),
+  livePill: document.getElementById('livePill'),
+  promoBtn: document.getElementById('promoBtn'),
+  soundBtn: document.getElementById('soundBtn'),
+  subscribeNote: document.getElementById('subscribeNote'),
+  errorBox: document.getElementById('errorBox'),
+  qaBadge: document.getElementById('qaBadge'),
+  qaSlug: document.getElementById('qaSlug'),
+  qaId: document.getElementById('qaId'),
+  beepAudio: document.getElementById('beepAudio')
+};
 
-/* ===== STATE ===== */
 let firebaseApp = null;
 let db = null;
 let TENANT_SLUG = null;
@@ -147,25 +330,17 @@ let audioCtx = null;
 let audioUnlocked = false;
 let lastSeenTicket = null;
 let lastCounterId = null;
-let reconnectDelay = 1000;
 let audioResumeInterval = null;
+let reconnectTimer = null;
+let reconnectDelay = 1000;
 
-/* ===== HELPERS ===== */
 function log(...a){ console.log('[YOUR_TURN]', ...a); }
 function warn(...a){ console.warn('[YOUR_TURN]', ...a); }
-function fail(msg){
-  errorBox.style.display = 'block';
-  errorBox.textContent = String(msg);
-  console.error('[YOUR_TURN]', msg);
-}
-function clearError(){
-  errorBox.style.display = 'none';
-  errorBox.textContent = '';
-}
-function safeText(v, fallback='—'){
-  if (v === undefined || v === null || v === '') return fallback;
-  return String(v);
-}
+function showError(msg){ ui.errorBox.style.display = 'block'; ui.errorBox.textContent = String(msg || 'Something went wrong.'); }
+function clearError(){ ui.errorBox.style.display = 'none'; ui.errorBox.textContent = ''; }
+function safeText(v, fallback='—'){ return (v === undefined || v === null || v === '') ? fallback : String(v); }
+function normalizeKey(v){ return String(v || '').trim(); }
+function isTruthy(v){ return v === true || v === 'true' || v === 1 || v === '1' || v === 'yes' || v === 'YES'; }
 function getParam(keys){
   try {
     const usp = new URLSearchParams(window.location.search);
@@ -173,32 +348,17 @@ function getParam(keys){
       const v = usp.get(k);
       if (v) return v;
     }
-  } catch(e){}
+  } catch(e) {}
   return null;
 }
 function getSlugFromUrl(){
   try {
     const usp = new URLSearchParams(window.location.search);
     if (usp.get('slug')) return usp.get('slug');
-  } catch(e){}
+  } catch(e) {}
   const parts = location.pathname.replace(/^\/+|\/+$/g,'').split('/');
-  if (parts && parts.length && parts[0] && !parts[0].includes('.')) return parts[0];
+  if (parts && parts[0] && !parts[0].includes('.')) return parts[0];
   return null;
-}
-function parseTicketNum(ticket){
-  if (!ticket && ticket !== 0) return NaN;
-  const s = String(ticket).trim();
-  const m = s.match(/(\d+)$/);
-  return m ? parseInt(m[1],10) : (/^\d+$/.test(s) ? parseInt(s,10) : NaN);
-}
-function readableTicket(ticket){
-  return (ticket === undefined || ticket === null || ticket === '') ? '—' : String(ticket);
-}
-function isTruthy(v){
-  return v === true || v === 'true' || v === 1 || v === '1' || v === 'yes' || v === 'YES';
-}
-function normalizeKey(v){
-  return String(v || '').trim();
 }
 function currentStorageScope(){
   return `qj_${TENANT_ID || TENANT_SLUG || 'global'}_${currentQueueKey || 'unknown'}`;
@@ -206,48 +366,54 @@ function currentStorageScope(){
 function alertedKey(ticket){
   return `qj_alerted_${currentStorageScope()}_${String(ticket || 'unknown')}`;
 }
-function promoLocalKey(){
-  return `qj_promos_${currentStorageScope()}`;
-}
-function enabledLocalKey(){
-  return `qj_enabled_${currentStorageScope()}`;
-}
 function getBotPayload(){
   const tenantPart = normalizeKey(TENANT_ID || TENANT_SLUG || 'global').replace(/[^A-Za-z0-9_-]/g,'');
   const queuePart = normalizeKey(currentQueueKey || 'queue').replace(/[^A-Za-z0-9_-]/g,'');
-  const payload = `sub_${tenantPart}_${queuePart}`;
-  return payload.slice(0, 60);
+  return `sub_${tenantPart}_${queuePart}`.slice(0, 60);
+}
+function buildTelegramLink(){
+  return `${TELEGRAM_BOT_URL}?start=${encodeURIComponent(getBotPayload())}`;
+}
+function getTicketValue(raw){
+  if (raw === undefined || raw === null || raw === '') return null;
+  return String(raw);
+}
+function parseTicketNum(ticket){
+  if (ticket === undefined || ticket === null || ticket === '') return NaN;
+  const s = String(ticket).trim();
+  const m = s.match(/(\d+)$/);
+  return m ? parseInt(m[1], 10) : (/^\d+$/.test(s) ? parseInt(s, 10) : NaN);
+}
+function setStatus(text){
+  ui.livePill.textContent = text;
 }
 
-/* ===== TENANT / FIREBASE ===== */
 async function resolveTenant(slug){
   if (!slug) return null;
   try {
-    const res = await fetch(`${GET_TENANT_ENDPOINT}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
-    if (!res.ok) {
-      log('get-tenant returned', res.status);
-      return null;
-    }
+    const res = await fetch(`${GET_TENANT_ENDPOINT}?slug=${encodeURIComponent(slug)}`, { credentials:'same-origin' });
+    if (!res.ok) return null;
     return await res.json().catch(()=>null);
-  } catch(e){
+  } catch(e) {
     warn('resolveTenant failed', e);
     return null;
   }
 }
+
 async function fetchClientConfig(slug){
   try {
-    const res = await fetch(`${GET_FIREBASE_CLIENT_CONFIG}?slug=${encodeURIComponent(slug)}`, { credentials: 'same-origin' });
+    const res = await fetch(`${GET_FIREBASE_CLIENT_CONFIG}?slug=${encodeURIComponent(slug || '')}`, { credentials:'same-origin' });
     if (!res.ok) return null;
     return await res.json().catch(()=>null);
-  } catch(e){
+  } catch(e) {
     return null;
   }
 }
+
 async function initFirebase(clientCfg){
   try {
     const cfg =
-      clientCfg &&
-      (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig) &&
+      clientCfg && (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig) &&
       (clientCfg.firebaseClientConfig?.databaseURL || clientCfg.firebaseConfig?.databaseURL)
         ? (clientCfg.firebaseClientConfig || clientCfg.firebaseConfig)
         : DEFAULT_FIREBASE_CONFIG;
@@ -256,275 +422,90 @@ async function initFirebase(clientCfg){
     else firebaseApp = getApps()[0];
 
     db = getDatabase(firebaseApp);
-    log('Firebase initialized using', cfg.databaseURL || cfg);
+    log('Firebase initialized');
     return true;
-  } catch(e){
+  } catch(e) {
     warn('Firebase init failed', e);
-    db = null;
     return false;
   }
 }
+
 async function findExistingPath(candidates){
   if (!db) return candidates[0] || null;
   for (const p of candidates) {
     try {
       const snap = await get(ref(db, p)).catch(()=>null);
       const exists = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap);
-      log('probe', p, 'exists=', exists);
       if (exists) return p;
-    } catch(e){
-      warn('probe failed', p, e);
-    }
+    } catch(e) {}
   }
-  return null;
+  return candidates[0] || null;
 }
 
-/* ===== NORMALIZE SNAPSHOT DATA ===== */
 function pickQueueObject(val){
   if (!val) return {};
   if (typeof val === 'string') return { raw: val };
   if (typeof val !== 'object') return {};
   return val.queue || val.data || val.item || val.value || val;
 }
+
 function extractQueueData(q){
   const obj = pickQueueObject(q);
   const ticket =
-    obj.ticketNumber ||
-    obj.ticket ||
-    obj.number ||
-    obj.id ||
-    obj.queueId ||
-    obj.token ||
-    obj.key ||
-    obj.queueNumber ||
-    obj.queue_key ||
-    (typeof q === 'string' ? q : null);
-
+    obj.ticketNumber ?? obj.ticket ?? obj.number ?? obj.id ?? obj.queueId ?? obj.token ?? obj.key ?? obj.queueNumber ?? obj.queue_key ?? null;
   const counterId =
-    obj.counterId ||
-    obj.counterAssigned ||
-    obj.counter ||
-    obj.counter_key ||
-    obj.counterKey ||
-    obj.counterNameId ||
-    obj.currentCounterId ||
-    null;
-
+    obj.counterId ?? obj.counterAssigned ?? obj.counter ?? obj.counter_key ?? obj.counterKey ?? obj.currentCounterId ?? null;
   const counterName =
-    obj.counterAssignedName ||
-    obj.counterName ||
-    obj.counterNameDisplay ||
-    obj.counterDisplay ||
-    obj.currentCounterName ||
-    obj.name ||
-    null;
-
+    obj.counterAssignedName ?? obj.counterName ?? obj.counterNameDisplay ?? obj.counterDisplay ?? obj.currentCounterName ?? obj.name ?? null;
   const nowServing =
-    obj.nowServing ||
-    obj.nowServingValue ||
-    obj.current ||
-    obj.currentServing ||
-    obj.serving ||
-    obj.calledNumber ||
-    obj.displayCurrent ||
-    null;
-
+    obj.nowServing ?? obj.nowServingValue ?? obj.current ?? obj.currentServing ?? obj.serving ?? obj.calledNumber ?? obj.displayCurrent ?? null;
   const calledFlag =
-    isTruthy(obj.called) ||
-    !!obj.calledAt ||
-    !!obj.notifiedAt ||
-    !!obj.servedAt ||
-    !!obj.pingedAt;
-
-  return { obj, ticket, counterId, counterName, nowServing, calledFlag };
+    isTruthy(obj.called) || !!obj.calledAt || !!obj.notifiedAt || !!obj.servedAt || !!obj.pingedAt;
+  return { ticket, counterId, counterName, nowServing, calledFlag };
 }
+
 function extractCounterData(c){
   const obj = pickQueueObject(c);
-  const nowServing =
-    obj.nowServing ||
-    obj.nowServingValue ||
-    obj.current ||
-    obj.currentServing ||
-    obj.serving ||
-    null;
-
-  const name =
-    obj.name ||
-    obj.displayName ||
-    obj.counterName ||
-    obj.counterNameDisplay ||
-    obj.title ||
-    null;
-
-  return { obj, nowServing, name };
+  const name = obj.name ?? obj.displayName ?? obj.counterName ?? obj.counterNameDisplay ?? obj.title ?? null;
+  const nowServing = obj.nowServing ?? obj.nowServingValue ?? obj.current ?? obj.currentServing ?? obj.serving ?? null;
+  return { name, nowServing };
 }
 
-/* ===== PATH ATTACH ===== */
-async function attachQueue(queueKey){
-  if (!db || !queueKey) return;
-  detachQueue();
-  statusBanner.textContent = 'Finding queue...';
-  currentQueueKey = queueKey;
+function setCounterName(value){
+  ui.counterName.textContent = safeText(value, '—');
+}
+function setTicket(value){
+  ui.yourNumber.textContent = safeText(value, '—');
+}
 
-  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
-  const candidates = [
-    `${tBase}queues/${queueKey}`,
-    `${tBase}queue/${queueKey}`,
-    `${tBase}public/queues/${queueKey}`,
-    `${tBase}public/queue/${queueKey}`,
-    `${tBase}queuesById/${queueKey}`,
-    `${tBase}queuesByNumber/${queueKey}`,
-    `queues/${queueKey}`,
-    `queue/${queueKey}`,
-    `${queueKey}`
-  ];
-
-  const chosen = (await findExistingPath(candidates)) || candidates[0];
-  log('chosen queue path', chosen);
-
+function playBeepFile(){
   try {
-    qListenerRef = ref(db, chosen);
-    onValue(qListenerRef, async snap => {
-      try {
-        if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
-          yourNumberEl.textContent = '—';
-          counterNameEl.textContent = '—';
-          statusBanner.textContent = 'Queue not found';
-          return;
-        }
-
-        const q = snap.val() || {};
-        const { ticket, counterId, counterName, nowServing, calledFlag } = extractQueueData(q);
-
-        lastSeenTicket = ticket;
-        yourNumberEl.textContent = readableTicket(ticket);
-
-        if (counterName) counterNameEl.textContent = counterName;
-        else if (counterId) counterNameEl.textContent = `Counter ${counterId}`;
-        else counterNameEl.textContent = '—';
-
-        if (nowServing !== undefined && nowServing !== null) {
-          const nowNum = parseTicketNum(nowServing);
-          const ticketNum = parseTicketNum(ticket);
-          if (!isNaN(nowNum) && !isNaN(ticketNum)) {
-            const ahead = Math.max(0, ticketNum - nowNum);
-            statusBanner.textContent = ahead === 0 ? "You're next!" : `${ahead} ahead`;
-          } else {
-            statusBanner.textContent = 'Monitoring queue...';
-          }
-        } else {
-          statusBanner.textContent = 'Monitoring queue...';
-        }
-
-        if (counterId && counterId !== lastCounterId) {
-          lastCounterId = counterId;
-          await attachCounter(counterId);
-        } else if (counterId && !cListenerRef) {
-          await attachCounter(counterId);
-        }
-
-        if (calledFlag) {
-          alertBySound(ticket, counterName || counterId);
-        }
-
-      } catch(e){
-        warn('queue listener callback failed', e);
-      }
-    });
-
-    statusBanner.textContent = 'Listening for your number...';
-  } catch(e){
-    warn('attachQueue failed', e);
-    statusBanner.textContent = 'Listener error';
-    scheduleReconnect(()=>attachQueue(queueKey));
+    if (!ui.beepAudio) return;
+    ui.beepAudio.currentTime = 0;
+    const p = ui.beepAudio.play();
+    if (p && p.catch) p.catch(err => warn('beep blocked', err));
+  } catch(e) {
+    warn('playBeepFile failed', e);
   }
 }
-function detachQueue(){
-  try { if (qListenerRef) off(qListenerRef); } catch(e){}
-  qListenerRef = null;
-  detachCounter();
-}
-async function attachCounter(counterId){
-  if (!db || !counterId) return;
-  detachCounter();
 
-  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
-  const candidates = [
-    `${tBase}counters/${counterId}`,
-    `${tBase}public/counters/${counterId}`,
-    `${tBase}counter/${counterId}`,
-    `counters/${counterId}`,
-    `public/counters/${counterId}`,
-    `counter/${counterId}`
-  ];
-
-  const chosen = (await findExistingPath(candidates)) || candidates[0];
-  log('chosen counter path', chosen);
-
-  try {
-    cListenerRef = ref(db, chosen);
-    onValue(cListenerRef, snap => {
-      try {
-        if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
-
-        const c = snap.val() || {};
-        const { nowServing, name } = extractCounterData(c);
-
-        if (name) counterNameEl.textContent = name;
-        if (nowServing !== undefined && nowServing !== null) {
-          const nowStr = String(nowServing);
-          const ticketStr = String(lastSeenTicket || '');
-
-          if (ticketStr && (nowStr === ticketStr || parseTicketNum(nowStr) >= parseTicketNum(ticketStr))) {
-            alertBySound(lastSeenTicket, name || counterId);
-          }
-
-          if (name) document.getElementById('counterName').textContent = name;
-          else document.getElementById('counterName').textContent = `Counter ${counterId}`;
-        }
-      } catch(e){
-        warn('counter listener callback failed', e);
-      }
-    });
-  } catch(e){
-    warn('attachCounter failed', e);
-    scheduleReconnect(()=>attachCounter(counterId));
-  }
-}
-function detachCounter(){
-  try { if (cListenerRef) off(cListenerRef); } catch(e){}
-  cListenerRef = null;
-}
-
-/* ===== RECONNECT ===== */
-function scheduleReconnect(fn){
-  reconnectDelay = Math.min(30_000, reconnectDelay * 1.8 || 1000);
-  setTimeout(()=>{
-    try{
-      fn();
-      reconnectDelay = 1000;
-    } catch(e){
-      warn('reconnect attempt failed', e);
-    }
-  }, reconnectDelay);
-}
-
-/* ===== AUDIO / NOTIFICATION ===== */
-async function tryResumeAudioContext() {
+async function ensureAudioUnlocked(){
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume().catch(()=>{});
-    }
-    audioUnlocked = (audioCtx && audioCtx.state === 'running');
+    if (audioCtx.state === 'suspended') await audioCtx.resume().catch(()=>{});
+    audioUnlocked = audioCtx.state === 'running';
     if (audioUnlocked) {
-      autoplayNote.textContent = 'Audio unlocked. Sound will play when called.';
+      ui.soundBtn.textContent = 'Sound ready';
+      ui.subscribeNote.textContent = 'Sound is ready. You will also feel a light vibration when called.';
     }
-  } catch(e){
-    warn('tryResumeAudioContext failed', e);
+    return audioUnlocked;
+  } catch(e) {
+    warn('ensureAudioUnlocked failed', e);
+    return false;
   }
 }
-function playOscillatorChime() {
+
+function playOscillatorChime(){
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
@@ -545,199 +526,251 @@ function playOscillatorChime() {
     o.start(now);
     o.stop(now + 0.9);
 
-    setTimeout(()=>{ try{ o.disconnect(); g.disconnect(); } catch(_){} }, 1200);
-  } catch(e){
-    warn('playOscillatorChime error', e);
+    setTimeout(() => { try { o.disconnect(); g.disconnect(); } catch(_){} }, 1200);
+  } catch(e) {
+    warn('playOscillatorChime failed', e);
   }
 }
-function playBeepFile() {
-  try {
-    if (!beepAudio) return;
-    beepAudio.currentTime = 0;
-    const p = beepAudio.play();
-    if (p && p.catch) {
-      p.catch(err => { log('beepAudio.play blocked', err); });
-    }
-  } catch(e){
-    warn('playBeepFile failed', e);
-  }
-}
-async function showBrowserNotification(title, body) {
-  try {
-    if (!('Notification' in window)) return false;
-    if (Notification.permission === 'default') {
-      await Notification.requestPermission().catch(()=>{});
-    }
-    if (Notification.permission !== 'granted') return false;
-    new Notification(title, {
-      body,
-      tag: currentStorageScope(),
-      renotify: true
-    });
-    return true;
-  } catch(e){
-    warn('showBrowserNotification failed', e);
-    return false;
-  }
-}
-async function alertBySound(ticket, counterName) {
-  try {
-    if (!ticket) ticket = '—';
 
-    const key = alertedKey(ticket);
-    if (localStorage.getItem(key)) {
-      log('already alerted', key);
-      return;
-    }
+function vibrateAlert(){
+  try { if (navigator.vibrate) navigator.vibrate([180, 70, 180]); } catch(e){}
+}
+
+function triggerCallAlert(ticket, counterName){
+  try {
+    const ticketStr = safeText(ticket, '—');
+    const key = alertedKey(ticketStr);
+    if (localStorage.getItem(key)) return;
     localStorage.setItem(key, '1');
 
-    yourNumberEl.textContent = readableTicket(ticket);
-    if (counterName) counterNameEl.textContent = counterName;
+    setTicket(ticketStr);
+    if (counterName) setCounterName(counterName);
 
     playBeepFile();
     playOscillatorChime();
-    tryResumeAudioContext();
-    try { if (navigator.vibrate) navigator.vibrate([200,80,200]); } catch(e){}
-
-    await showBrowserNotification(
-      'QueueJoy — Your Turn',
-      `${readableTicket(ticket)}${counterName ? ` • ${counterName}` : ''}`
-    );
-
-  } catch(e){
-    warn('alertBySound failed', e);
+    vibrateAlert();
+    setStatus('Your turn');
+    ui.queueStatus.textContent = 'Please proceed';
+  } catch(e) {
+    warn('triggerCallAlert failed', e);
   }
 }
-function startAudioResumeLoop() {
-  if (audioResumeInterval) return;
-  audioResumeInterval = setInterval(() => {
-    tryResumeAudioContext();
-  }, 4000);
+
+function scheduleReconnect(fn){
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectDelay = Math.min(30000, reconnectDelay * 1.8 || 1000);
+  reconnectTimer = setTimeout(() => {
+    try { fn(); reconnectDelay = 1000; } catch(e) { warn('reconnect failed', e); }
+  }, reconnectDelay);
 }
 
-/* ===== TELEGRAM SUBSCRIBE ===== */
-function buildTelegramLink() {
-  const payload = getBotPayload();
-  return `${TELEGRAM_BOT_URL}?start=${encodeURIComponent(payload)}`;
-}
-function markTelegramPromptShown() {
-  localStorage.setItem(promoLocalKey(), '1');
-  promoNote.style.display = 'block';
-}
-function isTelegramPromptShown() {
-  return localStorage.getItem(promoLocalKey()) === '1';
+function detachCounter(){ try { if (cListenerRef) off(cListenerRef); } catch(e){} cListenerRef = null; }
+function detachQueue(){ try { if (qListenerRef) off(qListenerRef); } catch(e){} qListenerRef = null; detachCounter(); }
+
+async function attachCounter(counterId){
+  if (!db || !counterId) return;
+  detachCounter();
+
+  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
+  const candidates = [
+    `${tBase}counters/${counterId}`,
+    `${tBase}public/counters/${counterId}`,
+    `${tBase}counter/${counterId}`,
+    `counters/${counterId}`,
+    `public/counters/${counterId}`,
+    `counter/${counterId}`
+  ];
+
+  const chosen = await findExistingPath(candidates);
+  cListenerRef = ref(db, chosen);
+
+  onValue(cListenerRef, snap => {
+    try {
+      if (!snap || (typeof snap.exists === 'function' && !snap.exists())) return;
+      const c = snap.val() || {};
+      const { name, nowServing } = extractCounterData(c);
+
+      if (name) setCounterName(name);
+      else setCounterName(`Counter ${counterId}`);
+
+      if (nowServing !== undefined && nowServing !== null && nowServing !== '') {
+        const nowStr = String(nowServing);
+        const ticketStr = String(lastSeenTicket || '');
+        if (ticketStr && (nowStr === ticketStr || parseTicketNum(nowStr) >= parseTicketNum(ticketStr))) {
+          triggerCallAlert(lastSeenTicket, name || `Counter ${counterId}`);
+        }
+      }
+    } catch(e) {
+      warn('counter listener error', e);
+    }
+  });
 }
 
-/* ===== BOOTSTRAP ===== */
-async function bootstrap() {
+async function attachQueue(queueKey){
+  if (!db || !queueKey) return;
+  detachQueue();
+  currentQueueKey = queueKey;
+  setStatus('Connecting');
+  ui.queueStatus.textContent = 'Loading queue';
+
+  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
+  const candidates = [
+    `${tBase}queues/${queueKey}`,
+    `${tBase}queue/${queueKey}`,
+    `${tBase}public/queues/${queueKey}`,
+    `${tBase}public/queue/${queueKey}`,
+    `${tBase}queuesById/${queueKey}`,
+    `${tBase}queuesByNumber/${queueKey}`,
+    `queues/${queueKey}`,
+    `queue/${queueKey}`,
+    `${queueKey}`
+  ];
+
+  const chosen = await findExistingPath(candidates);
+  qListenerRef = ref(db, chosen);
+
+  onValue(qListenerRef, async snap => {
+    try {
+      if (!snap || (typeof snap.exists === 'function' && !snap.exists())) {
+        setStatus('Not found');
+        setTicket('—');
+        setCounterName('—');
+        ui.queueStatus.textContent = 'Queue not found';
+        return;
+      }
+
+      const q = snap.val() || {};
+      const { ticket, counterId, counterName, nowServing, calledFlag } = extractQueueData(q);
+
+      if (ticket !== undefined && ticket !== null && ticket !== '') {
+        lastSeenTicket = ticket;
+        setTicket(ticket);
+      } else {
+        setTicket('—');
+      }
+
+      if (counterName) setCounterName(counterName);
+      else if (counterId) setCounterName(`Counter ${counterId}`);
+      else setCounterName('—');
+
+      if (nowServing !== undefined && nowServing !== null && nowServing !== '') {
+        const nowNum = parseTicketNum(nowServing);
+        const ticketNum = parseTicketNum(ticket);
+        if (!isNaN(nowNum) && !isNaN(ticketNum)) {
+          const ahead = Math.max(0, ticketNum - nowNum);
+          ui.queueStatus.textContent = ahead === 0 ? 'You are next' : `${ahead} ahead`;
+          setStatus(ahead === 0 ? 'Next' : 'Live');
+        } else {
+          ui.queueStatus.textContent = 'Live update';
+          setStatus('Live');
+        }
+      } else {
+        ui.queueStatus.textContent = 'Waiting for live update';
+        setStatus('Connected');
+      }
+
+      if (counterId && counterId !== lastCounterId) {
+        lastCounterId = counterId;
+        await attachCounter(counterId);
+      } else if (counterId && !cListenerRef) {
+        await attachCounter(counterId);
+      }
+
+      if (calledFlag) {
+        triggerCallAlert(ticket, counterName || (counterId ? `Counter ${counterId}` : null));
+      }
+    } catch(e) {
+      warn('queue listener error', e);
+      ui.queueStatus.textContent = 'Reconnecting';
+      scheduleReconnect(() => attachQueue(queueKey));
+    }
+  });
+}
+
+async function bootstrap(){
   try {
     clearError();
 
-    const queueKey =
-      getParam(['queueId','queueid','qid','id']) ||
-      getParam(['token']) ||
-      null;
-
+    const queueKey = getParam(['queueId','queueid','qid','id','token']);
     if (!queueKey) {
-      fail('Missing queueId (use ?queueId=...)');
-      statusBanner.textContent = 'Missing queue id';
+      setStatus('Missing queue');
+      showError('Missing queue id. Open this page with ?queueId=...');
+      setTicket('—');
+      setCounterName('—');
       return;
     }
 
-    statusBanner.textContent = 'Resolving tenant...';
     currentQueueKey = queueKey;
+    setStatus('Resolving');
 
     const slug = getSlugFromUrl();
     if (slug) {
-      qaBadge.style.display = 'block';
-      qaSlug.textContent = slug;
-      qaId.textContent = '(resolving...)';
+      ui.qaBadge.style.display = 'block';
+      ui.qaSlug.textContent = slug;
+      ui.qaId.textContent = '(resolving)';
       TENANT_SLUG = slug;
 
       const tenantResp = await resolveTenant(slug);
-      if (tenantResp && (tenantResp.tenantId || tenantResp.tenant || tenantResp.id)) {
-        TENANT_ID = tenantResp.tenantId || tenantResp.tenant || tenantResp.id || slug;
-      } else {
-        TENANT_ID = slug;
-      }
-      qaId.textContent = TENANT_ID;
+      TENANT_ID = tenantResp?.tenantId || tenantResp?.tenant || tenantResp?.id || slug;
+      ui.qaId.textContent = TENANT_ID || slug;
     }
 
     const clientCfg = await fetchClientConfig(TENANT_SLUG || '');
-    const inited = await initFirebase(clientCfg);
-    if (!inited) {
-      statusBanner.textContent = 'Firebase init failed';
-      fail('Firebase init failed');
+    const ok = await initFirebase(clientCfg);
+    if (!ok) {
+      setStatus('Offline');
+      showError('Firebase init failed.');
       return;
     }
 
-    startAudioResumeLoop();
-
-    await attachQueue(currentQueueKey);
-    statusBanner.textContent = 'Listening for your number...';
-
-    if (isTelegramPromptShown()) {
-      promoNote.style.display = 'block';
-    }
+    await attachQueue(queueKey);
+    await ensureAudioUnlocked();
 
     document.addEventListener('visibilitychange', () => {
-      tryResumeAudioContext();
+      if (!document.hidden) ensureAudioUnlocked();
     });
 
+    setStatus('Live');
   } catch(e) {
     warn('bootstrap failed', e);
-    fail('Initialization failed — see console for details.');
+    setStatus('Error');
+    showError('Initialization failed.');
   }
 }
 
-/* ===== BUTTONS ===== */
-enableBtn.addEventListener('click', async () => {
-  try {
-    localStorage.setItem(enabledLocalKey(), '1');
-    await tryResumeAudioContext().catch(()=>{});
-    await showBrowserNotification('QueueJoy', 'Alerts enabled for this page.');
-    autoplayNote.textContent = 'Alerts enabled. If your number is called, this page will beep and notify.';
-    statusBanner.textContent = 'Alerts enabled.';
-  } catch(e){
-    warn('enableBtn failed', e);
-  }
+ui.soundBtn.addEventListener('click', async () => {
+  await ensureAudioUnlocked();
+  ui.soundBtn.textContent = audioUnlocked ? 'Sound ready' : 'Enable sound & vibration';
+  ui.subscribeNote.textContent = audioUnlocked
+    ? 'Sound is enabled for this page. No browser notification permission is used.'
+    : 'Tap again if your browser blocked audio the first time.';
 });
 
-promoBtn.addEventListener('click', async () => {
-  try {
-    await tryResumeAudioContext().catch(()=>{});
-    localStorage.setItem(promoLocalKey(), '1');
-    markTelegramPromptShown();
-
-    const url = buildTelegramLink();
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!w) {
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    statusBanner.textContent = 'Telegram opened. Press Start to subscribe.';
-  } catch(e){
-    warn('promoBtn failed', e);
+ui.promoBtn.addEventListener('click', async () => {
+  const url = buildTelegramLink();
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
+  ui.subscribeNote.textContent = 'Telegram opened with your queue-specific subscribe link.';
 });
 
-/* ===== START ===== */
-bootstrap();
-
-/* ===== CLEANUP ===== */
 window.addEventListener('beforeunload', () => {
   try {
     if (qListenerRef) off(qListenerRef);
     if (cListenerRef) off(cListenerRef);
     if (audioResumeInterval) clearInterval(audioResumeInterval);
-  } catch(_){}
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+  } catch(e){}
 });
+
+bootstrap();
 </script>
 </body>
 </html>
