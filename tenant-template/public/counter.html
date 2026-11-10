@@ -267,6 +267,68 @@
       70% { box-shadow: 0 0 0 12px rgba(16,185,129,0); }
       100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
     }
+
+    /* Live display editor and customer-facing screen */
+    .display-editor-overlay{display:none;position:fixed;inset:0;z-index:150;background:#f3f5fb}
+    .display-editor-overlay.open{display:flex;flex-direction:column}
+    .display-editor-topbar{min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;background:#fff;border-bottom:1px solid #e5e7eb;flex-wrap:wrap}
+    .display-editor-workspace{display:grid;grid-template-columns:300px minmax(0,1fr);gap:0;min-height:0;flex:1}
+    .display-editor-sidebar{background:#fff;border-right:1px solid #e5e7eb;padding:18px;overflow:auto}
+    .display-editor-canvas-wrap{min-width:0;overflow:auto;padding:22px;background:radial-gradient(circle at 20% 20%,#fff 0,#edf1f9 65%);display:flex;align-items:center;justify-content:center}
+    .display-field{display:block;width:100%;margin-top:5px;padding:9px 10px;border:1px solid #dbe1ec;border-radius:9px;background:#fff;color:#111827;font:500 13px Inter,system-ui,sans-serif;min-width:0}
+    .display-field:focus{outline:2px solid #a5b4fc;outline-offset:1px}
+    .display-field-color{height:40px;padding:4px}
+    .display-control-group{padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid #edf0f5}
+    .display-control-group:last-child{border-bottom:0}
+    .display-control-label{display:block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:6px}
+    .display-control-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .display-stage{position:relative;isolation:isolate;width:100%;max-width:1200px;aspect-ratio:16/9;overflow:hidden;border-radius:18px;background:var(--disp-bg,#082b49);color:var(--disp-text,#fff);font-family:var(--disp-font,Inter,system-ui,sans-serif);box-shadow:0 22px 60px rgba(15,23,42,.22);flex:none;container-type:inline-size}
+    .display-stage:fullscreen{width:100vw;height:100vh;max-width:none;aspect-ratio:auto;border-radius:0;box-shadow:none}
+    .display-block{position:absolute;box-sizing:border-box;overflow:hidden}
+    .display-header{display:flex;align-items:center;justify-content:space-between;gap:2%;padding:1.2% 1.7%;}
+    .display-brand{display:flex;align-items:center;gap:1.4%;min-width:0;max-width:72%;height:100%}
+    .display-logo-wrap{width:clamp(28px,5.5cqw,74px);height:clamp(28px,5.5cqw,74px);flex:none;display:flex;align-items:center;justify-content:center}
+    .display-logo{width:100%;height:100%;object-fit:contain;display:none}
+    .display-brand-name{font-size:clamp(13px,min(3cqw,var(--disp-company-size,34px)),62px);font-weight:850;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .display-brand-sub{font-size:clamp(8px,1.15cqw,17px);color:var(--disp-muted);margin-top:.35em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .display-clock{text-align:right;flex:none;max-width:30%}
+    .display-clock-time{font-size:clamp(15px,3.1cqw,58px);font-weight:850;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .display-clock-date{font-size:clamp(8px,1.25cqw,19px);color:var(--disp-muted);margin-top:.35em;white-space:nowrap}
+    .display-main{background:linear-gradient(135deg,var(--disp-accent),color-mix(in srgb,var(--disp-accent) 70%,#08c6ca));border:1px solid rgba(255,255,255,.16);border-radius:1.8cqw;padding:3%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:var(--disp-align,center);box-shadow:0 1.4cqw 3.5cqw rgba(0,0,0,.16)}
+    .display-main-label{font-size:clamp(11px,1.6cqw,26px);font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.86)}
+    .display-main-ticket{font-size:clamp(30px,min(13cqw,var(--disp-ticket-size,150px)),190px);font-weight:900;line-height:1.02;letter-spacing:-.045em;color:#fff;margin:.12em 0;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+    .display-main-counter{display:inline-flex;align-items:center;gap:.5em;background:rgba(255,255,255,.94);color:#064b83;border-radius:999px;padding:.38em .9em;font-size:clamp(11px,2.5cqw,38px);font-weight:850;max-width:96%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .display-main-detail{font-size:clamp(8px,1.35cqw,21px);color:rgba(255,255,255,.92);margin-top:.7em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:94%}
+    .display-side{display:grid;grid-template-rows:repeat(4,minmax(0,1fr));gap:1.3%;}
+    .display-counter-card{display:flex;flex-direction:column;justify-content:center;gap:5%;padding:3.8% 4%;background:var(--disp-panel);border:1px solid rgba(255,255,255,.14);border-radius:1.25cqw;min-height:0}
+    .display-counter-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--disp-muted);font-size:clamp(7px,1.2cqw,18px);font-weight:800;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+    .display-counter-name{overflow:hidden;text-overflow:ellipsis}
+    .display-counter-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+    .display-counter-ticket{font-size:clamp(16px,3.1cqw,48px);font-weight:900;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+    .display-counter-room{font-size:clamp(8px,1.35cqw,20px);font-weight:750;background:rgba(255,255,255,.12);padding:.35em .7em;border-radius:999px;color:var(--disp-text);white-space:nowrap;max-width:50%;overflow:hidden;text-overflow:ellipsis}
+    .display-next{display:flex;align-items:center;gap:1.5%;}
+    .display-next-label{font-size:clamp(8px,1.3cqw,20px);font-weight:900;letter-spacing:.14em;color:var(--disp-muted);white-space:nowrap}
+    .display-next-list{display:flex;align-items:center;gap:1.3%;min-width:0;flex:1}
+    .display-next-ticket{min-width:0;flex:1;text-align:center;padding:2.3% 1%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:.9cqw;font-size:clamp(10px,2.35cqw,35px);font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+    .display-average{display:flex;align-items:center;justify-content:center;gap:7%;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.09);border-radius:1cqw;padding:2.5%}
+    .display-average-label{font-size:clamp(8px,1.25cqw,18px);font-weight:800;letter-spacing:.11em;color:var(--disp-muted);text-transform:uppercase}
+    .display-average-value{font-size:clamp(14px,2.9cqw,42px);font-weight:900;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .display-footer{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 1.2%;background:rgba(0,0,0,.16);color:var(--disp-muted);font-size:clamp(7px,1cqw,15px);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .display-stage.editing .display-block{outline:1px dashed rgba(255,255,255,.55);outline-offset:-2px;cursor:move;touch-action:none}
+    .display-stage.editing .display-block.selected{outline:2px solid #fbbf24;outline-offset:-2px}
+    .display-resize-handle{display:none;position:absolute;right:0;bottom:0;width:16px;height:16px;background:#fbbf24;border:2px solid #fff;border-radius:4px;cursor:nwse-resize;z-index:5}
+    .display-stage.editing .display-block.selected .display-resize-handle{display:block}
+    .display-exit-fullscreen{display:none;position:absolute;z-index:50;right:18px;top:18px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.45);color:#fff;border-radius:999px;padding:10px 15px;font:700 13px Inter,system-ui,sans-serif;cursor:pointer}
+    .display-stage:fullscreen .display-exit-fullscreen{display:block}
+    .display-stage:fullscreen .display-block{outline:0!important;cursor:default!important}
+    .display-stage:fullscreen .display-resize-handle{display:none!important}
+    .display-stage:fullscreen .display-main-ticket{font-size:clamp(56px,min(14vw,var(--disp-ticket-size,170px)),230px)}
+    .display-stage:fullscreen .display-brand-name{font-size:clamp(22px,min(3.2vw,var(--disp-company-size,42px)),70px)}
+    .display-stage:fullscreen .display-counter-ticket{font-size:clamp(24px,3.5vw,62px)}
+    .display-stage:fullscreen .display-next-ticket{font-size:clamp(18px,2.6vw,44px)}
+    @media(max-width:900px){.display-editor-workspace{grid-template-columns:260px minmax(0,1fr)}.display-editor-sidebar{padding:14px}.display-editor-canvas-wrap{padding:12px}}
+    @media(max-width:640px){.display-editor-workspace{grid-template-columns:1fr;grid-template-rows:minmax(260px,42vh) minmax(0,1fr)}.display-editor-sidebar{border-right:0;border-bottom:1px solid #e5e7eb}.display-editor-canvas-wrap{align-items:flex-start}.display-editor-topbar{padding:10px}.display-editor-topbar .btn{font-size:12px;padding:10px 11px}.header-actions{flex-direction:row;flex-wrap:wrap}.header-actions .btn{width:auto;flex:1 1 auto}}
+
     @media (max-width: 640px) {
       .serving-number { font-size: 2rem; }
       .header-actions { flex-direction: column; gap: 8px; }
@@ -298,6 +360,10 @@
         <button id="addCounterBtn" class="btn btn-primary">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4v16m8-8H4"/></svg>
           Add Counter
+        </button>
+        <button id="liveDisplayPreviewBtn" class="btn btn-ghost" style="background:#eef2ff;color:#4338ca;border:1px solid #e0e7ff">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path stroke-linecap="round" d="M8 21h8m-4-4v4"/></svg>
+          Live Display Preview
         </button>
         <button id="generateTicketBtn" class="btn btn-success">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5z"/><path stroke-linecap="round" d="M3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/><path stroke-linecap="round" d="M13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5z"/><path stroke-linecap="round" d="M17.25 17.25h.008v.008h-.008z M17.25 13.5h.008v.008h-.008z M13.5 17.25h.008v.008h-.008z"/></svg>
@@ -445,6 +511,115 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     </div>
 
   </main>
+
+
+  <div id="displayEditor" class="display-editor-overlay" aria-hidden="true">
+    <div class="display-editor-topbar">
+      <div>
+        <h2 class="text-base font-extrabold text-slate-900">Live Display Preview</h2>
+        <p class="text-xs text-slate-500">Customize the customer-facing screen. Queue numbers stay linked to live Firebase data.</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="displaySoundBtn" class="btn btn-ghost" type="button">Enable display sound</button>
+        <button id="displayFullscreenBtn" class="btn btn-ghost" type="button">Enter Full Screen</button>
+        <button id="displaySaveBtn" class="btn btn-primary" type="button">Save</button>
+        <button id="displayCloseBtn" class="btn btn-ghost" type="button">Close</button>
+      </div>
+    </div>
+    <div class="display-editor-workspace">
+      <aside class="display-editor-sidebar">
+        <section class="display-control-group">
+          <h3 class="text-sm font-extrabold text-slate-900 mb-3">Company Branding</h3>
+          <label class="display-control-label" for="displayCompanyName">Company name</label>
+          <input id="displayCompanyName" class="display-field" maxlength="80" placeholder="Your business name"/>
+          <label class="display-control-label mt-3" for="displayLogoUrl">Logo image URL</label>
+          <input id="displayLogoUrl" class="display-field" type="url" placeholder="https://example.com/logo.png"/>
+          <label class="display-control-label mt-3" for="displayLogoFile">Or upload logo</label>
+          <input id="displayLogoFile" class="display-field" type="file" accept="image/png,image/jpeg,image/webp"/>
+          <p class="text-[11px] text-slate-400 mt-1">Uploaded logos are resized and saved in this tenant's display settings.</p>
+        </section>
+        <section class="display-control-group">
+          <h3 class="text-sm font-extrabold text-slate-900 mb-3">Colors &amp; Theme</h3>
+          <div class="display-control-grid">
+            <label><span class="display-control-label">Background</span><input id="displayBgColor" class="display-field display-field-color" type="color"/></label>
+            <label><span class="display-control-label">Accent</span><input id="displayAccentColor" class="display-field display-field-color" type="color"/></label>
+            <label><span class="display-control-label">Text</span><input id="displayTextColor" class="display-field display-field-color" type="color"/></label>
+            <label><span class="display-control-label">Muted text</span><input id="displayMutedColor" class="display-field display-field-color" type="color"/></label>
+            <label class="col-span-2"><span class="display-control-label">Counter panel</span><input id="displayPanelColor" class="display-field display-field-color" type="color"/></label>
+          </div>
+        </section>
+        <section class="display-control-group">
+          <h3 class="text-sm font-extrabold text-slate-900 mb-3">Typography &amp; Layout</h3>
+          <label class="display-control-label" for="displayFont">Font style</label>
+          <select id="displayFont" class="display-field"><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Verdana">Verdana</option><option value="Georgia">Georgia</option><option value="Trebuchet MS">Trebuchet MS</option></select>
+          <label class="display-control-label mt-3" for="displayAlign">Main ticket alignment</label>
+          <select id="displayAlign" class="display-field"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select>
+          <label class="display-control-label mt-3" for="displayLayoutPreset">Display layout</label>
+          <select id="displayLayoutPreset" class="display-field"><option value="classic">Classic widescreen</option><option value="compact">Compact widescreen</option></select>
+          <div class="mt-3">
+            <label class="display-control-label" for="displayCompanySize">Company name size <span id="displayCompanySizeValue" class="normal-case tracking-normal font-semibold">34px</span></label>
+            <input id="displayCompanySize" class="w-full" type="range" min="18" max="60" step="1"/>
+          </div>
+          <div class="mt-3">
+            <label class="display-control-label" for="displayTicketSize">Ticket number size <span id="displayTicketSizeValue" class="normal-case tracking-normal font-semibold">150px</span></label>
+            <input id="displayTicketSize" class="w-full" type="range" min="64" max="190" step="2"/>
+          </div>
+        </section>
+        <section class="display-control-group">
+          <h3 class="text-sm font-extrabold text-slate-900 mb-3">Position &amp; Sizing</h3>
+          <label class="display-control-label" for="displayElementPicker">Selected display element</label>
+          <select id="displayElementPicker" class="display-field"><option value="header">Header</option><option value="main">Now Serving</option><option value="side">Counter information</option><option value="next">Next Numbers</option><option value="average">Average Wait Time</option><option value="footer">Footer</option></select>
+          <p class="text-[11px] text-slate-400 mt-1 mb-2">Drag an element on the canvas to move it. Drag its yellow corner to resize it.</p>
+          <div class="display-control-grid">
+            <label><span class="display-control-label">X position (%)</span><input id="displayPosX" type="number" min="0" max="100" step="0.5" class="display-field"/></label>
+            <label><span class="display-control-label">Y position (%)</span><input id="displayPosY" type="number" min="0" max="100" step="0.5" class="display-field"/></label>
+            <label><span class="display-control-label">Width (%)</span><input id="displayPosW" type="number" min="5" max="100" step="0.5" class="display-field"/></label>
+            <label><span class="display-control-label">Height (%)</span><input id="displayPosH" type="number" min="3" max="100" step="0.5" class="display-field"/></label>
+          </div>
+        </section>
+        <section class="display-control-group">
+          <h3 class="text-sm font-extrabold text-slate-900 mb-2">Footer announcement</h3>
+          <textarea id="displayFooterText" class="display-field" rows="3" maxlength="240" placeholder="Enter an announcement or instruction"></textarea>
+        </section>
+      </aside>
+      <section class="display-editor-canvas-wrap">
+        <div id="displayStage" class="display-stage editing" aria-label="Live customer display preview">
+          <header class="display-block display-header" data-display-element="header">
+            <div class="display-brand">
+              <div class="display-logo-wrap"><img id="displayLogo" class="display-logo" alt="Company logo"/></div>
+              <div class="min-w-0"><div id="displayBrandName" class="display-brand-name">Your Business</div><div class="display-brand-sub">QUEUE STATUS</div></div>
+            </div>
+            <div class="display-clock"><div id="displayClockTime" class="display-clock-time">--:--</div><div id="displayClockDate" class="display-clock-date">Loading date…</div></div>
+            <span class="display-resize-handle" data-resize-handle="true"></span>
+          </header>
+          <section class="display-block display-main" data-display-element="main">
+            <div class="display-main-label">NOW SERVING</div>
+            <div id="displayMainTicket" class="display-main-ticket">—</div>
+            <div id="displayMainCounter" class="display-main-counter">Please wait</div>
+            <div id="displayMainDetail" class="display-main-detail">Your turn will be displayed here</div>
+            <span class="display-resize-handle" data-resize-handle="true"></span>
+          </section>
+          <section id="displaySide" class="display-block display-side" data-display-element="side">
+            <div class="display-counter-card"><div class="display-counter-top"><span class="display-counter-name">COUNTER 1</span><span>NOW CALLING</span></div><div class="display-counter-bottom"><span class="display-counter-ticket">—</span><span class="display-counter-room">Counter 1</span></div></div>
+            <div class="display-counter-card"><div class="display-counter-top"><span class="display-counter-name">COUNTER 2</span><span>NOW CALLING</span></div><div class="display-counter-bottom"><span class="display-counter-ticket">—</span><span class="display-counter-room">Counter 2</span></div></div>
+            <div class="display-counter-card"><div class="display-counter-top"><span class="display-counter-name">COUNTER 3</span><span>NOW CALLING</span></div><div class="display-counter-bottom"><span class="display-counter-ticket">—</span><span class="display-counter-room">Counter 3</span></div></div>
+            <div class="display-counter-card"><div class="display-counter-top"><span class="display-counter-name">COUNTER 4</span><span>NOW CALLING</span></div><div class="display-counter-bottom"><span class="display-counter-ticket">—</span><span class="display-counter-room">Counter 4</span></div></div>
+            <span class="display-resize-handle" data-resize-handle="true"></span>
+          </section>
+          <section id="displayNext" class="display-block display-next" data-display-element="next">
+            <div class="display-next-label">NEXT NUMBERS</div><div id="displayNextList" class="display-next-list"></div>
+            <span class="display-resize-handle" data-resize-handle="true"></span>
+          </section>
+          <section class="display-block display-average" data-display-element="average">
+            <div><div class="display-average-label">Average Wait</div><div id="displayAverageValue" class="display-average-value">—</div></div>
+            <span class="display-resize-handle" data-resize-handle="true"></span>
+          </section>
+          <footer id="displayFooter" class="display-block display-footer" data-display-element="footer">Please have your ticket ready and wait for your number to be called.</footer>
+          <button id="displayExitFullscreen" class="display-exit-fullscreen" type="button">Exit Full Screen ✕</button>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <div id="counterModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-card max-w-md animate-modal-in">
@@ -605,6 +780,16 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     const MAX_POPUP_HISTORY = 20;
     const completedServiceEventKeys = new Set();
     let callNextLock = false;
+    let callNextCounterId = null;
+    const counterCardMap = new Map();
+    let displayConfig = null;
+    let displayEditorDirty = false;
+    let displaySoundEnabled = false;
+    let displayAudioContext = null;
+    const heardDisplayCalls = new Set();
+    let displayClockTimer = null;
+    let selectedDisplayElement = 'main';
+    let displayDragState = null;
 
     const esc = (s) => s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const fmt = (prefix, num) => `${prefix}${String(num).padStart(3, '0')}`;
@@ -797,6 +982,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         ['queueMeta', {}],
         ['queueState', {}],
         ['settings', {}],
+        ['settings/liveDisplay', {}],
         ['settings/notifications', {
           calledMessage: $('tmplCalled').value,
           reminderMessage: $('tmplReminder').value,
@@ -946,21 +1132,474 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (!avgWaitEl || !healthEl) return;
 
       const ids = Object.keys(countersData || {});
-      const activeCounters = ids.filter(id => (countersData[id] || {}).active !== false).length || ids.length || 0;
-      let allWait = [];
-      let completedTickets = 0;
-
+      const activeCounters = ids.filter(id => (countersData[id] || {}).active !== false).length;
+      let waiting = 0;
+      let serving = 0;
       for (const id of ids) {
         const metrics = getCounterMetrics(id);
-        if (Number.isFinite(metrics.avgWaitMin)) allWait.push(metrics.avgWaitMin);
-        completedTickets += metrics.completedCount || 0;
+        waiting += metrics.waitingCount;
+        if (metrics.servingEntry) serving += 1;
       }
-
-      const avgWait = allWait.length ? (allWait.reduce((a, b) => a + b, 0) / allWait.length) : null;
-
-      avgWaitEl.textContent = avgWait != null ? formatMinutes(avgWait) : '—';
-      healthEl.textContent = `0 waiting • 0 serving • ${activeCounters} active`;
+      const avgWait = getGlobalAvgWaitMin();
+      avgWaitEl.textContent = avgWait != null ? formatAverageWait(avgWait) : '—';
+      healthEl.textContent = `${waiting} waiting • ${serving} serving • ${activeCounters} active`;
     }
+
+
+    const DISPLAY_DEFAULT_LAYOUT = {
+      header: { x: 2.3, y: 2.3, w: 95.4, h: 11.5 },
+      main: { x: 2.3, y: 16, w: 59.2, h: 66.0 },
+      side: { x: 63.0, y: 16, w: 34.7, h: 66.0 },
+      next: { x: 2.3, y: 83.3, w: 59.2, h: 10.5 },
+      average: { x: 63.0, y: 83.3, w: 34.7, h: 10.5 },
+      footer: { x: 0, y: 95.2, w: 100, h: 4.8 }
+    };
+
+    function getDefaultDisplayConfig() {
+      const businessName = tenantPublicConfig?.displayName || tenantPublicConfig?.name || slug || 'Your Business';
+      return {
+        companyName: String(businessName),
+        logoUrl: '',
+        logoDataUrl: '',
+        backgroundColor: '#082b49',
+        accentColor: '#087fc1',
+        textColor: '#ffffff',
+        mutedTextColor: '#a9c7dd',
+        panelColor: '#24465f',
+        fontFamily: 'Inter',
+        textAlign: 'center',
+        companySize: 34,
+        ticketSize: 150,
+        layoutPreset: 'classic',
+        footerText: 'Please have your ticket ready and wait for your number to be called.',
+        layout: JSON.parse(JSON.stringify(DISPLAY_DEFAULT_LAYOUT))
+      };
+    }
+
+    const displayEditor = $('displayEditor');
+    const displayStage = $('displayStage');
+    const displayPreviewBtn = $('liveDisplayPreviewBtn');
+    const displaySaveBtn = $('displaySaveBtn');
+    const displaySoundBtn = $('displaySoundBtn');
+    const displayFullscreenBtn = $('displayFullscreenBtn');
+
+    function safeDisplayColor(value, fallback) {
+      const color = String(value || '').trim();
+      return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+    }
+
+    function safeDisplayFont(value) {
+      const allowed = ['Inter', 'Arial', 'Verdana', 'Georgia', 'Trebuchet MS'];
+      return allowed.includes(value) ? value : 'Inter';
+    }
+
+    function getDisplayLogoSource() {
+      const data = String(displayConfig?.logoDataUrl || '');
+      if (/^data:image\/(png|jpeg|webp);base64,/i.test(data)) return data;
+      const url = String(displayConfig?.logoUrl || '').trim();
+      try {
+        const parsed = new URL(url, window.location.href);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.href;
+      } catch (_) {}
+      return '';
+    }
+
+    function applyDisplayLayout(key) {
+      const position = displayConfig?.layout?.[key];
+      const element = displayStage?.querySelector(`[data-display-element="${key}"]`);
+      if (!position || !element) return;
+      element.style.left = `${position.x}%`;
+      element.style.top = `${position.y}%`;
+      element.style.width = `${position.w}%`;
+      element.style.height = `${position.h}%`;
+    }
+
+    function renderDisplayClock() {
+      const now = new Date();
+      const time = $('displayClockTime');
+      const date = $('displayClockDate');
+      if (time) time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (date) date.textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function displayQueueSnapshot() {
+      const serving = [];
+      const waiting = [];
+      for (const [key, entry] of Object.entries(queueData || {})) {
+        if (!entry || typeof entry !== 'object') continue;
+        const status = normalizeQueueStatus(entry);
+        const counterId = resolveQueueCounterId(entry);
+        if (status === 'serving') {
+          const calledAt = toEpoch(entry.calledAt, 0) || toEpoch(entry.updatedAt, 0) || 0;
+          serving.push({ key, entry, counterId, number: getQueueNumber(entry, key), calledAt });
+        } else if (status === 'waiting') {
+          const joinedAt = toEpoch(entry.joinedAt || entry.createdAt || entry.timestamp || entry.queuedAt || entry.updatedAt, 0);
+          waiting.push({ key, entry, counterId, number: getQueueNumber(entry, key), joinedAt: joinedAt || Number.MAX_SAFE_INTEGER });
+        }
+      }
+      serving.sort((a, b) => b.calledAt - a.calledAt);
+      waiting.sort((a, b) => a.joinedAt - b.joinedAt);
+      return { serving, waiting };
+    }
+
+    function renderLiveDisplay() {
+      if (!displayStage) return;
+      if (!displayConfig) displayConfig = getDefaultDisplayConfig();
+
+      const cfg = displayConfig;
+      const bg = safeDisplayColor(cfg.backgroundColor, '#082b49');
+      const accent = safeDisplayColor(cfg.accentColor, '#087fc1');
+      const textColor = safeDisplayColor(cfg.textColor, '#ffffff');
+      const muted = safeDisplayColor(cfg.mutedTextColor, '#a9c7dd');
+      const panelHex = safeDisplayColor(cfg.panelColor, '#24465f');
+      const panelRgb = [1, 3, 5].map(i => parseInt(panelHex.slice(i, i + 2), 16));
+      const panel = `rgba(${panelRgb[0]},${panelRgb[1]},${panelRgb[2]},0.62)`;
+      displayStage.style.setProperty('--disp-bg', bg);
+      displayStage.style.setProperty('--disp-accent', accent);
+      displayStage.style.setProperty('--disp-text', textColor);
+      displayStage.style.setProperty('--disp-muted', muted);
+      displayStage.style.setProperty('--disp-panel', panel);
+      displayStage.style.setProperty('--disp-font', `'${safeDisplayFont(cfg.fontFamily)}',system-ui,sans-serif`);
+      displayStage.style.setProperty('--disp-align', ['left','center','right'].includes(cfg.textAlign) ? cfg.textAlign : 'center');
+      displayStage.style.setProperty('--disp-company-size', `${Math.max(18, Math.min(60, Number(cfg.companySize) || 34))}px`);
+      displayStage.style.setProperty('--disp-ticket-size', `${Math.max(64, Math.min(190, Number(cfg.ticketSize) || 150))}px`);
+
+      $('displayBrandName').textContent = String(cfg.companyName || 'Your Business');
+      const logo = $('displayLogo');
+      const logoSrc = getDisplayLogoSource();
+      if (logoSrc) {
+        if (logo.src !== logoSrc) logo.src = logoSrc;
+        logo.style.display = 'block';
+      } else {
+        logo.removeAttribute('src');
+        logo.style.display = 'none';
+      }
+      $('displayFooter').textContent = String(cfg.footerText || '');
+      $('displayFooter').style.display = String(cfg.footerText || '').trim() ? 'flex' : 'none';
+
+      Object.keys(DISPLAY_DEFAULT_LAYOUT).forEach(applyDisplayLayout);
+
+      const snapshot = displayQueueSnapshot();
+      const latest = snapshot.serving[0];
+      $('displayMainTicket').textContent = latest ? String(latest.number) : '—';
+      const latestCounter = latest ? (countersData[latest.counterId]?.name || latest.entry.counterName || latest.counterId || 'Service counter') : 'Please wait';
+      $('displayMainCounter').textContent = latest ? latestCounter : 'Please wait';
+      $('displayMainDetail').textContent = latest ? 'Please proceed to the indicated counter' : 'Your turn will be displayed here';
+
+      const allDisplayCounterIds = Object.keys(countersData || {}).filter(id => countersData[id]);
+      const activeDisplayCounterIds = allDisplayCounterIds.filter(id => countersData[id].active !== false);
+      const counterIds = (activeDisplayCounterIds.length ? activeDisplayCounterIds : allDisplayCounterIds).slice(0, 4);
+      const side = $('displaySide');
+      const cards = side.querySelectorAll('.display-counter-card');
+      counterIds.forEach((counterId, index) => {
+        const card = cards[index];
+        if (!card) return;
+        const counter = countersData[counterId] || {};
+        const activeTicket = snapshot.serving.find(item => String(item.counterId) === String(counterId));
+        card.style.display = 'flex';
+        card.querySelector('.display-counter-name').textContent = String(counter.name || counterId);
+        card.querySelector('.display-counter-top span:last-child').textContent = activeTicket ? 'NOW CALLING' : 'WAITING';
+        card.querySelector('.display-counter-ticket').textContent = activeTicket ? String(activeTicket.number) : '—';
+        card.querySelector('.display-counter-room').textContent = String(counter.displayLocation || counter.room || counter.name || `Counter ${index + 1}`);
+      });
+      for (let i = counterIds.length; i < cards.length; i++) cards[i].style.display = 'none';
+
+      const nextSection = $('displayNext');
+      const nextList = $('displayNextList');
+      const nextTickets = snapshot.waiting.slice(0, 3);
+      if (!nextTickets.length) {
+        nextSection.style.display = 'none';
+      } else {
+        nextSection.style.display = 'flex';
+        nextList.innerHTML = '';
+        nextTickets.forEach(item => {
+          const ticket = document.createElement('div');
+          ticket.className = 'display-next-ticket';
+          ticket.textContent = String(item.number);
+          nextList.appendChild(ticket);
+        });
+      }
+      const avgWait = getGlobalAvgWaitMin();
+      $('displayAverageValue').textContent = avgWait != null ? formatAverageWait(avgWait) : '—';
+    }
+
+    function selectDisplayElement(key) {
+      if (!DISPLAY_DEFAULT_LAYOUT[key]) return;
+      selectedDisplayElement = key;
+      $('displayElementPicker').value = key;
+      displayStage.querySelectorAll('[data-display-element]').forEach(el => el.classList.toggle('selected', el.dataset.displayElement === key));
+      syncDisplayPositionControls();
+    }
+
+    function syncDisplayPositionControls() {
+      const p = displayConfig?.layout?.[selectedDisplayElement];
+      if (!p) return;
+      $('displayPosX').value = Number(Number(p.x).toFixed(1));
+      $('displayPosY').value = Number(Number(p.y).toFixed(1));
+      $('displayPosW').value = Number(Number(p.w).toFixed(1));
+      $('displayPosH').value = Number(Number(p.h).toFixed(1));
+    }
+
+    function clampDisplayPosition(p) {
+      p.w = Math.max(5, Math.min(100, Number(p.w) || 5));
+      p.h = Math.max(3, Math.min(100, Number(p.h) || 3));
+      p.x = Math.max(0, Math.min(100 - p.w, Number(p.x) || 0));
+      p.y = Math.max(0, Math.min(100 - p.h, Number(p.y) || 0));
+    }
+
+    function populateDisplayControls() {
+      const c = displayConfig || getDefaultDisplayConfig();
+      $('displayCompanyName').value = c.companyName || '';
+      $('displayLogoUrl').value = c.logoUrl || '';
+      $('displayBgColor').value = safeDisplayColor(c.backgroundColor, '#082b49');
+      $('displayAccentColor').value = safeDisplayColor(c.accentColor, '#087fc1');
+      $('displayTextColor').value = safeDisplayColor(c.textColor, '#ffffff');
+      $('displayMutedColor').value = safeDisplayColor(c.mutedTextColor, '#a9c7dd');
+      $('displayPanelColor').value = safeDisplayColor(c.panelColor, '#24465f');
+      $('displayFont').value = safeDisplayFont(c.fontFamily);
+      $('displayAlign').value = ['left','center','right'].includes(c.textAlign) ? c.textAlign : 'center';
+      $('displayLayoutPreset').value = c.layoutPreset === 'compact' ? 'compact' : 'classic';
+      $('displayCompanySize').value = Number(c.companySize) || 34;
+      $('displayTicketSize').value = Number(c.ticketSize) || 150;
+      $('displayCompanySizeValue').textContent = `${$('displayCompanySize').value}px`;
+      $('displayTicketSizeValue').textContent = `${$('displayTicketSize').value}px`;
+      $('displayFooterText').value = c.footerText || '';
+      syncDisplayPositionControls();
+    }
+
+    function openDisplayEditor() {
+      if (!displayConfig) displayConfig = getDefaultDisplayConfig();
+      displayEditorDirty = false;
+      displayEditor.classList.add('open');
+      displayEditor.setAttribute('aria-hidden', 'false');
+      displayStage.classList.add('editing');
+      populateDisplayControls();
+      selectDisplayElement(selectedDisplayElement);
+      renderLiveDisplay();
+    }
+
+    function closeDisplayEditor() {
+      if (document.fullscreenElement === displayStage) document.exitFullscreen().catch(() => {});
+      displayEditor.classList.remove('open');
+      displayEditor.setAttribute('aria-hidden', 'true');
+      displayStage.classList.remove('editing');
+    }
+
+    function setDisplayConfigValue(key, value) {
+      if (!displayConfig) displayConfig = getDefaultDisplayConfig();
+      displayConfig[key] = value;
+      displayEditorDirty = true;
+      renderLiveDisplay();
+    }
+
+    function bindDisplayInput(id, configKey, transform = value => value) {
+      $(id).addEventListener('input', () => {
+        setDisplayConfigValue(configKey, transform($(id).value));
+        if (id === 'displayCompanySize') $('displayCompanySizeValue').textContent = `${$(id).value}px`;
+        if (id === 'displayTicketSize') $('displayTicketSizeValue').textContent = `${$(id).value}px`;
+      });
+      $(id).addEventListener('change', () => {
+        setDisplayConfigValue(configKey, transform($(id).value));
+      });
+    }
+
+    bindDisplayInput('displayCompanyName', 'companyName', value => String(value).slice(0, 80));
+    bindDisplayInput('displayLogoUrl', 'logoUrl', value => { displayConfig.logoDataUrl = ''; return String(value).trim(); });
+    bindDisplayInput('displayBgColor', 'backgroundColor');
+    bindDisplayInput('displayAccentColor', 'accentColor');
+    bindDisplayInput('displayTextColor', 'textColor');
+    bindDisplayInput('displayMutedColor', 'mutedTextColor');
+    bindDisplayInput('displayFont', 'fontFamily', safeDisplayFont);
+    bindDisplayInput('displayAlign', 'textAlign', value => ['left','center','right'].includes(value) ? value : 'center');
+    bindDisplayInput('displayCompanySize', 'companySize', value => Math.max(18, Math.min(60, Number(value) || 34)));
+    bindDisplayInput('displayTicketSize', 'ticketSize', value => Math.max(64, Math.min(190, Number(value) || 150)));
+    bindDisplayInput('displayFooterText', 'footerText', value => String(value).slice(0, 240));
+
+    $('displayPanelColor').addEventListener('input', () => {
+      setDisplayConfigValue('panelColor', $('displayPanelColor').value);
+    });
+
+    $('displayLayoutPreset').addEventListener('change', () => {
+      const preset = $('displayLayoutPreset').value;
+      displayConfig.layoutPreset = preset;
+      displayConfig.layout = JSON.parse(JSON.stringify(DISPLAY_DEFAULT_LAYOUT));
+      if (preset === 'compact') {
+        displayConfig.layout.main = { x: 2.3, y: 16, w: 55, h: 66 };
+        displayConfig.layout.side = { x: 59.5, y: 16, w: 38.2, h: 66 };
+        displayConfig.layout.next = { x: 2.3, y: 83.3, w: 55, h: 10.5 };
+        displayConfig.layout.average = { x: 59.5, y: 83.3, w: 38.2, h: 10.5 };
+      }
+      displayEditorDirty = true;
+      renderLiveDisplay();
+      syncDisplayPositionControls();
+    });
+
+    $('displayElementPicker').addEventListener('change', () => selectDisplayElement($('displayElementPicker').value));
+    ['displayPosX','displayPosY','displayPosW','displayPosH'].forEach((id, index) => {
+      $(id).addEventListener('change', () => {
+        const p = displayConfig.layout[selectedDisplayElement];
+        const key = ['x','y','w','h'][index];
+        p[key] = Number($(id).value);
+        clampDisplayPosition(p);
+        displayEditorDirty = true;
+        applyDisplayLayout(selectedDisplayElement);
+        syncDisplayPositionControls();
+      });
+    });
+
+    $('displayLogoFile').addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { showToast('Please select an image file', 'error'); return; }
+      try {
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = imageUrl; });
+        const scale = Math.min(1, 480 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(imageUrl);
+        const dataUrl = canvas.toDataURL('image/webp', 0.82);
+        if (dataUrl.length > 350000) throw new Error('Logo is too large after compression. Please use a smaller image.');
+        displayConfig.logoDataUrl = dataUrl;
+        displayConfig.logoUrl = '';
+        $('displayLogoUrl').value = '';
+        displayEditorDirty = true;
+        renderLiveDisplay();
+        showToast('Logo added to preview. Save to publish it.', 'success');
+      } catch (err) {
+        console.error('Logo processing failed', err);
+        showToast(err.message || 'Could not process this logo', 'error');
+      }
+    });
+
+    displayPreviewBtn.addEventListener('click', openDisplayEditor);
+    $('displayCloseBtn').addEventListener('click', closeDisplayEditor);
+
+    displaySaveBtn.addEventListener('click', async () => {
+      if (!displayConfig) displayConfig = getDefaultDisplayConfig();
+      displaySaveBtn.disabled = true;
+      displaySaveBtn.textContent = 'Saving…';
+      try {
+        displayConfig.updatedAt = Date.now();
+        await set(tenantRef('settings/liveDisplay'), displayConfig);
+        displayEditorDirty = false;
+        showToast('Live display settings saved for this business', 'success');
+      } catch (err) {
+        console.error('Display settings save failed', err);
+        showToast('Failed to save display settings: ' + err.message, 'error');
+      } finally {
+        displaySaveBtn.disabled = false;
+        displaySaveBtn.textContent = 'Save';
+      }
+    });
+
+    async function unlockDisplaySound() {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) throw new Error('Audio is not supported in this browser');
+        if (!displayAudioContext) displayAudioContext = new AudioContextClass();
+        await displayAudioContext.resume();
+        displaySoundEnabled = true;
+        displaySoundBtn.textContent = 'Display sound enabled';
+        displaySoundBtn.style.background = '#dcfce7';
+        displaySoundBtn.style.color = '#166534';
+        showToast('Display call sound enabled', 'success');
+      } catch (err) {
+        showToast(err.message || 'Could not enable display sound', 'error');
+      }
+    }
+
+    function playDisplayCallSound() {
+      if (!displaySoundEnabled || !displayAudioContext || displayAudioContext.state !== 'running') return;
+      try {
+        const oscillator = displayAudioContext.createOscillator();
+        const gain = displayAudioContext.createGain();
+        const now = displayAudioContext.currentTime;
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(740, now);
+        oscillator.frequency.setValueAtTime(980, now + 0.10);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+        oscillator.connect(gain);
+        gain.connect(displayAudioContext.destination);
+        oscillator.start(now);
+        oscillator.stop(now + 0.26);
+      } catch (err) { console.warn('Display sound failed', err); }
+    }
+
+    displaySoundBtn.addEventListener('click', unlockDisplaySound);
+    displayFullscreenBtn.addEventListener('click', async () => {
+      try {
+        if (displayStage.requestFullscreen) await displayStage.requestFullscreen();
+        else showToast('Full Screen is not supported by this browser', 'error');
+      } catch (err) {
+        showToast('Could not enter full screen: ' + err.message, 'error');
+      }
+    });
+    $('displayExitFullscreen').addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    });
+
+    displayStage.addEventListener('pointerdown', event => {
+      if (!displayEditor.classList.contains('open') || document.fullscreenElement || !displayConfig) return;
+      const block = event.target.closest('[data-display-element]');
+      if (!block) return;
+      const key = block.dataset.displayElement;
+      selectDisplayElement(key);
+      const p = displayConfig.layout[key];
+      const stageRect = displayStage.getBoundingClientRect();
+      displayDragState = {
+        pointerId: event.pointerId,
+        key,
+        resize: Boolean(event.target.closest('[data-resize-handle]')),
+        startX: event.clientX,
+        startY: event.clientY,
+        start: { ...p },
+        width: stageRect.width,
+        height: stageRect.height
+      };
+      displayStage.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    displayStage.addEventListener('pointermove', event => {
+      const drag = displayDragState;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const dx = ((event.clientX - drag.startX) / drag.width) * 100;
+      const dy = ((event.clientY - drag.startY) / drag.height) * 100;
+      const p = displayConfig.layout[drag.key];
+      if (drag.resize) {
+        p.w = drag.start.w + dx;
+        p.h = drag.start.h + dy;
+      } else {
+        p.x = drag.start.x + dx;
+        p.y = drag.start.y + dy;
+      }
+      clampDisplayPosition(p);
+      applyDisplayLayout(drag.key);
+      syncDisplayPositionControls();
+      displayEditorDirty = true;
+    });
+
+    function finishDisplayDrag() { displayDragState = null; }
+    displayStage.addEventListener('pointerup', finishDisplayDrag);
+    displayStage.addEventListener('pointercancel', finishDisplayDrag);
+
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement === displayStage) displayStage.classList.remove('editing');
+      else if (displayEditor.classList.contains('open')) displayStage.classList.add('editing');
+    });
+
+    if (!displayClockTimer) {
+      renderDisplayClock();
+      displayClockTimer = setInterval(renderDisplayClock, 1000);
+    }
+
 
     async function repairCounterBaselines() {
       const updates = {};
@@ -1004,9 +1643,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
     function normalizeQueueStatus(entry) {
       const raw = String(entry?.status || '').trim().toLowerCase();
+      if (['cancelled', 'canceled', 'no_show', 'noshow'].includes(raw) || entry?.canceledAt || entry?.cancelledAt || entry?.canceledBy) return 'cancelled';
       if (['completed', 'served', 'done', 'finished'].includes(raw) || entry?.completedAt || entry?.serviceEventId) return 'completed';
       if (['serving', 'called', 'in_progress', 'inprogress', 'attending'].includes(raw) || entry?.calledAt || entry?.serviceStartedAt) return 'serving';
-      if (['cancelled', 'canceled', 'no_show', 'noshow'].includes(raw) || entry?.canceledAt || entry?.cancelledAt || entry?.canceledBy) return 'cancelled';
       if (['waiting', 'queued', 'pending'].includes(raw) || !raw) return 'waiting';
       return raw;
     }
@@ -1036,30 +1675,52 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       return bundle.serviceStartedAt || fallbackNow;
     }
 
+    // Wait-time records use only the explicit joinedAt -> calledAt interval.
+    // serviceMs/serviceStartedAt are deliberately not used for this metric.
+    function getValidWaitMs(entry) {
+      if (!entry || typeof entry !== 'object') return null;
+      const status = normalizeQueueStatus(entry);
+      if (status === 'cancelled' || status === 'waiting' || !['serving', 'completed'].includes(status)) return null;
+      if (entry.joinedAt == null || entry.calledAt == null) return null;
+      const joinedAt = toEpoch(entry.joinedAt, 0);
+      const calledAt = toEpoch(entry.calledAt, 0);
+      if (!Number.isFinite(joinedAt) || !Number.isFinite(calledAt) || joinedAt <= 0 || calledAt <= 0 || calledAt < joinedAt) return null;
+      return calledAt - joinedAt;
+    }
+
     function getCounterCompletionStats(counterId) {
-      const completed = [];
+      const waits = [];
+      const services = [];
       for (const [key, entry] of Object.entries(queueData || {})) {
-        if (!entry) continue;
-        if (resolveQueueCounterId(entry) !== String(counterId)) continue;
-        if (normalizeQueueStatus(entry) !== 'completed') continue;
-        const t = getQueueTimeBundle(entry);
-        if (Number.isFinite(t.waitMs) && t.waitMs >= 0) completed.push({ type: 'wait', ms: t.waitMs, key, entry });
-        if (Number.isFinite(t.serviceMs) && t.serviceMs >= 0) completed.push({ type: 'service', ms: t.serviceMs, key, entry });
+        if (!entry || resolveQueueCounterId(entry) !== String(counterId)) continue;
+        const waitMs = getValidWaitMs(entry);
+        if (waitMs != null) waits.push(waitMs);
+
+        // Service duration remains available only for the existing internal estimate/analytics logic.
+        if (normalizeQueueStatus(entry) === 'completed') {
+          const t = getQueueTimeBundle(entry);
+          if (Number.isFinite(t.serviceMs) && t.serviceMs >= 0) services.push(t.serviceMs);
+        }
       }
-
-      const waits = completed.filter(x => x.type === 'wait').map(x => x.ms);
-      const services = completed.filter(x => x.type === 'service').map(x => x.ms);
-
       const avgWaitMin = waits.length ? (waits.reduce((a, b) => a + b, 0) / waits.length) / 60000 : null;
       const avgServiceMin = services.length ? (services.reduce((a, b) => a + b, 0) / services.length) / 60000 : null;
+      return { waits, services, avgWaitMin, avgServiceMin, completedCount: waits.length };
+    }
 
-      return {
-        waits,
-        services,
-        avgWaitMin,
-        avgServiceMin,
-        completedCount: Math.max(waits.length, services.length)
-      };
+    function getGlobalAvgWaitMin() {
+      const waits = [];
+      for (const entry of Object.values(queueData || {})) {
+        const waitMs = getValidWaitMs(entry);
+        if (waitMs != null) waits.push(waitMs);
+      }
+      return waits.length ? (waits.reduce((sum, value) => sum + value, 0) / waits.length) / 60000 : null;
+    }
+
+    function formatAverageWait(mins) {
+      const value = Number(mins);
+      if (!Number.isFinite(value) || value < 0) return '—';
+      const rounded = Math.round(value * 10) / 10;
+      return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} min`;
     }
 
     function getCounterMetrics(counterId) {
@@ -1072,9 +1733,10 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
         const status = normalizeQueueStatus(entry);
         if (status === 'waiting') {
-          waitingEntries.push({ key, entry, ts: getQueueTimeBundle(entry).joinedAt });
+          const ts = toEpoch(entry.joinedAt || entry.createdAt || entry.timestamp || entry.queuedAt || entry.updatedAt, 0);
+          waitingEntries.push({ key, entry, ts: ts || Number.MAX_SAFE_INTEGER });
         } else if (status === 'serving') {
-          const ts = getQueueTimeBundle(entry).calledAt || getQueueTimeBundle(entry).joinedAt;
+          const ts = toEpoch(entry.calledAt, 0) || toEpoch(entry.updatedAt, 0) || 0;
           if (!servingEntry || ts < (servingEntry.ts || Infinity)) {
             servingEntry = { key, entry, ts };
           }
@@ -1119,15 +1781,16 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       completedServiceEventKeys.add(completedKey);
 
       const times = getQueueTimeBundle(completedEntry, now);
-      const startedAt = times.serviceStartedAt || times.calledAt || now;
-      const calledAt = times.calledAt || startedAt;
-      const joinedAt = times.joinedAt || startedAt;
+      const actualCalledAt = toEpoch(completedEntry.calledAt, 0);
+      const startedAt = times.serviceStartedAt || actualCalledAt || now;
+      const calledAt = actualCalledAt > 0 ? actualCalledAt : null;
+      const originalJoinedAt = toEpoch(completedEntry.joinedAt, 0);
+      const validWaitRecord = originalJoinedAt > 0 && calledAt != null && calledAt >= originalJoinedAt;
+      const joinedAt = validWaitRecord ? originalJoinedAt : null;
       const completedAt = now;
 
-      let waitMs = Number.isFinite(times.waitMs) ? times.waitMs : Math.max(0, calledAt - joinedAt);
+      const waitMs = validWaitRecord ? calledAt - originalJoinedAt : null;
       let serviceMs = Number.isFinite(times.serviceMs) ? times.serviceMs : Math.max(0, completedAt - startedAt);
-
-      if (!Number.isFinite(waitMs) || waitMs < 0) waitMs = 0;
       if (!Number.isFinite(serviceMs) || serviceMs <= 0) serviceMs = 1000;
 
       const queueNumber = getQueueNumber(completedEntry, completedKey);
@@ -1135,7 +1798,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       const event = {
         type: 'service_completed',
         waitMs,
-        waitMin: waitMs / 60000,
+        waitMin: waitMs == null ? null : waitMs / 60000,
         serviceMs,
         serviceMin: serviceMs / 60000,
         joinedAt,
@@ -1215,6 +1878,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       }
 
       callNextLock = true;
+      callNextCounterId = String(counterId);
+      updateCounterCard(counterId);
       const startedAt = Date.now();
 
       try {
@@ -1247,7 +1912,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           const currentCounterId = resolveQueueCounterId(current);
           if (currentCounterId && String(currentCounterId) !== String(counterId)) return undefined;
 
-          const joinedAt = toEpoch(current.joinedAt || current.createdAt || current.timestamp || current.updatedAt, txNow);
+          const joinedAt = toEpoch(current.joinedAt || current.createdAt || current.timestamp || current.queuedAt, 0) || null;
           const serviceStartedAt = txNow;
           const notificationFingerprint = `${counterId}:${targetKey}:${txNow}`;
 
@@ -1379,6 +2044,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
         showToast('Failed to call next: ' + err.message, 'error');
       } finally {
         callNextLock = false;
+        const completedCounterId = callNextCounterId;
+        callNextCounterId = null;
+        if (completedCounterId) updateCounterCard(completedCounterId);
       }
     }
 
@@ -1399,11 +2067,20 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
 
     onValue(tenantRef('queue'), (snap) => {
       const newData = snap.val() || {};
+      const affectedCounterIds = new Set();
 
       if (queueLoaded) {
-        for (const [k, entry] of Object.entries(newData)) {
-          if (!entry) continue;
+        const allKeys = new Set([...Object.keys(previousQueueData || {}), ...Object.keys(newData || {})]);
+        for (const k of allKeys) {
+          const entry = newData[k];
           const oldEntry = previousQueueData[k];
+          const relevantFields = ['status','calledAt','updatedAt','counterId','counter','counterAssigned','joinedAt','createdAt','timestamp','queuedAt','number','queueNumber','queueId','counterName'];
+          if (entry && oldEntry && relevantFields.every(field => entry[field] === oldEntry[field])) continue;
+          const newCounterId = resolveQueueCounterId(entry || {});
+          const oldCounterId = resolveQueueCounterId(oldEntry || {});
+          if (newCounterId) affectedCounterIds.add(newCounterId);
+          if (oldCounterId) affectedCounterIds.add(oldCounterId);
+          if (!entry) continue;
           const st = normalizeQueueStatus(entry);
 
           if (!oldEntry && st === 'waiting') {
@@ -1412,7 +2089,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
               popupDedupeKeys.add(dedupeKey);
               if (popupDedupeKeys.size > 1000) popupDedupeKeys.clear();
               const num = getQueueNumber(entry, k);
-              const cId = entry.counterId || entry.counter || '';
+              const cId = newCounterId;
               const cName = (countersData[cId] && countersData[cId].name) || cId || 'Queue';
               showCenterPopup('join', num, cName);
               addPopupHistoryEvent('queue_joined', num, cId, cName);
@@ -1420,18 +2097,38 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           }
 
           if (oldEntry) {
-            const oldSt = String(oldEntry.status || 'waiting').toLowerCase();
-            if ((st === 'cancelled' || st === 'canceled') && oldSt !== 'cancelled' && oldSt !== 'canceled') {
+            const oldSt = normalizeQueueStatus(oldEntry);
+            if (st === 'cancelled' && oldSt !== 'cancelled') {
               const dedupeKey = `cancel_${k}`;
               if (!popupDedupeKeys.has(dedupeKey)) {
                 popupDedupeKeys.add(dedupeKey);
                 if (popupDedupeKeys.size > 1000) popupDedupeKeys.clear();
                 const num = getQueueNumber(entry, k);
-                const cId = entry.counterId || entry.counter || '';
+                const cId = newCounterId;
                 const cName = (countersData[cId] && countersData[cId].name) || cId || 'Queue';
                 showCenterPopup('cancel', num, cName);
                 addPopupHistoryEvent('queue_cancelled', num, cId, cName);
               }
+            }
+
+            const wasServing = oldSt === 'serving';
+            const isServing = st === 'serving';
+            const currentCalledAt = toEpoch(entry.calledAt, 0);
+            const oldCalledAt = toEpoch(oldEntry.calledAt, 0);
+            if (isServing && (!wasServing || (currentCalledAt && currentCalledAt !== oldCalledAt))) {
+              const callKey = `${k}:${currentCalledAt || 'called'}`;
+              if (!heardDisplayCalls.has(callKey)) {
+                heardDisplayCalls.add(callKey);
+                if (heardDisplayCalls.size > 2000) heardDisplayCalls.clear();
+                if (document.fullscreenElement === displayStage) playDisplayCallSound();
+              }
+            }
+          } else if (st === 'serving') {
+            const calledAt = toEpoch(entry.calledAt, 0);
+            const callKey = `${k}:${calledAt || 'called'}`;
+            if (!heardDisplayCalls.has(callKey)) {
+              heardDisplayCalls.add(callKey);
+              if (document.fullscreenElement === displayStage) playDisplayCallSound();
             }
           }
         }
@@ -1440,21 +2137,21 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           if (!entry) continue;
           const st = normalizeQueueStatus(entry);
           if (st === 'waiting') popupDedupeKeys.add(`join_${k}`);
-          if (st === 'cancelled' || st === 'canceled') popupDedupeKeys.add(`cancel_${k}`);
-          if (entry.serviceEventId || entry.serviceEventWrittenAt || entry.completedAt) {
-            completedServiceEventKeys.add(k);
-          }
+          if (st === 'cancelled') popupDedupeKeys.add(`cancel_${k}`);
+          if (st === 'serving') heardDisplayCalls.add(`${k}:${toEpoch(entry.calledAt, 0) || 'called'}`);
+          if (entry.serviceEventId || entry.serviceEventWrittenAt || entry.completedAt) completedServiceEventKeys.add(k);
         }
       }
 
-      try {
-        previousQueueData = JSON.parse(JSON.stringify(newData));
-      } catch (_) {
-        previousQueueData = {};
-      }
+      previousQueueData = newData;
       queueData = newData;
       queueLoaded = true;
-      if (countersLoaded) renderCounters();
+      if (countersLoaded) {
+        if (!affectedCounterIds.size) renderCounters();
+        else renderCounters(affectedCounterIds);
+      } else {
+        renderLiveDisplay();
+      }
     });
 
     onValue(tenantRef('settings/notifications'), (snap) => {
@@ -1480,11 +2177,109 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     });
 
 
-    function renderCounters() {
+
+    onValue(tenantRef('settings/liveDisplay'), (snap) => {
+      if (displayEditorDirty) return;
+      const stored = snap.val() || {};
+      const defaults = getDefaultDisplayConfig();
+      const storedLayout = stored.layout && typeof stored.layout === 'object' ? stored.layout : {};
+      const mergedLayout = {};
+      for (const [key, position] of Object.entries(defaults.layout)) {
+        mergedLayout[key] = { ...position, ...(storedLayout[key] || {}) };
+      }
+      displayConfig = { ...defaults, ...stored, layout: mergedLayout };
+      if (displayEditor.classList.contains('open')) populateDisplayControls();
+      renderLiveDisplay();
+    });
+
+    function createCounterCard(counterId) {
+      const card = document.createElement('div');
+      card.className = 'counter-card animate-fade-in-up border border-slate-200 bg-white/95 backdrop-blur-sm';
+      card.dataset.counterId = counterId;
+      card.innerHTML = `
+        <div class="p-5 pb-0">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div class="min-w-0">
+              <h3 class="text-base font-bold text-gray-900 leading-tight truncate" data-role="name"></h3>
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700" data-role="series"></span>
+                <span class="text-xs font-semibold px-2.5 py-1 rounded-full" data-role="state"></span>
+                <span class="text-xs font-semibold px-2.5 py-1 rounded-full" data-role="waiting-badge"></span>
+              </div>
+            </div>
+            <div class="flex gap-1.5 flex-shrink-0">
+              <button class="btn-icon editBtn" title="Edit" type="button"><svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg></button>
+              <button class="btn-icon deleteBtn" title="Delete" type="button"><svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="px-5">
+          <div class="rounded-2xl bg-gradient-to-br from-indigo-50 via-white to-purple-50 border border-indigo-100 p-4 mb-4">
+            <div class="flex items-center justify-between mb-2"><p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-400">Now Serving</p><span class="text-[11px] font-medium text-slate-500" data-role="ready"></span></div>
+            <p class="serving-number !text-4xl" data-role="serving"></p>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100"><p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Last Issued</p><p class="text-lg font-bold text-slate-900 tabular-nums" data-role="last"></p></div>
+            <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100"><p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Next Number</p><p class="text-lg font-bold text-slate-900 tabular-nums" data-role="next"></p></div>
+          </div>
+          <div class="grid grid-cols-1 gap-3 mb-4">
+            <div class="rounded-2xl border border-violet-100 bg-violet-50/60 p-3"><p class="text-[10px] font-semibold text-violet-500 uppercase tracking-wider mb-1">Avg Wait Time</p><p class="text-sm font-extrabold text-violet-700 tabular-nums" data-role="avg-wait">—</p></div>
+          </div>
+        </div>
+        <div class="px-5 pb-5"><div class="flex gap-2">
+          <button class="btn btn-success flex-1 callBtn" type="button"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg><span data-role="call-text">Call Next</span></button>
+          <button class="btn btn-warning resetBtn" title="Reset counter" type="button"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg></button>
+        </div></div>`;
+
+      card.querySelector('.editBtn').addEventListener('click', () => openEditCounter(counterId));
+      card.querySelector('.deleteBtn').addEventListener('click', () => { deleteTargetId = counterId; openModal(deleteModal); });
+      card.querySelector('.callBtn').addEventListener('click', () => {
+        if (callNextLock) { showToast('Please wait — processing previous call', 'info'); return; }
+        card.classList.add('animate-called-flash');
+        setTimeout(() => card.classList.remove('animate-called-flash'), 900);
+        callNext(counterId);
+      });
+      card.querySelector('.resetBtn').addEventListener('click', () => resetCounter(counterId));
+      return card;
+    }
+
+    function updateCounterCard(counterId) {
+      const card = counterCardMap.get(String(counterId));
+      const c = countersData[counterId];
+      if (!card || !c) return;
+      const prefix = c.prefix || '';
+      const nowServingVal = Number.isFinite(Number(c.nowServing)) && Number(c.nowServing) > 0 ? Number(c.nowServing) : 1;
+      const lastIssuedVal = Number.isFinite(Number(c.lastIssued)) && Number(c.lastIssued) > 0 ? Number(c.lastIssued) : 1;
+      const metrics = getCounterMetrics(counterId);
+      const isActive = c.active !== false;
+      const isBusy = Boolean(c.busy);
+      const callBusy = callNextLock && String(callNextCounterId) === String(counterId);
+      const setText = (role, value) => { const node = card.querySelector(`[data-role="${role}"]`); if (node) node.textContent = value; };
+
+      setText('name', `${c.name || counterId}${isActive ? '' : ' (inactive)'}`);
+      setText('series', `${prefix} Series`);
+      const state = card.querySelector('[data-role="state"]');
+      state.textContent = isActive ? 'Live' : 'Inactive';
+      state.className = `text-xs font-semibold px-2.5 py-1 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`;
+      const waitingBadge = card.querySelector('[data-role="waiting-badge"]');
+      waitingBadge.textContent = metrics.waitingCount > 0 ? `${metrics.waitingCount} waiting` : 'Idle';
+      waitingBadge.className = `text-xs font-semibold px-2.5 py-1 rounded-full ${metrics.waitingCount > 0 ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`;
+      setText('ready', isBusy ? 'Busy' : 'Ready');
+      setText('serving', fmt(prefix, nowServingVal));
+      setText('last', fmt(prefix, lastIssuedVal));
+      setText('next', fmt(prefix, Math.max(lastIssuedVal, 1) + 1));
+      setText('avg-wait', metrics.avgWaitMin != null ? formatAverageWait(metrics.avgWaitMin) : '—');
+
+      const callBtn = card.querySelector('.callBtn');
+      callBtn.disabled = metrics.waitingCount === 0 || !isActive || callBusy;
+      setText('call-text', callBusy ? 'Calling…' : (metrics.waitingCount > 0 ? 'Call Next' : 'None Waiting'));
+      const resetBtn = card.querySelector('.resetBtn');
+      resetBtn.disabled = callBusy;
+    }
+
+    function renderCounters(onlyCounterIds = null) {
       if (!countersLoaded) return;
-
       ensureQueueSummaryBar();
-
       const ids = Object.keys(countersData || {});
       loadingState.classList.add('hidden');
       errorState.classList.add('hidden');
@@ -1492,137 +2287,42 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (!ids.length) {
         countersGrid.classList.add('hidden');
         emptyState.classList.remove('hidden');
+        for (const [id, card] of counterCardMap) { card.remove(); counterCardMap.delete(id); }
         updateQueueSummaryBar();
+        renderLiveDisplay();
         return;
       }
 
       emptyState.classList.add('hidden');
       countersGrid.classList.remove('hidden');
-      countersGrid.innerHTML = '';
-
       const activeIds = ids.filter(id => (countersData[id] || {}).active !== false);
       const idsToRender = activeIds.length ? activeIds : ids;
+      const desired = new Set(idsToRender.map(String));
 
+      for (const [id, card] of counterCardMap) {
+        if (!desired.has(String(id))) { card.remove(); counterCardMap.delete(id); }
+      }
       idsToRender.forEach((counterId, idx) => {
-        const c = countersData[counterId] || {};
-        const prefix = c.prefix || '';
-        const nowServingVal = Number.isFinite(Number(c.nowServing)) && Number(c.nowServing) > 0 ? Number(c.nowServing) : 1;
-        const lastIssuedVal = Number.isFinite(Number(c.lastIssued)) && Number(c.lastIssued) > 0 ? Number(c.lastIssued) : 1;
-        const metrics = getCounterMetrics(counterId);
-        const waiting = metrics.waitingCount;
-        const isActive = c.active !== false;
-        const isBusy = Boolean(c.busy);
-        const avgService = metrics.avgServiceMin || 3;
-        const avgWait = metrics.avgWaitMin;
-        const eta = metrics.estimatedWaitMin;
-
-        const servingDisplay = fmt(prefix, nowServingVal);
-        const lastIssuedDisplay = fmt(prefix, lastIssuedVal);
-        const nextNumDisplay = fmt(prefix, Math.max(lastIssuedVal, 1) + 1);
-        const callBtnDisabled = waiting === 0 || !isActive || callNextLock;
-        const callBtnText = callNextLock && waiting > 0 ? 'Calling…' : (waiting > 0 ? 'Call Next' : 'None Waiting');
-
-        const card = document.createElement('div');
-        card.className = 'counter-card animate-fade-in-up border border-slate-200 bg-white/95 backdrop-blur-sm';
-        card.style.animationDelay = `${idx * 80}ms`;
-        card.dataset.counterId = counterId;
-        card.innerHTML = `
-          <div class="p-5 pb-0">
-            <div class="flex items-start justify-between gap-3 mb-4">
-              <div class="min-w-0">
-                <h3 class="text-base font-bold text-gray-900 leading-tight truncate">${esc(c.name || counterId)}${c.active === false ? ' <span class="text-xs text-gray-400">(inactive)</span>' : ''}</h3>
-                <div class="flex flex-wrap items-center gap-2 mt-2">
-                  <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">${esc(prefix)} Series</span>
-                  <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isActive ? 'Live' : 'Inactive'}</span>
-                  ${waiting > 0 ? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">${waiting} waiting</span>` : `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">Idle</span>`}
-                </div>
-              </div>
-              <div class="flex gap-1.5 flex-shrink-0">
-                <button class="btn-icon editBtn" title="Edit">
-                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
-                </button>
-                <button class="btn-icon deleteBtn" title="Delete">
-                  <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="px-5">
-            <div class="rounded-2xl bg-gradient-to-br from-indigo-50 via-white to-purple-50 border border-indigo-100 p-4 mb-4">
-              <div class="flex items-center justify-between mb-2">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-400">Now Serving</p>
-                <span class="text-[11px] font-medium text-slate-500">${isBusy ? 'Busy' : 'Ready'}</span>
-              </div>
-              <p class="serving-number !text-4xl">${esc(servingDisplay)}</p>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 mb-3">
-              <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Last Issued</p>
-                <p class="text-lg font-bold text-slate-900 tabular-nums">${esc(lastIssuedDisplay)}</p>
-              </div>
-              <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Next Number</p>
-                <p class="text-lg font-bold text-slate-900 tabular-nums">${esc(nextNumDisplay)}</p>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-3 mb-4">
-              <div class="rounded-2xl border border-slate-100 bg-white p-3">
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Service</p>
-                <p class="text-sm font-extrabold text-indigo-600 tabular-nums">${formatMinutes(avgService)}</p>
-              </div>
-              <div class="rounded-2xl border border-slate-100 bg-white p-3">
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Wait</p>
-                <p class="text-sm font-extrabold text-violet-600 tabular-nums">${avgWait != null ? formatMinutes(avgWait) : '—'}</p>
-              </div>
-              <div class="rounded-2xl border border-slate-100 bg-white p-3">
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">ETA</p>
-                <p class="text-sm font-extrabold text-emerald-600 tabular-nums">${formatMinutes(eta)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="px-5 pb-5">
-            <div class="flex gap-2">
-              <button class="btn btn-success flex-1 callBtn" ${callBtnDisabled ? 'disabled' : ''}>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
-                ${callBtnText}
-              </button>
-              <button class="btn btn-warning resetBtn" title="Reset counter">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
-              </button>
-            </div>
-          </div>
-        `;
-
-        card.querySelector('.editBtn').addEventListener('click', () => openEditCounter(counterId));
-        card.querySelector('.deleteBtn').addEventListener('click', () => { deleteTargetId = counterId; openModal(deleteModal); });
-        card.querySelector('.callBtn').addEventListener('click', () => {
-          if (callNextLock) {
-            showToast('Please wait — processing previous call', 'info');
-            return;
-          }
-          card.classList.add('animate-called-flash');
-          setTimeout(() => card.classList.remove('animate-called-flash'), 900);
-          callNext(counterId);
-        });
-        card.querySelector('.resetBtn').addEventListener('click', () => resetCounter(counterId));
-        countersGrid.appendChild(card);
+        let card = counterCardMap.get(String(counterId));
+        if (!card) {
+          card = createCounterCard(counterId);
+          counterCardMap.set(String(counterId), card);
+          countersGrid.appendChild(card);
+        }
+        const currentAtIndex = countersGrid.children[idx];
+        if (currentAtIndex !== card) countersGrid.insertBefore(card, currentAtIndex || null);
+        if (!onlyCounterIds || onlyCounterIds.has(String(counterId))) updateCounterCard(counterId);
       });
 
-      if (!countersGrid.children.length) {
-        countersGrid.classList.remove('hidden');
-        emptyState.classList.remove('hidden');
-      }
-
       updateQueueSummaryBar();
+      renderLiveDisplay();
     }
 
-
-
     function openAddCounter() {
+      if (Object.keys(countersData || {}).length >= 4) {
+        showToast('Maximum of 4 counters reached. Edit or remove a counter before adding another.', 'error');
+        return;
+      }
       counterModalTitle.textContent = 'Add Counter';
       counterForm.reset();
       counterIdInput.value = '';
@@ -1654,6 +2354,10 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       }
 
       const editingId = counterIdInput.value;
+      if (!editingId && Object.keys(countersData || {}).length >= 4) {
+        showToast('Maximum of 4 counters reached. No existing counter data was changed.', 'error');
+        return;
+      }
       try {
         const now = Date.now();
 
@@ -1894,6 +2598,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       if (e.key === 'Escape') {
         [counterModal, ticketModal, deleteModal, eventPopup].forEach(m => closeModal(m));
         if (eventPopupTimer) clearTimeout(eventPopupTimer);
+        if (displayEditor.classList.contains('open') && !document.fullscreenElement) closeDisplayEditor();
       }
     });
 
@@ -1913,6 +2618,8 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
     }
 
     await init();
+    displayConfig = displayConfig || getDefaultDisplayConfig();
+    renderLiveDisplay();
 
     function renderAfterInit() {
       if (countersLoaded && Object.keys(countersData || {}).length === 0) {
