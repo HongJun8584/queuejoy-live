@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/queuejoy-ui.css"/>
+  <script src="/queuejoy-ui.js" defer></script>
   <style>
     :root{
       --theme:#8b5cf6;--theme2:#7c3aed;--bg:#f8f7ff;--surface:#fff;--text:#111827;--text-muted:#6b7280;--border:#e5e7eb;
@@ -82,7 +85,7 @@
     @media(max-width:480px){.wrap{padding:12px}}
   </style>
 </head>
-<body>
+<body class="qj-page qj-index">
 <div class="wrap" id="app">
   <div id="skel" class="fade-up">
     <div class="skeleton skel-header" style="margin-bottom:14px"></div>
@@ -364,6 +367,7 @@ function showAd(adData, adText) {
   const textEl = $('adText');
   if (!panel || !container) return;
 
+  if (state.adLazyObserver) { state.adLazyObserver.disconnect(); state.adLazyObserver = null; }
   state.adRenderSeq += 1;
   const renderSeq = state.adRenderSeq;
 
@@ -451,9 +455,13 @@ function showAd(adData, adText) {
       }
     } catch {}
 
+    showAdPanel();
     container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
       <iframe
         src="${embedSrc}"
+        title="Promotion video"
+        loading="lazy"
+        referrerpolicy="strict-origin-when-cross-origin"
         frameborder="0"
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowfullscreen
@@ -468,13 +476,12 @@ function showAd(adData, adText) {
 
   if (looksLikeVideo) {
     const v = document.createElement('video');
-    v.src = url;
     v.className = 'ad-media-video';
     v.autoplay = true;
     v.muted = true;
     v.loop = true;
     v.playsInline = true;
-    v.preload = 'auto';
+    v.preload = 'none';
     v.controls = false;
     v.setAttribute('muted', '');
     v.setAttribute('playsinline', '');
@@ -482,16 +489,15 @@ function showAd(adData, adText) {
 
     const playNow = () => {
       if (renderSeq !== state.adRenderSeq) return;
+      v.preload = 'metadata';
       v.play().catch(() => {});
     };
 
     v.addEventListener('loadedmetadata', () => {
       markVisible();
-      playNow();
     });
     v.addEventListener('canplay', () => {
       markVisible();
-      playNow();
     });
     v.addEventListener('playing', markVisible);
     v.addEventListener('ended', () => {
@@ -500,17 +506,27 @@ function showAd(adData, adText) {
     });
     v.addEventListener('error', failAndRetry);
 
+    showAdPanel();
+    v.src = url;
     container.appendChild(v);
-
-    requestAnimationFrame(playNow);
-    setTimeout(playNow, 250);
-    setTimeout(playNow, 1000);
-    setTimeout(playNow, 2000);
+    if ('IntersectionObserver' in window) {
+      state.adLazyObserver = new IntersectionObserver((entries, observer) => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer.disconnect();
+          state.adLazyObserver = null;
+          playNow();
+        }
+      }, { rootMargin: '240px' });
+      state.adLazyObserver.observe(panel);
+    } else {
+      playNow();
+    }
     return;
   }
 
   const isImage = isSafeImageUrl(url);
   if (isImage) {
+    showAdPanel();
     const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
     if (linkHref) {
       wrapper.href = linkHref;
@@ -520,12 +536,12 @@ function showAd(adData, adText) {
     }
 
     const img = document.createElement('img');
-    img.src = url;
     img.className = 'ad-media';
     img.alt = 'Promotion';
-    img.loading = 'eager';
+    img.loading = 'lazy';
     img.decoding = 'async';
     img.referrerPolicy = 'no-referrer';
+    img.src = url;
 
     const onReady = () => {
       if (renderSeq !== state.adRenderSeq) return;
@@ -650,6 +666,7 @@ function updateStatusLine() {
 
 function applyConfig(cfg) {
   state.config = cfg || {};
+  if (window.QueueJoyUI) window.QueueJoyUI.applyTenantConfig(state.config);
   const business = cfg?.businessSettings && typeof cfg.businessSettings === 'object' ? cfg.businessSettings : {};
 
   const themeColor = pickFirst(
@@ -862,7 +879,7 @@ async function resolveTenantIdOnce(slug) {
   if (!response.ok) throw new Error(`Tenant lookup failed (${response.status})`);
   const data = await response.json().catch(() => null);
   const tenantId = safeString(data?.tenantId || '', '');
-  if (!tenantId || tenantId.includes('/')) throw new Error('Invalid tenant returned');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) throw new Error('Invalid tenant returned');
   return tenantId;
 }
 
@@ -880,6 +897,13 @@ async function bootstrap() {
   if (!slug) {
     $('authOverlay')?.style && ($('authOverlay').style.display = 'none');
     showToast('Missing tenant slug', 'error');
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(slug)) {
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('statusText').textContent = 'Invalid business link';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
     return;
   }
   state.slug = slug;

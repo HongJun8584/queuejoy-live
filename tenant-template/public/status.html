@@ -3,13 +3,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>QueueJoy — Live Status</title>
   <meta name="description" content="Track your queue position in real-time with QueueJoy" />
   <meta id="metaTheme" name="theme-color" content="#8b5cf6" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/queuejoy-ui.css" />
+  <script src="/queuejoy-ui.js" defer></script>
 
   <style>
     :root {
@@ -415,7 +418,7 @@
     .footer-brand a { color: var(--primary-light); text-decoration: none; }
   </style>
 </head>
-<body>
+<body class="qj-page qj-status">
 
 <div class="page-wrapper">
 
@@ -609,7 +612,7 @@
 
 <script type="module">
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, off, get, update, push, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, onValue, off, get, update, push, set, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 /* =========================
    CONFIG
@@ -629,7 +632,6 @@ const CONFIG = {
     getTenant: "/.netlify/functions/get-tenant",
     getFirebaseConfig: "/.netlify/functions/get-firebase-config",
     createLink: "/.netlify/functions/createTelegramLink",
-    markTokenUsed: "/.netlify/functions/markTokenUsed",
   },
   telegramBotUrl: "https://t.me/queuejoy_notify_bot",
   maxInitRetries: 5,
@@ -796,6 +798,7 @@ let qRef = null;
 let counterRef = null;
 let adRef = null;
 let analyticsRef = null;
+let tenantConfigRef = null;
 let currentCounterId = null;
 let attemptedQueuePaths = [];
 
@@ -850,7 +853,7 @@ function showError(msg) {
 
 function getSlugFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const s = params.get("slug");
+  const s = params.get("slug") || params.get("tenantSlug") || params.get("tenant");
   if (s) return s;
   const parts = location.pathname.replace(/^\/+|\/+$/g, "").split("/");
   if (parts.length > 1 && !parts[0].includes(".html")) return parts[0];
@@ -859,7 +862,7 @@ function getSlugFromUrl() {
 
 function getTenantIdFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("tenantId") || params.get("tenant") || params.get("tid") || null;
+  return params.get("tenantId") || params.get("tid") || null;
 }
 
 function getQueueKeyFromUrl() {
@@ -1129,27 +1132,15 @@ async function resolveTenant() {
   const slug = getSlugFromUrl();
   state.slug = slug;
   window.__TENANT_SLUG = slug || "";
-
-  if (urlTenantId) {
-    state.tenantId = urlTenantId;
-    window.__TENANT_ID = urlTenantId;
-    return;
-  }
-
-  if (slug) {
-    try {
-      const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        state.tenantId = data?.tenantId || data?.tenant || slug;
-      } else {
-        state.tenantId = slug;
-      }
-    } catch {
-      state.tenantId = slug;
-    }
-  }
-  window.__TENANT_ID = state.tenantId || "";
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(slug || ''))) throw new Error('Business link is missing or has an invalid tenant slug.');
+  const res = await fetch(`${CONFIG.endpoints.getTenant}?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Business could not be verified. Reopen this page from your QueueJoy ticket link.');
+  const data = await res.json();
+  const resolvedTenantId = String(data?.tenantId || data?.tenant || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(resolvedTenantId)) throw new Error('Business could not be verified.');
+  if (urlTenantId && urlTenantId !== resolvedTenantId) throw new Error('This ticket link does not match the selected business.');
+  state.tenantId = resolvedTenantId;
+  window.__TENANT_ID = resolvedTenantId;
 }
 
 async function initFirebase() {
@@ -1174,50 +1165,61 @@ async function initFirebase() {
   db = getDatabase(getApps()[0]);
 }
 
+let statusAdSignature = null;
+function applyStatusTenantConfig(config, initial = false) {
+  const cfg = config && typeof config === 'object' ? config : {};
+  if (window.QueueJoyUI) window.QueueJoyUI.applyTenantConfig(cfg);
+  state.configLoaded = true;
+  const themeColor = getPath(cfg, 'theme.color');
+  if (themeColor) applyThemeColor(themeColor);
+  const heading = cfg.mainHeading || cfg.displayName;
+  if (heading) $('displayName').textContent = String(heading);
+  if (cfg.description !== undefined) $('headerDesc').textContent = String(cfg.description || '');
+  const smallText = $('smallTextTop');
+  if (smallText) {
+    smallText.textContent = String(cfg.smallTextOnTop || '');
+    smallText.classList.toggle('hidden', !cfg.smallTextOnTop);
+  }
+  const img = $('logoImg');
+  const logoText = $('logoText');
+  const rawLogo = String(cfg.centerLogoUrl || cfg.logoUrl || cfg.logo || '').trim();
+  let logoUrl = '';
+  if (/^data:image\/(png|jpeg|webp);base64,/i.test(rawLogo) && rawLogo.length <= 350000) logoUrl = rawLogo;
+  else if (rawLogo) {
+    try {
+      const url = new URL(rawLogo, window.location.href);
+      if (url.protocol === 'https:' || (url.protocol === 'http:' && url.origin === window.location.origin)) logoUrl = url.href;
+    } catch (_) {}
+  }
+  if (img && logoUrl) {
+    if (img.src !== logoUrl) img.src = logoUrl;
+    img.onload = () => { logoText?.classList.add('hidden'); img.classList.remove('hidden'); };
+    img.onerror = () => { logoText?.classList.remove('hidden'); img.classList.add('hidden'); };
+  } else if (img) {
+    img.removeAttribute('src');
+    img.classList.add('hidden');
+    logoText?.classList.remove('hidden');
+  }
+  const adConfig = cfg.ad || cfg.adImage || cfg.adVideo || cfg.adUrl || null;
+  const signature = JSON.stringify([adConfig, cfg.adText || '']);
+  if (signature !== statusAdSignature) {
+    statusAdSignature = signature;
+    if (adConfig) showAd(adConfig, cfg.adText || null);
+    else if (initial) refreshAdFromTenantConfig();
+    else showAd(null, null);
+  } else if (initial && !adConfig) refreshAdFromTenantConfig();
+}
+
 async function loadTenantConfig() {
   if (!db || !state.tenantId) return;
 
   try {
     const path = `tenants/${state.tenantId}/public/config`;
-    const snap = await get(ref(db, path));
-    if (snap?.exists?.()) {
-      const config = snap.val() || {};
-      state.configLoaded = true;
-
-      const themeColor = getPath(config, "theme.color");
-      if (themeColor) applyThemeColor(themeColor);
-
-      if (config.displayName) $("displayName").textContent = config.displayName;
-      if (config.mainHeading) $("displayName").textContent = config.mainHeading;
-
-      if (config.smallTextOnTop) {
-        const el = $("smallTextTop");
-        if (el) {
-          el.textContent = config.smallTextOnTop;
-          el.classList.remove("hidden");
-        }
-      }
-
-      if (config.description) $("headerDesc").textContent = config.description;
-
-      const logoUrl = config.centerLogoUrl || config.logoUrl || null;
-      if (logoUrl) {
-        const img = $("logoImg");
-        if (img) {
-          img.src = String(logoUrl);
-          img.onload = () => {
-            $("logoText")?.classList.add("hidden");
-            img.classList.remove("hidden");
-          };
-          img.onerror = () => {
-            $("logoText")?.classList.remove("hidden");
-            img.classList.add("hidden");
-          };
-        }
-      }
-
-      renderAd(config);
-    }
+    if (tenantConfigRef) off(tenantConfigRef);
+    tenantConfigRef = ref(db, path);
+    onValue(tenantConfigRef, snap => applyStatusTenantConfig(snap && snap.exists() ? (snap.val() || {}) : {}), err => console.warn('[QJ] tenant config listener failed', err?.message || err));
+    const snap = await get(tenantConfigRef);
+    applyStatusTenantConfig(snap?.exists?.() ? (snap.val() || {}) : {}, true);
   } catch (e) {
     console.warn("[QJ] loadTenantConfig failed", e);
   }
@@ -1560,7 +1562,7 @@ async function generateLink() {
 
     if (!res.ok) throw new Error("API error " + res.status);
     const j = await res.json();
-    state.latestConnectLink = j?.link || (j?.token ? `${CONFIG.telegramBotUrl}?start=${j.token}` : null);
+    state.latestConnectLink = j?.link || null;
   } catch (e) {
     console.warn("[QJ] Link generation failed:", e.message);
   }
@@ -1615,17 +1617,6 @@ function openTelegram() {
     document.body.removeChild(a);
   }
 
-  try {
-    const token = url.split("start=")[1];
-    if (token) {
-      fetch(CONFIG.endpoints.markTokenUsed, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queueKey: state.queueKey, token, tenantId: state.tenantId })
-      }).catch(() => {});
-    }
-  } catch {}
-
   setTimeout(() => {
     if (btn) btn.disabled = false;
     if (content) content.innerHTML = "✅ Opened!";
@@ -1670,8 +1661,8 @@ function closeModal() {
 function openCancelModal() {
   const d = state.data;
   if (!d) return;
-  const st = String(d.status || "").toLowerCase();
-  if (["canceled", "cancelled", "served", "completed", "called", "serving"].includes(st)) return;
+  const st = String(d.status || "").toLowerCase().replace(/[\s_-]+/g, "");
+  if (["canceled", "cancelled", "served", "completed", "finished", "done", "called", "calledbystaff", "serving", "inservice", "attending", "yourturn", "noshow"].includes(st) || d.calledAt || d.notifiedAt || d.servedAt) return;
 
   const t = I18N[state.lang];
   $("cancelConfirmTitle").textContent = t.cancel_title;
@@ -1694,42 +1685,64 @@ async function confirmCancel() {
     return;
   }
 
-  const st = String(d.status || "").toLowerCase();
-  if (["canceled", "cancelled", "served", "completed"].includes(st)) {
+  const st = String(d.status || "").toLowerCase().replace(/[\s_-]+/g, "");
+  if (["canceled", "cancelled", "served", "completed", "finished", "done", "called", "calledbystaff", "serving", "inservice", "attending", "yourturn", "noshow"].includes(st) || d.calledAt || d.notifiedAt || d.servedAt) {
     closeCancelModal();
     return;
   }
 
   const btn = $("btnConfirmCancel");
-  btn.disabled = true;
-  btn.textContent = "...";
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
+  let succeeded = false;
+  let rejectionReason = "";
+  let alreadyCanceled = false;
 
   try {
-    if (!state.tenantId || !state.queueKey) {
-      showError("Tenant not resolved.");
-      closeCancelModal();
-      return;
+    if (!state.tenantId || !state.queueKey) throw new Error("Tenant not resolved.");
+    let targetPath = state.queuePathUsed;
+    if (!targetPath) targetPath = (await findQueueByFallback())?.path || null;
+    const tenantPrefix = `tenants/${state.tenantId}/`;
+    if (!targetPath || !targetPath.startsWith(tenantPrefix)) throw new Error("Queue is still loading. Please try again in a moment.");
+
+    const stamp = new Date().toISOString();
+    const result = await runTransaction(ref(db, targetPath), current => {
+      rejectionReason = "";
+      alreadyCanceled = false;
+      if (!current || typeof current !== "object") { rejectionReason = "missing"; return; }
+      const currentStatus = String(current.status || "").toLowerCase().replace(/[\s_-]+/g, "");
+      if (["canceled", "cancelled"].includes(currentStatus)) { alreadyCanceled = true; return; }
+      if (["served", "completed", "finished", "done", "called", "calledbystaff", "serving", "inservice", "attending", "yourturn", "noshow"].includes(currentStatus) || current.calledAt || current.notifiedAt || current.servedAt) {
+        rejectionReason = "not-cancellable";
+        return;
+      }
+      return { ...current, status: "canceled", canceledAt: stamp, updatedAt: stamp, canceledBy: "customer" };
+    });
+    if (!result?.committed && !alreadyCanceled) {
+      if (rejectionReason === "not-cancellable") throw new Error("This ticket has already been called and can no longer be canceled.");
+      throw new Error("Cancel failed. Please try again.");
     }
-
-    const queuePaths = [
-      `tenants/${state.tenantId}/queue/${state.queueKey}`,
-      `tenants/${state.tenantId}/public/queues/${state.queueKey}`
-    ];
-
-    await Promise.all(queuePaths.map(p => update(ref(db, p), {
-      status: "canceled",
-      canceledAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      canceledBy: "customer"
-    }).catch(() => null)));
+    state.data = normalizeQueueData(result?.snapshot?.val() || { ...d, status: "canceled" });
+    localStorage.setItem("qj_last_data", JSON.stringify(state.data));
+    succeeded = true;
   } catch (e) {
-    console.error("[QJ] Cancel failed:", e);
-    showError("Cancel failed. Please try again.");
+    console.warn("[QJ] Cancel failed:", e?.message || "DatabaseError");
+    const message = e?.message || "Cancel failed. Please try again.";
+    showError(message);
+    const description = $("cancelConfirmDesc");
+    if (description) description.textContent = message;
+    if (rejectionReason === "not-cancellable") closeCancelModal();
+    renderData();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = I18N[state.lang]?.cancel_confirm || I18N.en.cancel_confirm;
+    }
   }
 
-  btn.disabled = false;
-  closeCancelModal();
-  showThankYou();
+  if (succeeded) {
+    closeCancelModal();
+    showThankYou();
+  }
 }
 
 /* =========================
@@ -1771,7 +1784,6 @@ async function init() {
   await resolveTenant();
   await initFirebase();
   await loadTenantConfig();
-  await refreshAdFromTenantConfig();
 
   startQueueWatcher();
   watchAnalytics();
@@ -1781,6 +1793,7 @@ async function init() {
     if (counterRef) off(counterRef);
     if (adRef) off(adRef);
     if (analyticsRef) off(analyticsRef);
+    if (tenantConfigRef) off(tenantConfigRef);
   });
 }
 

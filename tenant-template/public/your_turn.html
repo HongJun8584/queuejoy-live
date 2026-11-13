@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>QueueJoy — Your Turn</title>
 <meta name="description" content="Track your queue position and get a gentle alert when your turn comes." />
+<link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/queuejoy-ui.css" />
+<script src="/queuejoy-ui.js" defer></script>
 <style>
   :root{
     --bg: #f7f5ff;
@@ -230,15 +233,15 @@
   }
 </style>
 </head>
-<body>
+<body class="qj-page qj-your-turn">
   <div class="wrap" role="main" aria-live="polite">
     <div class="shell">
       <div class="topbar">
         <div class="brand">
-          <div class="dot" aria-hidden="true"></div>
+          <div class="dot" aria-hidden="true"><span id="brandMark">QJ</span><img id="businessLogo" class="brand-logo hidden" alt=""/></div>
           <div>
-            <h1>QueueJoy</h1>
-            <p>Your turn page</p>
+            <h1 id="businessName">QueueJoy</h1>
+            <p id="businessTagline">Your turn page</p>
           </div>
         </div>
         <div id="livePill" class="pill">Connecting…</div>
@@ -266,10 +269,10 @@
           <div class="label">Subscribe to promotion and notice</div>
           <p class="subscribe-copy">Get Telegram updates for this queue. Sound and vibration are used here instead of browser notification popups.</p>
           <div class="actions">
-            <button id="promoBtn" class="btn btn-primary" type="button">Subscribe on Telegram</button>
+            <button id="promoBtn" class="btn btn-primary" type="button">Connect Telegram</button>
             <button id="soundBtn" class="btn btn-ghost" type="button">Enable sound &amp; vibration</button>
           </div>
-          <div class="note" id="subscribeNote">Press the Telegram button to receive the queue-specific start link.</div>
+          <div class="note" id="subscribeNote">Create a secure one-time Telegram link for this queue.</div>
         </section>
       </div>
 
@@ -301,8 +304,6 @@ const DEFAULT_FIREBASE_CONFIG = {
 
 const GET_TENANT_ENDPOINT = '/.netlify/functions/get-tenant';
 const GET_FIREBASE_CLIENT_CONFIG = '/.netlify/functions/get-firebase-config';
-const TELEGRAM_BOT_USERNAME = 'queuejoy_notify_bot';
-const TELEGRAM_BOT_URL = `https://t.me/${TELEGRAM_BOT_USERNAME}`;
 
 const ui = {
   yourNumber: document.getElementById('yourNumber'),
@@ -316,6 +317,10 @@ const ui = {
   qaBadge: document.getElementById('qaBadge'),
   qaSlug: document.getElementById('qaSlug'),
   qaId: document.getElementById('qaId'),
+  businessName: document.getElementById('businessName'),
+  businessLogo: document.getElementById('businessLogo'),
+  brandMark: document.getElementById('brandMark'),
+  businessTagline: document.getElementById('businessTagline'),
   beepAudio: document.getElementById('beepAudio')
 };
 
@@ -324,8 +329,10 @@ let db = null;
 let TENANT_SLUG = null;
 let TENANT_ID = null;
 let currentQueueKey = null;
+let currentQueueData = null;
 let qListenerRef = null;
 let cListenerRef = null;
+let tenantConfigRef = null;
 let audioCtx = null;
 let audioUnlocked = false;
 let lastSeenTicket = null;
@@ -354,7 +361,8 @@ function getParam(keys){
 function getSlugFromUrl(){
   try {
     const usp = new URLSearchParams(window.location.search);
-    if (usp.get('slug')) return usp.get('slug');
+    const slug = usp.get('slug') || usp.get('tenantSlug') || usp.get('tenant');
+    if (slug) return slug;
   } catch(e) {}
   const parts = location.pathname.replace(/^\/+|\/+$/g,'').split('/');
   if (parts && parts[0] && !parts[0].includes('.')) return parts[0];
@@ -366,13 +374,31 @@ function currentStorageScope(){
 function alertedKey(ticket){
   return `qj_alerted_${currentStorageScope()}_${String(ticket || 'unknown')}`;
 }
-function getBotPayload(){
-  const tenantPart = normalizeKey(TENANT_ID || TENANT_SLUG || 'global').replace(/[^A-Za-z0-9_-]/g,'');
-  const queuePart = normalizeKey(currentQueueKey || 'queue').replace(/[^A-Za-z0-9_-]/g,'');
-  return `sub_${tenantPart}_${queuePart}`.slice(0, 60);
+function safeBusinessLogo(value){
+  const raw = String(value || '').trim();
+  if (/^data:image\/(png|jpeg|webp);base64,/i.test(raw) && raw.length <= 350000) return raw;
+  try {
+    const url = new URL(raw, window.location.href);
+    return (url.protocol === 'https:' || (url.protocol === 'http:' && url.origin === window.location.origin)) ? url.href : '';
+  } catch(e) { return ''; }
 }
-function buildTelegramLink(){
-  return `${TELEGRAM_BOT_URL}?start=${encodeURIComponent(getBotPayload())}`;
+function applyTenantBrand(config){
+  const cfg = config && typeof config === 'object' ? config : {};
+  if (window.QueueJoyUI) window.QueueJoyUI.applyTenantConfig(cfg);
+  const name = safeText(cfg.displayName || cfg.mainHeading || cfg.businessSettings?.displayName || cfg.name || cfg.businessName || TENANT_SLUG || 'QueueJoy', 'QueueJoy');
+  ui.businessName.textContent = name;
+  ui.businessTagline.textContent = TENANT_SLUG ? 'Your queue update' : 'Your turn page';
+  document.title = `${name} — Your turn`;
+  const logo = safeBusinessLogo(cfg.centerLogoUrl || cfg.logoUrl || cfg.businessSettings?.centerLogoUrl || cfg.businessSettings?.logoUrl || cfg.logo || cfg.theme?.logo || '');
+  if (logo) {
+    ui.businessLogo.src = logo;
+    ui.businessLogo.classList.remove('hidden');
+    ui.brandMark.classList.add('hidden');
+  } else {
+    ui.businessLogo.removeAttribute('src');
+    ui.businessLogo.classList.add('hidden');
+    ui.brandMark.classList.remove('hidden');
+  }
 }
 function getTicketValue(raw){
   if (raw === undefined || raw === null || raw === '') return null;
@@ -569,16 +595,14 @@ function detachQueue(){ try { if (qListenerRef) off(qListenerRef); } catch(e){} 
 
 async function attachCounter(counterId){
   if (!db || !counterId) return;
+  if (!TENANT_ID) { showError('Business context is missing. Return to your queue status page.'); return; }
   detachCounter();
 
-  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
+  const tBase = `tenants/${TENANT_ID}/`;
   const candidates = [
     `${tBase}counters/${counterId}`,
     `${tBase}public/counters/${counterId}`,
-    `${tBase}counter/${counterId}`,
-    `counters/${counterId}`,
-    `public/counters/${counterId}`,
-    `counter/${counterId}`
+    `${tBase}counter/${counterId}`
   ];
 
   const chosen = await findExistingPath(candidates);
@@ -608,22 +632,20 @@ async function attachCounter(counterId){
 
 async function attachQueue(queueKey){
   if (!db || !queueKey) return;
+  if (!TENANT_ID) { setStatus('Business missing'); showError('Business context is missing. Return to your queue status page.'); return; }
   detachQueue();
   currentQueueKey = queueKey;
   setStatus('Connecting');
   ui.queueStatus.textContent = 'Loading queue';
 
-  const tBase = TENANT_ID ? `tenants/${TENANT_ID}/` : '';
+  const tBase = `tenants/${TENANT_ID}/`;
   const candidates = [
     `${tBase}queues/${queueKey}`,
     `${tBase}queue/${queueKey}`,
     `${tBase}public/queues/${queueKey}`,
     `${tBase}public/queue/${queueKey}`,
     `${tBase}queuesById/${queueKey}`,
-    `${tBase}queuesByNumber/${queueKey}`,
-    `queues/${queueKey}`,
-    `queue/${queueKey}`,
-    `${queueKey}`
+    `${tBase}queuesByNumber/${queueKey}`
   ];
 
   const chosen = await findExistingPath(candidates);
@@ -640,6 +662,7 @@ async function attachQueue(queueKey){
       }
 
       const q = snap.val() || {};
+      currentQueueData = q;
       const { ticket, counterId, counterName, nowServing, calledFlag } = extractQueueData(q);
 
       if (ticket !== undefined && ticket !== null && ticket !== '') {
@@ -704,16 +727,21 @@ async function bootstrap(){
     setStatus('Resolving');
 
     const slug = getSlugFromUrl();
-    if (slug) {
-      ui.qaBadge.style.display = 'block';
-      ui.qaSlug.textContent = slug;
-      ui.qaId.textContent = '(resolving)';
-      TENANT_SLUG = slug;
-
-      const tenantResp = await resolveTenant(slug);
-      TENANT_ID = tenantResp?.tenantId || tenantResp?.tenant || tenantResp?.id || slug;
-      ui.qaId.textContent = TENANT_ID || slug;
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(slug || ''))) {
+      setStatus('Business missing');
+      showError('Business link is missing or invalid. Return to the queue status page and reopen this ticket.');
+      return;
     }
+    ui.qaBadge.style.display = 'block';
+    ui.qaSlug.textContent = slug;
+    ui.qaId.textContent = '(resolving)';
+    TENANT_SLUG = slug;
+    const tenantResp = await resolveTenant(slug);
+    TENANT_ID = tenantResp?.tenantId || tenantResp?.tenant || tenantResp?.id || null;
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(TENANT_ID || ''))) throw new Error('Business lookup returned no valid tenant.');
+    const requestedTenantId = getParam(['tenantId']);
+    if (requestedTenantId && requestedTenantId !== TENANT_ID) throw new Error('This ticket link does not match the selected business.');
+    ui.qaId.textContent = TENANT_ID;
 
     const clientCfg = await fetchClientConfig(TENANT_SLUG || '');
     const ok = await initFirebase(clientCfg);
@@ -722,6 +750,9 @@ async function bootstrap(){
       showError('Firebase init failed.');
       return;
     }
+
+    tenantConfigRef = ref(db, `tenants/${TENANT_ID}/public/config`);
+    onValue(tenantConfigRef, snap => applyTenantBrand(snap && snap.exists() ? (snap.val() || {}) : {}), err => warn('Tenant branding listener failed', err));
 
     await attachQueue(queueKey);
     await ensureAudioUnlocked();
@@ -747,24 +778,59 @@ ui.soundBtn.addEventListener('click', async () => {
 });
 
 ui.promoBtn.addEventListener('click', async () => {
-  const url = buildTelegramLink();
-  const opened = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!opened) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  if (ui.promoBtn.disabled) return;
+  if (!TENANT_ID || !TENANT_SLUG || !currentQueueKey) {
+    ui.subscribeNote.textContent = 'Queue details are still loading. Please try again in a moment.';
+    return;
   }
-  ui.subscribeNote.textContent = 'Telegram opened with your queue-specific subscribe link.';
+  const popup = window.open('about:blank', '_blank');
+  if (popup) {
+    try { popup.document.title = 'Preparing secure QueueJoy link'; popup.document.body.textContent = 'Preparing your secure Telegram link…'; } catch(_) {}
+  }
+  ui.promoBtn.disabled = true;
+  ui.promoBtn.textContent = 'Preparing secure link…';
+  ui.subscribeNote.textContent = 'Creating a one-time link for this ticket…';
+  try {
+    const q = currentQueueData || {};
+    const response = await fetch('/.netlify/functions/createTelegramLink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({
+        slug: TENANT_SLUG,
+        tenantId: TENANT_ID,
+        queueKey: currentQueueKey,
+        queueId: q.queueId || q.queueNumber || q.number || currentQueueKey,
+        queueNumber: q.queueNumber || q.number || q.queueId || null,
+        counterId: q.counterId || q.counter || undefined,
+        counterName: q.counterName || undefined
+      })
+    });
+    const result = await response.json().catch(() => null);
+    const link = String(result?.link || '');
+    let linkUrl;
+    try { linkUrl = new URL(link); } catch(_) { throw new Error('Secure Telegram link could not be created. Please retry.'); }
+    if (!response.ok || !result?.ok || linkUrl.protocol !== 'https:' || linkUrl.hostname !== 't.me' || !linkUrl.searchParams.get('start')) {
+      throw new Error('Secure Telegram link could not be created. Please retry.');
+    }
+    if (popup && !popup.closed) popup.location.replace(linkUrl.href);
+    else window.location.assign(linkUrl.href);
+    ui.subscribeNote.textContent = 'Telegram opened. Tap Start to connect notifications for this ticket.';
+  } catch (error) {
+    if (popup && !popup.closed) popup.close();
+    ui.subscribeNote.textContent = error.message || 'Could not create the secure Telegram link. Check your connection and retry.';
+    showError(ui.subscribeNote.textContent);
+  } finally {
+    ui.promoBtn.disabled = false;
+    ui.promoBtn.textContent = 'Connect Telegram';
+  }
 });
 
 window.addEventListener('beforeunload', () => {
   try {
     if (qListenerRef) off(qListenerRef);
     if (cListenerRef) off(cListenerRef);
+    if (tenantConfigRef) off(tenantConfigRef);
     if (audioResumeInterval) clearInterval(audioResumeInterval);
     if (reconnectTimer) clearTimeout(reconnectTimer);
   } catch(e){}

@@ -211,18 +211,13 @@ async function resolveTenantIdFromSlug(admin, slug) {
       if (mapSnap) {
         if (typeof mapSnap === 'string') {
           const tenantId = trimString(mapSnap);
-          if (tenantId) return { tenantId, source: 'rtdb.slug.string' };
+          if (/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) return { tenantId, source: 'rtdb.slug.string' };
         }
 
         if (typeof mapSnap === 'object') {
-          const tenantId = trimString(
-            mapSnap.tenantId ||
-            mapSnap.tenant ||
-            mapSnap.id ||
-            mapSnap.tenant_id ||
-            ''
-          );
-          if (tenantId) return { tenantId, source: 'rtdb.slug.object' };
+          const rawTenantId = mapSnap.tenantId || mapSnap.tenant || mapSnap.id || mapSnap.tenant_id || '';
+          const tenantId = typeof rawTenantId === 'string' ? trimString(rawTenantId) : '';
+          if (/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) return { tenantId, source: 'rtdb.slug.object' };
         }
       }
     }
@@ -282,6 +277,9 @@ exports.handler = async function (event) {
     if (!slug) {
       return jsonResp(400, { error: 'missing_slug' });
     }
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(slug)) {
+      return jsonResp(400, { error: 'invalid_slug' });
+    }
 
     const cached = CACHE.get(slug);
     if (cached && cached.expiresAt > Date.now()) {
@@ -299,7 +297,7 @@ exports.handler = async function (event) {
       (TEST_ADMIN_TOKEN && adminToken && adminToken === TEST_ADMIN_TOKEN);
 
     const resolved = await resolveTenantIdFromSlug(admin, slug);
-    if (!resolved.tenantId) {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(resolved.tenantId || ''))) {
       const { basePath, slugsPath } = paths();
       return jsonResp(404, {
         error: 'tenant_not_found',

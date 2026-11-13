@@ -171,16 +171,16 @@ async function sendTelegram(chatId, text, extra = {}) {
       }),
     });
 
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      console.error('[telegramWebhook] sendTelegram failed', res.status, json);
-      return { ok: false, error: json || res.status };
+    const responseData = await res.json().catch(() => null);
+    if (!res.ok || responseData?.ok === false) {
+      console.error('[telegramWebhook] sendMessage failed', res.status);
+      return { ok: false, error: `http_${res.status}` };
     }
 
-    return { ok: true, data: json };
+    return { ok: true };
   } catch (e) {
-    console.error('[telegramWebhook] sendTelegram error', e);
-    return { ok: false, error: String(e) };
+    console.error('[telegramWebhook] sendMessage request failed', e?.name || 'NetworkError');
+    return { ok: false, error: 'network_error' };
   }
 }
 
@@ -197,7 +197,7 @@ async function answerCallback(callbackQueryId, text = '') {
       }),
     });
   } catch (e) {
-    console.error('[telegramWebhook] answerCallbackQuery error', e);
+    console.error('[telegramWebhook] answerCallbackQuery failed', e?.name || 'NetworkError');
   }
 }
 
@@ -214,10 +214,10 @@ async function resolveTokenToTenant(db, token) {
     if (gSnap?.exists?.()) {
       const val = gSnap.val() || {};
       const tenantId = safe(val.tenantId || val.tenant || '');
-      if (tenantId) return { tenantId, tokenRecord: val, source: 'global' };
+      if (tenantId) return { tenantId, tokenRecord: val, tokenPath: `telegramTokens/${token}`, source: 'global' };
     }
   } catch (e) {
-    console.warn('[telegramWebhook] global token lookup failed', e?.message);
+    console.warn('[telegramWebhook] global token lookup failed', e?.name || 'DatabaseError');
   }
 
   // 2) tenant integration path + tenant token path
@@ -232,17 +232,17 @@ async function resolveTokenToTenant(db, token) {
 
         const p1 = await db.ref(`tenants/${tenantId}/integrations/telegram/tokens/${token}`).get().catch(() => null);
         if (p1?.exists?.()) {
-          return { tenantId, tokenRecord: p1.val() || {}, source: `tenant-integrations:${tenantId}` };
+          return { tenantId, tokenRecord: p1.val() || {}, tokenPath: `tenants/${tenantId}/integrations/telegram/tokens/${token}`, source: `tenant-integrations:${tenantId}` };
         }
 
         const p2 = await db.ref(`tenants/${tenantId}/telegramTokens/${token}`).get().catch(() => null);
         if (p2?.exists?.()) {
-          return { tenantId, tokenRecord: p2.val() || {}, source: `tenant-tokens:${tenantId}` };
+          return { tenantId, tokenRecord: p2.val() || {}, tokenPath: `tenants/${tenantId}/telegramTokens/${token}`, source: `tenant-tokens:${tenantId}` };
         }
       }
     }
   } catch (e) {
-    console.warn('[telegramWebhook] tenant token scan failed', e?.message);
+    console.warn('[telegramWebhook] tenant token scan failed', e?.name || 'DatabaseError');
   }
 
   return null;
@@ -256,44 +256,22 @@ async function resolveExactQueue(db, tenantId, tokenRecord) {
   if (!db || !tenantId || !tokenRecord) return null;
 
   const queueKey = safe(tokenRecord.queueKey || '');
-  const queueId = safe(tokenRecord.queueId || '');
-  const queueNumber = safe(tokenRecord.queueNumber || '');
+  if (!/^[A-Za-z0-9_-]{1,200}$/.test(queueKey)) return null;
+  if (tokenRecord.tenantId && safe(tokenRecord.tenantId) !== safe(tenantId)) return null;
 
-  const directPaths = [];
-  if (queueKey) {
-    directPaths.push(`tenants/${tenantId}/public/queues/${queueKey}`);
-    directPaths.push(`tenants/${tenantId}/queue/${queueKey}`);
-  }
-
-  for (const p of directPaths) {
+  const exactPaths = [
+    `tenants/${tenantId}/queue/${queueKey}`,
+    `tenants/${tenantId}/public/queues/${queueKey}`,
+    `tenants/${tenantId}/public/queue/${queueKey}`,
+  ];
+  for (const p of exactPaths) {
     try {
       const snap = await db.ref(p).get().catch(() => null);
       if (snap?.exists?.()) {
-        return { queueKey: queueKey || p.split('/').pop(), entry: snap.val() || {}, path: p, via: 'direct' };
+        return { queueKey, entry: snap.val() || {}, path: p, via: 'exact-tenant-path' };
       }
     } catch {}
   }
-
-  const bases = [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/queue`];
-  for (const base of bases) {
-    try {
-      const snap = await db.ref(base).get().catch(() => null);
-      if (!snap?.exists?.()) continue;
-
-      const all = snap.val() || {};
-      for (const [k, v] of Object.entries(all)) {
-        const q = v || {};
-        const matchesQueueKey = queueKey && (k === queueKey || safe(q.queueKey) === queueKey);
-        const matchesQueueId = queueId && safe(q.queueId) === queueId;
-        const matchesQueueNumber = queueNumber && safe(q.queueNumber || q.number) === queueNumber;
-
-        if (matchesQueueKey || matchesQueueId || matchesQueueNumber) {
-          return { queueKey: k, entry: q, path: `${base}/${k}`, via: `scan:${base}` };
-        }
-      }
-    } catch {}
-  }
-
   return null;
 }
 
@@ -320,7 +298,7 @@ async function resolveCounterName(db, tenantId, entry, tokenRecord) {
       if (name && safe(name)) return safe(name);
     }
   } catch (e) {
-    console.warn('[telegramWebhook] counter lookup failed', e?.message);
+    console.warn('[telegramWebhook] counter lookup failed', e?.name || 'DatabaseError');
   }
 
   return null;
@@ -342,7 +320,7 @@ async function resolveChatToTenantAndEntry(db, chatId) {
       const queueKey = safe(rec.queueKey || '');
 
       if (tenantId && queueKey) {
-        for (const base of [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/queue`]) {
+        for (const base of [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/public/queue`, `tenants/${tenantId}/queue`]) {
           const qSnap = await db.ref(`${base}/${queueKey}`).get().catch(() => null);
           if (qSnap?.exists?.()) {
             return {
@@ -357,7 +335,7 @@ async function resolveChatToTenantAndEntry(db, chatId) {
       }
     }
   } catch (e) {
-    console.warn('[telegramWebhook] chat index lookup failed', e?.message);
+    console.warn('[telegramWebhook] chat index lookup failed', e?.name || 'DatabaseError');
   }
 
   // 2) fallback scan by chatId / telegramChatId in tenant queues
@@ -371,7 +349,7 @@ async function resolveChatToTenantAndEntry(db, chatId) {
       const tenantId = typeof mapping === 'string' ? mapping : mapping?.tenantId || null;
       if (!tenantId) continue;
 
-      for (const base of [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/queue`]) {
+      for (const base of [`tenants/${tenantId}/public/queues`, `tenants/${tenantId}/public/queue`, `tenants/${tenantId}/queue`]) {
         try {
           const byChat = await db.ref(base).orderByChild('chatId').equalTo(chatId).get().catch(() => null);
           if (byChat?.exists?.()) {
@@ -390,7 +368,7 @@ async function resolveChatToTenantAndEntry(db, chatId) {
       }
     }
   } catch (e) {
-    console.warn('[telegramWebhook] fallback chat scan failed', e?.message);
+    console.warn('[telegramWebhook] fallback chat scan failed', e?.name || 'DatabaseError');
   }
 
   return null;
@@ -400,32 +378,46 @@ async function resolveChatToTenantAndEntry(db, chatId) {
    Writes
    ========================= */
 
-async function attachChatToQueue(db, tenantId, tokenRecord, chatId) {
-  const resolvedQueue = await resolveExactQueue(db, tenantId, tokenRecord);
+async function attachChatToQueue(db, tenantId, tokenRecord, chatId, resolvedQueue = null) {
+  resolvedQueue = resolvedQueue || await resolveExactQueue(db, tenantId, tokenRecord);
   if (!resolvedQueue?.queueKey) return { ok: false, reason: 'no-queue-match' };
 
   const queueKey = resolvedQueue.queueKey;
-  const entry = resolvedQueue.entry || {};
-  const slug = safe(tokenRecord?.slug || entry?.slug || '');
-
   const nowIso = now();
-  const updatePayload = {
-    chatId,
-    telegramChatId: chatId,
-    telegramConnected: true,
-    connectedAt: nowIso,
-    telegramToken: tokenRecord?.token || null,
-    telegramTokenUsedAt: nowIso,
-    updatedAt: nowIso,
-  };
-
+  const queueRef = db.ref(resolvedQueue.path);
+  let rejectionReason = '';
+  let alreadyLinked = false;
+  let transaction;
   try {
-    // Update the exact record we found
-    await db.ref(resolvedQueue.path).update(updatePayload);
+    transaction = await queueRef.transaction(current => {
+      if (!current || typeof current !== 'object') { rejectionReason = 'no-queue-match'; return; }
+      if (current.tenantId && safe(current.tenantId) !== safe(tenantId)) { rejectionReason = 'tenant-mismatch'; return; }
+      const status = safe(current.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+      if (['cancelled', 'canceled', 'noshow', 'skipped'].includes(status)) { rejectionReason = 'queue-not-active'; return; }
+      const existingChatId = current.telegramChatId || current.chatId || current.telegram_chat_id || '';
+      if (existingChatId && String(existingChatId) !== String(chatId)) { rejectionReason = 'already-linked'; return; }
+      if (existingChatId && String(existingChatId) === String(chatId) && current.telegramConnected) {
+        alreadyLinked = true;
+        return;
+      }
+      return {
+        ...current,
+        chatId,
+        telegramChatId: chatId,
+        telegramConnected: true,
+        connectedAt: current.connectedAt || nowIso,
+        telegramTokenUsedAt: nowIso,
+        updatedAt: nowIso,
+      };
+    }, undefined, false);
   } catch (e) {
-    console.error('[telegramWebhook] queue record update failed', e?.message);
-    return { ok: false, reason: 'queue-update-failed', error: e?.message };
+    console.error('[telegramWebhook] queue record transaction failed', e?.name || 'DatabaseError');
+    return { ok: false, reason: 'queue-update-failed' };
   }
+  if (!transaction?.committed && !alreadyLinked) return { ok: false, reason: rejectionReason || 'queue-update-failed' };
+
+  const entry = transaction?.snapshot?.val() || resolvedQueue.entry || {};
+  const slug = safe(tokenRecord?.slug || entry?.slug || '');
 
   try {
     await db.ref().update({
@@ -443,13 +435,98 @@ async function attachChatToQueue(db, tenantId, tokenRecord, chatId) {
       [`tenants/${tenantId}/announcement/chatIds/${chatId}`]: true,
     });
   } catch (e) {
-    console.warn('[telegramWebhook] auxiliary bookkeeping update failed', e?.message);
+    console.warn('[telegramWebhook] auxiliary bookkeeping update failed', e?.name || 'DatabaseError');
   }
 
   return { ok: true, queueKey, entry, slug, via: resolvedQueue.via, path: resolvedQueue.path };
 }
 
-async function markTokenUsedAllPaths(db, tenantId, token, chatId) {
+function tokenExpiryMs(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function claimTokenUse(db, tokenPath, tenantId) {
+  if (!db || !tokenPath || !tenantId) return { ok: false, reason: 'missing-token-path' };
+  const tokenRef = db.ref(tokenPath);
+  const claimedAt = now();
+  try {
+    const result = await tokenRef.transaction(current => {
+      if (!current || typeof current !== 'object') return;
+      if (safe(current.tenantId || current.tenant) !== safe(tenantId) || current.used === true) return;
+      const expiry = tokenExpiryMs(current.expiresAt);
+      if (expiry == null || expiry <= Date.now()) return;
+      return { ...current, used: true, usedAt: claimedAt };
+    }, undefined, false);
+    if (result?.committed) return { ok: true, usedAt: claimedAt, record: result.snapshot?.val?.() || {} };
+    const current = result?.snapshot?.val?.() || null;
+    if (!current) return { ok: false, reason: 'token-missing' };
+    if (current.used === true) return { ok: false, reason: 'token-used', record: current };
+    if (safe(current.tenantId || current.tenant) !== safe(tenantId)) return { ok: false, reason: 'tenant-mismatch' };
+    if ((tokenExpiryMs(current.expiresAt) || 0) <= Date.now()) return { ok: false, reason: 'token-expired' };
+    return { ok: false, reason: 'token-not-claimable' };
+  } catch (error) {
+    console.warn('[telegramWebhook] token claim failed', error?.name || 'DatabaseError');
+    return { ok: false, reason: 'token-claim-failed' };
+  }
+}
+
+async function releaseTokenClaim(db, tokenPath, usedAt) {
+  if (!db || !tokenPath || !usedAt) return;
+  try {
+    await db.ref(tokenPath).transaction(current => {
+      if (!current || current.used !== true || current.usedAt !== usedAt) return;
+      const next = { ...current, used: false };
+      delete next.usedAt;
+      return next;
+    }, undefined, false);
+  } catch (error) {
+    console.warn('[telegramWebhook] token claim rollback failed', error?.name || 'DatabaseError');
+  }
+}
+
+async function claimConfirmationOnce(db, tokenPath) {
+  const claimAt = now();
+  if (!db || !tokenPath) return null;
+  try {
+    const result = await db.ref(tokenPath).transaction(current => {
+      if (!current || current.used !== true || current.confirmationSentAt) return;
+      const pendingAt = tokenExpiryMs(current.confirmationClaimedAt);
+      if (pendingAt && Date.now() - pendingAt < 90000) return;
+      return { ...current, confirmationClaimedAt: claimAt };
+    }, undefined, false);
+    return result?.committed ? claimAt : null;
+  } catch (error) {
+    console.warn('[telegramWebhook] confirmation claim failed', error?.name || 'DatabaseError');
+    return null;
+  }
+}
+
+async function finishConfirmation(db, tokenPath, claimAt, sent) {
+  if (!db || !tokenPath || !claimAt) return;
+  try {
+    await db.ref(tokenPath).transaction(current => {
+      if (!current || current.confirmationClaimedAt !== claimAt) return;
+      const next = { ...current };
+      delete next.confirmationClaimedAt;
+      if (sent) next.confirmationSentAt = now();
+      return next;
+    }, undefined, false);
+  } catch (error) {
+    console.warn('[telegramWebhook] confirmation state update failed', error?.name || 'DatabaseError');
+  }
+}
+
+async function sendConnectedConfirmation(db, tokenPath, chatId, text, keyboard) {
+  const claimAt = await claimConfirmationOnce(db, tokenPath);
+  if (!claimAt) return false;
+  const result = await sendTelegram(chatId, text, { reply_markup: keyboard });
+  await finishConfirmation(db, tokenPath, claimAt, Boolean(result?.ok));
+  return Boolean(result?.ok);
+}
+
+async function markTokenUsedAllPaths(db, tenantId, token) {
   const nowIso = now();
   const paths = [
     `telegramTokens/${token}`,
@@ -461,17 +538,16 @@ async function markTokenUsedAllPaths(db, tenantId, token, chatId) {
   for (const p of paths) {
     updates[`${p}/used`] = true;
     updates[`${p}/usedAt`] = nowIso;
-    updates[`${p}/chatId`] = chatId;
   }
 
   try {
     await db.ref().update(updates);
   } catch (e) {
-    console.warn('[telegramWebhook] markTokenUsedAllPaths failed', e?.message);
+    console.warn('[telegramWebhook] markTokenUsedAllPaths failed', e?.name || 'DatabaseError');
   }
 }
 
-async function logNotificationPerformed(db, { tenantId, queueKey, queueId, queueNumber, chatId, token, messageType, extra }) {
+async function logNotificationPerformed(db, { tenantId, queueKey, queueId, queueNumber, messageType, extra }) {
   if (!db || !tenantId) return;
 
   const logEntry = {
@@ -480,8 +556,6 @@ async function logNotificationPerformed(db, { tenantId, queueKey, queueId, queue
     queueKey: queueKey || '',
     queueId: queueId || '',
     queueNumber: queueNumber || '',
-    chatId: chatId || '',
-    token: token || '',
     messageType: messageType || 'telegram_connected',
     source: 'telegramWebhook',
     ...(extra || {}),
@@ -490,7 +564,7 @@ async function logNotificationPerformed(db, { tenantId, queueKey, queueId, queue
   try {
     await db.ref(`tenants/${tenantId}/notifications/performed`).push(logEntry);
   } catch (e) {
-    console.warn('[telegramWebhook] logNotificationPerformed failed', e?.message);
+    console.warn('[telegramWebhook] logNotificationPerformed failed', e?.name || 'DatabaseError');
   }
 }
 
@@ -614,6 +688,15 @@ async function handleStartWithNoToken(chatId) {
 
 async function handleTokenConnect(db, chatId, tokenRaw) {
   const normalized = normalizeToken(tokenRaw);
+  const showRefreshLink = () => sendTelegram(
+    chatId,
+    [
+      '⚠️ This link is expired, invalid, or already connected to a different chat.',
+      '',
+      'Please return to your QueueJoy status page and tap <b>Connect Telegram</b> to request a new link.',
+    ].join('\n'),
+    { reply_markup: makeExploreKeyboard() }
+  );
   if (!tokenLooksValid(normalized)) {
     await sendTelegram(
       chatId,
@@ -643,23 +726,115 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
 
   const tenantId = resolved.tenantId;
   const tokenRecord = resolved.tokenRecord || {};
+  if (tokenRecord.tenantId && safe(tokenRecord.tenantId) !== safe(tenantId)) {
+    await showRefreshLink();
+    return;
+  }
   const slug = safe(tokenRecord.slug || '');
-
-  const attach = await attachChatToQueue(db, tenantId, tokenRecord, chatId);
-  if (!attach?.ok) {
+  const exactQueue = await resolveExactQueue(db, tenantId, tokenRecord);
+  if (!exactQueue?.queueKey || (exactQueue.entry?.tenantId && safe(exactQueue.entry.tenantId) !== safe(tenantId))) {
     await sendTelegram(
       chatId,
       [
-        'We found your link, but could not locate the ticket record just yet. 🔍',
+        'We could not find the exact ticket for this link. 🔍',
         '',
-        'Please open your QueueJoy page and tap <b>📲 Connect Telegram</b> one more time.',
+        'Please open your QueueJoy status page and request a fresh Telegram link.',
       ].join('\n'),
       { reply_markup: makeExploreKeyboard() }
     );
     return;
   }
 
-  await markTokenUsedAllPaths(db, tenantId, normalized, chatId);
+  const initialEntry = exactQueue.entry || {};
+  const initialStatus = safe(initialEntry.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+  if (['cancelled', 'canceled', 'noshow', 'skipped'].includes(initialStatus)) {
+    await showRefreshLink();
+    return;
+  }
+  const initialChatId = initialEntry.telegramChatId || initialEntry.chatId || initialEntry.telegram_chat_id || '';
+  const alreadyConnectedToThisChat = Boolean(initialEntry.telegramConnected && String(initialChatId) === String(chatId));
+
+  if (tokenRecord.used === true) {
+    if (!alreadyConnectedToThisChat) {
+      await showRefreshLink();
+      return;
+    }
+    const ticketLabel = safe(initialEntry.queueNumber || initialEntry.number || tokenRecord.queueNumber || exactQueue.queueKey);
+    const counterName = (await resolveCounterName(db, tenantId, initialEntry, tokenRecord)) || 'your assigned counter';
+    await sendConnectedConfirmation(
+      db,
+      resolved.tokenPath,
+      chatId,
+      [
+        '✅ <b>Your ticket is already connected.</b>',
+        '',
+        `🎫 Ticket: <b>${escapeHtml(ticketLabel)}</b>`,
+        `🪑 Counter: <b>${escapeHtml(counterName)}</b>`,
+        '',
+        'We will send your turn alerts here.',
+      ].join('\n'),
+      makeConnectedKeyboard(exactQueue.queueKey, slug || exactQueue.entry?.slug, tenantId, ticketLabel)
+    );
+    return;
+  }
+
+  const expiry = tokenExpiryMs(tokenRecord.expiresAt);
+  if (expiry == null || expiry <= Date.now()) {
+    await showRefreshLink();
+    return;
+  }
+  if (initialChatId && String(initialChatId) !== String(chatId)) {
+    await showRefreshLink();
+    return;
+  }
+
+  const claim = await claimTokenUse(db, resolved.tokenPath, tenantId);
+  if (!claim.ok) {
+    if (claim.reason === 'token-used') {
+      const latestQueue = await resolveExactQueue(db, tenantId, tokenRecord);
+      const linkedChatId = latestQueue?.entry?.telegramChatId || latestQueue?.entry?.chatId || latestQueue?.entry?.telegram_chat_id || '';
+      if (latestQueue?.entry?.telegramConnected && String(linkedChatId) === String(chatId)) {
+        const ticketLabel = safe(latestQueue.entry.queueNumber || latestQueue.entry.number || tokenRecord.queueNumber || latestQueue.queueKey);
+        const counterName = (await resolveCounterName(db, tenantId, latestQueue.entry, tokenRecord)) || 'your assigned counter';
+        await sendConnectedConfirmation(
+          db,
+          resolved.tokenPath,
+          chatId,
+          [
+            '✅ <b>Your ticket is already connected.</b>',
+            '',
+            `🎫 Ticket: <b>${escapeHtml(ticketLabel)}</b>`,
+            `🪑 Counter: <b>${escapeHtml(counterName)}</b>`,
+            '',
+            'We will send your turn alerts here.',
+          ].join('\n'),
+          makeConnectedKeyboard(latestQueue.queueKey, slug || latestQueue.entry?.slug, tenantId, ticketLabel)
+        );
+        return;
+      }
+    }
+    await showRefreshLink();
+    return;
+  }
+
+  const attach = await attachChatToQueue(db, tenantId, tokenRecord, chatId, exactQueue);
+  if (!attach?.ok) {
+    await releaseTokenClaim(db, resolved.tokenPath, claim.usedAt);
+    await sendTelegram(
+      chatId,
+      [
+        attach.reason === 'already-linked'
+          ? 'This ticket is already linked to a different Telegram chat.'
+          : 'We could not attach Telegram to this ticket just yet. 🔍',
+        '',
+        'Please open your QueueJoy status page and request a fresh link if needed.',
+      ].join('\n'),
+      { reply_markup: makeExploreKeyboard() }
+    );
+    return;
+  }
+
+  await markTokenUsedAllPaths(db, tenantId, normalized);
 
   const entry = attach.entry || {};
   const ticketLabel = safe(
@@ -681,8 +856,6 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
     queueKey: attach.queueKey || '',
     queueId,
     queueNumber,
-    chatId,
-    token: normalized,
     messageType: 'telegram_connected',
     extra: {
       counterName,
@@ -693,21 +866,21 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
     },
   });
 
-  await sendTelegram(
+  await sendConnectedConfirmation(
+    db,
+    resolved.tokenPath,
     chatId,
     [
-      '✅ <b>You are connected to QueueJoy!</b>',
+      attach.alreadyLinked ? '✅ <b>This ticket is already connected.</b>' : '✅ <b>You are connected to QueueJoy!</b>',
       '',
       `🎫 Your ticket: <b>${escapeHtml(ticketLabel)}</b>`,
       `🪑 Counter: <b>${escapeHtml(counterName)}</b>`,
       '',
       '🔔 We will send your alerts here when it is your turn.',
       '',
-      'You can safely close the page now — we have your Telegram connected.',
+      attach.alreadyLinked ? 'No changes were needed. Your alerts will continue here.' : 'You can safely close the page now — we have your Telegram connected.',
     ].join('\n'),
-    {
-      reply_markup: makeConnectedKeyboard(attach.queueKey, slug || attach.slug, tenantId, ticketLabel),
-    }
+    makeConnectedKeyboard(attach.queueKey, slug || attach.slug, tenantId, ticketLabel)
   );
 }
 
@@ -725,7 +898,7 @@ exports.handler = async (event) => {
     try {
       db = initAdminDatabase();
     } catch (e) {
-      console.error('[telegramWebhook] Firebase init failed', e?.stack || e);
+      console.error('[telegramWebhook] Firebase init failed', e?.name || 'DatabaseError');
       // We still return 200 so Telegram won't keep retrying forever.
       return { statusCode: 200, body: 'OK' };
     }
@@ -821,7 +994,7 @@ exports.handler = async (event) => {
 
     return { statusCode: 200, body: 'OK' };
   } catch (err) {
-    console.error('[telegramWebhook] Handler error', err?.stack || err);
+    console.error('[telegramWebhook] Handler error', err?.name || 'Error');
     return { statusCode: 200, body: 'OK' };
   }
 };

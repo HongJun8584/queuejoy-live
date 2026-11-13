@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/queuejoy-ui.css" />
+  <script src="/queuejoy-ui.js" defer></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
     .fade-in { animation: fadeIn 0.5s ease-in; }
@@ -19,7 +22,7 @@
     #tenant-slug-badge small{opacity:.9;font-weight:600}
   </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex flex-col items-center justify-center p-4 pb-32">
+<body class="qj-page qj-game min-h-screen flex flex-col items-center justify-center p-4">
   <div id="tenant-slug-badge" style="display:none"><small>slug</small> <span id="tenant-slug-value" style="font-weight:700;margin-left:6px"></span> <span id="tenant-id-value" style="margin-left:8px;font-size:11px;opacity:.9"></span></div>
 
   <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4 fade-in">
@@ -61,14 +64,6 @@
     </div>
   </div>
 
-  <div class="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-sm px-4">
-    <div class="bg-white rounded-xl shadow-lg p-3">
-      <p class="text-xs text-gray-500 text-center mb-2">Advertisement</p>
-      <img id="adPanel" src="" alt="Advertisement" class="w-full rounded-lg shadow-md hidden max-h-24 object-cover">
-      <div id="noAd" class="text-center text-gray-400 text-sm py-4">No advertisement available</div>
-    </div>
-  </div>
-
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
     import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
@@ -92,8 +87,6 @@
     const finalStatsEl = document.getElementById('finalStats');
     const newGameBtn = document.getElementById('newGameBtn');
     const backBtn = document.getElementById('backBtn');
-    const adPanel = document.getElementById('adPanel');
-    const noAd = document.getElementById('noAd');
     const inlineError = document.getElementById('inlineError');
 
     const canvas = document.getElementById('gameCanvas');
@@ -111,7 +104,6 @@
     let apple = { x: 256, y: 256 };
 
     // DB listeners (tenant aware)
-    let adRef = null;
     let queueRef = null;
     let counterRef = null;
 
@@ -275,33 +267,16 @@
       return function tenantRef(relPath = '') {
         relPath = String(relPath || '').replace(/^\/+/, '');
         const tenantId = window.__TENANT_ID || null;
-        const slug = window.__TENANT_SLUG || null;
-        if (!tenantId && !slug) {
-          return ref(dbInstance, relPath || '/');
-        }
-        const base = tenantId ? `tenants/${tenantId}` : `tenants/${slug}`;
+        if (!tenantId) throw new Error('Tenant context is required before reading queue data.');
+        const base = `tenants/${tenantId}`;
         if (!relPath) return ref(dbInstance, base);
         return ref(dbInstance, `${base}/${relPath}`);
       };
     }
 
-    // read tenant-first (fallback to legacy/global)
-    async function getTenantFirst(db, tenantRefFn, path) {
-      try {
-        const snap = await get(tenantRefFn(path));
-        if (snap && snap.exists && typeof snap.val === 'function') return snap.val();
-      } catch (e) { /* continue to fallback */ }
-      try {
-        const snap2 = await get(ref(db, path));
-        if (snap2 && snap2.exists && typeof snap2.val === 'function') return snap2.val();
-      } catch (e) {}
-      return null;
-    }
-
     // cleanup helper
     function cleanupListeners() {
       try {
-        if (adRef) { off(adRef); adRef = null; }
         if (queueRef) { off(queueRef); queueRef = null; }
         if (counterRef) { off(counterRef); counterRef = null; }
       } catch (e) { console.warn('cleanup error', e); }
@@ -314,17 +289,29 @@
         cleanupListeners();
       } catch (e) { console.warn('redirect cleanup error', e); }
       setTimeout(() => {
-        window.location.assign(`/your_turn.html?queueId=${encodeURIComponent(dbKey)}${window.__TENANT_SLUG ? '&slug=' + encodeURIComponent(window.__TENANT_SLUG) : ''}`);
+        const params = new URLSearchParams({ queueId: dbKey });
+        if (window.__TENANT_SLUG) params.set('slug', window.__TENANT_SLUG);
+        if (window.__TENANT_ID) params.set('tenantId', window.__TENANT_ID);
+        window.location.assign(`/your_turn.html?${params.toString()}`);
       }, 150);
     }
 
     // initQueueAndCounterListeners (tenant-scoped)
-    function initQueueAndCounterListeners(db, tenantRefFn, dbKey) {
+    async function initQueueAndCounterListeners(db, tenantRefFn, dbKey) {
       if (!dbKey) return;
       cleanupListeners();
 
-      // try tenant path 'queues' first, fallback to 'queue' (legacy)
-      const qPaths = [`queues/${dbKey}`, `queue/${dbKey}`, `queue/${dbKey}`];
+      // Find the exact record in supported tenant-only layouts before attaching its live listener.
+      const candidates = [`queue/${dbKey}`, `public/queues/${dbKey}`, `public/queue/${dbKey}`, `queues/${dbKey}`];
+      let selectedPath = candidates[0];
+      for (const path of candidates) {
+        try {
+          const candidate = tenantRefFn(path);
+          const snapshot = await get(candidate);
+          if (snapshot?.exists?.()) { selectedPath = path; break; }
+        } catch (_) {}
+      }
+      const qPaths = [selectedPath];
       let attached = false;
       for (const p of qPaths) {
         const candidateRef = tenantRefFn(p);
@@ -354,8 +341,9 @@
               return Number.isFinite(n) ? n : NaN;
             });
 
-            const status = (val.status || '').toString().toLowerCase();
-            if ((status === 'called' || status === 'serving' || status === 'called_by_staff') && !hasNavigated) {
+            const status = (val.status || '').toString().toLowerCase().replace(/[\s-]+/g, '_');
+            const explicitlyCalled = val.called === true || Boolean(val.calledAt || val.notifiedAt || val.servedAt);
+            if ((status === 'called' || status === 'serving' || status === 'called_by_staff' || explicitlyCalled) && !hasNavigated) {
               hasNavigated = true;
               performRedirectToYourTurn(dbKey);
               return;
@@ -410,68 +398,31 @@
       if (!attached) console.warn('Failed to attach any queue listener for', dbKey);
     }
 
-    // initAd: read tenant-scoped public config ad image with fallbacks
-    function initAd(db, tenantRefFn) {
-      // Candidate paths in priority order:
-      // 1) tenants/{tenantId}/public/config/adImage
-      // 2) tenants/{tenantId}/cfg.adImage
-      // 3) /cfg.adImage (legacy global)
-      const candidatePaths = ['public/config/adImage', 'cfg.adImage', 'adImage', 'public/config/ad.image'];
-      let attached = false;
-      for (const p of candidatePaths) {
-        try {
-          const r = tenantRefFn(p);
-          adRef = r;
-          onValue(adRef, (snap) => {
-            const v = (snap && snap.exists && typeof snap.val === 'function') ? snap.val() : '';
-            if (v) { adPanel.src = v; adPanel.classList.remove('hidden'); noAd.classList.add('hidden'); }
-            else { adPanel.classList.add('hidden'); noAd.classList.remove('hidden'); }
-          });
-          attached = true;
-          break;
-        } catch (e) {
-          console.warn('ad attach failed for', p, e);
-          try { off(r); } catch(_) {}
-        }
-      }
-      if (!attached) {
-        // best-effort: try global /cfg.adImage directly
-        try {
-          const globalRef = ref(db, 'cfg.adImage');
-          adRef = globalRef;
-          onValue(adRef, (snap) => {
-            const v = (snap && snap.exists && typeof snap.val === 'function') ? snap.val() : '';
-            if (v) { adPanel.src = v; adPanel.classList.remove('hidden'); noAd.classList.add('hidden'); }
-            else { adPanel.classList.add('hidden'); noAd.classList.remove('hidden'); }
-          });
-        } catch (e) {
-          console.warn('global ad attach failed', e);
-        }
-      }
-    }
-
     // bootstrap & start
     (async function bootstrapTenantAware() {
+      const params = new URLSearchParams(window.location.search);
       const slug = getSlugFromQueryOrPath();
-      if (!slug) {
-        // still allow page to function without tenant (legacy), but show badge indicating missing slug
-        console.warn('No slug provided; falling back to global paths');
-      } else {
-        document.getElementById('tenant-slug-badge').style.display = 'block';
-        document.getElementById('tenant-slug-value').textContent = slug;
-        try {
-          const info = await resolveTenant(slug);
-          const tenantId = info.tenantId || null;
-          window.__TENANT_SLUG = slug;
-          window.__TENANT_ID = tenantId || slug;
-          document.getElementById('tenant-id-value').textContent = `id:${window.__TENANT_ID}`;
-          // emit tenant.public.loaded so tenant helpers pick up
-          window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId: window.__TENANT_ID, slug: window.__TENANT_SLUG, config: info.config || info } }));
-        } catch (err) {
-          // If tenant resolution fails we still allow legacy behavior but surface a user-visible error
-          console.error('Tenant resolution failed:', err);
-          showError('Tenant lookup failed — running in legacy/global mode. (Check console.)');
-        }
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(slug || ''))) {
+        showError('Business link is missing or invalid. Return to your queue status page and reopen the game.');
+        return;
+      }
+
+      document.getElementById('tenant-slug-badge').style.display = 'block';
+      document.getElementById('tenant-slug-value').textContent = slug;
+      try {
+        const info = await resolveTenant(slug);
+        const tenantId = info.tenantId || null;
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(tenantId || ''))) throw new Error('Invalid tenant returned');
+        window.__TENANT_SLUG = slug;
+        window.__TENANT_ID = tenantId;
+      document.getElementById('tenant-id-value').textContent = `id:${tenantId}`;
+      const requestedTenantId = params.get('tenantId');
+      if (requestedTenantId && requestedTenantId !== String(tenantId)) throw new Error('Ticket link does not match this business.');
+        window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId, slug, config: info.config || info } }));
+      } catch (err) {
+        console.error('Tenant resolution failed:', err);
+        showError('Business lookup failed. Please return to your QueueJoy status page and try again.');
+        return;
       }
 
       // init firebase & tenantRef
@@ -486,15 +437,11 @@
       const db = getDatabase(app);
       const tenantRef = tenantRefFactory(db);
 
-      // set up ad listener
-      try { initAd(db, tenantRef); } catch (e) { console.warn('initAd error', e); }
-
       // handle queueId param for redirect listening
-      const params = new URLSearchParams(window.location.search);
       const dbKey = params.get('queueId');
       currentQueueKey = dbKey || null;
       if (currentQueueKey) {
-        try { initQueueAndCounterListeners(db, tenantRef, currentQueueKey); } catch (e) { console.warn('initQueueAndCounterListeners error', e); }
+        try { await initQueueAndCounterListeners(db, tenantRef, currentQueueKey); } catch (e) { console.warn('initQueueAndCounterListeners error', e); }
       }
 
       // Back navigation handler

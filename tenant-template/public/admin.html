@@ -10,6 +10,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/queuejoy-ui.css"/>
+  <script src="/queuejoy-ui.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     /* ====== THEME VARIABLES ====== */
@@ -233,7 +236,7 @@
     .ann-fade-in{animation:fadeIn .35s cubic-bezier(.4,0,.2,1);animation-fill-mode:backwards}
   </style>
 </head>
-<body>
+<body class="qj-page qj-admin">
 
 <!-- Auth Overlay -->
 <div class="auth-overlay" id="authOverlay">
@@ -315,6 +318,13 @@
         <div class="stat-card fade-in fade-in-delay-4"><div class="stat-label">Cancelled</div><div class="stat-value" id="dCancelled" style="color:var(--text-light)">0</div><div class="stat-icon" style="background:rgba(100,116,139,0.1)">❌</div></div>
         <div class="stat-card fade-in fade-in-delay-5"><div class="stat-label">Active Counters</div><div class="stat-value" id="dCounters" style="color:var(--amber)">0</div><div class="stat-icon" style="background:rgba(245,158,11,0.1)">🏪</div></div>
       </div>
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card fade-in" aria-live="polite">
+          <div class="stat-label">Avg Wait Time</div>
+          <div class="stat-value" id="dAvgWait" style="color:var(--primary)">—</div>
+          <div class="stat-label" style="margin-top:6px;font-size:11px;font-weight:500;text-transform:none;letter-spacing:0">From <span id="dAvgWaitCount">0</span> valid queue records · all time</div>
+        </div>
+      </div>
       <div class="card fade-in" style="animation-delay:.3s;animation-fill-mode:backwards">
         <div class="card-header">Avg Service Time (from serviceEvents)</div>
         <div style="font-size:28px;font-weight:800;color:var(--primary)" id="dAvgService">— min</div>
@@ -364,6 +374,15 @@
               <span id="cfgCenterLogoName" style="font-size:11px;color:var(--text-light)"></span>
             </div>
             <div id="cfgCenterLogoPreview"></div>
+
+            <label class="field-label">Browser Favicon</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="file-btn">⬆️ Upload favicon<input type="file" id="cfgFaviconFile" accept="image/png,image/jpeg,image/webp"/></label>
+              <button class="btn btn-secondary btn-sm" type="button" id="cfgFaviconRemove">Use QueueJoy default</button>
+              <img id="cfgFaviconPreview" alt="Current business favicon" width="36" height="36" style="object-fit:contain;border:1px solid var(--border);border-radius:9px;background:#fff;padding:4px"/>
+            </div>
+            <input class="input" id="cfgFaviconUrl" type="url" placeholder="Or paste an https:// favicon URL" style="margin-top:8px;font-size:12px"/>
+            <div id="cfgFaviconStatus" style="font-size:11px;color:var(--text-light);margin-top:5px">Shown across this business’s QueueJoy pages. Uploads are resized before saving.</div>
 
             <label class="field-label">Ad Media (Hosted URL Only)</label>
             <div style="display:flex;flex-direction:column;gap:6px">
@@ -563,8 +582,9 @@
 // ============================================================
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-import { getDatabase, ref, onValue, get, set, update, push, child, remove } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+import { getDatabase, ref, onValue, get, set, update, push, child, remove, runTransaction } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import { computeAverageWait, formatAverageWait } from '/queuejoy-metrics.js';
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
@@ -626,10 +646,9 @@ function formatBytes(b) {
 // ===== THEME =====
 function initTheme() {
   var saved = localStorage.getItem('qj-theme');
-  if (saved === 'light') {
-    document.documentElement.classList.add('light');
-    $('themeToggle').textContent = '☀️';
-  }
+  var light = saved !== 'dark';
+  document.documentElement.classList.toggle('light', light);
+  $('themeToggle').textContent = light ? '☀️' : '🌙';
 }
 initTheme();
 
@@ -786,7 +805,7 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   raw.adText = $('cfgAdText') ? $('cfgAdText').value : '';
 
   var color = $('cfgColor') ? $('cfgColor').value : '#8b5cf6';
-  if (color) raw.theme = { color: color };
+  if (color) raw.theme = Object.assign({}, currentConfig.theme || {}, { color: color });
 
   // LOGOS — allow hosted URL OR data:image/* (base64). Pending upload (data URL) takes priority.
   function pickLogo(uploaded, typed, existingList) {
@@ -809,6 +828,23 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   );
   if (centerLogoUrl) raw.centerLogoUrl = centerLogoUrl;
 
+  function isSafeFaviconUrl(value) {
+    var text = String(value || '').trim();
+    if (!text) return false;
+    if (/^data:image\/(png|jpeg|webp);base64,/i.test(text)) return text.length <= 26000;
+    if (text.length > 2048) return false;
+    try {
+      var url = new URL(text);
+      return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+    } catch (_) { return false; }
+  }
+  if (pendingUploads && pendingUploads.faviconDirty) {
+    var requestedFavicon = isSafeFaviconUrl(pendingUploads.faviconUrl) ? String(pendingUploads.faviconUrl).trim() : '';
+    raw.faviconUrl = requestedFavicon || null;
+  } else if (isSafeFaviconUrl(currentConfig.faviconUrl)) {
+    raw.faviconUrl = currentConfig.faviconUrl;
+  }
+
   // ADS — HOSTED ONLY (no base64, no blob). Reject data:/blob: aggressively.
   function pickHosted(typed, existingList) {
     if (typed && isSafeHostedUrl(typed)) return typed;
@@ -827,9 +863,11 @@ function buildCanonicalConfigFromUI(currentConfig, pendingUploads) {
   var ad = {};
   if (adVideo) ad.video = adVideo;
   if (adImage && !adVideo) ad.image = adImage;
-  if (Object.keys(ad).length > 0) raw.ad = ad;
+  if (Object.keys(ad).length > 0) raw.ad = Object.assign({}, currentConfig.ad || {}, ad);
 
-  return deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
+  var cleaned = deepCleanConfig(raw) || { createdAt: Date.now(), updatedAt: Date.now() };
+  if (pendingUploads && pendingUploads.faviconDirty) cleaned.faviconUrl = raw.faviconUrl;
+  return cleaned;
 }
 
 // ===== Slug resolution =====
@@ -856,14 +894,19 @@ async function boot() {
     return;
   }
 
-  var tenantId = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
+  var tenantId = '';
   try {
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(slug)) throw new Error('Invalid business link.');
     var res = await fetch('/.netlify/functions/get-tenant?slug=' + encodeURIComponent(slug), { cache: 'no-store' });
-    if (res.ok) {
-      var j = await res.json();
-      tenantId = j.tenantId || j.tenant || tenantId;
-    }
-  } catch(e) {}
+    if (!res.ok) throw new Error('Business could not be verified. Please reopen the correct admin link.');
+    var j = await res.json();
+    tenantId = String(j.tenantId || j.tenant || j.id || '').trim();
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) throw new Error('Business could not be verified.');
+  } catch(e) {
+    console.warn('Admin tenant lookup failed', e?.name || 'LookupError');
+    $('authOverlay').innerHTML = '<div class="auth-card"><div style="font-size:42px;margin-bottom:12px">⚠️</div><h2>Business link unavailable</h2><p style="margin-bottom:12px">This admin link could not be verified. Check the business slug and try again.</p></div>';
+    return;
+  }
 
   window.__TENANT_SLUG = slug;
   window.__TENANT_ID = tenantId;
@@ -908,7 +951,7 @@ async function boot() {
   var queueData = [];
   var serviceEventsData = [];
   var countersData = {};
-  var pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+  var pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null, faviconUrl: null, faviconDirty: false };
   var queueTrendChart = null;
   var counterPerfChart = null;
   var statusPieChart = null;
@@ -1065,6 +1108,7 @@ async function boot() {
         if (isSaving) return;
         if (lastSaved && incomingTs && incomingTs < lastSaved) return;
         currentConfig = incoming;
+        if (window.QueueJoyUI) window.QueueJoyUI.applyTenantConfig(incoming);
         populateSettingsForm(currentConfig);
         schedulePhonePreview();
         if (currentConfig.displayName) {
@@ -1203,6 +1247,12 @@ async function boot() {
     $('dServing').textContent = serving;
     $('dCompleted').textContent = totalCompleted;
     $('dCancelled').textContent = cancelled;
+
+    var queueRecords = {};
+    queueData.forEach(function(q, i) { queueRecords[String(q._key || q.queueKey || i)] = q; });
+    var waitStats = computeAverageWait(queueRecords);
+    if ($('dAvgWait')) $('dAvgWait').textContent = formatAverageWait(waitStats.averageMs);
+    if ($('dAvgWaitCount')) $('dAvgWaitCount').textContent = String(waitStats.count);
 
     // Strict bounds: 1s..2h, derive serviceMs from queue if needed.
     var MIN_MS = 1000, MAX_MS = 2 * 60 * 60 * 1000;
@@ -1471,6 +1521,10 @@ async function boot() {
       if ($('cfgCenterLogoUrl')) $('cfgCenterLogoUrl').value = (typeof _clogo0==='string' && /^https?:\/\//i.test(_clogo0)) ? _clogo0 : '';
       // Note: data:image/* logos are kept in pendingUploads (preview-only field), not the URL input.
 
+      var favicon = String(pendingUploads.faviconDirty ? (pendingUploads.faviconUrl || '') : (cfg.faviconUrl || '')).trim();
+      if ($('cfgFaviconUrl')) $('cfgFaviconUrl').value = /^https:\/\//i.test(favicon) ? favicon : '';
+      renderFaviconPreview(favicon);
+
       var color = (cfg.theme && cfg.theme.color) || '#8b5cf6';
       $('cfgColor').value = color;
       $('cfgColorHex').textContent = color;
@@ -1492,12 +1546,67 @@ async function boot() {
     }
   }
 
+  function renderFaviconPreview(value) {
+    var img = $('cfgFaviconPreview');
+    if (!img) return;
+    var src = String(value || '').trim();
+    var allowed = /^https:\/\//i.test(src) || (src.length <= 26000 && /^data:image\/(png|jpeg|webp);base64,/i.test(src));
+    img.src = allowed ? src : '/queuejoy-favicon.svg';
+    $('cfgFaviconStatus').textContent = allowed ? 'Preview updates across this tenant after saving.' : 'QueueJoy default is active. Uploads are resized and kept compact.';
+  }
+
   // ===== DEBOUNCED PHONE PREVIEW =====
   var schedulePhonePreview = debounce(function() { updatePhonePreviewText(); }, 250);
   var scheduleMediaPreview = debounce(function() { updatePhonePreviewMedia(); }, 300);
 
   function setupSettingsUI() {
     $('cfgColor').oninput = function(e) { $('cfgColorHex').textContent = e.target.value; schedulePhonePreview(); };
+
+    $('cfgFaviconUrl').addEventListener('input', function() {
+      pendingUploads.faviconUrl = $('cfgFaviconUrl').value.trim();
+      pendingUploads.faviconDirty = true;
+      renderFaviconPreview(pendingUploads.faviconUrl);
+    });
+    $('cfgFaviconRemove').addEventListener('click', function() {
+      pendingUploads.faviconUrl = null;
+      pendingUploads.faviconDirty = true;
+      $('cfgFaviconUrl').value = '';
+      $('cfgFaviconFile').value = '';
+      renderFaviconPreview('');
+      showToast('QueueJoy default favicon selected. Save to publish.', 'success');
+    });
+    $('cfgFaviconFile').addEventListener('change', async function(event) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+      if (!/^image\/(png|jpeg|webp)$/i.test(file.type)) { showToast('Choose a PNG, JPEG or WebP favicon.', 'error'); event.target.value = ''; return; }
+      if (file.size > 10 * 1024 * 1024) { showToast('Max upload size is 10 MB before compression.', 'error'); event.target.value = ''; return; }
+      var objectUrl = URL.createObjectURL(file);
+      try {
+        var image = new Image();
+        await new Promise(function(resolve, reject) { image.onload = resolve; image.onerror = reject; image.src = objectUrl; });
+        var edge = 128;
+        var scale = Math.min(1, edge / Math.max(image.naturalWidth, image.naturalHeight));
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        var ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Image processing is unavailable in this browser.');
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        var data = canvas.toDataURL('image/webp', 0.72);
+        if (!/^data:image\/webp;base64,/i.test(data)) data = canvas.toDataURL('image/png');
+        if (data.length > 26000) throw new Error('Favicon is still too large after resizing. Choose a simpler image.');
+        pendingUploads.faviconUrl = data;
+        pendingUploads.faviconDirty = true;
+        $('cfgFaviconUrl').value = '';
+        renderFaviconPreview(data);
+        showToast('Compact favicon ready. Save to publish across this tenant.', 'success', 1800);
+      } catch (err) {
+        console.warn('Favicon processing failed', err);
+        showToast(err.message || 'Could not process this favicon.', 'error');
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    });
 
     // Hosted URL inputs drive preview AND are the only thing that gets saved
     ['cfgLogoUrl','cfgCenterLogoUrl','cfgAdImageUrl','cfgAdVideoUrl'].forEach(function(id){
@@ -1577,14 +1686,16 @@ async function boot() {
       slimConfig.updatedAt = Date.now();
       lastSavedAt = slimConfig.updatedAt;
 
-      await set(tRef('public/config'), slimConfig);
+      await update(tRef('public/config'), slimConfig);
 
       // If a newer save was kicked off while we were awaiting, abort post-actions.
       if (mySeq !== saveSeq) return;
 
       // Local mirror so the preview & form don't 'rollback' before the listener fires.
-      currentConfig = slimConfig;
-      pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null };
+      currentConfig = Object.assign({}, currentConfig, slimConfig);
+      if (slimConfig.faviconUrl === null) delete currentConfig.faviconUrl;
+      if (window.QueueJoyUI) window.QueueJoyUI.applyTenantConfig(currentConfig);
+      pendingUploads = { logoUrl: null, centerLogoUrl: null, adImage: null, adVideo: null, faviconUrl: null, faviconDirty: false };
       if (window.__qjCheckAdWarn) window.__qjCheckAdWarn();
 
       btn.classList.add('save-success');
@@ -1715,16 +1826,32 @@ async function boot() {
   // ===== Counters =====
   function setupCountersUI() {
     $('addCounterBtn').onclick = function() {
+      if (Object.keys(countersData || {}).length >= 4) { showToast('Maximum of 4 counters reached. Remove one before adding another.', 'error'); return; }
       var form = $('addCounterForm');
       form.style.display = form.style.display === 'none' ? 'block' : 'none';
     };
     $('createCounterBtn').onclick = async function() {
       var name = $('newCounterName').value.trim();
       var prefix = $('newCounterPrefix').value.trim().toUpperCase();
-      if (!name || !prefix) { showToast('Name and prefix required', 'error'); return; }
+      if (!name || !/^[A-Z0-9]{1,7}$/.test(prefix)) { showToast('Enter a counter name and a 1–7 character letter/number prefix.', 'error'); return; }
+      if (Object.keys(countersData || {}).length >= 4) { showToast('Maximum of 4 counters reached. No existing counter data was changed.', 'error'); return; }
       var id = 'counter-' + prefix.toLowerCase();
+      if (countersData[id]) { showToast('A counter with this prefix already exists. Choose another prefix.', 'error'); return; }
       try {
-        await set(tRef('counters/' + id), { name: name, prefix: prefix, active: true, lastIssued: 0, nowServing: 0, order: Object.keys(countersData).length + 1 });
+        var limitReached = false;
+        var duplicatePrefix = false;
+        var result = await runTransaction(tRef('counters'), function(current) {
+          current = current && typeof current === 'object' ? current : {};
+          limitReached = false;
+          duplicatePrefix = false;
+          if (Object.values(current).filter(Boolean).length >= 4) { limitReached = true; return; }
+          if (current[id]) { duplicatePrefix = true; return; }
+          return { ...current, [id]: { name: name, prefix: prefix, active: true, lastIssued: 0, nowServing: 0, order: Object.keys(current).length + 1 } };
+        });
+        if (!result.committed) {
+          showToast(limitReached ? 'Maximum of 4 counters reached. No existing counter data was changed.' : duplicatePrefix ? 'A counter with this prefix already exists. Choose another prefix.' : 'Counter was not created. Please refresh and try again.', 'error');
+          return;
+        }
         showToast('Counter created!');
         writeAudit('counter_created', { name: name, prefix: prefix });
         $('newCounterName').value = '';

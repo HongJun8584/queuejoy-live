@@ -202,6 +202,40 @@ async function resolveTenantIdWithRest(dbUrlRaw, candidate) {
   return null;
 }
 
+async function getExactQueueWithAdmin(admin, tenantId, queueKey) {
+  if (!admin || !tenantId || !queueKey) return null;
+  const db = admin.database();
+  for (const path of [
+    `tenants/${tenantId}/queue/${queueKey}`,
+    `tenants/${tenantId}/public/queues/${queueKey}`,
+    `tenants/${tenantId}/public/queue/${queueKey}`,
+  ]) {
+    try {
+      const snap = await db.ref(path).get();
+      if (snap?.exists?.()) return { path, entry: snap.val() || {} };
+    } catch {}
+  }
+  return null;
+}
+
+async function getExactQueueWithRest(dbUrlRaw, tenantId, queueKey) {
+  const dbUrl = String(dbUrlRaw || '').replace(/\/$/, '');
+  if (!dbUrl || !tenantId || !queueKey) return null;
+  for (const path of [
+    `tenants/${tenantId}/queue/${queueKey}`,
+    `tenants/${tenantId}/public/queues/${queueKey}`,
+    `tenants/${tenantId}/public/queue/${queueKey}`,
+  ]) {
+    try {
+      const response = await fetch(`${dbUrl}/${path.split('/').map(encodeURIComponent).join('/')}.json`, { method: 'GET' });
+      if (!response.ok) continue;
+      const entry = await response.json().catch(() => null);
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) return { path, entry };
+    } catch {}
+  }
+  return null;
+}
+
 function buildTokenRecord({
   token,
   tenantId,
@@ -213,9 +247,6 @@ function buildTokenRecord({
   counterName,
   createdAt,
   expiresAt,
-  meta,
-  userAgent,
-  ip,
 }) {
   return {
     token,
@@ -229,9 +260,6 @@ function buildTokenRecord({
     createdAt,
     expiresAt,
     used: false,
-    meta: meta || '',
-    userAgent: userAgent || null,
-    ip: ip || null,
   };
 }
 
@@ -249,61 +277,31 @@ exports.handler = async function (event) {
   const body = parseBody(event);
 
   const queueKey = sanitize(body.queueKey || '');
-  const queueId = sanitize(body.queueId || body.queueKey || '');
-  const queueNumber = sanitize(body.queueNumber || body.number || '');
-  const counterId = sanitize(body.counterId || '');
-  const counterName = sanitize(body.counterName || '');
-  const slug = sanitize(body.slug || '');
-  const meta = body.meta && typeof body.meta === 'object' ? body.meta : sanitize(body.meta || '');
-
-  const tenantCandidate =
-    sanitize(body.tenantId) ||
-    sanitize(body.tenant) ||
-    sanitize(body.slug) ||
-    sanitize(pickTenantCandidate(event, body));
-
-  const token = safeToken();
-  const createdAt = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
-
-  const userAgent = event?.headers?.['user-agent'] || event?.headers?.['User-Agent'] || null;
-  const ip =
-    event?.headers?.['x-forwarded-for'] ||
-    event?.headers?.['X-Forwarded-For'] ||
-    event?.headers?.['x-nf-client-connection-ip'] ||
-    null;
-
-  const botUsername = normalizeBotUsername(
-    process.env.BOT_USERNAME || process.env.BOT_USER || DEFAULT_BOT_USERNAME
-  );
-  const telegramLink = `https://t.me/${botUsername}?start=${encodeURIComponent(token)}`;
+  const requestedQueueNumber = sanitize(body.queueNumber || body.number || '');
+  const requestedTenantId = sanitize(body.tenantId || '');
+  const requestedTenantAlias = sanitize(body.tenant || '');
+  const slug = sanitize(body.slug || event?.queryStringParameters?.slug || '');
+  if (slug && !/^[A-Za-z0-9_-]{1,100}$/.test(slug)) return json(400, { ok: false, error: 'invalid_tenant_slug' }, origin);
+  if (!queueKey || !/^[A-Za-z0-9_-]{1,200}$/.test(queueKey)) {
+    return json(400, { ok: false, error: 'invalid_queue_key' }, origin);
+  }
 
   const init = tryInitAdmin();
+  const dbUrl = String(
+    process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_DB_URL || process.env.FIREBASE_RTDB_URL || ''
+  ).replace(/\/$/, '');
+  if ((!init.ok || !init.admin) && !dbUrl) {
+    return json(500, { ok: false, error: 'no_firebase_config' }, origin);
+  }
+
+  const tenantCandidate = slug || requestedTenantId || requestedTenantAlias || sanitize(pickTenantCandidate(event, body));
 
   let resolved = null;
   if (init.ok && init.admin) {
     if (tenantCandidate) resolved = await resolveTenantIdWithAdmin(init.admin, tenantCandidate);
-    if (!resolved && body.tenantId && isLikelyTenantId(body.tenantId)) {
-      resolved = { tenantId: sanitize(body.tenantId), source: 'body.tenantId' };
-    }
-    if (!resolved && body.slug) {
-      resolved = await resolveTenantIdWithAdmin(init.admin, sanitize(body.slug));
-    }
-  } else {
-    const FIREBASE_DB_URL =
-      process.env.FIREBASE_DATABASE_URL ||
-      process.env.FIREBASE_DB_URL ||
-      process.env.FIREBASE_RTDB_URL ||
-      '';
-    if (FIREBASE_DB_URL) {
-      if (tenantCandidate) resolved = await resolveTenantIdWithRest(FIREBASE_DB_URL, tenantCandidate);
-      if (!resolved && body.tenantId && isLikelyTenantId(body.tenantId)) {
-        resolved = { tenantId: sanitize(body.tenantId), source: 'body.tenantId.rest' };
-      }
-      if (!resolved && body.slug) {
-        resolved = await resolveTenantIdWithRest(FIREBASE_DB_URL, body.slug);
-      }
-    }
+  }
+  if (!resolved && dbUrl && tenantCandidate) {
+    resolved = await resolveTenantIdWithRest(dbUrl, tenantCandidate);
   }
 
   if (!resolved?.tenantId) {
@@ -315,11 +313,44 @@ exports.handler = async function (event) {
   }
 
   const tenantId = resolved.tenantId;
+  if (!isLikelyTenantId(tenantId)) return json(400, { ok: false, error: 'invalid_resolved_tenant' }, origin);
+  if (requestedTenantId && requestedTenantId !== tenantId) {
+    return json(403, { ok: false, error: 'tenant_context_mismatch' }, origin);
+  }
+
+  let queueRecord = null;
+  if (init.ok && init.admin) queueRecord = await getExactQueueWithAdmin(init.admin, tenantId, queueKey);
+  if (!queueRecord && dbUrl) queueRecord = await getExactQueueWithRest(dbUrl, tenantId, queueKey);
+  if (!queueRecord) return json(404, { ok: false, error: 'queue_not_found' }, origin);
+
+  const queueEntry = queueRecord.entry || {};
+  if (queueEntry.tenantId && String(queueEntry.tenantId) !== tenantId) {
+    return json(403, { ok: false, error: 'queue_tenant_mismatch' }, origin);
+  }
+  const actualQueueNumber = sanitize(queueEntry.queueNumber || queueEntry.number || queueEntry.ticketNumber || '');
+  if (requestedQueueNumber && actualQueueNumber && requestedQueueNumber !== actualQueueNumber) {
+    return json(409, { ok: false, error: 'queue_number_mismatch' }, origin);
+  }
+  const queueStatus = sanitize(queueEntry.status || '').toLowerCase().replace(/[\s_-]+/g, '');
+  if (['cancelled', 'canceled', 'noshow', 'skipped'].includes(queueStatus)) {
+    return json(409, { ok: false, error: 'queue_not_active' }, origin);
+  }
+
+  const queueId = sanitize(queueEntry.queueId || queueEntry.id || queueKey);
+  const queueNumber = actualQueueNumber || queueId;
+  const counterId = sanitize(queueEntry.counterId || queueEntry.counter || queueEntry.counter_id || '');
+  const counterName = sanitize(queueEntry.counterName || '');
+  const resolvedSlug = slug || sanitize(queueEntry.slug || '');
+  const token = safeToken();
+  const createdAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+  const botUsername = normalizeBotUsername(process.env.BOT_USERNAME || process.env.BOT_USER || DEFAULT_BOT_USERNAME);
+  const telegramLink = `https://t.me/${botUsername}?start=${encodeURIComponent(token)}`;
 
   const tokenPayload = buildTokenRecord({
     token,
     tenantId,
-    slug,
+    slug: resolvedSlug,
     queueKey,
     queueId,
     queueNumber,
@@ -327,9 +358,6 @@ exports.handler = async function (event) {
     counterName,
     createdAt,
     expiresAt,
-    meta,
-    userAgent,
-    ip,
   });
 
   const tokenPaths = [
@@ -349,7 +377,6 @@ exports.handler = async function (event) {
       return json(200, {
         ok: true,
         link: telegramLink,
-        token,
         createdAt,
         expiresAt,
         tenant: tenantId,
@@ -359,10 +386,9 @@ exports.handler = async function (event) {
         queueNumber,
         persisted: true,
         source: resolved.source,
-        paths: tokenPaths,
       }, origin);
     } catch (err) {
-      console.error('[createTelegramLink] admin write failed, falling back to REST', err?.stack || err);
+      console.error('[createTelegramLink] admin write failed, falling back to REST', err?.name || 'DatabaseError');
     }
   }
 
@@ -403,10 +429,11 @@ exports.handler = async function (event) {
 
   const persisted = restResults.some((r) => r.status === 'fulfilled' && r.value?.ok);
 
+  if (!persisted) return json(502, { ok: false, error: 'token_persist_failed' }, origin);
+
   return json(200, {
     ok: true,
     link: telegramLink,
-    token,
     createdAt,
     expiresAt,
     tenant: tenantId,
@@ -416,7 +443,6 @@ exports.handler = async function (event) {
     queueNumber,
     persisted,
     source: resolved.source,
-    paths: tokenPaths,
-    note: persisted ? 'Written via REST fallback to all paths' : 'REST writes may have failed',
+    note: 'Token persisted using REST fallback',
   }, origin);
 };
