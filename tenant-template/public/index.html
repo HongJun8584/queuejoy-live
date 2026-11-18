@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Queue Joy — Digital Queue System</title>
+  <meta name="description" content="Join the queue instantly. No app needed. Real-time digital queueing."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/queuejoy-ui.css"/>
+  <script src="/queuejoy-ui.js" defer></script>
+  <style>
+    :root{
+      --theme:#8b5cf6;--theme2:#7c3aed;--bg:#f8f7ff;--surface:#fff;--text:#111827;--text-muted:#6b7280;--border:#e5e7eb;
+      --green:#10b981;--red:#ef4444;--radius:16px;--shadow:0 4px 24px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.03);
+      --shadow-lg:0 12px 40px rgba(0,0,0,.1),0 2px 8px rgba(0,0,0,.05);--ease:cubic-bezier(.16,1,.3,1)
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{min-height:100%}
+    body{
+      font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);
+      min-height:100vh;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center
+    }
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px);filter:blur(3px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes successPop{0%{transform:scale(.8);opacity:0}50%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+    @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+    @keyframes slideUp{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(100%)}}
+    .fade-up{animation:fadeUp .5s var(--ease) both}
+    .fade-up-1{animation-delay:50ms}
+    .fade-up-2{animation-delay:120ms}
+    .fade-up-3{animation-delay:200ms}
+    .fade-up-4{animation-delay:300ms}
+    .skeleton{background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:800px 100%;animation:shimmer 1.2s infinite linear;border-radius:8px}
+    .wrap{width:100%;max-width:440px;padding:16px;display:flex;flex-direction:column;gap:14px;min-height:100vh}
+    .header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .header-logo,.header-logo-fallback{width:44px;height:44px;border-radius:12px;flex-shrink:0}
+    .header-logo{object-fit:contain;background:#f3f4f6;display:block}
+    .header-logo-fallback{background:linear-gradient(135deg,var(--theme),var(--theme2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800}
+    .header-info{flex:1;min-width:0}
+    .header-small{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.3px;text-transform:uppercase}
+    .header-title{font-size:16px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hero{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;text-align:center;padding:32px 24px 28px}
+    .hero-logo-wrap{width:88px;height:88px;margin:0 auto 16px;border-radius:50%;overflow:hidden;background:#f9fafb;border:3px solid #f3f4f6;display:flex;align-items:center;justify-content:center}
+    .hero-logo{width:100%;height:100%;object-fit:contain;display:block;background:#f9fafb}
+    .hero-logo-fallback{font-size:36px;font-weight:800;color:var(--theme)}
+    .hero-heading{font-size:22px;font-weight:800;line-height:1.2;margin-bottom:6px;color:var(--text)}
+    .hero-desc{font-size:14px;color:var(--text-muted);line-height:1.5;margin-bottom:24px}
+    .cta-btn{width:100%;padding:16px 24px;border:none;border-radius:14px;font-family:inherit;font-size:16px;font-weight:700;color:#fff;cursor:pointer;position:relative;overflow:hidden;transition:all .2s var(--ease);display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--theme),var(--theme2));box-shadow:0 6px 20px color-mix(in srgb,var(--theme) 35%,transparent)}
+    .cta-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px color-mix(in srgb,var(--theme) 45%,transparent)}
+    .cta-btn:active{transform:scale(.97)}
+    .cta-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .cta-btn .spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+    .cta-btn .icon{font-size:18px}
+    .status-line{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-muted);padding:4px 0}
+    .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .status-dot.live{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.4)}
+    .status-dot.loading{background:#f59e0b;animation:pulse 1.2s infinite}
+    .status-dot.offline{background:var(--red)}
+    .success-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px}
+    .success-card{background:var(--surface);border-radius:20px;padding:36px 28px;text-align:center;max-width:360px;width:100%;animation:successPop .4s var(--ease) both;box-shadow:var(--shadow-lg)}
+    .success-icon{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--green),#14b8a6);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px}
+    .success-num{font-size:32px;font-weight:800;color:var(--theme);margin:8px 0 4px}
+    .success-sub{font-size:14px;color:var(--text-muted)}
+    .ad-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+    .ad-label{padding:8px 16px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+    .ad-media,.ad-media-video{width:100%;max-height:200px;object-fit:cover;display:block;background:#000}
+    .ad-text{padding:10px 16px;font-size:13px;color:var(--text-muted);line-height:1.4}
+    .ad-link{text-decoration:none;color:inherit;display:block}
+    .toast-container{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;width:calc(100% - 32px);max-width:400px;pointer-events:none}
+    .toast{pointer-events:auto;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:600;color:#fff;animation:slideUp .3s var(--ease) both;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+    .toast.success{background:var(--green)}
+    .toast.error{background:var(--red)}
+    .toast.info{background:#3b82f6}
+    .toast-exit{animation:slideDown .2s ease-in both}
+    .footer{text-align:center;padding:12px 0 24px;font-size:11px;color:#d1d5db}
+    .footer a{color:var(--theme);text-decoration:none;font-weight:600}
+    .skel-header{height:68px;border-radius:var(--radius)}
+    .skel-hero{height:300px;border-radius:var(--radius)}
+    .skel-ad{height:100px;border-radius:var(--radius)}
+    @media(max-width:480px){.wrap{padding:12px}}
+  </style>
+</head>
+<body class="qj-page qj-index">
+<div class="wrap" id="app">
+  <div id="skel" class="fade-up">
+    <div class="skeleton skel-header" style="margin-bottom:14px"></div>
+    <div class="skeleton skel-hero" style="margin-bottom:14px"></div>
+    <div class="skeleton skel-ad"></div>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="header fade-up fade-up-1" id="headerCard">
+      <div id="headerLogoWrap"></div>
+      <div class="header-info">
+        <div class="header-small" id="smallTopText">Queue Joy</div>
+        <div class="header-title" id="headerTitle">Loading...</div>
+      </div>
+    </div>
+
+    <div class="status-line fade-up fade-up-2" id="statusLine">
+      <span class="status-dot loading"></span>
+      <span id="statusText">Syncing...</span>
+    </div>
+
+    <div class="hero fade-up fade-up-2" id="heroCard">
+      <div class="hero-logo-wrap" id="centerLogoWrap">
+        <span class="hero-logo-fallback" id="centerLogoFallback">🎫</span>
+      </div>
+      <div class="hero-heading" id="mainHeading">Get your queue number</div>
+      <div class="hero-desc" id="introText">Real-time queueing system. Mobile-friendly. No app needed.</div>
+      <button class="cta-btn" id="ctaBtn" disabled>
+        <span class="icon">🎫</span>
+        <span id="ctaBtnText">Loading...</span>
+      </button>
+    </div>
+
+    <div class="ad-card fade-up fade-up-3" id="adCard" style="display:none">
+      <div class="ad-label">Advertisement</div>
+      <div id="adContent"></div>
+      <div class="ad-text" id="adText" style="display:none"></div>
+    </div>
+
+    <div class="footer fade-up fade-up-4">Powered by <a href="https://helloqueuejoy.netlify.app" target="_blank" rel="noopener">Queue Joy</a></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<div id="successOverlay" style="display:none"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import { getDatabase, ref, onValue, get, set, push, runTransaction } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
+  authDomain: "queuejoy-live.firebaseapp.com",
+  databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "queuejoy-live",
+  storageBucket: "queuejoy-live.firebasestorage.app",
+  messagingSenderId: "882772437195",
+  appId: "1:882772437195:web:60a2f1081a139d0810d34e",
+  measurementId: "G-KWBELWRC5M"
+};
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db = getDatabase(app);
+const $ = id => document.getElementById(id);
+
+const state = {
+  slug: '',
+  tenantId: '',
+  config: {},
+  counters: {},
+  configLoaded: false,
+  countersLoaded: false,
+  connected: false,
+  isJoining: false,
+  sessionId: '',
+  liveUnsubs: [],
+  queueMonitorUnsub: null,
+
+  // Ad runtime state
+  adRetryTimer: null,
+  adRetryCount: 0,
+  adLastGood: null,
+  adLastKey: '',
+  adRenderSeq: 0
+};
+
+function safeString(value, fallback = '') {
+  if (typeof value === 'string') {
+    const s = value.trim();
+    return s || fallback;
+  }
+  return fallback;
+}
+function getPath(obj, path) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const parts = String(path).split('.');
+  let cur = obj;
+  for (const part of parts) {
+    if (!cur || typeof cur !== 'object') return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+function pickFirst(...values) {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
+function darkenHex(hex, amount = 0.12) {
+  if (typeof hex !== 'string') return '#7c3aed';
+  const m = hex.trim().match(/^#([0-9a-f]{6})$/i);
+  if (!m) return hex.trim() || '#7c3aed';
+  const n = parseInt(m[1], 16);
+  const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * (1 - amount))));
+  const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * (1 - amount))));
+  const b = Math.max(0, Math.min(255, Math.round((n & 255) * (1 - amount))));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function getSessionId() {
+  const key = 'qj_session_id';
+  try {
+    let v = sessionStorage.getItem(key);
+    if (!v) {
+      v = (crypto?.randomUUID?.() || `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+      sessionStorage.setItem(key, v);
+    }
+    return v;
+  } catch {
+    return `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+state.sessionId = getSessionId();
+
+function isHttpUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('/');
+}
+function isDataImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  return /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/i.test(lower) || /^data:image\//i.test(lower);
+}
+function isDataVideoUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  return /^data:video\//i.test(lower);
+}
+function isSafeImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
+  return isHttpUrl(url) || isDataImageUrl(url);
+}
+function isSafeVideoUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:')) return false;
+  if (isDataVideoUrl(url)) return false; // blocked on purpose to avoid heavy base64 video payloads
+  return isHttpUrl(url);
+}
+function isActiveCounter(counter) {
+  if (!counter || typeof counter !== 'object') return false;
+  const active = counter.active;
+  if (active === undefined || active === null) return true;
+  if (typeof active === 'boolean') return active;
+  if (typeof active === 'number') return active !== 0;
+  const s = String(active).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'yes' || s === 'on';
+}
+function showToast(message, type = 'info', ms = 3500) {
+  const host = $('toastContainer');
+  if (!host) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  host.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 220);
+  }, ms);
+}
+function makeHeaderFallback(name) {
+  const div = document.createElement('div');
+  div.className = 'header-logo-fallback';
+  div.textContent = (safeString(name, 'Q')[0] || 'Q').toUpperCase();
+  return div;
+}
+function makeCenterFallback() {
+  const span = document.createElement('span');
+  span.className = 'hero-logo-fallback';
+  span.textContent = '🎫';
+  return span;
+}
+function setHeaderLogo(url, name) {
+  const wrap = $('headerLogoWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (isSafeImageUrl(url)) {
+    const img = document.createElement('img');
+    img.className = 'header-logo';
+    img.src = url;
+    img.alt = 'Logo';
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.onerror = () => {
+      if (wrap.contains(img)) {
+        wrap.innerHTML = '';
+        wrap.appendChild(makeHeaderFallback(name));
+      }
+    };
+    wrap.appendChild(img);
+  } else {
+    wrap.appendChild(makeHeaderFallback(name));
+  }
+}
+function setCenterLogo(url) {
+  const wrap = $('centerLogoWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (isSafeImageUrl(url)) {
+    const img = document.createElement('img');
+    img.className = 'hero-logo';
+    img.src = url;
+    img.alt = 'Logo';
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.onerror = () => {
+      if (wrap.contains(img)) {
+        wrap.innerHTML = '';
+        wrap.appendChild(makeCenterFallback());
+      }
+    };
+    wrap.appendChild(img);
+  } else {
+    wrap.appendChild(makeCenterFallback());
+  }
+}
+
+function clearAdRetryTimer() {
+  if (state.adRetryTimer) {
+    clearTimeout(state.adRetryTimer);
+    state.adRetryTimer = null;
+  }
+}
+
+function showAdPanel() {
+  const panel = $('adCard');
+  if (panel) panel.style.display = '';
+}
+
+function hideAdPanel() {
+  const panel = $('adCard');
+  if (panel) panel.style.display = 'none';
+}
+
+function rememberGoodAd(adData, adText) {
+  state.adLastGood = {
+    adData: JSON.parse(JSON.stringify(adData || null)),
+    adText: safeString(adText, ''),
+    at: Date.now()
+  };
+  state.adRetryCount = 0;
+}
+
+function retryAdRender() {
+  clearAdRetryTimer();
+  if (state.adRetryCount >= 4) return;
+  state.adRetryCount += 1;
+  state.adRetryTimer = setTimeout(() => {
+    refreshAdFromTenantConfig(true).catch(() => {});
+  }, 650 * state.adRetryCount);
+}
+
+function showAd(adData, adText) {
+  const panel = $('adCard');
+  const container = $('adContent');
+  const textEl = $('adText');
+  if (!panel || !container) return;
+
+  if (state.adLazyObserver) { state.adLazyObserver.disconnect(); state.adLazyObserver = null; }
+  state.adRenderSeq += 1;
+  const renderSeq = state.adRenderSeq;
+
+  clearAdRetryTimer();
+  container.innerHTML = '';
+  if (textEl) {
+    textEl.style.display = 'none';
+    textEl.textContent = '';
+  }
+
+  if (!adData) {
+    if (state.adLastGood?.adData) {
+      adData = state.adLastGood.adData;
+      adText = state.adLastGood.adText;
+    } else {
+      hideAdPanel();
+      return;
+    }
+  }
+
+  let url = null;
+  let linkHref = null;
+  let kind = 'auto';
+
+  if (typeof adData === 'string') {
+    url = adData.trim();
+  } else if (typeof adData === 'object') {
+    url = pickFirst(adData.image, adData.video, adData.url, adData.src);
+    linkHref = pickFirst(adData.link, adData.href);
+    kind = adData.kind || (adData.video ? 'video' : adData.image ? 'image' : 'auto');
+    if (!adText) adText = pickFirst(adData.text, adData.description);
+  }
+
+  if (!url) {
+    if (state.adLastGood?.adData) {
+      url = pickFirst(
+        state.adLastGood.adData.image,
+        state.adLastGood.adData.video,
+        state.adLastGood.adData.url,
+        state.adLastGood.adData.src
+      );
+      linkHref = pickFirst(state.adLastGood.adData.link, state.adLastGood.adData.href);
+      kind = state.adLastGood.adData.kind || kind;
+      adText = adText || state.adLastGood.adText;
+    }
+  }
+
+  if (!url) {
+    hideAdPanel();
+    return;
+  }
+
+  if (adText && textEl) {
+    textEl.textContent = adText;
+    textEl.style.display = '';
+  }
+
+  const markVisible = () => {
+    if (renderSeq !== state.adRenderSeq) return;
+    showAdPanel();
+    rememberGoodAd({ url, link: linkHref, kind }, adText || '');
+  };
+
+  const failAndRetry = () => {
+    if (renderSeq !== state.adRenderSeq) return;
+    if (state.adLastGood?.adData) {
+      showAd(state.adLastGood.adData, state.adLastGood.adText);
+      return;
+    }
+    retryAdRender();
+  };
+
+  if (/youtube\.com|youtu\.be|vimeo\.com/i.test(url)) {
+    let embedSrc = url;
+    try {
+      if (/youtube\.com\/watch\?v=/.test(url)) {
+        const vid = new URL(url).searchParams.get('v');
+        if (vid) embedSrc = `https://www.youtube.com/embed/${vid}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1&loop=1&playlist=${encodeURIComponent(vid)}`;
+      } else if (/youtu\.be\//.test(url)) {
+        const id = url.split('youtu.be/')[1].split(/[?#]/)[0];
+        embedSrc = `https://www.youtube.com/embed/${id}?rel=0&autoplay=1&mute=1&playsinline=1&controls=1&loop=1&playlist=${encodeURIComponent(id)}`;
+      } else if (/vimeo\.com/i.test(url)) {
+        const id = url.split('/').filter(Boolean).pop().split(/[?#]/)[0];
+        embedSrc = `https://player.vimeo.com/video/${id}?autoplay=1&muted=1&playsinline=1&loop=1`;
+      }
+    } catch {}
+
+    showAdPanel();
+    container.innerHTML = `<div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;background:#000">
+      <iframe
+        src="${embedSrc}"
+        title="Promotion video"
+        loading="lazy"
+        referrerpolicy="strict-origin-when-cross-origin"
+        frameborder="0"
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowfullscreen
+        style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>`;
+    markVisible();
+    return;
+  }
+
+  const looksLikeVideo =
+    kind === 'video' ||
+    (isSafeVideoUrl(url) && /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(url));
+
+  if (looksLikeVideo) {
+    const v = document.createElement('video');
+    v.className = 'ad-media-video';
+    v.autoplay = true;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.preload = 'none';
+    v.controls = false;
+    v.setAttribute('muted', '');
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+
+    const playNow = () => {
+      if (renderSeq !== state.adRenderSeq) return;
+      v.preload = 'metadata';
+      v.play().catch(() => {});
+    };
+
+    v.addEventListener('loadedmetadata', () => {
+      markVisible();
+    });
+    v.addEventListener('canplay', () => {
+      markVisible();
+    });
+    v.addEventListener('playing', markVisible);
+    v.addEventListener('ended', () => {
+      try { v.currentTime = 0; } catch {}
+      playNow();
+    });
+    v.addEventListener('error', failAndRetry);
+
+    showAdPanel();
+    v.src = url;
+    container.appendChild(v);
+    if ('IntersectionObserver' in window) {
+      state.adLazyObserver = new IntersectionObserver((entries, observer) => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer.disconnect();
+          state.adLazyObserver = null;
+          playNow();
+        }
+      }, { rootMargin: '240px' });
+      state.adLazyObserver.observe(panel);
+    } else {
+      playNow();
+    }
+    return;
+  }
+
+  const isImage = isSafeImageUrl(url);
+  if (isImage) {
+    showAdPanel();
+    const wrapper = linkHref ? document.createElement('a') : document.createElement('div');
+    if (linkHref) {
+      wrapper.href = linkHref;
+      wrapper.target = '_blank';
+      wrapper.rel = 'noopener noreferrer';
+      wrapper.className = 'ad-link';
+    }
+
+    const img = document.createElement('img');
+    img.className = 'ad-media';
+    img.alt = 'Promotion';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+    img.src = url;
+
+    const onReady = () => {
+      if (renderSeq !== state.adRenderSeq) return;
+      markVisible();
+    };
+
+    img.onload = onReady;
+    img.onerror = failAndRetry;
+
+    wrapper.appendChild(img);
+    container.appendChild(wrapper);
+
+    if (img.complete && img.naturalWidth > 0) {
+      onReady();
+    } else {
+      setTimeout(() => {
+        if (img.complete && img.naturalWidth > 0) onReady();
+      }, 150);
+    }
+    return;
+  }
+
+  failAndRetry();
+}
+
+function normalizeAdData(cfg) {
+  const raw = cfg || {};
+  const business = raw.businessSettings && typeof raw.businessSettings === 'object' ? raw.businessSettings : null;
+  const adPanel =
+    (raw.adPanel && typeof raw.adPanel === 'object' ? raw.adPanel : null) ||
+    (business?.adPanel && typeof business.adPanel === 'object' ? business.adPanel : null);
+  const ad =
+    (raw.ad && typeof raw.ad === 'object' ? raw.ad : null) ||
+    (business?.ad && typeof business.ad === 'object' ? business.ad : null);
+
+  const imageUrl = pickFirst(
+    adPanel?.image,
+    ad?.image,
+    raw.adImage,
+    business?.adImage
+  );
+  const videoUrl = pickFirst(
+    adPanel?.video,
+    ad?.video,
+    raw.adVideo,
+    business?.adVideo
+  );
+  const genericUrl = pickFirst(
+    adPanel?.url, adPanel?.src,
+    ad?.url, ad?.src,
+    raw.adUrl, raw.adSrc,
+    business?.adUrl, business?.adSrc
+  );
+  const link = pickFirst(
+    adPanel?.link, adPanel?.href,
+    ad?.link, ad?.href,
+    raw.adLink, raw.adHref,
+    business?.adLink, business?.adHref
+  );
+  const text = pickFirst(
+    adPanel?.text, adPanel?.description,
+    ad?.text, ad?.description,
+    raw.adText,
+    business?.adText
+  );
+
+  if (imageUrl) return { url: imageUrl, link, text, kind: 'image' };
+  if (videoUrl) return { url: videoUrl, link, text, kind: 'video' };
+  if (genericUrl) {
+    const looksLikeVideo = /\.(mp4|webm|ogg|mov)([?#].*)?$/i.test(genericUrl) || /youtube\.com|youtu\.be|vimeo\.com/i.test(genericUrl);
+    return { url: genericUrl, link, text, kind: looksLikeVideo ? 'video' : 'image' };
+  }
+  return null;
+}
+
+async function refreshAdFromTenantConfig(force = false) {
+  if (!db || !state.tenantId) return;
+  try {
+    const snap = await get(ref(db, `tenants/${state.tenantId}/public/config`));
+    if (snap?.exists?.()) {
+      const cfg = snap.val() || {};
+      const ad = normalizeAdData(cfg);
+      if (ad) {
+        state.adLastKey = JSON.stringify(ad);
+        showAd(ad, ad.text || null);
+        return;
+      }
+    }
+
+    if (force && state.adLastGood?.adData) {
+      showAd(state.adLastGood.adData, state.adLastGood.adText);
+      return;
+    }
+
+    if (!state.adLastGood?.adData) {
+      hideAdPanel();
+    }
+  } catch {
+    if (force && state.adLastGood?.adData) {
+      showAd(state.adLastGood.adData, state.adLastGood.adText);
+    }
+  }
+}
+
+function updateStatusLine() {
+  const dot = $('statusLine')?.querySelector('.status-dot');
+  const txt = $('statusText');
+  if (!dot || !txt) return;
+  if (!state.configLoaded || !state.countersLoaded) {
+    dot.className = 'status-dot loading';
+    txt.textContent = 'Syncing tenant...';
+    return;
+  }
+  if (state.connected) {
+    dot.className = 'status-dot live';
+    txt.textContent = 'Live';
+  } else {
+    dot.className = 'status-dot offline';
+    txt.textContent = 'Offline — reconnecting...';
+  }
+}
+
+function applyConfig(cfg) {
+  state.config = cfg || {};
+  if (window.QueueJoyUI) window.QueueJoyUI.applyTenantConfig(state.config);
+  const business = cfg?.businessSettings && typeof cfg.businessSettings === 'object' ? cfg.businessSettings : {};
+
+  const themeColor = pickFirst(
+    getPath(business, 'theme.color'),
+    getPath(cfg, 'theme.color'),
+    '#8b5cf6'
+  );
+
+  document.documentElement.style.setProperty('--theme', themeColor);
+  document.documentElement.style.setProperty('--theme2', darkenHex(themeColor, 0.12));
+
+  const displayName = pickFirst(
+    getPath(business, 'displayName'),
+    getPath(cfg, 'displayName'),
+    getPath(business, 'name'),
+    getPath(cfg, 'businessName'),
+    getPath(cfg, 'name'),
+    state.slug,
+    'Queue Joy'
+  );
+
+  document.title = `${displayName} — Queue`;
+  $('headerTitle').textContent = displayName;
+  $('smallTopText').textContent = pickFirst(
+    getPath(business, 'smallTextOnTop'),
+    getPath(cfg, 'smallTextOnTop'),
+    'Queue Joy'
+  );
+
+  setHeaderLogo(pickFirst(
+    getPath(business, 'logoUrl'),
+    getPath(business, 'logo'),
+    getPath(cfg, 'logoUrl'),
+    getPath(cfg, 'logo'),
+    getPath(cfg, 'theme.logo'),
+    getPath(cfg, 'headerLogoUrl'),
+    getPath(cfg, 'topLogoUrl'),
+    getPath(cfg, 'headerLogo')
+  ), displayName);
+
+  setCenterLogo(pickFirst(
+    getPath(business, 'centerLogoUrl'),
+    getPath(business, 'centerLogo'),
+    getPath(cfg, 'centerLogoUrl'),
+    getPath(cfg, 'centerLogo'),
+    getPath(cfg, 'heroLogoUrl'),
+    getPath(cfg, 'heroLogo')
+  ));
+
+  $('mainHeading').textContent = pickFirst(
+    getPath(business, 'mainHeading'),
+    getPath(cfg, 'mainHeading'),
+    'Get your queue number'
+  );
+
+  $('introText').textContent = pickFirst(
+    getPath(business, 'description'),
+    getPath(cfg, 'description'),
+    'Real-time queueing system. Mobile-friendly. No app needed.'
+  );
+
+  if (!state.isJoining) {
+    $('ctaBtnText').textContent = pickFirst(
+      getPath(business, 'buttonText'),
+      getPath(cfg, 'buttonText'),
+      'Get your queue number'
+    );
+  }
+
+  // Ad panel: render from config, but keep last known good ad if config momentarily comes through without it.
+  const ad = normalizeAdData(cfg);
+  if (ad) {
+    showAd(ad, ad.text || null);
+  } else if (state.adLastGood?.adData) {
+    showAd(state.adLastGood.adData, state.adLastGood.adText);
+  } else {
+    $('adCard') && ($('adCard').style.display = 'none');
+  }
+
+  // Small safety retry so the ad is present even when the first config read arrives before media is ready.
+  if (ad || state.adLastGood?.adData) {
+    clearAdRetryTimer();
+    state.adRetryTimer = setTimeout(() => {
+      refreshAdFromTenantConfig(true).catch(() => {});
+    }, 900);
+  }
+}
+
+function getActiveCounters() {
+  return Object.entries(state.counters || {})
+    .filter(([, counter]) => isActiveCounter(counter))
+    .sort((a, b) => {
+      const ao = Number(getPath(a[1], 'order') ?? 0) || 0;
+      const bo = Number(getPath(b[1], 'order') ?? 0) || 0;
+      return ao - bo;
+    })
+    .map(([id, counter]) => ({ id, ...counter, name: safeString(counter.name || counter.label || counter.displayName || id, id) }));
+}
+
+function updateCtaState() {
+  const btn = $('ctaBtn');
+  const txt = $('ctaBtnText');
+  if (!btn || !txt) return;
+  if (!state.configLoaded || !state.countersLoaded) {
+    btn.disabled = true;
+    txt.textContent = 'Loading...';
+    return;
+  }
+  const activeCounters = getActiveCounters();
+  if (activeCounters.length === 0) {
+    btn.disabled = true;
+    txt.textContent = 'No active counters right now';
+    return;
+  }
+  btn.disabled = state.isJoining;
+  if (!state.isJoining) txt.textContent = pickFirst(getPath(state.config, 'buttonText'), 'Get your queue number');
+}
+
+function cleanupListeners() {
+  while (state.liveUnsubs.length) {
+    const unsub = state.liveUnsubs.pop();
+    try { unsub && unsub(); } catch {}
+  }
+  if (state.queueMonitorUnsub) {
+    try { state.queueMonitorUnsub(); } catch {}
+    state.queueMonitorUnsub = null;
+  }
+  clearAdRetryTimer();
+}
+
+function isFinalQueueStatus(status) {
+  const s = safeString(status).toLowerCase();
+  return ['completed', 'done', 'served', 'finished', 'closed', 'resolved'].includes(s);
+}
+
+async function recordServiceCompleted({ queueKey, queueData, completedAt }) {
+  const dedupeKey = `qj_service_event:${state.tenantId}:${queueKey}`;
+  try { if (sessionStorage.getItem(dedupeKey) === '1') return; } catch {}
+  const endAt = Number(completedAt || Date.now());
+  const startedAt = Number(queueData?.serviceStartedAt || queueData?.startedAt || queueData?.joinedAt || queueData?.createdAt || endAt);
+  const serviceMs = Math.max(0, endAt - startedAt);
+  const payload = {
+    type: 'service_completed',
+    serviceMs,
+    startedAt,
+    completedAt: endAt,
+    counterId: queueData?.counterId || '',
+    counter: queueData?.counter || queueData?.counterName || '',
+    queueId: queueData?.queueId || queueData?.queueNumber || queueKey || '',
+    queueNumber: queueData?.queueNumber || queueData?.number || '',
+    tenantId: state.tenantId,
+    slug: state.slug,
+    timestamp: endAt,
+    sessionId: queueData?.sessionId || state.sessionId,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform || '',
+    source: 'index.html'
+  };
+  const eventRef = push(ref(db, `tenants/${state.tenantId}/analytics/serviceEvents`));
+  await set(eventRef, payload);
+  try { sessionStorage.setItem(dedupeKey, '1'); } catch {}
+}
+
+function watchQueueForCompletion(queueKey) {
+  if (state.queueMonitorUnsub) {
+    try { state.queueMonitorUnsub(); } catch {}
+    state.queueMonitorUnsub = null;
+  }
+  const queueRef = ref(db, `tenants/${state.tenantId}/queue/${queueKey}`);
+  state.queueMonitorUnsub = onValue(queueRef, snap => {
+    if (!snap.exists()) return;
+    const data = snap.val() || {};
+    if (isFinalQueueStatus(data.status) || data.completedAt || data.serviceCompletedAt) {
+      const completedAt = Number(data.completedAt || data.serviceCompletedAt || Date.now());
+      recordServiceCompleted({ queueKey, queueData: data, completedAt })
+        .catch(err => console.error('service analytics write failed', err));
+    }
+  }, err => { console.error('queue monitor error', err); });
+  state.liveUnsubs.push(state.queueMonitorUnsub);
+}
+
+function showSuccess(queueNumber, queueKey) {
+  const host = $('successOverlay');
+  host.style.display = 'block';
+  host.innerHTML = `
+    <div class="success-overlay">
+      <div class="success-card">
+        <div class="success-icon">✓</div>
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:4px">Your queue number</div>
+        <div class="success-num">${queueNumber}</div>
+        <div class="success-sub">Redirecting to status page...</div>
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const url = new URL('/status.html', window.location.origin);
+    url.searchParams.set('queueId', queueKey);
+    url.searchParams.set('queueKey', queueKey);
+    url.searchParams.set('slug', state.slug);
+    url.searchParams.set('tenantId', state.tenantId);
+    url.searchParams.set('queueNumber', queueNumber);
+    window.location.replace(url.toString());
+  }, 1200);
+}
+
+async function resolveTenantIdOnce(slug) {
+  const response = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}&t=${Date.now()}`, {
+    method: 'GET', credentials: 'same-origin', cache: 'no-store'
+  });
+  if (!response.ok) throw new Error(`Tenant lookup failed (${response.status})`);
+  const data = await response.json().catch(() => null);
+  const tenantId = safeString(data?.tenantId || '', '');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(tenantId)) throw new Error('Invalid tenant returned');
+  return tenantId;
+}
+
+function getSlugFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  let slug = safeString(params.get('slug') || params.get('tenant') || params.get('tenantSlug'));
+  if (slug) return slug;
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+  slug = path.find(p => p && !p.includes('.html') && !p.includes('.'));
+  return safeString(slug);
+}
+
+async function bootstrap() {
+  const slug = getSlugFromLocation();
+  if (!slug) {
+    $('authOverlay')?.style && ($('authOverlay').style.display = 'none');
+    showToast('Missing tenant slug', 'error');
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(slug)) {
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('statusText').textContent = 'Invalid business link';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
+    return;
+  }
+  state.slug = slug;
+  window.__TENANT_SLUG = slug;
+
+  let tenantId;
+  try {
+    tenantId = await resolveTenantIdOnce(slug);
+  } catch (err) {
+    console.error(err);
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('content').style.flexDirection = 'column';
+    $('content').style.gap = '14px';
+    $('statusText').textContent = 'Tenant lookup failed';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
+    return;
+  }
+
+  state.tenantId = tenantId;
+  window.__TENANT_ID = tenantId;
+
+  const configRef = ref(db, `tenants/${tenantId}/public/config`);
+  const countersRef = ref(db, `tenants/${tenantId}/counters`);
+
+  let configSnap, countersSnap;
+  try {
+    [configSnap, countersSnap] = await Promise.all([get(configRef), get(countersRef)]);
+  } catch (err) {
+    console.error(err);
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('content').style.flexDirection = 'column';
+    $('content').style.gap = '14px';
+    $('statusText').textContent = 'Unable to load tenant data';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
+    return;
+  }
+
+  if (!configSnap.exists()) {
+    $('skel').style.display = 'none';
+    $('content').style.display = 'flex';
+    $('content').style.flexDirection = 'column';
+    $('content').style.gap = '14px';
+    $('statusText').textContent = 'Configuration unavailable';
+    $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
+    return;
+  }
+
+  state.configLoaded = true;
+  state.countersLoaded = true;
+  state.config = configSnap.val() || {};
+  state.counters = countersSnap.exists() ? (countersSnap.val() || {}) : {};
+
+  applyConfig(state.config);
+  updateStatusLine();
+  updateCtaState();
+
+  $('skel').style.display = 'none';
+  $('content').style.display = 'flex';
+  $('content').style.flexDirection = 'column';
+  $('content').style.gap = '14px';
+
+  state.liveUnsubs.push(onValue(configRef, snap => {
+    if (!snap.exists()) return;
+    state.config = snap.val() || {};
+    applyConfig(state.config);
+    updateCtaState();
+  }, err => console.error('config listener error', err)));
+
+  state.liveUnsubs.push(onValue(countersRef, snap => {
+    state.counters = snap.exists() ? (snap.val() || {}) : {};
+    state.countersLoaded = true;
+    updateStatusLine();
+    updateCtaState();
+  }, err => console.error('counters listener error', err)));
+
+  state.liveUnsubs.push(onValue(ref(db, '.info/connected'), snap => {
+    state.connected = snap.val() === true;
+    updateStatusLine();
+  }));
+
+  updateStatusLine();
+  updateCtaState();
+
+  // Final ad safety pass after the page settles.
+  setTimeout(() => refreshAdFromTenantConfig(true).catch(() => {}), 1200);
+}
+
+window.addEventListener('pagehide', cleanupListeners);
+window.addEventListener('beforeunload', cleanupListeners);
+window.addEventListener('pageshow', () => {
+  if (state.tenantId) setTimeout(() => refreshAdFromTenantConfig(true).catch(() => {}), 250);
+});
+
+$('ctaBtn').addEventListener('click', async e => {
+  e.preventDefault();
+  if (state.isJoining) return;
+  const activeCounters = getActiveCounters();
+  if (activeCounters.length === 0) {
+    showToast('No active counters available.', 'error');
+    return;
+  }
+  state.isJoining = true;
+  updateCtaState();
+
+  const btn = $('ctaBtn');
+  const icon = btn.querySelector('.icon');
+  const originalIcon = icon ? icon.textContent : '🎫';
+  if (icon) icon.innerHTML = '<span class="spinner"></span>';
+  $('ctaBtnText').textContent = 'Getting your number...';
+
+  try {
+    const rrRef = ref(db, `tenants/${state.tenantId}/queueState/lastCounterIndex`);
+    await runTransaction(rrRef, cur => (Number(cur) || 0) + 1);
+    const rrSnap = await get(rrRef);
+    const rr = Number(rrSnap.val()) || 1;
+
+    const chosen = activeCounters[(rr - 1) % activeCounters.length] || activeCounters[0];
+    if (!chosen) throw new Error('No active counter could be selected');
+
+    const issuedRef = ref(db, `tenants/${state.tenantId}/counters/${chosen.id}/lastIssued`);
+    await runTransaction(issuedRef, cur => (Number(cur) || 0) + 1);
+    const issuedSnap = await get(issuedRef);
+    const nextNumber = Number(issuedSnap.val()) || 1;
+
+    const prefix = safeString(chosen.prefix, 'Q');
+    const queueNumber = `${prefix}${String(nextNumber).padStart(3, '0')}`;
+
+    const queueKey = push(ref(db, `tenants/${state.tenantId}/queue`)).key;
+    if (!queueKey) throw new Error('Could not create queue entry');
+
+    const now = Date.now();
+    const payload = {
+      queueKey, queueId: queueNumber, queueNumber, number: queueNumber, numberVal: nextNumber,
+      prefix, counterId: chosen.id, counter: chosen.name || chosen.label || chosen.displayName || chosen.id,
+      counterName: chosen.name || chosen.label || chosen.displayName || chosen.id, counterOrder: Number(chosen.order) || 0,
+      status: 'waiting', createdAt: now, updatedAt: now, joinedAt: now, slug: state.slug, tenantId: state.tenantId,
+      sessionId: state.sessionId, userAgent: navigator.userAgent, platform: navigator.platform || '', source: 'index.html'
+    };
+
+    await set(ref(db, `tenants/${state.tenantId}/queue/${queueKey}`), payload);
+
+    try {
+      sessionStorage.setItem('qj_last_queue_key', queueKey);
+      sessionStorage.setItem('qj_last_queue_number', queueNumber);
+      sessionStorage.setItem('qj_last_tenant_id', state.tenantId);
+    } catch {}
+
+    watchQueueForCompletion(queueKey);
+    showSuccess(queueNumber, queueKey);
+  } catch (err) {
+    console.error('join queue error', err);
+    showToast(err?.message || 'Failed to get queue number. Try again.', 'error');
+    if (icon) icon.textContent = originalIcon;
+  } finally {
+    state.isJoining = false;
+    updateCtaState();
+  }
+});
+
+bootstrap().catch(err => {
+  console.error(err);
+  $('skel').style.display = 'none';
+  $('content').style.display = 'flex';
+  $('content').style.flexDirection = 'column';
+  $('content').style.gap = '14px';
+  $('statusText').textContent = 'Unexpected error';
+  $('statusLine').querySelector('.status-dot').className = 'status-dot offline';
+});
+</script>
+</body>
+</html>

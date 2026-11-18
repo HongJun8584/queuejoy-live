@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Queue Joy - Snake Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/queuejoy-favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/queuejoy-ui.css" />
+  <script src="/queuejoy-ui.js" defer></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
+    canvas { border-radius: 8px; display:block; touch-action: none; }
+    /* when locked, prevent scroll on mobile & desktop */
+    .no-scroll { overflow: hidden !important; height: 100% !important; touch-action: none !important; }
+    #tenant-slug-badge{position:fixed;right:12px;bottom:12px;background:#111827;color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;z-index:99999;opacity:.95}
+    #tenant-slug-badge small{opacity:.9;font-weight:600}
+  </style>
+</head>
+<body class="qj-page qj-game min-h-screen flex flex-col items-center justify-center p-4">
+  <div id="tenant-slug-badge" style="display:none"><small>slug</small> <span id="tenant-slug-value" style="font-weight:700;margin-left:6px"></span> <span id="tenant-id-value" style="margin-left:8px;font-size:11px;opacity:.9"></span></div>
+
+  <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4 fade-in">
+    <div class="text-center space-y-2">
+      <div class="w-12 h-12 bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full flex items-center justify-center mx-auto">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M15 14h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+      <h1 class="text-xl font-bold text-indigo-800">Snake Game</h1>
+      <p class="text-xs text-gray-500 italic">Play while you wait — we’ll call you when your number is up.</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 text-center">
+      <div class="bg-gray-50 rounded-lg p-2">
+        <p class="text-xs text-gray-600">Score</p>
+        <p id="score" class="text-sm font-bold text-gray-800">0</p>
+      </div>
+      <div class="bg-gray-50 rounded-lg p-2">
+        <p class="text-xs text-gray-600">High Score</p>
+        <p id="highScore" class="text-sm font-bold text-gray-800">0</p>
+      </div>
+    </div>
+
+    <div id="gameBoard" class="relative w-full" style="padding-top:100%; position:relative;">
+      <canvas id="gameCanvas" style="position:absolute; left:0; top:0; width:100%; height:100%"></canvas>
+    </div>
+
+    <div id="gameOver" class="hidden bg-red-50 border-2 border-red-200 rounded-xl p-3 text-center">
+      <div class="text-2xl mb-1">😢</div>
+      <p class="text-red-800 font-bold">Game Over!</p>
+      <div id="finalStats" class="text-red-700 text-xs"></div>
+    </div>
+
+    <div class="space-y-2">
+      <button id="newGameBtn" class="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-500 text-white font-semibold rounded-xl shadow hover:scale-105 transition-all duration-300">🎮 New Game</button>
+      <button id="backBtn" class="w-full py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">← Back to Status</button>
+      <div id="inlineError" class="hidden text-red-600 text-sm text-center bg-red-50 border border-red-200 rounded-lg p-2"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getDatabase, ref, onValue, off, get } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+    // --- use your site Firebase config (same as other pages) ---
+    const siteFirebaseConfig = {
+        apiKey: "AIzaSyBYJlAo0HcnlifELg99BgLBU6U_OCnUoH8",
+        authDomain: "queuejoy-live.firebaseapp.com",
+        databaseURL: "https://queuejoy-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "queuejoy-live",
+        storageBucket: "queuejoy-live.firebasestorage.app",
+        messagingSenderId: "882772437195",
+        appId: "1:882772437195:web:60a2f1081a139d0810d34e",
+        measurementId: "G-KWBELWRC5M"
+    };
+
+    // UI refs
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const gameOverEl = document.getElementById('gameOver');
+    const finalStatsEl = document.getElementById('finalStats');
+    const newGameBtn = document.getElementById('newGameBtn');
+    const backBtn = document.getElementById('backBtn');
+    const inlineError = document.getElementById('inlineError');
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // game variables
+    const grid = 16;
+    let tileCount = 20; // will adapt with resize
+    let score = 0;
+    let highScore = 0;
+    let loopId = null;
+    let count = 0;
+
+    let snake = { x: 160, y:160, dx: grid, dy:0, cells: [], maxCells: 4 };
+    let apple = { x: 256, y: 256 };
+
+    // DB listeners (tenant aware)
+    let queueRef = null;
+    let counterRef = null;
+
+    let hasNavigated = false;
+    let currentQueueKey = null;
+    let currentQueueData = null;
+
+    // scroll-lock helpers
+    let _preventTouchMove = (e) => { e.preventDefault(); };
+    function lockScroll() {
+      document.documentElement.classList.add('no-scroll');
+      document.body.classList.add('no-scroll');
+      window.addEventListener('wheel', preventWheel, { passive: false });
+      window.addEventListener('touchmove', _preventTouchMove, { passive: false });
+    }
+    function unlockScroll() {
+      document.documentElement.classList.remove('no-scroll');
+      document.body.classList.remove('no-scroll');
+      window.removeEventListener('wheel', preventWheel, { passive: false });
+      window.removeEventListener('touchmove', _preventTouchMove, { passive: false });
+    }
+    function preventWheel(e){ e.preventDefault(); }
+
+    function showError(msg) {
+      inlineError.textContent = msg;
+      inlineError.classList.remove('hidden');
+      setTimeout(()=> inlineError.classList.add('hidden'), 5000);
+    }
+
+    function randInt(min, max){ return Math.floor(Math.random() * (max - min)) + min; }
+
+    function resizeCanvasToContainer() {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(240, Math.min(480, Math.round(rect.width)));
+      canvas.width = w;
+      canvas.height = w;
+      tileCount = Math.max(6, Math.floor(w / grid));
+    }
+
+    window.addEventListener('resize', resizeCanvasToContainer);
+
+    function resetGameState() {
+      // unlock scroll on restart
+      unlockScroll();
+
+      resizeCanvasToContainer();
+      const mid = Math.floor(canvas.width / 2 / grid) * grid;
+      snake = { x: mid, y: mid, dx: grid, dy: 0, cells: [], maxCells: 4 };
+      apple = { x: (randInt(0, tileCount) * grid), y: (randInt(0, tileCount) * grid) };
+      score = 0;
+      count = 0;
+      scoreEl.textContent = score;
+      gameOverEl.classList.add('hidden');
+      if (loopId) cancelAnimationFrame(loopId);
+      loopId = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      if (loopId) cancelAnimationFrame(loopId);
+      loopId = null;
+      finalStatsEl.innerText = `Final Score: ${score}`;
+      gameOverEl.classList.remove('hidden');
+
+      // lock scrolling while Game Over is visible
+      lockScroll();
+    }
+
+    function gameLoop() {
+      loopId = requestAnimationFrame(gameLoop);
+      if (++count < 4) return;
+      count = 0;
+
+      ctx.fillStyle = '#F3F4F6';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      snake.x += snake.dx;
+      snake.y += snake.dy;
+
+      // wall collision -> end
+      if (snake.x < 0 || snake.x >= canvas.width || snake.y < 0 || snake.y >= canvas.height) {
+        endGame(); return;
+      }
+
+      snake.cells.unshift({ x: snake.x, y: snake.y });
+      if (snake.cells.length > snake.maxCells) snake.cells.pop();
+
+      // draw apple
+      ctx.fillStyle = 'red';
+      ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
+
+      // draw snake
+      ctx.fillStyle = 'green';
+      for (let i=0;i<snake.cells.length;i++){
+        const cell = snake.cells[i];
+        ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1);
+
+        // apple eaten
+        if (cell.x === apple.x && cell.y === apple.y){
+          score += 10;
+          snake.maxCells++;
+          scoreEl.textContent = score;
+          if (score > highScore){ highScore = score; highScoreEl.textContent = highScore; }
+          apple.x = randInt(0, tileCount) * grid;
+          apple.y = randInt(0, tileCount) * grid;
+        }
+
+        // collision with self
+        for (let j=i+1;j<snake.cells.length;j++){
+          if (cell.x === snake.cells[j].x && cell.y === snake.cells[j].y) { endGame(); return; }
+        }
+      }
+    }
+
+    // touch / click controls map to direction change
+    canvas.addEventListener('click', (e) => {
+      if (!loopId) return;
+      const rect = canvas.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const headX = snake.x + grid/2;
+      const headY = snake.y + grid/2;
+      const dx = cx - headX;
+      const dy = cy - headY;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0 && snake.dx === 0) { snake.dx = grid; snake.dy = 0; }
+        else if (dx < 0 && snake.dx === 0) { snake.dx = -grid; snake.dy = 0; }
+      } else {
+        if (dy > 0 && snake.dy === 0) { snake.dx = 0; snake.dy = grid; }
+        else if (dy < 0 && snake.dy === 0) { snake.dx = 0; snake.dy = -grid; }
+      }
+    });
+
+    // -------------------------
+    // Tenant-aware bootstrap
+    // -------------------------
+    function getSlugFromQueryOrPath() {
+      try {
+        const qp = new URLSearchParams(window.location.search);
+        const s = qp.get('slug') || qp.get('tenant') || qp.get('tenantSlug');
+        if (s && String(s).trim()) return String(s).trim();
+      } catch(e){}
+      try {
+        const p = window.location.pathname.replace(/^\/+|\/+$/g,'').split('/');
+        if (p && p.length && p[0] && !p[0].includes('.') ) return p[0];
+      } catch(e){}
+      return null;
+    }
+
+    async function resolveTenant(slug) {
+      try {
+        const res = await fetch(`/.netlify/functions/get-tenant?slug=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+        if (!res.ok) {
+          const txt = await res.text().catch(()=>null);
+          throw new Error(`Tenant lookup failed (${res.status}): ${txt || res.statusText}`);
+        }
+        return await res.json();
+      } catch (e) { throw e; }
+    }
+
+    function tenantRefFactory(dbInstance) {
+      return function tenantRef(relPath = '') {
+        relPath = String(relPath || '').replace(/^\/+/, '');
+        const tenantId = window.__TENANT_ID || null;
+        if (!tenantId) throw new Error('Tenant context is required before reading queue data.');
+        const base = `tenants/${tenantId}`;
+        if (!relPath) return ref(dbInstance, base);
+        return ref(dbInstance, `${base}/${relPath}`);
+      };
+    }
+
+    // cleanup helper
+    function cleanupListeners() {
+      try {
+        if (queueRef) { off(queueRef); queueRef = null; }
+        if (counterRef) { off(counterRef); counterRef = null; }
+      } catch (e) { console.warn('cleanup error', e); }
+    }
+
+    // redirect helper
+    function performRedirectToYourTurn(dbKey) {
+      try {
+        if (loopId) cancelAnimationFrame(loopId);
+        cleanupListeners();
+      } catch (e) { console.warn('redirect cleanup error', e); }
+      setTimeout(() => {
+        const params = new URLSearchParams({ queueId: dbKey });
+        if (window.__TENANT_SLUG) params.set('slug', window.__TENANT_SLUG);
+        if (window.__TENANT_ID) params.set('tenantId', window.__TENANT_ID);
+        window.location.assign(`/your_turn.html?${params.toString()}`);
+      }, 150);
+    }
+
+    // initQueueAndCounterListeners (tenant-scoped)
+    async function initQueueAndCounterListeners(db, tenantRefFn, dbKey) {
+      if (!dbKey) return;
+      cleanupListeners();
+
+      // Find the exact record in supported tenant-only layouts before attaching its live listener.
+      const candidates = [`queue/${dbKey}`, `public/queues/${dbKey}`, `public/queue/${dbKey}`, `queues/${dbKey}`];
+      let selectedPath = candidates[0];
+      for (const path of candidates) {
+        try {
+          const candidate = tenantRefFn(path);
+          const snapshot = await get(candidate);
+          if (snapshot?.exists?.()) { selectedPath = path; break; }
+        } catch (_) {}
+      }
+      const qPaths = [selectedPath];
+      let attached = false;
+      for (const p of qPaths) {
+        const candidateRef = tenantRefFn(p);
+        // attach a listener optimistically
+        try {
+          queueRef = candidateRef;
+          onValue(queueRef, (snap) => {
+            if (!snap.exists()) return;
+            const val = snap.val();
+            currentQueueData = val;
+
+            const identifiers = [];
+            function pushIf(v){
+              if (v === undefined || v === null) return;
+              const s = String(v).trim();
+              if (s.length) identifiers.push(s);
+            }
+            pushIf(val.ticketNumber);
+            pushIf(val.number);
+            pushIf(val.queueId);
+            pushIf(val.id);
+            pushIf(val.ticket);
+            pushIf(val.code);
+
+            const numericIds = identifiers.map(s => {
+              const n = Number(String(s).replace(/\D+/g,''));
+              return Number.isFinite(n) ? n : NaN;
+            });
+
+            const status = (val.status || '').toString().toLowerCase().replace(/[\s-]+/g, '_');
+            const explicitlyCalled = val.called === true || Boolean(val.calledAt || val.notifiedAt || val.servedAt);
+            if ((status === 'called' || status === 'serving' || status === 'called_by_staff' || explicitlyCalled) && !hasNavigated) {
+              hasNavigated = true;
+              performRedirectToYourTurn(dbKey);
+              return;
+            }
+
+            const counterId = val.counterId || val.counter || val.counter_id;
+            if (counterId) {
+              if (counterRef) { off(counterRef); counterRef = null; }
+              // tenant-scoped counter path
+              counterRef = tenantRefFn(`counters/${counterId}/nowServing`);
+              onValue(counterRef, (nowSnap) => {
+                if (!nowSnap.exists()) return;
+                let nowRaw = nowSnap.val();
+                if (typeof nowRaw === 'object' && nowRaw !== null) {
+                  nowRaw = nowRaw.value || nowRaw.nowServing || nowRaw.current || nowRaw;
+                }
+                nowRaw = String(nowRaw || '').trim();
+                if (!nowRaw) return;
+
+                if (!hasNavigated && identifiers.some(id => id === nowRaw)) {
+                  hasNavigated = true;
+                  performRedirectToYourTurn(dbKey);
+                  return;
+                }
+
+                const nowNum = Number(nowRaw.replace(/\D+/g,''));
+                if (!hasNavigated && Number.isFinite(nowNum)) {
+                  for (const idNum of numericIds) {
+                    if (Number.isFinite(idNum) && idNum === nowNum) {
+                      hasNavigated = true;
+                      performRedirectToYourTurn(dbKey);
+                      return;
+                    }
+                  }
+                }
+
+                if (!hasNavigated && nowRaw === String(dbKey)) {
+                  hasNavigated = true;
+                  performRedirectToYourTurn(dbKey);
+                  return;
+                }
+              });
+            }
+          });
+          attached = true;
+          break;
+        } catch (e) {
+          console.warn('attach queue listener failed for', p, e);
+          try { off(candidateRef); } catch (_) {}
+        }
+      }
+      if (!attached) console.warn('Failed to attach any queue listener for', dbKey);
+    }
+
+    // bootstrap & start
+    (async function bootstrapTenantAware() {
+      const params = new URLSearchParams(window.location.search);
+      const slug = getSlugFromQueryOrPath();
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(slug || ''))) {
+        showError('Business link is missing or invalid. Return to your queue status page and reopen the game.');
+        return;
+      }
+
+      document.getElementById('tenant-slug-badge').style.display = 'block';
+      document.getElementById('tenant-slug-value').textContent = slug;
+      try {
+        const info = await resolveTenant(slug);
+        const tenantId = info.tenantId || null;
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(tenantId || ''))) throw new Error('Invalid tenant returned');
+        window.__TENANT_SLUG = slug;
+        window.__TENANT_ID = tenantId;
+      document.getElementById('tenant-id-value').textContent = `id:${tenantId}`;
+      const requestedTenantId = params.get('tenantId');
+      if (requestedTenantId && requestedTenantId !== String(tenantId)) throw new Error('Ticket link does not match this business.');
+        window.dispatchEvent(new CustomEvent('tenant.public.loaded', { detail: { tenantId, slug, config: info.config || info } }));
+      } catch (err) {
+        console.error('Tenant resolution failed:', err);
+        showError('Business lookup failed. Please return to your QueueJoy status page and try again.');
+        return;
+      }
+
+      // init firebase & tenantRef
+      let app;
+      try {
+        app = initializeApp(siteFirebaseConfig);
+      } catch (e) {
+        console.error('Firebase init failed', e);
+        showError('Firebase init failed (check console).');
+        return;
+      }
+      const db = getDatabase(app);
+      const tenantRef = tenantRefFactory(db);
+
+      // handle queueId param for redirect listening
+      const dbKey = params.get('queueId');
+      currentQueueKey = dbKey || null;
+      if (currentQueueKey) {
+        try { await initQueueAndCounterListeners(db, tenantRef, currentQueueKey); } catch (e) { console.warn('initQueueAndCounterListeners error', e); }
+      }
+
+      // Back navigation handler
+      backBtn.addEventListener('click', () => {
+        try { if (loopId) cancelAnimationFrame(loopId); } catch(e){}
+        cleanupListeners();
+        unlockScroll();
+        if (currentQueueKey) {
+          const target = `status.html?queueId=${encodeURIComponent(currentQueueKey)}${window.__TENANT_SLUG ? '&slug=' + encodeURIComponent(window.__TENANT_SLUG) : ''}`;
+          window.location.assign(target);
+        } else {
+          const target = `index.html${window.__TENANT_SLUG ? '?slug=' + encodeURIComponent(window.__TENANT_SLUG) : ''}`;
+          window.location.assign(target);
+        }
+      });
+
+      newGameBtn.addEventListener('click', () => { resetGameState(); });
+
+      // start game immediately
+      resizeCanvasToContainer();
+      resetGameState();
+
+      // cleanup on unload
+      window.addEventListener('beforeunload', () => {
+        try { if (loopId) cancelAnimationFrame(loopId); cleanupListeners(); unlockScroll(); } catch (e) {}
+      });
+    })();
+
+  </script>
+</body>
+</html>

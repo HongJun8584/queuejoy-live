@@ -1,0 +1,7 @@
+[build]
+  command = "npm install"
+  publish = "tenant-template/public"
+  functions = "tenant-template/functions"
+
+[functions]
+  node_bundler = "esbuild"
