@@ -16,7 +16,7 @@
 const crypto = require('crypto');
 const fetch = globalThis.fetch || require('node-fetch');
 
-const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 24 * 60 * 60 * 1000);
+const TOKEN_TTL_MS = Math.max(60_000, Math.min(60 * 60 * 1000, Number(process.env.TOKEN_TTL_MS) || 15 * 60 * 1000));
 const DEFAULT_BOT_USERNAME = 'queuejoy_notify_bot';
 
 function makeHeaders(origin) {
@@ -360,19 +360,21 @@ exports.handler = async function (event) {
     expiresAt,
   });
 
-  const tokenPaths = [
-    `telegramTokens/${token}`,
-    `tenants/${tenantId}/integrations/telegram/tokens/${token}`,
-    `tenants/${tenantId}/telegramTokens/${token}`,
-  ];
+  // Canonical record: telegramTokens/{token}. The webhook continues to read
+  // older tenant-scoped records for links created before this version.
+  const tokenPath = `telegramTokens/${token}`;
 
   // firebase-admin write first
   if (init.ok && init.admin) {
     try {
       const db = init.admin.database();
-      const updates = {};
-      for (const p of tokenPaths) updates[p] = tokenPayload;
-      await db.ref().update(updates);
+      const tokenRef = db.ref(tokenPath);
+      await tokenRef.set(tokenPayload);
+      const verify = await tokenRef.get();
+      const saved = verify?.val?.();
+      if (!verify?.exists?.() || saved?.tenantId !== tenantId || saved?.queueKey !== queueKey || saved?.expiresAt !== expiresAt) {
+        throw new Error('token_write_verification_failed');
+      }
 
       return json(200, {
         ok: true,
@@ -423,13 +425,16 @@ exports.handler = async function (event) {
     }
   }
 
-  const restResults = await Promise.allSettled(
-    tokenPaths.map((p) => restPut(`/${p}.json`, tokenPayload))
-  );
-
-  const persisted = restResults.some((r) => r.status === 'fulfilled' && r.value?.ok);
-
-  if (!persisted) return json(502, { ok: false, error: 'token_persist_failed' }, origin);
+  const writeResult = await restPut(`/${tokenPath}.json`, tokenPayload);
+  if (!writeResult.ok) return json(502, { ok: false, error: 'token_persist_failed' }, origin);
+  try {
+    const verifyRes = await fetch(`${FIREBASE_DB_URL}/${tokenPath.split('/').map(encodeURIComponent).join('/')}.json`);
+    const saved = verifyRes.ok ? await verifyRes.json() : null;
+    if (!saved || saved.tenantId !== tenantId || saved.queueKey !== queueKey || saved.expiresAt !== expiresAt) {
+      return json(502, { ok: false, error: 'token_write_verification_failed' }, origin);
+    }
+  } catch { return json(502, { ok: false, error: 'token_write_verification_failed' }, origin); }
+  const persisted = true;
 
   return json(200, {
     ok: true,
