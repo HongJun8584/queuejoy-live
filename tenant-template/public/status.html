@@ -786,6 +786,8 @@ const state = {
   isCanceled: false,
   avgServiceTimeMin: CONFIG.defaultAvgServiceMin,
   latestConnectLink: null,
+  latestConnectCreatedAt: 0,
+  latestConnectExpiresAt: 0,
   linkGenerating: false,
   initResolved: false,
   configLoaded: false,
@@ -1530,8 +1532,13 @@ async function refreshAdFromTenantConfig() {
 /* =========================
    TELEGRAM LINK
    ========================= */
-async function generateLink() {
-  if (state.linkGenerating || state.latestConnectLink) return;
+async function generateLink({ force = false } = {}) {
+  if (state.linkGenerating) return;
+  const now = Date.now();
+  if (!force && state.latestConnectLink && state.latestConnectExpiresAt - now > 60_000) return;
+  state.latestConnectLink = null;
+  state.latestConnectCreatedAt = 0;
+  state.latestConnectExpiresAt = 0;
   state.linkGenerating = true;
 
   const btn = $("obFinish");
@@ -1562,7 +1569,17 @@ async function generateLink() {
 
     if (!res.ok) throw new Error("API error " + res.status);
     const j = await res.json();
-    state.latestConnectLink = j?.link || null;
+    const linkUrl = new URL(String(j?.link || ''));
+    const token = linkUrl.searchParams.get('start');
+    const createdAt = Date.parse(j?.createdAt || '');
+    const expiresAt = Date.parse(j?.expiresAt || '');
+    if (j?.ok !== true || linkUrl.protocol !== 'https:' || linkUrl.hostname !== 't.me' ||
+        !/^\w[\w_]{4,31}$/.test(linkUrl.pathname.slice(1)) || !token || !/^[A-Za-z0-9_-]{6,100}$/.test(token) ||
+        !Number.isFinite(createdAt) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() + 60_000 || expiresAt <= createdAt ||
+        (j?.persisted === false)) throw new Error('Server did not return a valid, persisted Telegram link');
+    state.latestConnectLink = linkUrl.href;
+    state.latestConnectCreatedAt = createdAt;
+    state.latestConnectExpiresAt = expiresAt;
   } catch (e) {
     console.warn("[QJ] Link generation failed:", e.message);
   }
@@ -1594,6 +1611,13 @@ async function generateLink() {
 
 function openTelegram() {
   if (state.linkGenerating) return;
+  if (!state.latestConnectLink || !state.latestConnectExpiresAt || state.latestConnectExpiresAt <= Date.now() + 60_000) {
+    state.latestConnectLink = null;
+    state.latestConnectCreatedAt = 0;
+    state.latestConnectExpiresAt = 0;
+    generateLink({ force: true });
+    return;
+  }
 
   const btn = $("obFinish");
   const content = $("obFinishContent");
@@ -1817,15 +1841,14 @@ $("obFinish").onclick = openTelegram;
 $("obModal").onclick = (e) => { if (e.target === $("obModal")) closeModal(); };
 
 $("btnConnect").onclick = () => {
-  if (state.latestConnectLink) {
-    openTelegram();
-  } else {
-    openModal();
-    if (!state.latestConnectLink) {
-      showSlide(2);
-      generateLink();
-    }
-  }
+  // An explicit click always creates a fresh one-time link; stale in-memory links
+  // must never be reopened after expiry or prior invalidation.
+  state.latestConnectLink = null;
+  state.latestConnectCreatedAt = 0;
+  state.latestConnectExpiresAt = 0;
+  openModal();
+  showSlide(2);
+  generateLink({ force: true });
 };
 
 $("btnGame").onclick = () => {
