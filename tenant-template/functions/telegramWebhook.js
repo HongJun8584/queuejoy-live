@@ -20,7 +20,7 @@ const { URL } = require('url');
 
 const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '';
 const SITE_BASE = process.env.SITE_BASE || 'https://queuejoy-live.netlify.app';
-const EXPLORE_URL = process.env.EXPLORE_URL || 'https://helloqueuejoy.netlify.app';
+const EXPLORE_URL = 'https://helloqueuejoy.netlify.app';
 
 function safe(v, d = '') {
   if (v === 0) return '0';
@@ -40,6 +40,19 @@ function escapeHtml(v) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function connectedMessage(ticket, counter) {
+  return [
+    '✅ <b>You are connected to QueueJoy!</b>',
+    '',
+    `🎫 Your ticket: <b>${escapeHtml(ticket)}</b>`,
+    `🪑 Counter: <b>${escapeHtml(counter)}</b>`,
+    '',
+    '🔔 We will send your alerts here when it is your turn.',
+    '',
+    'You can safely close the page now — we have your Telegram connected.',
+  ].join('\n');
 }
 
 function normalizeToken(raw) {
@@ -450,21 +463,24 @@ function tokenExpiryMs(value) {
 async function claimTokenUse(db, tokenPath, tenantId) {
   if (!db || !tokenPath || !tenantId) return { ok: false, reason: 'missing-token-path' };
   const tokenRef = db.ref(tokenPath);
-  const claimedAt = now();
+  const claimAt = now();
   try {
     const result = await tokenRef.transaction(current => {
       if (!current || typeof current !== 'object') return;
       if (safe(current.tenantId || current.tenant) !== safe(tenantId) || current.used === true) return;
       const expiry = tokenExpiryMs(current.expiresAt);
       if (expiry == null || expiry <= Date.now()) return;
-      return { ...current, used: true, usedAt: claimedAt };
+      const priorClaim = tokenExpiryMs(current.connectionClaimedAt);
+      if (priorClaim && Date.now() - priorClaim < 90_000) return;
+      return { ...current, connectionClaimedAt: claimAt };
     }, undefined, false);
-    if (result?.committed) return { ok: true, usedAt: claimedAt, record: result.snapshot?.val?.() || {} };
+    if (result?.committed) return { ok: true, claimAt, record: result.snapshot?.val?.() || {} };
     const current = result?.snapshot?.val?.() || null;
     if (!current) return { ok: false, reason: 'token-missing' };
     if (current.used === true) return { ok: false, reason: 'token-used', record: current };
     if (safe(current.tenantId || current.tenant) !== safe(tenantId)) return { ok: false, reason: 'tenant-mismatch' };
     if ((tokenExpiryMs(current.expiresAt) || 0) <= Date.now()) return { ok: false, reason: 'token-expired' };
+    if (current.connectionClaimedAt && Date.now() - (tokenExpiryMs(current.connectionClaimedAt) || Date.now()) < 90_000) return { ok: false, reason: 'token-claim-in-progress' };
     return { ok: false, reason: 'token-not-claimable' };
   } catch (error) {
     console.warn('[telegramWebhook] token claim failed', error?.name || 'DatabaseError');
@@ -472,13 +488,13 @@ async function claimTokenUse(db, tokenPath, tenantId) {
   }
 }
 
-async function releaseTokenClaim(db, tokenPath, usedAt) {
-  if (!db || !tokenPath || !usedAt) return;
+async function releaseTokenClaim(db, tokenPath, claimAt) {
+  if (!db || !tokenPath || !claimAt) return;
   try {
     await db.ref(tokenPath).transaction(current => {
-      if (!current || current.used !== true || current.usedAt !== usedAt) return;
-      const next = { ...current, used: false };
-      delete next.usedAt;
+      if (!current || current.connectionClaimedAt !== claimAt || current.used === true) return;
+      const next = { ...current };
+      delete next.connectionClaimedAt;
       return next;
     }, undefined, false);
   } catch (error) {
@@ -486,14 +502,31 @@ async function releaseTokenClaim(db, tokenPath, usedAt) {
   }
 }
 
+async function completeTokenUse(db, tokenPath, claimAt) {
+  if (!db || !tokenPath || !claimAt) return false;
+  try {
+    const result = await db.ref(tokenPath).transaction(current => {
+      if (!current || current.connectionClaimedAt !== claimAt || current.used === true) return;
+      const next = { ...current, used: true, usedAt: now() };
+      delete next.connectionClaimedAt;
+      return next;
+    }, undefined, false);
+    return Boolean(result?.committed);
+  } catch (error) {
+    console.warn('[telegramWebhook] token completion failed', error?.name || 'DatabaseError');
+    return false;
+  }
+}
+
+
 async function claimConfirmationOnce(db, tokenPath) {
-  const claimAt = now();
   if (!db || !tokenPath) return null;
+  const claimAt = now();
   try {
     const result = await db.ref(tokenPath).transaction(current => {
       if (!current || current.used !== true || current.confirmationSentAt) return;
-      const pendingAt = tokenExpiryMs(current.confirmationClaimedAt);
-      if (pendingAt && Date.now() - pendingAt < 90000) return;
+      const previousClaim = tokenExpiryMs(current.confirmationClaimedAt);
+      if (previousClaim && Date.now() - previousClaim < 90_000) return;
       return { ...current, confirmationClaimedAt: claimAt };
     }, undefined, false);
     return result?.committed ? claimAt : null;
@@ -524,27 +557,6 @@ async function sendConnectedConfirmation(db, tokenPath, chatId, text, keyboard) 
   const result = await sendTelegram(chatId, text, { reply_markup: keyboard });
   await finishConfirmation(db, tokenPath, claimAt, Boolean(result?.ok));
   return Boolean(result?.ok);
-}
-
-async function markTokenUsedAllPaths(db, tenantId, token) {
-  const nowIso = now();
-  const paths = [
-    `telegramTokens/${token}`,
-    `tenants/${tenantId}/telegramTokens/${token}`,
-    `tenants/${tenantId}/integrations/telegram/tokens/${token}`,
-  ];
-
-  const updates = {};
-  for (const p of paths) {
-    updates[`${p}/used`] = true;
-    updates[`${p}/usedAt`] = nowIso;
-  }
-
-  try {
-    await db.ref().update(updates);
-  } catch (e) {
-    console.warn('[telegramWebhook] markTokenUsedAllPaths failed', e?.name || 'DatabaseError');
-  }
 }
 
 async function logNotificationPerformed(db, { tenantId, queueKey, queueId, queueNumber, messageType, extra }) {
@@ -755,14 +767,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
       db,
       resolved.tokenPath,
       chatId,
-      [
-        '✅ <b>Your ticket is already connected.</b>',
-        '',
-        `🎫 Ticket: <b>${escapeHtml(ticketLabel)}</b>`,
-        `🪑 Counter: <b>${escapeHtml(counterName)}</b>`,
-        '',
-        'We will send your turn alerts here.',
-      ].join('\n'),
+      connectedMessage(ticketLabel, counterName),
       makeConnectedKeyboard(exactQueue.queueKey, slug || exactQueue.entry?.slug, tenantId, ticketLabel)
     );
     return;
@@ -790,14 +795,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
           db,
           resolved.tokenPath,
           chatId,
-          [
-            '✅ <b>Your ticket is already connected.</b>',
-            '',
-            `🎫 Ticket: <b>${escapeHtml(ticketLabel)}</b>`,
-            `🪑 Counter: <b>${escapeHtml(counterName)}</b>`,
-            '',
-            'We will send your turn alerts here.',
-          ].join('\n'),
+          connectedMessage(ticketLabel, counterName),
           makeConnectedKeyboard(latestQueue.queueKey, slug || latestQueue.entry?.slug, tenantId, ticketLabel)
         );
         return;
@@ -809,7 +807,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
 
   const attach = await attachChatToQueue(db, tenantId, tokenRecord, chatId, exactQueue);
   if (!attach?.ok) {
-    await releaseTokenClaim(db, resolved.tokenPath, claim.usedAt);
+    await releaseTokenClaim(db, resolved.tokenPath, claim.claimAt);
     await sendTelegram(
       chatId,
       [
@@ -824,7 +822,23 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
     return;
   }
 
-  await markTokenUsedAllPaths(db, tenantId, normalized);
+  const tokenCompleted = await completeTokenUse(db, resolved.tokenPath, claim.claimAt);
+  if (!tokenCompleted) {
+    // The queue was attached, so retain the valid link and use the same one-time
+    // confirmation path even if token finalization needs later recovery.
+    console.error('[telegramWebhook] queue linked but token completion was not persisted', JSON.stringify({ tenantId, queueKey: attach.queueKey }));
+    const entry = attach.entry || {};
+    const ticketLabel = safe(entry.queueNumber || entry.number || tokenRecord.queueNumber || tokenRecord.queueId || attach.queueKey);
+    const counterName = (await resolveCounterName(db, tenantId, entry, tokenRecord)) || 'your assigned counter';
+    await sendConnectedConfirmation(
+      db,
+      resolved.tokenPath,
+      chatId,
+      connectedMessage(ticketLabel, counterName),
+      makeConnectedKeyboard(attach.queueKey, slug || entry.slug || attach.slug, tenantId, ticketLabel)
+    );
+    return;
+  }
 
   const entry = attach.entry || {};
   const ticketLabel = safe(
@@ -860,16 +874,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
     db,
     resolved.tokenPath,
     chatId,
-    [
-      attach.alreadyLinked ? '✅ <b>This ticket is already connected.</b>' : '✅ <b>You are connected to QueueJoy!</b>',
-      '',
-      `🎫 Your ticket: <b>${escapeHtml(ticketLabel)}</b>`,
-      `🪑 Counter: <b>${escapeHtml(counterName)}</b>`,
-      '',
-      '🔔 We will send your alerts here when it is your turn.',
-      '',
-      attach.alreadyLinked ? 'No changes were needed. Your alerts will continue here.' : 'You can safely close the page now — we have your Telegram connected.',
-    ].join('\n'),
+    connectedMessage(ticketLabel, counterName),
     makeConnectedKeyboard(attach.queueKey, slug || attach.slug, tenantId, ticketLabel)
   );
 }
