@@ -666,21 +666,11 @@ async function handleStartWithNoToken(chatId) {
   await sendTelegram(
     chatId,
     [
-      '👋 <b>Welcome to QueueJoy!</b>',
+      '👋 <b>Welcome to QueueJoy.</b>',
       '',
-      'To connect your ticket:',
+      '🔔 I can send you a quiet, helpful update when it is your turn.',
       '',
-      '1️⃣ Open your QueueJoy status page',
-      '2️⃣ Tap <b>📲 Connect Telegram</b>',
-      '3️⃣ Tap <b>Start</b> in Telegram',
-      '',
-      '🔔 You will get:',
-      '• Turn alerts',
-      '• Promotions',
-      '• Discounts',
-      '• Important updates',
-      '',
-      'If you already have a token link, paste it here and I will connect you right away.',
+      'To connect your ticket, open your QueueJoy status page and tap <b>📲 Connect Telegram</b>.\nThen return here and tap <b>Start</b> on the link.',
     ].join('\n'),
     { reply_markup: makeExploreKeyboard() }
   );
@@ -688,15 +678,15 @@ async function handleStartWithNoToken(chatId) {
 
 async function handleTokenConnect(db, chatId, tokenRaw) {
   const normalized = normalizeToken(tokenRaw);
-  const showRefreshLink = () => sendTelegram(
-    chatId,
-    [
-      '⚠️ This link is expired, invalid, or already connected to a different chat.',
-      '',
-      'Please return to your QueueJoy status page and tap <b>Connect Telegram</b> to request a new link.',
-    ].join('\n'),
-    { reply_markup: makeExploreKeyboard() }
-  );
+  const showRefreshLink = (reason = 'TOKEN_INVALID') => {
+    console.warn('[telegramWebhook] connection_rejected', JSON.stringify({ reason, chatId: String(chatId) }));
+    const text = reason === 'TOKEN_EXPIRED'
+      ? '⏳ This connection link has expired.\n\nPlease return to QueueJoy and tap <b>📲 Connect Telegram</b> to get a fresh link.'
+      : reason === 'CHAT_MISMATCH' || reason === 'QUEUE_ALREADY_CONNECTED'
+        ? '🔒 This ticket is already connected to another Telegram chat.\n\nFor your security, the existing connection was left unchanged. Please contact the business if you need help.'
+        : '🔗 This connection link is no longer valid.\n\nPlease return to QueueJoy and tap <b>📲 Connect Telegram</b> to request a fresh link.';
+    return sendTelegram(chatId, text, { reply_markup: makeExploreKeyboard() });
+  };
   if (!tokenLooksValid(normalized)) {
     await sendTelegram(
       chatId,
@@ -715,7 +705,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
     await sendTelegram(
       chatId,
       [
-        '⚠️ This link is expired or no longer recognized.',
+        '🔗 This connection link is no longer valid.',
         '',
         'Please go back to your QueueJoy page and tap <b>📲 Connect Telegram</b> again.',
       ].join('\n'),
@@ -727,7 +717,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
   const tenantId = resolved.tenantId;
   const tokenRecord = resolved.tokenRecord || {};
   if (tokenRecord.tenantId && safe(tokenRecord.tenantId) !== safe(tenantId)) {
-    await showRefreshLink();
+    await showRefreshLink('TENANT_MISMATCH');
     return;
   }
   const slug = safe(tokenRecord.slug || '');
@@ -756,7 +746,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
 
   if (tokenRecord.used === true) {
     if (!alreadyConnectedToThisChat) {
-      await showRefreshLink();
+      await showRefreshLink(initialChatId ? 'CHAT_MISMATCH' : 'TOKEN_ALREADY_USED');
       return;
     }
     const ticketLabel = safe(initialEntry.queueNumber || initialEntry.number || tokenRecord.queueNumber || exactQueue.queueKey);
@@ -780,11 +770,11 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
 
   const expiry = tokenExpiryMs(tokenRecord.expiresAt);
   if (expiry == null || expiry <= Date.now()) {
-    await showRefreshLink();
+    await showRefreshLink('TOKEN_EXPIRED');
     return;
   }
   if (initialChatId && String(initialChatId) !== String(chatId)) {
-    await showRefreshLink();
+    await showRefreshLink('QUEUE_ALREADY_CONNECTED');
     return;
   }
 
@@ -813,7 +803,7 @@ async function handleTokenConnect(db, chatId, tokenRaw) {
         return;
       }
     }
-    await showRefreshLink();
+    await showRefreshLink(claim.reason === 'token-expired' ? 'TOKEN_EXPIRED' : claim.reason === 'token-used' ? 'TOKEN_ALREADY_USED' : 'TOKEN_NOT_CLAIMABLE');
     return;
   }
 
@@ -994,7 +984,7 @@ exports.handler = async (event) => {
 
     return { statusCode: 200, body: 'OK' };
   } catch (err) {
-    console.error('[telegramWebhook] Handler error', err?.name || 'Error');
+    console.error('[telegramWebhook] handler_failed', JSON.stringify({ name: err?.name || 'Error', message: String(err?.message || '').slice(0, 240) }));
     return { statusCode: 200, body: 'OK' };
   }
 };
