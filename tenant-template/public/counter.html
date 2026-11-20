@@ -294,23 +294,23 @@
     .display-brand{display:flex;align-items:center;gap:1.4%;min-width:0;max-width:72%;height:100%}
     .display-logo-wrap{width:clamp(28px,5.5cqw,74px);height:clamp(28px,5.5cqw,74px);flex:none;display:flex;align-items:center;justify-content:center}
     .display-logo{width:100%;height:100%;object-fit:contain;display:none}
-    .display-brand-name{font-size:clamp(13px,min(3cqw,var(--disp-company-size,34px)),62px);font-weight:850;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .display-brand-sub{font-size:clamp(8px,1.15cqw,17px);color:var(--disp-muted);margin-top:.35em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .display-brand-name{font-size:clamp(12px,min(3cqw,var(--disp-company-size,34px)),62px);font-weight:850;line-height:1.06;white-space:normal;overflow-wrap:anywhere;max-width:100%}
+    .display-brand-sub{font-size:clamp(8px,1.15cqw,17px);color:var(--disp-muted);margin-top:.35em;white-space:normal;overflow-wrap:anywhere}
     .display-clock{text-align:right;flex:none;max-width:30%}
     .display-clock-time{font-size:clamp(15px,3.1cqw,58px);font-weight:850;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
     .display-clock-date{font-size:clamp(8px,1.25cqw,19px);color:var(--disp-muted);margin-top:.35em;white-space:nowrap}
     .display-main{background:color-mix(in srgb,var(--disp-accent) 88%,#2dd4bf);border:1px solid rgba(255,255,255,.16);border-radius:1.8cqw;padding:3%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:var(--disp-align,center);box-shadow:0 1.4cqw 3.5cqw rgba(0,0,0,.16)}
     .display-main-label{font-size:clamp(11px,1.6cqw,26px);font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.86)}
     .display-main-ticket{font-size:clamp(30px,min(13cqw,var(--disp-ticket-size,150px)),190px);font-weight:900;line-height:1.02;letter-spacing:-.045em;color:#fff;margin:.12em 0;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-    .display-main-counter{display:inline-flex;align-items:center;gap:.5em;background:rgba(255,255,255,.94);color:#064b83;border-radius:999px;padding:.38em .9em;font-size:clamp(11px,2.5cqw,38px);font-weight:850;max-width:96%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .display-main-counter{display:inline-flex;align-items:center;justify-content:center;text-align:center;gap:.5em;background:rgba(255,255,255,.94);color:#064b83;border-radius:1em;padding:.38em .9em;font-size:clamp(10px,2.2cqw,34px);font-weight:850;max-width:96%;white-space:normal;overflow-wrap:anywhere;line-height:1.12}
     .display-main-detail{font-size:clamp(8px,1.35cqw,21px);color:rgba(255,255,255,.92);margin-top:.7em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:94%}
     .display-side{display:grid;grid-template-rows:repeat(4,minmax(0,1fr));gap:1.3%;}
     .display-counter-card{display:flex;flex-direction:column;justify-content:center;gap:5%;padding:3.8% 4%;background:var(--disp-panel);border:1px solid rgba(255,255,255,.14);border-radius:1.25cqw;min-height:0}
     .display-counter-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--disp-muted);font-size:clamp(7px,1.2cqw,18px);font-weight:800;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
-    .display-counter-name{overflow:hidden;text-overflow:ellipsis}
+    .display-counter-name{min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.15}
     .display-counter-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
     .display-counter-ticket{font-size:clamp(16px,3.1cqw,48px);font-weight:900;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-    .display-counter-room{font-size:clamp(8px,1.35cqw,20px);font-weight:750;background:rgba(255,255,255,.12);padding:.35em .7em;border-radius:999px;color:var(--disp-text);white-space:nowrap;max-width:50%;overflow:hidden;text-overflow:ellipsis}
+    .display-counter-room{font-size:clamp(8px,1.15cqw,17px);font-weight:750;background:rgba(255,255,255,.12);padding:.3em .6em;border-radius:.65em;color:var(--disp-text);white-space:normal;overflow-wrap:anywhere;max-width:55%;line-height:1.15}
     .display-next{display:flex;align-items:center;gap:1.5%;}
     .display-next-label{font-size:clamp(8px,1.3cqw,20px);font-weight:900;letter-spacing:.14em;color:var(--disp-muted);white-space:nowrap}
     .display-next-list{display:flex;align-items:center;gap:1.3%;min-width:0;flex:1}
@@ -543,9 +543,9 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
           <label class="display-control-label mt-3" for="displayLogoFile">Or upload logo</label>
           <input id="displayLogoFile" class="display-field" type="file" accept="image/png,image/jpeg,image/webp"/>
           <p class="text-[11px] text-slate-400 mt-1">Uses this business’s shared logo. Changes publish to the tenant’s public branding settings.</p>
-          <label class="display-control-label mt-3" for="displayVideoUrl">Optional background video · YouTube or HTTPS MP4/WebM</label>
+          <label class="display-control-label mt-3" for="displayVideoUrl">Display video · YouTube or HTTPS MP4/WebM</label>
           <input id="displayVideoUrl" class="display-field" type="url" maxlength="2000" placeholder="https://youtu.be/… or https://example.com/loop.mp4"/>
-          <p class="text-[11px] text-slate-400 mt-1">Muted, responsive, and lazy-loaded only while previewing or presenting. Stored separately from ads.</p>
+          <p class="text-[11px] text-slate-400 mt-1">Muted autoplay is used where permitted by the browser. Saved in this tenant’s existing display settings.</p>
         </section>
         <section class="display-control-group">
           <h3 class="text-sm font-extrabold text-slate-900 mb-3">Colors &amp; Theme</h3>
@@ -1324,6 +1324,29 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       element.style.height = `${position.h}%`;
     }
 
+    function fitImportantNames() {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const fit = (el, maxPx, minPx) => {
+        if (!el) return;
+        const text = String(el.textContent || '').trim();
+        const parent = el.parentElement;
+        if (!text || !parent) return;
+        const available = Math.max(24, parent.clientWidth - 8);
+        let size = maxPx;
+        ctx.font = `800 ${size}px ${getComputedStyle(el).fontFamily}`;
+        const width = ctx.measureText(text).width;
+        if (width > available) size = Math.max(minPx, size * available / width);
+        el.style.fontSize = `${size}px`;
+      };
+      const brand = $('displayBrandName');
+      fit(brand, Math.min(62, Number(displayConfig?.companySize) || 34), 12);
+      document.querySelectorAll('.display-counter-name,.display-counter-room,.display-main-counter').forEach(el => {
+        fit(el, parseFloat(getComputedStyle(el).fontSize) || 18, 8);
+      });
+    }
+
     function renderDisplayClock() {
       const now = new Date();
       const time = $('displayClockTime');
@@ -1432,6 +1455,7 @@ Number {calledFull} was just called at {counterName}. Your number is {theirNumbe
       const avgWait = getGlobalAvgWaitMin();
       $('displayAverageValue').textContent = avgWait != null ? formatAverageWait(avgWait) : '—';
       setDisplayVideoSource();
+      requestAnimationFrame(fitImportantNames);
     }
 
     function selectDisplayElement(key) {
