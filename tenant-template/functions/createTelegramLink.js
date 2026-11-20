@@ -7,7 +7,7 @@
   What this fixes:
   - Resolves tenant from tenantId / slug safely
   - Generates a Telegram deep link for the current bot
-  - Writes the same complete token payload to ALL 3 paths
+  - Persists the complete token payload under the tenant integration subtree
   - Keeps queueKey separate from queueId / queueNumber
   - Supports firebase-admin first, REST fallback second
   - Stays compatible with status.html + telegramWebhook.js
@@ -236,6 +236,27 @@ async function getExactQueueWithRest(dbUrlRaw, tenantId, queueKey) {
   return null;
 }
 
+async function getCounterNameWithAdmin(admin, tenantId, counterId) {
+  if (!admin || !tenantId || !counterId) return '';
+  try {
+    const snap = await admin.database().ref(`tenants/${tenantId}/counters/${counterId}`).get();
+    const counter = snap?.exists?.() ? snap.val() || {} : {};
+    return sanitize(counter.name || counter.displayName || counter.label || '');
+  } catch { return ''; }
+}
+
+async function getCounterNameWithRest(dbUrlRaw, tenantId, counterId) {
+  const dbUrl = String(dbUrlRaw || '').replace(/\/$/, '');
+  if (!dbUrl || !tenantId || !counterId) return '';
+  try {
+    const path = `tenants/${tenantId}/counters/${counterId}`.split('/').map(encodeURIComponent).join('/');
+    const response = await fetch(`${dbUrl}/${path}.json`, { method: 'GET' });
+    if (!response.ok) return '';
+    const counter = await response.json().catch(() => null);
+    return sanitize(counter?.name || counter?.displayName || counter?.label || '');
+  } catch { return ''; }
+}
+
 function buildTokenRecord({
   token,
   tenantId,
@@ -339,7 +360,11 @@ exports.handler = async function (event) {
   const queueId = sanitize(queueEntry.queueId || queueEntry.id || queueKey);
   const queueNumber = actualQueueNumber || queueId;
   const counterId = sanitize(queueEntry.counterId || queueEntry.counter || queueEntry.counter_id || '');
-  const counterName = sanitize(queueEntry.counterName || '');
+  let counterName = sanitize(queueEntry.counterName || '');
+  if (!counterName && counterId) {
+    if (init.ok && init.admin) counterName = await getCounterNameWithAdmin(init.admin, tenantId, counterId);
+    if (!counterName && dbUrl) counterName = await getCounterNameWithRest(dbUrl, tenantId, counterId);
+  }
   const resolvedSlug = slug || sanitize(queueEntry.slug || '');
   const token = safeToken();
   const createdAt = new Date().toISOString();
@@ -360,9 +385,8 @@ exports.handler = async function (event) {
     expiresAt,
   });
 
-  // Canonical record: telegramTokens/{token}. The webhook continues to read
-  // older tenant-scoped records for links created before this version.
-  const tokenPath = `telegramTokens/${token}`;
+  // New records use the established tenant-scoped integration path.
+  const tokenPath = `tenants/${tenantId}/integrations/telegram/tokens/${token}`;
 
   // firebase-admin write first
   if (init.ok && init.admin) {
