@@ -34,6 +34,8 @@ const DATABASE_URL = (
 const TMP_STORE = '/tmp/queuejoy_store.json';
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 const MOVING_AVG_COUNT = 10;
+const CALLED_BUTTON_LABEL = '🌐 Explore QueueJoy';
+const CALLED_BUTTON_URL = 'https://helloqueuejoy.netlify.app';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -61,7 +63,7 @@ const DEFAULT_TEMPLATES = {
   welcomeMessage: '👋 Welcome! Your ticket <b>{theirNumber}</b> is registered. We\'ll notify you when it\'s your turn.',
   cancelMessage: '❌ Your ticket <b>{cancelledNumber}</b> has been cancelled. Thank you for your patience.',
   cancelPromotionMessage: '🎯 Great news! The queue has moved forward. Your number <b>{theirNumber}</b> is now next in line at <b>{counterName}</b>. Please get ready!',
-  buttonLabel: '👉 Explore QueueJoy',
+  buttonLabel: '🌐 Explore QueueJoy',
   buttonUrl: 'https://helloqueuejoy.netlify.app',
   footerText: '\n\nCurious how this works? Tap the button below to see tools your shop can use to keep customers happy.',
   includeFooter: true,
@@ -114,10 +116,19 @@ const ticketKeyFor = ({ ticketId, chatId, theirNumber }) =>
   ticketId ? String(ticketId) : `${String(chatId)}|${normalizeNumber(theirNumber)}`;
 
 // ===== Template Renderer =====
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function renderTemplate(template, vars) {
-  let result = template;
+  let result = String(template || '');
   for (const [key, value] of Object.entries(vars)) {
-    result = result.replaceAll(`{${key}}`, value != null ? String(value) : '');
+    result = result.replaceAll(`{${key}}`, escapeHtml(value));
   }
   return result;
 }
@@ -231,24 +242,42 @@ async function getTenantPublicConfig(adminDb, tenantId) {
   return {};
 }
 
-// ===== Duplicate Notification Check =====
-async function checkDuplicateNotification(adminDb, tenantId, ticketId) {
-  if (!ticketId) return false;
+// ===== Atomic one-time called-alert reservation =====
+async function claimCalledNotification(adminDb, tenantId, ticketId) {
+  if (!ticketId) return { ok: false, reason: 'missing-ticket-id' };
+  const path = `tenants/${tenantId}/notifications/sent/${ticketId}`;
   try {
     if (adminDb) {
-      const snap = await adminDb.ref(`tenants/${tenantId}/notifications/sent/${ticketId}`).get().catch(() => null);
-      return snap && snap.exists && snap.exists();
-    } else if (DATABASE_URL) {
-      const res = await fetch(`${DATABASE_URL}/tenants/${encodeURIComponent(tenantId)}/notifications/sent/${encodeURIComponent(ticketId)}.json`);
-      if (res.ok) { const data = await res.json(); return data !== null; }
+      const result = await adminDb.ref(path).transaction(current => {
+        if (current) return;
+        return { claimedAt: Date.now(), state: 'pending' };
+      }, undefined, false);
+      return result?.committed ? { ok: true } : { ok: false, reason: 'duplicate' };
     }
-  } catch (e) {}
-  return false;
+    if (DATABASE_URL) {
+      const url = `${DATABASE_URL}/${path.split('/').map(encodeURIComponent).join('/')}.json`;
+      const read = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+      if (!read.ok) return { ok: false, reason: 'database-unavailable' };
+      if ((await read.json()) !== null) return { ok: false, reason: 'duplicate' };
+      const etag = read.headers.get('ETag');
+      if (!etag) return { ok: false, reason: 'etag-unavailable' };
+      const write = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'If-Match': etag },
+        body: JSON.stringify({ claimedAt: Date.now(), state: 'pending' }),
+      });
+      if (write.status === 412) return { ok: false, reason: 'duplicate' };
+      return write.ok ? { ok: true } : { ok: false, reason: 'database-unavailable' };
+    }
+  } catch (error) {
+    console.warn('claimCalledNotification failed', error?.name || 'DatabaseError');
+  }
+  return { ok: false, reason: 'database-unavailable' };
 }
 
-async function markNotificationSent(adminDb, tenantId, ticketId, firebaseUpdates) {
+function markNotificationSent(tenantId, ticketId, firebaseUpdates) {
   if (!ticketId) return;
-  firebaseUpdates[`tenants/${tenantId}/notifications/sent/${ticketId}`] = { sentAt: Date.now() };
+  firebaseUpdates[`tenants/${tenantId}/notifications/sent/${ticketId}`] = { sentAt: Date.now(), state: 'sent' };
 }
 
 // ===== Duplicate Cancel Notification Check =====
@@ -671,6 +700,13 @@ exports.handler = async function (event) {
   ]);
 
   const tpl = { ...DEFAULT_TEMPLATES, ...(tenantSettings || {}) };
+  // Migrate the shipped legacy defaults to the required bolded, calm alert copy;
+  // preserve genuinely customized tenant templates.
+  const compactTemplate = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const legacyCalledCopy = '🎯 Dear customer, Your number {calledFull} has been called. Please proceed to {counterName}. Thank you!';
+  if (compactTemplate(tpl.calledMessage) === legacyCalledCopy) tpl.calledMessage = DEFAULT_TEMPLATES.calledMessage;
+  const legacyFooter = 'Curious how this works? Tap the button below to explore tools for your business.';
+  if (compactTemplate(tpl.footerText) === legacyFooter) tpl.footerText = DEFAULT_TEMPLATES.footerText;
   const tenantName = tenantPublicCfg?.displayName || slug || tenantId;
 
   const templateVars = {
@@ -748,10 +784,10 @@ exports.handler = async function (event) {
 
     // ===== Duplicate check =====
     const isMatch = theirNumber === calledFull;
-    if (isMatch && ticketId) {
-      const alreadySent = await checkDuplicateNotification(adminDb, tenantId, ticketId);
-      if (alreadySent) {
-        results.push({ chatId, theirNumber, ticketKey, action: 'skipped-duplicate' });
+    if (isMatch && ticketId && chatId) {
+      const claim = await claimCalledNotification(adminDb, tenantId, ticketId);
+      if (!claim.ok) {
+        results.push({ chatId, theirNumber, ticketKey, action: claim.reason === 'duplicate' ? 'skipped-duplicate' : 'skipped-notification-claim', reason: claim.reason });
         continue;
       }
     }
@@ -833,7 +869,7 @@ exports.handler = async function (event) {
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/completedAt`] = now;
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/serviceMs`] = serviceMs;
         firebaseUpdates[`tenants/${tenantId}/queue/${ticket.ticketId}/updatedAt`] = now;
-        markNotificationSent(adminDb, tenantId, ticket.ticketId, firebaseUpdates);
+        if (chatId) markNotificationSent(tenantId, ticket.ticketId, firebaseUpdates);
 
         // Push analytics service event with ALL required fields
         await pushServiceEventTenant(adminDb, tenantId, {
@@ -894,9 +930,9 @@ exports.handler = async function (event) {
     results.push(resEntry);
 
     if (chatId) {
-      const btnLabel = tpl.buttonLabel || DEFAULT_TEMPLATES.buttonLabel;
-      const btnUrl = tpl.buttonUrl || DEFAULT_TEMPLATES.buttonUrl;
-      const pref = tgPrepareMessage(chatId, text, btnLabel, btnUrl, extraInlineButtons);
+      const btnLabel = isMatch ? CALLED_BUTTON_LABEL : (tpl.buttonLabel || DEFAULT_TEMPLATES.buttonLabel);
+      const btnUrl = isMatch ? CALLED_BUTTON_URL : (tpl.buttonUrl || DEFAULT_TEMPLATES.buttonUrl);
+      const pref = tgPrepareMessage(chatId, text, btnLabel, btnUrl, isMatch ? [] : extraInlineButtons);
       telegramPrepared.push(pref);
       telegramToResultIndex.push(results.length - 1);
     } else {
